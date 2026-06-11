@@ -16,7 +16,6 @@ pub struct PrereqStatus {
 async fn check_tool(cmd: &str, args: &[&str]) -> bool {
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
         let result = Command::new(cmd)
@@ -46,10 +45,8 @@ async fn check_tool(cmd: &str, args: &[&str]) -> bool {
 
     #[cfg(not(target_os = "windows"))]
     {
-        Command::new(cmd)
+        silent_command(cmd)
             .args(args)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
             .status()
             .await
             .map(|s| s.success())
@@ -62,7 +59,7 @@ pub async fn check_prerequisites() -> PrereqStatus {
     let (docker_installed, docker_running, phpvm_installed, fnm_installed) = tokio::join!(
         check_tool("docker", &["--version"]),
         check_tool("docker", &["info"]),
-        check_tool("phpvm", &["--version"]),
+        check_tool("phpvm", &["version"]),
         check_tool("fnm", &["--version"]),
     );
 
@@ -78,7 +75,6 @@ pub async fn check_prerequisites() -> PrereqStatus {
 pub async fn start_docker() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
         let default_path = "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe";
