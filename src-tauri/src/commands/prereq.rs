@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 use std::process::Stdio;
+use super::util::silent_command;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -46,10 +47,8 @@ async fn check_tool(cmd: &str, args: &[&str]) -> bool {
 
     #[cfg(not(target_os = "windows"))]
     {
-        Command::new(cmd)
+        silent_command(cmd)
             .args(args)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
             .status()
             .await
             .map(|s| s.success())

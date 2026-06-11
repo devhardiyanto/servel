@@ -7,6 +7,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::prereq::check_prerequisites,
             commands::prereq::start_docker,
+            commands::php::php_list_installed,
+            commands::php::php_get_active,
+            commands::php::php_switch,
+            commands::php::php_install,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
