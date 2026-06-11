@@ -4,6 +4,11 @@ interface VersionItem {
   active: boolean
 }
 
+interface SuggestedVersion {
+  version: string
+  path: string
+}
+
 const props = withDefaults(defineProps<{
   label: string
   accent: string
@@ -11,14 +16,21 @@ const props = withDefaults(defineProps<{
   active: string | null
   switching?: boolean
   disabled?: boolean
+  suggested?: SuggestedVersion | null
+  suggestedNeedsInstall?: boolean
 }>(), {
   switching: false,
   disabled: false,
+  suggested: null,
+  suggestedNeedsInstall: false,
 })
 
 const emit = defineEmits<{
   (e: 'switch', version: string): void
   (e: 'install', version: string): void
+  (e: 'switch-suggested', version: string): void
+  (e: 'install-suggested', version: string): void
+  (e: 'dismiss-suggestion'): void
 }>()
 
 function handleChipClick(version: string): void {
@@ -72,6 +84,27 @@ function currentIndex(): number {
         :disabled="disabled || switching || currentIndex() >= versions.length - 1"
         @click="stepVersion(1)"
       >&#8250;</button>
+    </div>
+
+    <div v-if="suggested && !disabled" class="vp-suggest-banner">
+      <span class="vp-suggest-text">
+        Project menyarankan {{ label.replace(' Version', '') }} <strong>{{ suggested.version }}</strong>
+      </span>
+      <div class="vp-suggest-actions">
+        <button
+          v-if="!suggestedNeedsInstall"
+          class="vp-suggest-btn"
+          :disabled="switching"
+          @click="emit('switch-suggested', suggested.version)"
+        >Switch</button>
+        <button
+          v-else
+          class="vp-suggest-btn"
+          :disabled="switching"
+          @click="emit('install-suggested', suggested.version)"
+        >Install + Switch</button>
+        <button class="vp-suggest-dismiss" @click="emit('dismiss-suggestion')">&times;</button>
+      </div>
     </div>
 
     <div class="vp-chip-list">
@@ -240,5 +273,79 @@ function currentIndex(): number {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--dim);
+}
+
+.vp-suggest-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+  border-radius: 4px;
+}
+
+.vp-suggest-text {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--amber);
+  flex: 1;
+  min-width: 0;
+}
+
+.vp-suggest-text strong {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.vp-suggest-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.vp-suggest-btn {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--amber) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
+  border-radius: 3px;
+  color: var(--amber);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.vp-suggest-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--amber) 25%, transparent);
+}
+
+.vp-suggest-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vp-suggest-dismiss {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  border-radius: 3px;
+  transition: color 0.1s;
+}
+
+.vp-suggest-dismiss:hover {
+  color: var(--text);
 }
 </style>

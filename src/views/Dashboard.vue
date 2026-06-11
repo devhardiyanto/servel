@@ -2,12 +2,16 @@
 import { inject, computed } from 'vue'
 import { SetViewKey } from '../types/navigation'
 import { usePhp } from '@/composables/usePhp'
+import { useNode } from '@/composables/useNode'
 import { useLogs } from '@/composables/useLogs'
+import { useProjectWatch } from '@/composables/useProjectWatch'
 import VersionPicker from '@/components/VersionPicker.vue'
 import LogTail from '@/components/LogTail.vue'
 import StatusBar from '@/components/StatusBar.vue'
 
 const setView = inject(SetViewKey)!
+
+const { watchedPath, watching, pickFolder, error: watchError } = useProjectWatch()
 
 const {
   versions: phpVersions,
@@ -15,7 +19,28 @@ const {
   switching: phpSwitching,
   error: phpError,
   switchTo: switchPhp,
+  install: installPhp,
+  suggested: phpSuggested,
+  suggestedNeedsInstall: phpSuggestedNeedsInstall,
+  dismissSuggestion: dismissPhpSuggestion,
 } = usePhp()
+
+const {
+  versions: nodeVersions,
+  active: nodeActive,
+  switching: nodeSwitching,
+  error: nodeError,
+  switchTo: switchNode,
+  install: installNode,
+  suggested: nodeSuggested,
+  suggestedNeedsInstall: nodeSuggestedNeedsInstall,
+  dismissSuggestion: dismissNodeSuggestion,
+} = useNode()
+
+function shortenPath(path: string): string {
+  const parts = path.split(/[/\\]/).filter(Boolean)
+  return parts.slice(-2).join('/')
+}
 
 const { lines: logLines, clear: clearLogs } = useLogs('PHP')
 
@@ -54,6 +79,14 @@ const additionalServices = computed(() => placeholderServices.filter((s) => s.gr
         <span class="dash-brand-tag">local dev environment</span>
       </div>
       <nav class="dash-nav">
+        <button
+          class="dash-watch-btn"
+          :disabled="watching"
+          @click="pickFolder"
+        >
+          <span v-if="watchedPath">{{ shortenPath(watchedPath) }}</span>
+          <span v-else>Watch Project...</span>
+        </button>
         <button class="dash-nav-btn" @click="setView('logs')">Logs</button>
         <button class="dash-nav-btn" @click="setView('settings')">Settings</button>
         <button class="dash-nav-btn" @click="setView('onboarding')">Prereq</button>
@@ -67,18 +100,31 @@ const additionalServices = computed(() => placeholderServices.filter((s) => s.gr
         :versions="phpVersions"
         :active="phpActive"
         :switching="phpSwitching"
+        :suggested="phpSuggested"
+        :suggested-needs-install="phpSuggestedNeedsInstall"
         @switch="switchPhp"
+        @switch-suggested="(v) => switchPhp(v)"
+        @install-suggested="(v) => installPhp(v)"
+        @dismiss-suggestion="dismissPhpSuggestion"
       />
       <VersionPicker
         label="Node Version"
         :accent="nodeAccent"
-        :versions="[]"
-        :active="null"
-        disabled
+        :versions="nodeVersions"
+        :active="nodeActive"
+        :switching="nodeSwitching"
+        :suggested="nodeSuggested"
+        :suggested-needs-install="nodeSuggestedNeedsInstall"
+        @switch="switchNode"
+        @switch-suggested="(v) => switchNode(v)"
+        @install-suggested="(v) => installNode(v)"
+        @dismiss-suggestion="dismissNodeSuggestion"
       />
     </section>
 
-    <p v-if="phpError" class="dash-error">{{ phpError }}</p>
+    <p v-if="phpError || nodeError || watchError" class="dash-error">
+      {{ phpError || nodeError || watchError }}
+    </p>
 
     <section class="services-wrap">
       <header class="sw-header">
@@ -168,6 +214,32 @@ const additionalServices = computed(() => placeholderServices.filter((s) => s.gr
 .dash-nav-btn:hover {
   color: var(--text);
   border-color: var(--muted);
+}
+
+.dash-watch-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 5px 10px;
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.1s, border-color 0.1s;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dash-watch-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.dash-watch-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .control-strip {

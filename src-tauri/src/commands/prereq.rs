@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 use std::process::Stdio;
-use super::util::silent_command;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -17,7 +16,6 @@ pub struct PrereqStatus {
 async fn check_tool(cmd: &str, args: &[&str]) -> bool {
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
         let result = Command::new(cmd)
@@ -77,7 +75,6 @@ pub async fn check_prerequisites() -> PrereqStatus {
 pub async fn start_docker() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
         let default_path = "C:\\Program Files\\Docker\\Docker\\Docker Desktop.exe";

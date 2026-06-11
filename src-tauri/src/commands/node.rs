@@ -1,7 +1,7 @@
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use serde::{Deserialize, Serialize};
-use tauri::Window;
+use tauri::{Emitter, Window};
 
 use super::util::silent_command;
 
@@ -63,12 +63,7 @@ pub async fn node_get_active() -> Result<Option<String>, String> {
     }
 
     let raw = String::from_utf8_lossy(&output.stdout);
-    let trimmed = raw.trim().trim_start_matches('v');
-    if trimmed.is_empty() || !trimmed.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
-        return Ok(None);
-    }
-
-    Ok(Some(trimmed.to_string()))
+    Ok(parse_current_output(&raw))
 }
 
 /// Run `fnm use <version>` and stream all stdout/stderr to the frontend

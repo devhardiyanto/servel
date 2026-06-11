@@ -1,9 +1,12 @@
 mod commands;
+mod watcher;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .manage(watcher::default_watcher_state())
         .invoke_handler(tauri::generate_handler![
             commands::prereq::check_prerequisites,
             commands::prereq::start_docker,
@@ -15,6 +18,7 @@ pub fn run() {
             commands::node::node_get_active,
             commands::node::node_switch,
             commands::node::node_install,
+            watcher::watch_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,9 +1,7 @@
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use serde::{Deserialize, Serialize};
-use tauri::Window;
-
-use super::util::silent_command;
+use tauri::{Emitter, Window};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -171,7 +169,6 @@ pub async fn php_install(window: Window, version: String) -> Result<(), String> 
 fn build_phpvm_command() -> tokio::process::Command {
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
         let mut cmd = tokio::process::Command::new("cmd");

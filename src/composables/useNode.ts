@@ -1,14 +1,14 @@
 import { ref, computed, onMounted } from 'vue'
-// invoke langsung (bukan via call()) agar string error dari Rust bisa di-catch untuk php_switch dan php_install
+// invoke langsung (bukan via call()) agar string error dari Rust bisa di-catch untuk node_switch dan node_install
 import { invoke } from '@tauri-apps/api/core'
 import { useTauri } from './useTauri'
-import type { PhpVersion } from '@/types/version'
+import type { NodeVersion } from '@/types/version'
 import type { VersionFileDetected } from '@/types/watcher'
 
-export function usePhp() {
+export function useNode() {
   const { call, on } = useTauri()
 
-  const versions = ref<PhpVersion[]>([])
+  const versions = ref<NodeVersion[]>([])
   const active = ref<string | null>(null)
   const switching = ref(false)
   const installing = ref(false)
@@ -26,8 +26,8 @@ export function usePhp() {
 
   async function load(): Promise<void> {
     const [versionList, activeVersion] = await Promise.all([
-      call<PhpVersion[]>('php_list_installed'),
-      call<string | null>('php_get_active'),
+      call<NodeVersion[]>('node_list_installed'),
+      call<string | null>('node_get_active'),
     ])
     if (versionList !== null) versions.value = versionList
     if (activeVersion !== undefined) active.value = activeVersion ?? null
@@ -38,9 +38,9 @@ export function usePhp() {
     switching.value = true
     error.value = null
     try {
-      await invoke<void>('php_switch', { version })
+      await invoke<void>('node_switch', { version })
       // Konfirmasi aktif versi dari Rust (optimistic + verify)
-      const confirmed = await call<string | null>('php_get_active')
+      const confirmed = await call<string | null>('node_get_active')
       if (confirmed !== undefined) active.value = confirmed ?? null
     } catch (err) {
       error.value = typeof err === 'string' ? err : String(err)
@@ -53,7 +53,7 @@ export function usePhp() {
     installing.value = true
     error.value = null
     try {
-      await invoke<void>('php_install', { version })
+      await invoke<void>('node_install', { version })
       await load()
     } catch (err) {
       error.value = typeof err === 'string' ? err : String(err)
@@ -64,7 +64,7 @@ export function usePhp() {
 
   onMounted(async () => {
     await load()
-    await on<VersionFileDetected>('phpvmrc-detected', (payload) => {
+    await on<VersionFileDetected>('nvmrc-detected', (payload) => {
       if (payload.version === active.value) return
       suggested.value = payload
     })
