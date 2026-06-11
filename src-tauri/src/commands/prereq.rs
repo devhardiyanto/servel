@@ -59,7 +59,7 @@ pub async fn check_prerequisites() -> PrereqStatus {
     let (docker_installed, docker_running, phpvm_installed, fnm_installed) = tokio::join!(
         check_tool("docker", &["--version"]),
         check_tool("docker", &["info"]),
-        check_tool("phpvm", &["--version"]),
+        check_tool("phpvm", &["version"]),
         check_tool("fnm", &["--version"]),
     );
 

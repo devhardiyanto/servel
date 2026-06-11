@@ -1,11 +1,14 @@
 <script setup lang="ts">
-defineProps<{
-  name: string
-  installed: boolean
-  running?: boolean
-  installUrl: string
-  icon?: string
-}>()
+withDefaults(
+  defineProps<{
+    name: string
+    installed: boolean
+    running?: boolean
+    installUrl: string
+    icon?: string
+  }>(),
+  { running: true },
+)
 </script>
 
 <template>

@@ -3,6 +3,8 @@ import { inject, computed } from 'vue'
 import { SetViewKey } from '../types/navigation'
 import { usePrereq } from '@/composables/usePrereq'
 import PrereqCard from '@/components/PrereqCard.vue'
+import logoWebp from '@/assets/logo.webp'
+import logoPng from '@/assets/logo.png'
 
 const setView = inject(SetViewKey)!
 
@@ -39,7 +41,10 @@ const isLinuxDockerError = computed<boolean>(() =>
 <template>
   <div class="ob-viewport">
     <div class="ob-header">
-      <span class="ob-brand">servel</span>
+      <picture>
+        <source :srcset="logoWebp" type="image/webp" />
+        <img :src="logoPng" alt="servel" class="ob-brand-logo" />
+      </picture>
     </div>
 
     <div class="ob-main">
@@ -173,11 +178,10 @@ const isLinuxDockerError = computed<boolean>(() =>
   flex-shrink: 0;
 }
 
-.ob-brand {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--accent);
-  letter-spacing: 0.08em;
+.ob-brand-logo {
+  height: 24px;
+  width: auto;
+  display: block;
 }
 
 .ob-main {
