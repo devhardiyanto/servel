@@ -3,6 +3,8 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Window};
 
+use super::util::{emit_env_line, extract_semver};
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct PhpVersion {
@@ -18,6 +20,28 @@ fn emit_line(window: &Window, line: &str, stream: &str) {
     );
 }
 
+/// Validate that `version` is a safe semver string (`major.minor[.patch]`).
+/// Rejects anything that could inject shell metacharacters.
+fn validate_version_string(version: &str) -> Result<(), String> {
+    let valid = version
+        .chars()
+        .all(|c| c.is_ascii_digit() || c == '.');
+    if !valid || version.is_empty() {
+        return Err(format!("version '{}' tidak valid — hanya digit dan titik yang diizinkan", version));
+    }
+    // Must match major.minor pattern at minimum
+    let parts: Vec<&str> = version.split('.').collect();
+    if parts.len() < 2 || parts.len() > 3 {
+        return Err(format!("version '{}' tidak valid — format harus major.minor[.patch]", version));
+    }
+    for part in &parts {
+        if part.is_empty() || part.parse::<u32>().is_err() {
+            return Err(format!("version '{}' tidak valid — setiap segmen harus angka", version));
+        }
+    }
+    Ok(())
+}
+
 /// Run `phpvm list` and parse output into a list of installed PHP versions.
 /// Output format per line (from phpvm):
 ///   "  8.3.0"    → inactive
@@ -25,8 +49,7 @@ fn emit_line(window: &Window, line: &str, stream: &str) {
 /// Lines that are blank or do not contain a recognisable version are skipped.
 #[tauri::command]
 pub async fn php_list_installed() -> Result<Vec<PhpVersion>, String> {
-    let output = build_phpvm_command()
-        .args(["list"])
+    let output = build_phpvm_command("list")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
@@ -48,8 +71,7 @@ pub async fn php_list_installed() -> Result<Vec<PhpVersion>, String> {
 /// returns exactly the active version string (or empty/error if none active).
 #[tauri::command]
 pub async fn php_get_active() -> Result<Option<String>, String> {
-    let output = build_phpvm_command()
-        .args(["current"])
+    let output = build_phpvm_command("current")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
@@ -62,20 +84,16 @@ pub async fn php_get_active() -> Result<Option<String>, String> {
     }
 
     let raw = String::from_utf8_lossy(&output.stdout);
-    let version = raw.trim().trim_start_matches('v').to_string();
-    if version.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(version))
-    }
+    Ok(extract_semver(&raw))
 }
 
 /// Run `phpvm use <version>` and stream all stdout/stderr to the frontend
 /// via the `cmd-output` event.
 #[tauri::command]
 pub async fn php_switch(window: Window, version: String) -> Result<(), String> {
-    let mut child = build_phpvm_command()
-        .args(["use", &version])
+    validate_version_string(&version)?;
+
+    let mut child = build_phpvm_command(&format!("use {}", version))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -111,6 +129,7 @@ pub async fn php_switch(window: Window, version: String) -> Result<(), String> {
         return Err(format!("phpvm use {} gagal (exit {})", version, status));
     }
 
+    emit_env_line(&window, &format!("switched php → {}", version));
     Ok(())
 }
 
@@ -120,8 +139,9 @@ pub async fn php_switch(window: Window, version: String) -> Result<(), String> {
 /// Frontend should display indeterminate progress for the duration of this command.
 #[tauri::command]
 pub async fn php_install(window: Window, version: String) -> Result<(), String> {
-    let mut child = build_phpvm_command()
-        .args(["install", &version])
+    validate_version_string(&version)?;
+
+    let mut child = build_phpvm_command(&format!("install {}", version))
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -164,24 +184,28 @@ pub async fn php_install(window: Window, version: String) -> Result<(), String> 
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/// Build a `tokio::process::Command` for `phpvm`, handling the Windows quirk
-/// where phpvm is a `.cmd` script requiring `cmd /c` wrapping.
-fn build_phpvm_command() -> tokio::process::Command {
+/// Build a `tokio::process::Command` for `phpvm <subcommand>`.
+///
+/// On Windows, phpvm resolves to `phpvm.ps1` via PATHEXT. Invoking it directly
+/// from a non-PowerShell context (like Tauri) causes:
+///   "Cannot run a document in the middle of a pipeline"
+/// Fix: wrap via `powershell.exe -Command "phpvm <subcommand>"`.
+///
+/// On non-Windows, invoke `phpvm` directly.
+fn build_phpvm_command(subcommand: &str) -> tokio::process::Command {
     #[cfg(target_os = "windows")]
     {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-        let mut cmd = tokio::process::Command::new("cmd");
-        cmd.args(["/c", "phpvm"])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .creation_flags(CREATE_NO_WINDOW);
-        cmd
+        super::util::silent_powershell_command(&format!("phpvm {}", subcommand))
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        silent_command("phpvm")
+        use super::util::silent_command;
+        let mut cmd = silent_command("phpvm");
+        for arg in subcommand.split_whitespace() {
+            cmd.arg(arg);
+        }
+        cmd
     }
 }
 
@@ -219,6 +243,29 @@ fn parse_phpvm_list(output: &str) -> Vec<PhpVersion> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_validate_version_valid() {
+        assert!(validate_version_string("8.3.31").is_ok());
+        assert!(validate_version_string("8.3").is_ok());
+        assert!(validate_version_string("7.4.33").is_ok());
+    }
+
+    #[test]
+    fn test_validate_version_invalid_chars() {
+        assert!(validate_version_string("8.3.31; rm -rf /").is_err());
+        assert!(validate_version_string("8.3$(evil)").is_err());
+        assert!(validate_version_string("lts/iron").is_err());
+        assert!(validate_version_string("").is_err());
+    }
+
+    #[test]
+    fn test_validate_version_bad_format() {
+        assert!(validate_version_string("8").is_err());
+        assert!(validate_version_string("8.3.31.1").is_err());
+        assert!(validate_version_string("8.").is_err());
+        assert!(validate_version_string(".3.31").is_err());
+    }
 
     #[test]
     fn test_parse_phpvm_list_basic() {

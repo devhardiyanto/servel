@@ -3,7 +3,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Window};
 
-use super::util::silent_command;
+use super::util::{emit_env_line, extract_semver, silent_command};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -45,13 +45,15 @@ pub async fn node_list_installed() -> Result<Vec<NodeVersion>, String> {
     Ok(versions)
 }
 
-/// Return the currently active Node version, or `None` if none is active.
-/// Uses `fnm current`. Output `system` (no semver) or empty → returns `None`.
+/// Return the default Node version set via fnm, or `None` if none is set.
+/// Uses `fnm default` (no argument) which prints the current default alias.
+/// This reflects what new shells will use — more reliable than `fnm current`
+/// inside a subprocess that has no shell context.
 /// Prefix `v` is stripped before returning (e.g. `v20.14.0` → `"20.14.0"`).
 #[tauri::command]
 pub async fn node_get_active() -> Result<Option<String>, String> {
     let output = build_fnm_command()
-        .args(["current"])
+        .args(["default"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
@@ -66,12 +68,14 @@ pub async fn node_get_active() -> Result<Option<String>, String> {
     Ok(parse_current_output(&raw))
 }
 
-/// Run `fnm use <version>` and stream all stdout/stderr to the frontend
+/// Run `fnm default <version>` and stream all stdout/stderr to the frontend
 /// via the `cmd-output` event.
+/// `fnm default` sets the default alias so new shells pick up the version —
+/// unlike `fnm use` which only affects the subprocess that runs it.
 #[tauri::command]
 pub async fn node_switch(window: Window, version: String) -> Result<(), String> {
     let mut child = build_fnm_command()
-        .args(["use", &version])
+        .args(["default", &version])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -104,9 +108,10 @@ pub async fn node_switch(window: Window, version: String) -> Result<(), String> 
         .map_err(|e| format!("Gagal menunggu fnm: {}", e))?;
 
     if !status.success() {
-        return Err(format!("fnm use {} gagal (exit {})", version, status));
+        return Err(format!("fnm default {} gagal (exit {})", version, status));
     }
 
+    emit_env_line(&window, &format!("switched node → {} (via fnm)", version));
     Ok(())
 }
 
@@ -210,15 +215,10 @@ fn parse_fnm_list(output: &str) -> Vec<NodeVersion> {
         .collect()
 }
 
-/// Parse output of `fnm current`.
-/// Returns Some(version) for semver-like output, None for "system", empty, or alias-only.
+/// Parse output of `fnm default` (no-arg).
+/// Returns Some(semver) for recognisable version output, None for empty or alias-only.
 fn parse_current_output(raw: &str) -> Option<String> {
-    let trimmed = raw.trim().trim_start_matches('v');
-    if trimmed.is_empty() || !trimmed.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
-        None
-    } else {
-        Some(trimmed.to_string())
-    }
+    extract_semver(raw)
 }
 
 #[cfg(test)]
@@ -274,25 +274,19 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_current_semver() {
+    fn test_parse_default_output_semver() {
         assert_eq!(parse_current_output("v20.14.0\n"), Some("20.14.0".to_string()));
         assert_eq!(parse_current_output("20.14.0"), Some("20.14.0".to_string()));
     }
 
     #[test]
-    fn test_parse_current_system_returns_none() {
-        assert_eq!(parse_current_output("system"), None);
-        assert_eq!(parse_current_output("system\n"), None);
-    }
-
-    #[test]
-    fn test_parse_current_empty_returns_none() {
+    fn test_parse_default_output_empty_returns_none() {
         assert_eq!(parse_current_output(""), None);
         assert_eq!(parse_current_output("\n"), None);
     }
 
     #[test]
-    fn test_parse_current_alias_only_returns_none() {
+    fn test_parse_default_output_alias_only_returns_none() {
         assert_eq!(parse_current_output("lts/iron"), None);
         assert_eq!(parse_current_output("default"), None);
     }
