@@ -3,8 +3,7 @@ import { inject, computed } from 'vue'
 import { SetViewKey } from '../types/navigation'
 import { usePrereq } from '@/composables/usePrereq'
 import PrereqCard from '@/components/PrereqCard.vue'
-import logoWebp from '@/assets/logo.webp'
-import logoPng from '@/assets/logo.png'
+import type { PrereqAction } from '@/components/PrereqCard.vue'
 
 const setView = inject(SetViewKey)!
 
@@ -36,17 +35,40 @@ const progressPct = computed<number>(() => (readyCount.value / totalCount) * 100
 const isLinuxDockerError = computed<boolean>(() =>
   startDockerError.value?.includes('systemctl') ?? false
 )
+
+function openUrl(url: string): void {
+  window.open(url, '_blank', 'noopener')
+}
+
+const dockerActions = computed<PrereqAction[]>(() => [
+  {
+    label: '⬇ Download Docker Desktop',
+    primary: true,
+    onClick: () => openUrl('https://www.docker.com/products/docker-desktop/'),
+  },
+  {
+    label: 'WSL2 + Docker Engine Guide ↗',
+    onClick: () => openUrl('https://docs.docker.com/desktop/wsl/'),
+  },
+])
+
+const phpvmActions = computed<PrereqAction[]>(() => [
+  {
+    label: 'View phpvm on GitHub ↗',
+    onClick: () => openUrl('https://github.com/devhardiyanto/phpvm'),
+  },
+])
+
+const fnmActions = computed<PrereqAction[]>(() => [
+  {
+    label: 'View fnm on GitHub ↗',
+    onClick: () => openUrl('https://github.com/Schniz/fnm'),
+  },
+])
 </script>
 
 <template>
   <div class="ob-viewport">
-    <div class="ob-header">
-      <picture>
-        <source :srcset="logoWebp" type="image/webp" />
-        <img :src="logoPng" alt="servel" class="ob-brand-logo" />
-      </picture>
-    </div>
-
     <div class="ob-main">
       <div class="ob-inner">
         <div class="ob-mark">
@@ -73,47 +95,36 @@ const isLinuxDockerError = computed<boolean>(() =>
             name="Docker"
             :installed="status?.docker_installed ?? false"
             :running="status?.docker_running"
-            install-url="https://docs.docker.com/get-docker/"
-            icon="D"
+            icon="&#x1F433;"
+            ok-desc="Docker Engine detected and running"
+            not-found-desc="Required to run infra services (MySQL, Redis, etc)"
+            :actions="dockerActions"
           >
-            <template v-if="status?.docker_installed && status?.docker_running">
-              Docker Engine detected and running
-            </template>
-            <template v-else-if="status?.docker_installed && !status?.docker_running">
+            <template v-if="status?.docker_installed && !status?.docker_running">
               Docker installed but not running
-            </template>
-            <template v-else>
-              Required to run infra services (MySQL, Redis, etc)
             </template>
           </PrereqCard>
 
+          <!-- TODO Phase 4: replace hardcoded version with real value from prereq_check command -->
           <PrereqCard
             name="phpvm"
             :installed="status?.phpvm_installed ?? false"
-            install-url="https://github.com/devhardiyanto/phpvm"
-            icon="P"
-          >
-            <template v-if="status?.phpvm_installed">
-              PHP version manager detected
-            </template>
-            <template v-else>
-              PHP version manager — required for PHP switching
-            </template>
-          </PrereqCard>
+            icon="&#x1F418;"
+            ok-desc="PHP version manager &#x2014; v1.7.0 detected"
+            not-found-desc="PHP version manager"
+            :actions="phpvmActions"
+          />
 
+          <!-- TODO Phase 4: replace hardcoded version with real value from prereq_check command -->
           <PrereqCard
             name="fnm"
             :installed="status?.fnm_installed ?? false"
-            install-url="https://github.com/Schniz/fnm"
-            icon="N"
-          >
-            <template v-if="status?.fnm_installed">
-              Fast Node version manager detected
-            </template>
-            <template v-else>
-              Fast Node version manager, built in Rust
-            </template>
-          </PrereqCard>
+            icon="&#x26A1;"
+            ok-desc="Fast Node version manager &#x2014; v1.37.1 detected"
+            not-found-desc="Fast Node version manager, built in Rust"
+            :actions="fnmActions"
+            code="winget install Schniz.fnm"
+          />
         </div>
 
         <div v-if="startDockerError && !isLinuxDockerError" class="ob-error">
@@ -123,8 +134,10 @@ const isLinuxDockerError = computed<boolean>(() =>
         <div v-if="isLinuxDockerError" class="ob-instruction">
           <p class="ob-instruction__title">Start Docker manually:</p>
           <code class="ob-instruction__cmd">sudo systemctl start docker</code>
-          <p class="ob-instruction__hint">Then click "Cek ulang" to refresh the status.</p>
+          <p class="ob-instruction__hint">Then click "Refresh checks" to refresh the status.</p>
         </div>
+
+        <p class="ob-note">Already installed everything? Click Refresh to re-check.</p>
 
         <div class="ob-cta-row">
           <button
@@ -142,7 +155,15 @@ const isLinuxDockerError = computed<boolean>(() =>
             class="ob-btn ob-btn--ready"
             @click="setView('dashboard')"
           >
-            Lanjut ke Dashboard →
+            Continue to Servel &#x2192;
+          </button>
+
+          <button
+            v-if="!allReady"
+            class="ob-btn ob-btn--disabled"
+            disabled
+          >
+            Continue to Servel &#x2192;
           </button>
 
           <button
@@ -151,7 +172,7 @@ const isLinuxDockerError = computed<boolean>(() =>
             @click="check"
           >
             <span v-if="checking" class="ob-spinner"></span>
-            {{ checking ? 'Checking...' : 'Cek ulang' }}
+            {{ checking ? 'Checking...' : '&#x21BB; Refresh checks' }}
           </button>
         </div>
       </div>
@@ -163,25 +184,10 @@ const isLinuxDockerError = computed<boolean>(() =>
 .ob-viewport {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-}
-
-.ob-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 40px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.ob-brand-logo {
-  height: 24px;
-  width: auto;
-  display: block;
 }
 
 .ob-main {
@@ -190,7 +196,7 @@ const isLinuxDockerError = computed<boolean>(() =>
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: var(--space-8) var(--space-4);
+  padding: 48px var(--space-4) var(--space-8);
 }
 
 .ob-inner {
@@ -314,6 +320,12 @@ const isLinuxDockerError = computed<boolean>(() =>
   margin: 0;
 }
 
+.ob-note {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 var(--space-4) 0;
+}
+
 .ob-cta-row {
   display: flex;
   flex-wrap: wrap;
@@ -350,6 +362,13 @@ const isLinuxDockerError = computed<boolean>(() =>
   background: var(--accent);
   border-color: var(--accent);
   color: var(--bg);
+}
+
+.ob-btn--disabled {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--dim);
+  cursor: not-allowed;
 }
 
 .ob-btn--ghost {

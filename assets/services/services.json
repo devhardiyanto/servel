@@ -1,0 +1,116 @@
+[
+  {
+    "id": "mysql",
+    "name": "MySQL",
+    "category": "core",
+    "image": "mysql:8.0",
+    "containerName": "servel_mysql",
+    "ports": [{ "host": "3306", "container": "3306" }],
+    "environment": {
+      "MYSQL_ALLOW_EMPTY_PASSWORD": "yes",
+      "MYSQL_DATABASE": "local_db"
+    },
+    "volumes": ["servel_mysql_data:/var/lib/mysql"],
+    "ramEstimateMb": 80
+  },
+  {
+    "id": "postgres",
+    "name": "PostgreSQL",
+    "category": "core",
+    "image": "postgres:16-alpine",
+    "containerName": "servel_postgres",
+    "ports": [{ "host": "5432", "container": "5432" }],
+    "environment": {
+      "POSTGRES_HOST_AUTH_METHOD": "trust",
+      "POSTGRES_DB": "local_db"
+    },
+    "volumes": ["servel_postgres_data:/var/lib/postgresql/data"],
+    "ramEstimateMb": 60
+  },
+  {
+    "id": "redis",
+    "name": "Redis",
+    "category": "core",
+    "image": "redis:7-alpine",
+    "containerName": "servel_redis",
+    "ports": [{ "host": "6379", "container": "6379" }],
+    "volumes": ["servel_redis_data:/data"],
+    "ramEstimateMb": 8
+  },
+  {
+    "id": "rabbitmq",
+    "name": "RabbitMQ",
+    "category": "core",
+    "image": "rabbitmq:3-management-alpine",
+    "containerName": "servel_rabbitmq",
+    "ports": [
+      { "host": "5672", "container": "5672" },
+      { "host": "15672", "container": "15672" }
+    ],
+    "ramEstimateMb": 100
+  },
+  {
+    "id": "mongodb",
+    "name": "MongoDB",
+    "category": "additional",
+    "image": "mongo:7.0",
+    "containerName": "servel_mongodb",
+    "ports": [{ "host": "27017", "container": "27017" }],
+    "volumes": ["servel_mongodb_data:/data/db"],
+    "ramEstimateMb": 120
+  },
+  {
+    "id": "minio",
+    "name": "MinIO",
+    "category": "additional",
+    "image": "minio/minio",
+    "containerName": "servel_minio",
+    "ports": [
+      { "host": "9000", "container": "9000" },
+      { "host": "9001", "container": "9001" }
+    ],
+    "environment": {
+      "MINIO_ROOT_USER": "admin",
+      "MINIO_ROOT_PASSWORD": "password"
+    },
+    "volumes": ["servel_minio_data:/data"],
+    "command": "server /data --console-address \":9001\"",
+    "ramEstimateMb": 50
+  },
+  {
+    "id": "mailpit",
+    "name": "Mailpit",
+    "category": "additional",
+    "image": "axllent/mailpit",
+    "containerName": "servel_mailpit",
+    "ports": [
+      { "host": "1025", "container": "1025" },
+      { "host": "8025", "container": "8025" }
+    ],
+    "ramEstimateMb": 10
+  },
+  {
+    "id": "gotenberg",
+    "name": "Gotenberg",
+    "category": "additional",
+    "image": "gotenberg/gotenberg:8",
+    "containerName": "servel_gotenberg",
+    "ports": [{ "host": "3030", "container": "3000" }],
+    "ramEstimateMb": 60
+  },
+  {
+    "id": "sqlserver",
+    "name": "SQL Server",
+    "category": "additional",
+    "image": "mcr.microsoft.com/mssql/server:2022-latest",
+    "containerName": "servel_sqlserver",
+    "ports": [{ "host": "1433", "container": "1433" }],
+    "environment": {
+      "ACCEPT_EULA": "Y",
+      "MSSQL_SA_PASSWORD": "devlocal123@!#",
+      "MSSQL_PID": "Developer"
+    },
+    "volumes": ["servel_sqlserver_data:/var/opt/mssql"],
+    "ramEstimateMb": 600
+  }
+]
