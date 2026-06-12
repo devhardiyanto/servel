@@ -1,5 +1,5 @@
-import { ref, onMounted } from 'vue'
-import { useTauri } from './useTauri'
+import { ref } from 'vue'
+import { listen } from '@tauri-apps/api/event'
 
 export interface LogLine {
   ts: string
@@ -8,12 +8,19 @@ export interface LogLine {
   level?: 'warn' | 'error'
 }
 
-interface CmdOutput {
+export interface CmdOutput {
   line: string
   stream: 'stdout' | 'stderr'
+  source?: string
+  level?: 'warn' | 'error'
 }
 
 const MAX_LINES = 400
+
+// Singleton state — shared across all consumers
+const lines = ref<LogLine[]>([])
+let listenerRegistered = false
+let globalDefaultSrc = 'SERVEL'
 
 function timestamp(): string {
   const d = new Date()
@@ -21,12 +28,28 @@ function timestamp(): string {
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
 }
 
-export function useLogs(defaultSrc = 'SERVEL') {
-  const { on } = useTauri()
-  const lines = ref<LogLine[]>([])
+async function registerListener(): Promise<void> {
+  if (listenerRegistered) return
+  listenerRegistered = true
+  await listen<CmdOutput>('cmd-output', (e) => {
+    const payload = e.payload
+    const src = payload.source ?? globalDefaultSrc
+    const level = payload.level ?? (payload.stream === 'stderr' ? 'error' : undefined)
+    lines.value.push({ ts: timestamp(), src, text: payload.line, level })
+    if (lines.value.length > MAX_LINES) {
+      lines.value = lines.value.slice(-MAX_LINES)
+    }
+  })
+}
 
-  function push(line: LogLine): void {
-    lines.value.push(line)
+registerListener()
+
+export function useLogs(defaultSrc = 'SERVEL') {
+  globalDefaultSrc = defaultSrc
+
+
+  function push(line: Omit<LogLine, 'src'> & { src?: string }): void {
+    lines.value.push({ ...line, src: line.src ?? defaultSrc })
     if (lines.value.length > MAX_LINES) {
       lines.value = lines.value.slice(-MAX_LINES)
     }
@@ -35,17 +58,6 @@ export function useLogs(defaultSrc = 'SERVEL') {
   function clear(): void {
     lines.value = []
   }
-
-  onMounted(async () => {
-    await on<CmdOutput>('cmd-output', (payload) => {
-      push({
-        ts: timestamp(),
-        src: defaultSrc,
-        text: payload.line,
-        level: payload.stream === 'stderr' ? 'error' : undefined,
-      })
-    })
-  })
 
   return { lines, push, clear }
 }
