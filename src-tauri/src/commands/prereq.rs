@@ -3,6 +3,8 @@ use tokio::process::Command;
 use std::process::Stdio;
 
 use super::util::extract_semver;
+#[cfg(not(target_os = "windows"))]
+use super::util::silent_command;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "snake_case")]
