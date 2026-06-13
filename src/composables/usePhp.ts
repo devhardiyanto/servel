@@ -2,6 +2,7 @@ import { ref, computed, onMounted } from 'vue'
 // invoke langsung (bukan via call()) agar string error dari Rust bisa di-catch untuk php_switch dan php_install
 import { invoke } from '@tauri-apps/api/core'
 import { useTauri } from './useTauri'
+import { useConfig } from './useConfig'
 import type { PhpVersion } from '@/types/version'
 import type { VersionFileDetected } from '@/types/watcher'
 
@@ -41,7 +42,10 @@ export function usePhp() {
       await invoke<void>('php_switch', { version })
       // Konfirmasi aktif versi dari Rust (optimistic + verify)
       const confirmed = await call<string | null>('php_get_active')
-      if (confirmed !== undefined) active.value = confirmed ?? null
+      if (confirmed !== undefined) {
+        active.value = confirmed ?? null
+        useConfig().setLastPhpVersion(active.value)
+      }
     } catch (err) {
       error.value = typeof err === 'string' ? err : String(err)
     } finally {

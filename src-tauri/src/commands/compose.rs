@@ -12,6 +12,11 @@ pub fn compose_path() -> PathBuf {
     base.join("docker-compose.yml")
 }
 
+#[tauri::command]
+pub fn get_compose_path() -> Result<String, String> {
+    Ok(compose_path().to_string_lossy().to_string())
+}
+
 /// Heuristic: apakah volume string ini adalah named volume?
 /// Named = bagian sebelum ':' pertama tidak mengandung '/' atau '.'.
 fn is_named_volume(vol: &str) -> bool {
@@ -29,8 +34,6 @@ pub(crate) fn generate_compose(defs: &[ServiceDef], selected_ids: &[String]) -> 
 
     let mut out = String::new();
 
-    writeln!(out, "version: \"3.9\"").ok();
-    writeln!(out).ok();
     writeln!(out, "services:").ok();
 
     for def in &selected {
@@ -95,13 +98,17 @@ pub(crate) fn generate_compose(defs: &[ServiceDef], selected_ids: &[String]) -> 
         writeln!(out).ok();
         writeln!(out, "volumes:").ok();
         for vol_name in &named_volumes {
+            // `name:` override mencegah Docker Compose nge-prefix dengan project name
+            // (yang bikin nama jadi `servel_servel_<vol>`).
             writeln!(out, "  {}:", vol_name).ok();
+            writeln!(out, "    name: {}", vol_name).ok();
         }
     }
 
     writeln!(out).ok();
     writeln!(out, "networks:").ok();
     writeln!(out, "  servel_default:").ok();
+    writeln!(out, "    name: servel_default").ok();
     writeln!(out, "    driver: bridge").ok();
 
     out

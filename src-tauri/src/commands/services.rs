@@ -1,9 +1,48 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::Stdio;
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter, Manager, Window};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+
+const SERVICE_IDS: &[&str] = &[
+    "mysql", "postgres", "redis", "rabbitmq", "mongodb",
+    "minio", "mailpit", "gotenberg", "sqlserver",
+];
+
+fn src_from_line(line: &str) -> String {
+    for id in SERVICE_IDS {
+        if line.contains(&format!("servel_{}", id)) {
+            return id.to_uppercase();
+        }
+    }
+    "SERVEL".to_string()
+}
+
+fn parse_docker_error(stderr_acc: &str) -> Option<String> {
+    let lower = stderr_acc.to_lowercase();
+    if lower.contains("port is already allocated") {
+        if let Some(idx) = stderr_acc.find("Bind for 0.0.0.0:") {
+            let after = &stderr_acc[idx + "Bind for 0.0.0.0:".len()..];
+            let port: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
+            if !port.is_empty() {
+                return Some(format!(
+                    "Port {} sudah dipakai aplikasi lain — close dulu sebelum start service ini",
+                    port
+                ));
+            }
+        }
+        return Some("Port conflict — salah satu port service sudah dipakai aplikasi lain".to_string());
+    }
+    if lower.contains("network") && lower.contains("already exists") {
+        return Some("Network conflict — restart Docker Desktop".to_string());
+    }
+    if lower.contains("cannot connect to the docker daemon") {
+        return Some("Docker Desktop tidak running — start Docker dulu".to_string());
+    }
+    None
+}
 
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -103,9 +142,10 @@ pub fn id_from_container_name(name: &str) -> Option<String> {
 }
 
 fn emit_line(window: &Window, line: &str, stream: &str) {
+    let source = src_from_line(line);
     let _ = window.emit(
         "cmd-output",
-        serde_json::json!({ "line": line, "stream": stream }),
+        serde_json::json!({ "line": line, "stream": stream, "source": source }),
     );
 }
 
@@ -179,6 +219,8 @@ async fn stream_and_wait(mut cmd: Command, window: &Window) -> Result<(), String
     let stdout = child.stdout.take().ok_or("stdout tidak tersedia")?;
     let stderr = child.stderr.take().ok_or("stderr tidak tersedia")?;
 
+    let stderr_buf: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+
     let window_out = window.clone();
     let stdout_task = tokio::spawn(async move {
         let mut reader = BufReader::new(stdout).lines();
@@ -188,9 +230,13 @@ async fn stream_and_wait(mut cmd: Command, window: &Window) -> Result<(), String
     });
 
     let window_err = window.clone();
+    let stderr_buf_clone = Arc::clone(&stderr_buf);
     let stderr_task = tokio::spawn(async move {
         let mut reader = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = reader.next_line().await {
+            if let Ok(mut buf) = stderr_buf_clone.lock() {
+                buf.push(line.clone());
+            }
             emit_line(&window_err, &line, "stderr");
         }
     });
@@ -203,6 +249,13 @@ async fn stream_and_wait(mut cmd: Command, window: &Window) -> Result<(), String
         .map_err(|e| format!("Gagal menunggu docker: {}", e))?;
 
     if !status.success() {
+        let acc = stderr_buf
+            .lock()
+            .map(|b| b.join("\n"))
+            .unwrap_or_default();
+        if let Some(friendly) = parse_docker_error(&acc) {
+            return Err(friendly);
+        }
         return Err(format!("docker compose gagal (exit {})", status));
     }
 
@@ -243,7 +296,7 @@ pub async fn services_start(
         .to_string();
 
     let mut cmd = new_docker_cmd();
-    cmd.args(["compose", "-f", &path_str, "up", "-d"]);
+    cmd.args(["compose", "-f", &path_str, "up", "-d", "--remove-orphans"]);
     stream_and_wait(cmd, &window).await?;
 
     Ok(())

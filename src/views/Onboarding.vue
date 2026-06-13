@@ -65,6 +65,20 @@ const fnmActions = computed<PrereqAction[]>(() => [
     onClick: () => openUrl('https://github.com/Schniz/fnm'),
   },
 ])
+
+const phpvmOkDesc = computed<string>(() => {
+  const v = status.value?.phpvm_version
+  return v
+    ? `PHP version manager — v${v} detected`
+    : 'PHP version manager'
+})
+
+const fnmOkDesc = computed<string>(() => {
+  const v = status.value?.fnm_version
+  return v
+    ? `Fast Node version manager — v${v} detected`
+    : 'Fast Node version manager'
+})
 </script>
 
 <template>
@@ -105,22 +119,20 @@ const fnmActions = computed<PrereqAction[]>(() => [
             </template>
           </PrereqCard>
 
-          <!-- TODO Phase 4: replace hardcoded version with real value from prereq_check command -->
           <PrereqCard
             name="phpvm"
             :installed="status?.phpvm_installed ?? false"
             icon="&#x1F418;"
-            ok-desc="PHP version manager &#x2014; v1.7.0 detected"
+            :ok-desc="phpvmOkDesc"
             not-found-desc="PHP version manager"
             :actions="phpvmActions"
           />
 
-          <!-- TODO Phase 4: replace hardcoded version with real value from prereq_check command -->
           <PrereqCard
             name="fnm"
             :installed="status?.fnm_installed ?? false"
             icon="&#x26A1;"
-            ok-desc="Fast Node version manager &#x2014; v1.37.1 detected"
+            :ok-desc="fnmOkDesc"
             not-found-desc="Fast Node version manager, built in Rust"
             :actions="fnmActions"
             code="winget install Schniz.fnm"

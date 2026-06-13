@@ -1,7 +1,9 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useTauri } from './useTauri'
+import { useConfig } from './useConfig'
+import { useLogs } from './useLogs'
 import type { ServiceDef, ServiceStatus, ServiceUiState } from '@/types/service'
 
 interface ContainerStatusChangedPayload {
@@ -16,6 +18,7 @@ const uiState = ref<Record<string, ServiceUiState>>({})
 const serviceError = ref<string | null>(null)
 let initialized = false
 let listenerRegistered = false
+let persistWatchRegistered = false
 
 function deriveStatus(id: string): ServiceUiState['status'] {
   const entry = statuses.value.find((s) => s.id === id)
@@ -76,6 +79,42 @@ async function registerListener(): Promise<void> {
   })
 }
 
+function setSelectedIds(ids: string[]): void {
+  for (const id of Object.keys(uiState.value)) {
+    const entry = uiState.value[id]
+    if (entry) {
+      uiState.value[id] = { ...entry, selected: ids.includes(id) }
+    }
+  }
+}
+
+function registerPersistWatch(): void {
+  if (persistWatchRegistered) return
+  persistWatchRegistered = true
+
+  const selectedIds = computed(() =>
+    Object.values(uiState.value)
+      .filter((s) => s.selected)
+      .map((s) => s.id),
+  )
+
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
+  watch(selectedIds, (newIds) => {
+    // Guard: jangan persist sebelum config selesai di-load,
+    // kalau tidak watch awal (selectedIds = []) akan menimpa saved selection di disk.
+    if (!useConfig().loaded.value) {
+      console.log('[CONFIG] skip persist — config not loaded yet')
+      return
+    }
+    console.log('[CONFIG] selectedIds changed:', [...newIds])
+    if (debounceTimer !== null) clearTimeout(debounceTimer)
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null
+      useConfig().updateSelectedServices(newIds)
+    }, 500)
+  })
+}
+
 export function useServices() {
   const { call } = useTauri()
 
@@ -129,6 +168,7 @@ export function useServices() {
       }
 
       await registerListener()
+      registerPersistWatch()
     } catch (err) {
       initialized = false
       serviceError.value = typeof err === 'string' ? err : 'Failed to load services'
@@ -138,26 +178,60 @@ export function useServices() {
   function toggle(id: string): void {
     const entry = uiState.value[id]
     if (!entry) return
-    uiState.value[id] = { ...entry, selected: !entry.selected }
+    const willSelect = !entry.selected
+    uiState.value[id] = { ...entry, selected: willSelect }
+
+    // Auto-action per servel-app.jsx pattern: toggle switch = trigger start/stop
+    if (willSelect) {
+      if (entry.status !== 'running' && entry.status !== 'starting') {
+        void start([id])
+      }
+    } else {
+      if (entry.status === 'running' || entry.status === 'starting') {
+        void stop([id])
+      }
+    }
   }
 
   async function start(ids?: string[]): Promise<void> {
-    const targets = ids ?? selectedIds.value
-    if (targets.length === 0) return
+    // Backend SELALU butuh full selection untuk regenerate compose file —
+    // kalau cuma kirim subset, --remove-orphans bakal nge-remove container
+    // yang sedang running tapi tidak ada di compose (bug stuck loading sebelumnya).
+    const allSelected = selectedIds.value
+    if (allSelected.length === 0) return
+
+    // Compute "new ones" untuk UI 'starting' indicator — bisa dari `ids` arg
+    // (specific toggle) atau dari semua selected yang belum running.
+    const candidatePool = ids ?? allSelected
+    const newOnes = candidatePool.filter((id) => {
+      const current = uiState.value[id]
+      return current && current.status !== 'running'
+    })
+
+    if (newOnes.length === 0) {
+      useLogs('ENV').push({
+        ts: new Date().toTimeString().slice(0, 8),
+        src: 'ENV',
+        text: 'nothing to start — all selected services are up',
+      })
+      return
+    }
 
     serviceError.value = null
-    for (const id of targets) {
+    for (const id of newOnes) {
       if (uiState.value[id]) {
         uiState.value[id] = { ...uiState.value[id], status: 'starting' }
       }
     }
 
     try {
-      await invoke('services_start', { services: targets })
+      // Pass FULL selection — compose file = all selected, `up -d` idempotent
+      // untuk yang sudah running, start yang belum.
+      await invoke('services_start', { services: allSelected })
     } catch (err) {
       const msg = typeof err === 'string' ? err : 'services_start gagal'
       serviceError.value = msg
-      for (const id of targets) {
+      for (const id of newOnes) {
         const current = uiState.value[id]
         if (current?.status === 'starting') {
           uiState.value[id] = { ...current, status: 'error' }
@@ -192,7 +266,8 @@ export function useServices() {
 
   async function stopAll(): Promise<void> {
     serviceError.value = null
-    for (const id of runningIds.value) {
+    const runningSnapshot = [...runningIds.value]
+    for (const id of runningSnapshot) {
       if (uiState.value[id]) {
         uiState.value[id] = { ...uiState.value[id], status: 'stopping' }
       }
@@ -200,6 +275,13 @@ export function useServices() {
 
     try {
       await invoke('services_stop_all')
+      if (runningSnapshot.length > 0) {
+        useLogs('ENV').push({
+          ts: new Date().toTimeString().slice(0, 8),
+          src: 'ENV',
+          text: `stopped ${runningSnapshot.length} service${runningSnapshot.length > 1 ? 's' : ''} — selection kept`,
+        })
+      }
     } catch (err) {
       const msg = typeof err === 'string' ? err : 'services_stop_all gagal'
       serviceError.value = msg
@@ -229,6 +311,7 @@ export function useServices() {
     load,
     toggle,
     syncStatuses,
+    setSelectedIds,
     start,
     stop,
     stopAll,
