@@ -58,6 +58,18 @@ export function useConfig() {
     await invoke<void>('config_write', { config: config.value })
   }
 
+  // Flush pending debounce + write immediately — dipakai oleh toggle path
+  // agar tray baca Mutex Rust dengan nilai terbaru sebelum 500ms debounce expired.
+  async function saveImmediate(): Promise<void> {
+    if (saveTimer !== null) {
+      clearTimeout(saveTimer)
+      saveTimer = null
+    }
+    await invoke<void>('config_write', { config: config.value })
+      .then(() => console.log('[CONFIG] write immediate OK'))
+      .catch((err) => console.error('[CONFIG] write immediate FAILED:', err))
+  }
+
   function setAutoStart(value: boolean): void {
     config.value.autoStart = value
     scheduleSave()
@@ -100,6 +112,7 @@ export function useConfig() {
     loaded,
     load,
     save,
+    saveImmediate,
     setAutoStart,
     setRememberSession,
     setMinimizeToTray,

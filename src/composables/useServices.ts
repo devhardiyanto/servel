@@ -11,6 +11,11 @@ interface ContainerStatusChangedPayload {
   running: boolean
 }
 
+interface ServicesActionPayload {
+  action: 'start' | 'stop_all'
+  services: string[]
+}
+
 // Singleton state — shared across all consumers
 const definitions = ref<ServiceDef[]>([])
 const statuses = ref<ServiceStatus[]>([])
@@ -18,6 +23,7 @@ const uiState = ref<Record<string, ServiceUiState>>({})
 const serviceError = ref<string | null>(null)
 let initialized = false
 let listenerRegistered = false
+let servicesActionListenerRegistered = false
 let persistWatchRegistered = false
 
 function deriveStatus(id: string): ServiceUiState['status'] {
@@ -64,10 +70,16 @@ function applyStatusChange(id: string, running: boolean): void {
     statuses.value.push({ id, containerName: `servel_${id}`, running, state: running ? 'running' : 'exited', exitCode: running ? null : 0 })
   }
 
-  // Update uiState — always reflect event result (transitional states resolve here)
+  // Update uiState — resolve transitional state hanya saat polling result match target end-state.
+  // 'starting' tahan sampai running=true; 'stopping' tahan sampai running=false.
   const current = uiState.value[id]
   if (current) {
-    uiState.value[id] = { ...current, status: running ? 'running' : 'stopped' }
+    const holdTransition =
+      (current.status === 'starting' && !running) ||
+      (current.status === 'stopping' && running)
+    if (!holdTransition) {
+      uiState.value[id] = { ...current, status: running ? 'running' : 'stopped' }
+    }
   }
 }
 
@@ -76,6 +88,23 @@ async function registerListener(): Promise<void> {
   listenerRegistered = true
   await listen<ContainerStatusChangedPayload>('container-status-changed', (e) => {
     applyStatusChange(e.payload.service, e.payload.running)
+  })
+}
+
+async function registerServicesActionListener(): Promise<void> {
+  if (servicesActionListenerRegistered) return
+  servicesActionListenerRegistered = true
+  await listen<ServicesActionPayload>('services-action', (e) => {
+    const { action, services } = e.payload
+    const transitionalStatus = action === 'start' ? 'starting' : 'stopping'
+    for (const id of services) {
+      const current = uiState.value[id]
+      // Hanya set transitional jika service tidak sedang dalam transitional state
+      // yang dipicu UI — hindari double-set dari tray + UI toggle bersamaan.
+      if (current && current.status !== 'starting' && current.status !== 'stopping') {
+        uiState.value[id] = { ...current, status: transitionalStatus }
+      }
+    }
   })
 }
 
@@ -168,6 +197,7 @@ export function useServices() {
       }
 
       await registerListener()
+      await registerServicesActionListener()
       registerPersistWatch()
     } catch (err) {
       initialized = false
@@ -180,6 +210,16 @@ export function useServices() {
     if (!entry) return
     const willSelect = !entry.selected
     uiState.value[id] = { ...entry, selected: willSelect }
+
+    // Immediate persist agar tray baca Mutex Rust dengan selection terbaru —
+    // bypass debounce 500ms di registerPersistWatch (race fix sub-bug 2b).
+    const newSelectedIds = Object.values(uiState.value)
+      .filter((s) => s.selected)
+      .map((s) => s.id)
+    if (useConfig().loaded.value) {
+      useConfig().config.value.selectedServiceIds = newSelectedIds
+      void useConfig().saveImmediate()
+    }
 
     // Auto-action per servel-app.jsx pattern: toggle switch = trigger start/stop
     if (willSelect) {
