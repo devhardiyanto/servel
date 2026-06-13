@@ -155,6 +155,7 @@ async fn tray_services_stop_all(app: &AppHandle) -> Result<(), String> {
 }
 
 fn new_docker_cmd() -> tokio::process::Command {
+    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
     let mut cmd = tokio::process::Command::new("docker");
     #[cfg(target_os = "windows")]
     {

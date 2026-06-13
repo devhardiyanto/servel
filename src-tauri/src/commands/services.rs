@@ -158,6 +158,7 @@ pub(crate) async fn services_status_internal() -> Result<Vec<ServiceStatus>, Str
 }
 
 fn new_docker_cmd() -> Command {
+    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
     let mut cmd = Command::new("docker");
     #[cfg(target_os = "windows")]
     {
