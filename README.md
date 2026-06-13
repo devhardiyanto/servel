@@ -6,8 +6,6 @@ Servel is a desktop app (Tauri 2 + Vue 3) that orchestrates your local developme
 
 ![Dashboard](docs/screenshots/dashboard-running.png)
 
-> Screenshots will be added by the maintainer before the public release. Broken image links above are expected on the current `phase-5-release` branch.
-
 ---
 
 ## Features
