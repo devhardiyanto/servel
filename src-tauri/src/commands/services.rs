@@ -1,48 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::Stdio;
-use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, Manager, Window};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tauri::{AppHandle, Manager};
 use tokio::process::Command;
 
-const SERVICE_IDS: &[&str] = &[
-    "mysql", "postgres", "redis", "rabbitmq", "mongodb",
-    "minio", "mailpit", "gotenberg", "sqlserver",
-];
+use crate::commands::util::stream_and_wait_app;
 
-fn src_from_line(line: &str) -> String {
-    for id in SERVICE_IDS {
-        if line.contains(&format!("servel_{}", id)) {
-            return id.to_uppercase();
-        }
-    }
-    "SERVEL".to_string()
-}
-
-fn parse_docker_error(stderr_acc: &str) -> Option<String> {
-    let lower = stderr_acc.to_lowercase();
-    if lower.contains("port is already allocated") {
-        if let Some(idx) = stderr_acc.find("Bind for 0.0.0.0:") {
-            let after = &stderr_acc[idx + "Bind for 0.0.0.0:".len()..];
-            let port: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
-            if !port.is_empty() {
-                return Some(format!(
-                    "Port {} sudah dipakai aplikasi lain — close dulu sebelum start service ini",
-                    port
-                ));
-            }
-        }
-        return Some("Port conflict — salah satu port service sudah dipakai aplikasi lain".to_string());
-    }
-    if lower.contains("network") && lower.contains("already exists") {
-        return Some("Network conflict — restart Docker Desktop".to_string());
-    }
-    if lower.contains("cannot connect to the docker daemon") {
-        return Some("Docker Desktop tidak running — start Docker dulu".to_string());
-    }
-    None
-}
 
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -141,13 +104,6 @@ pub fn id_from_container_name(name: &str) -> Option<String> {
     name.strip_prefix("servel_").map(|s| s.to_string())
 }
 
-fn emit_line(window: &Window, line: &str, stream: &str) {
-    let source = src_from_line(line);
-    let _ = window.emit(
-        "cmd-output",
-        serde_json::json!({ "line": line, "stream": stream, "source": source }),
-    );
-}
 
 /// Inti load_services tanpa #[tauri::command], bisa dipanggil internal.
 pub(crate) async fn load_services_internal(app: &AppHandle) -> Result<Vec<ServiceDef>, String> {
@@ -202,6 +158,7 @@ pub(crate) async fn services_status_internal() -> Result<Vec<ServiceStatus>, Str
 }
 
 fn new_docker_cmd() -> Command {
+    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
     let mut cmd = Command::new("docker");
     #[cfg(target_os = "windows")]
     {
@@ -211,56 +168,6 @@ fn new_docker_cmd() -> Command {
     cmd
 }
 
-async fn stream_and_wait(mut cmd: Command, window: &Window) -> Result<(), String> {
-    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-
-    let mut child = cmd.spawn().map_err(|e| format!("Gagal spawn docker: {}", e))?;
-
-    let stdout = child.stdout.take().ok_or("stdout tidak tersedia")?;
-    let stderr = child.stderr.take().ok_or("stderr tidak tersedia")?;
-
-    let stderr_buf: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-
-    let window_out = window.clone();
-    let stdout_task = tokio::spawn(async move {
-        let mut reader = BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
-            emit_line(&window_out, &line, "stdout");
-        }
-    });
-
-    let window_err = window.clone();
-    let stderr_buf_clone = Arc::clone(&stderr_buf);
-    let stderr_task = tokio::spawn(async move {
-        let mut reader = BufReader::new(stderr).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
-            if let Ok(mut buf) = stderr_buf_clone.lock() {
-                buf.push(line.clone());
-            }
-            emit_line(&window_err, &line, "stderr");
-        }
-    });
-
-    let _ = tokio::join!(stdout_task, stderr_task);
-
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Gagal menunggu docker: {}", e))?;
-
-    if !status.success() {
-        let acc = stderr_buf
-            .lock()
-            .map(|b| b.join("\n"))
-            .unwrap_or_default();
-        if let Some(friendly) = parse_docker_error(&acc) {
-            return Err(friendly);
-        }
-        return Err(format!("docker compose gagal (exit {})", status));
-    }
-
-    Ok(())
-}
 
 #[tauri::command]
 pub async fn load_services(app: AppHandle) -> Result<Vec<ServiceDef>, String> {
@@ -273,11 +180,7 @@ pub async fn services_status() -> Result<Vec<ServiceStatus>, String> {
 }
 
 #[tauri::command]
-pub async fn services_start(
-    window: Window,
-    app: AppHandle,
-    services: Vec<String>,
-) -> Result<(), String> {
+pub async fn services_start(app: AppHandle, services: Vec<String>) -> Result<(), String> {
     let defs = load_services_internal(&app).await?;
 
     let yaml = crate::commands::compose::generate_compose(&defs, &services);
@@ -297,13 +200,13 @@ pub async fn services_start(
 
     let mut cmd = new_docker_cmd();
     cmd.args(["compose", "-f", &path_str, "up", "-d", "--remove-orphans"]);
-    stream_and_wait(cmd, &window).await?;
+    stream_and_wait_app(cmd, &app).await?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn services_stop(window: Window, services: Vec<String>) -> Result<(), String> {
+pub async fn services_stop(app: AppHandle, services: Vec<String>) -> Result<(), String> {
     let compose_file = crate::commands::compose::compose_path();
     if !compose_file.exists() {
         return Err("compose file tidak ditemukan, jalankan Start terlebih dahulu".to_string());
@@ -317,13 +220,13 @@ pub async fn services_stop(window: Window, services: Vec<String>) -> Result<(), 
     let mut cmd = new_docker_cmd();
     cmd.args(["compose", "-f", &path_str, "stop"]);
     cmd.args(&services);
-    stream_and_wait(cmd, &window).await?;
+    stream_and_wait_app(cmd, &app).await?;
 
     Ok(())
 }
 
 #[tauri::command]
-pub async fn services_stop_all(window: Window) -> Result<(), String> {
+pub async fn services_stop_all(app: AppHandle) -> Result<(), String> {
     let compose_file = crate::commands::compose::compose_path();
     if !compose_file.exists() {
         return Ok(());
@@ -336,7 +239,7 @@ pub async fn services_stop_all(window: Window) -> Result<(), String> {
 
     let mut cmd = new_docker_cmd();
     cmd.args(["compose", "-f", &path_str, "down"]);
-    stream_and_wait(cmd, &window).await?;
+    stream_and_wait_app(cmd, &app).await?;
 
     Ok(())
 }

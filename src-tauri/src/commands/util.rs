@@ -1,5 +1,7 @@
 use std::process::Stdio;
-use tauri::{Emitter, Window};
+use std::sync::{Arc, Mutex};
+use tauri::{AppHandle, Emitter, Window};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 /// Build a `tokio::process::Command` pre-configured with:
@@ -140,6 +142,109 @@ pub fn extract_semver(input: &str) -> Option<String> {
     }
 
     None
+}
+
+const SERVICE_IDS: &[&str] = &[
+    "mysql", "postgres", "redis", "rabbitmq", "mongodb",
+    "minio", "mailpit", "gotenberg", "sqlserver",
+];
+
+/// Derive log source tag dari docker compose output line.
+/// Scan `servel_<id>` substring — return `<ID>` uppercase. Fallback "SERVEL".
+pub fn src_from_line(line: &str) -> String {
+    for id in SERVICE_IDS {
+        if line.contains(&format!("servel_{}", id)) {
+            return id.to_uppercase();
+        }
+    }
+    "SERVEL".to_string()
+}
+
+/// Parse accumulated stderr dari docker compose untuk pesan error friendly.
+pub fn parse_docker_error(stderr_acc: &str) -> Option<String> {
+    let lower = stderr_acc.to_lowercase();
+    if lower.contains("port is already allocated") {
+        if let Some(idx) = stderr_acc.find("Bind for 0.0.0.0:") {
+            let after = &stderr_acc[idx + "Bind for 0.0.0.0:".len()..];
+            let port: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
+            if !port.is_empty() {
+                return Some(format!(
+                    "Port {} sudah dipakai aplikasi lain — close dulu sebelum start service ini",
+                    port
+                ));
+            }
+        }
+        return Some("Port conflict — salah satu port service sudah dipakai aplikasi lain".to_string());
+    }
+    if lower.contains("network") && lower.contains("already exists") {
+        return Some("Network conflict — restart Docker Desktop".to_string());
+    }
+    if lower.contains("cannot connect to the docker daemon") {
+        return Some("Docker Desktop tidak running — start Docker dulu".to_string());
+    }
+    None
+}
+
+/// Stream stdout/stderr dari `cmd` ke frontend via `cmd-output` event, pakai `AppHandle`.
+/// Source tag di-derive dari konten line via `src_from_line` (per-service tagging).
+/// Tunggu sampai proses selesai; return Err kalau exit code != 0.
+pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<(), String> {
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+    let mut child = cmd.spawn().map_err(|e| format!("Gagal spawn docker: {}", e))?;
+
+    let stdout = child.stdout.take().ok_or("stdout tidak tersedia")?;
+    let stderr = child.stderr.take().ok_or("stderr tidak tersedia")?;
+
+    let stderr_buf: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+
+    let app_out = app.clone();
+    let stdout_task = tokio::spawn(async move {
+        let mut reader = BufReader::new(stdout).lines();
+        while let Ok(Some(line)) = reader.next_line().await {
+            let source = src_from_line(&line);
+            let _ = app_out.emit(
+                "cmd-output",
+                serde_json::json!({ "line": line, "stream": "stdout", "source": source }),
+            );
+        }
+    });
+
+    let app_err = app.clone();
+    let stderr_buf_clone = Arc::clone(&stderr_buf);
+    let stderr_task = tokio::spawn(async move {
+        let mut reader = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = reader.next_line().await {
+            if let Ok(mut buf) = stderr_buf_clone.lock() {
+                buf.push(line.clone());
+            }
+            let source = src_from_line(&line);
+            let _ = app_err.emit(
+                "cmd-output",
+                serde_json::json!({ "line": line, "stream": "stderr", "source": source }),
+            );
+        }
+    });
+
+    let _ = tokio::join!(stdout_task, stderr_task);
+
+    let status = child
+        .wait()
+        .await
+        .map_err(|e| format!("Gagal menunggu docker: {}", e))?;
+
+    if !status.success() {
+        let acc = stderr_buf
+            .lock()
+            .map(|b| b.join("\n"))
+            .unwrap_or_default();
+        if let Some(friendly) = parse_docker_error(&acc) {
+            return Err(friendly);
+        }
+        return Err(format!("docker compose gagal (exit {})", status));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

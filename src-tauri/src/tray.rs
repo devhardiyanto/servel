@@ -7,7 +7,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use crate::commands::config::ConfigState;
 use crate::commands::compose::compose_path;
 use crate::commands::services::load_services_internal;
-use crate::commands::util::emit_log_line;
+use crate::commands::util::{emit_log_line, stream_and_wait_app};
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show Servel", true, None::<&str>)?;
@@ -54,20 +54,42 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
                     };
 
                     if selected_ids.is_empty() {
-                        emit_log_line(&app, "TRAY", "[TRAY] no selected services");
+                        emit_log_line(&app, "TRAY", "no selected services");
                         return;
                     }
 
+                    let _ = app.emit(
+                        "services-action",
+                        serde_json::json!({
+                            "action": "start",
+                            "services": selected_ids.clone()
+                        }),
+                    );
+
                     if let Err(e) = tray_services_start(&app, selected_ids).await {
-                        emit_log_line(&app, "TRAY", &format!("[TRAY] start_all error: {}", e));
+                        emit_log_line(&app, "TRAY", &format!("start_all error: {}", e));
                     }
                 });
             }
             "stop_all" => {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
+                    let selected_ids = {
+                        let state = app.state::<Mutex<ConfigState>>();
+                        let cfg = state.lock().unwrap();
+                        cfg.selected_service_ids.clone()
+                    };
+
+                    let _ = app.emit(
+                        "services-action",
+                        serde_json::json!({
+                            "action": "stop_all",
+                            "services": selected_ids
+                        }),
+                    );
+
                     if let Err(e) = tray_services_stop_all(&app).await {
-                        emit_log_line(&app, "TRAY", &format!("[TRAY] stop_all error: {}", e));
+                        emit_log_line(&app, "TRAY", &format!("stop_all error: {}", e));
                     }
                 });
             }
@@ -95,9 +117,6 @@ pub fn update_tooltip(app: &AppHandle, running_count: usize) {
 }
 
 async fn tray_services_start(app: &AppHandle, services: Vec<String>) -> Result<(), String> {
-    use std::process::Stdio;
-    use tokio::io::{AsyncBufReadExt, BufReader};
-
     let defs = load_services_internal(app).await?;
     let yaml = crate::commands::compose::generate_compose(&defs, &services);
 
@@ -114,60 +133,12 @@ async fn tray_services_start(app: &AppHandle, services: Vec<String>) -> Result<(
         .ok_or("compose path tidak valid UTF-8")?
         .to_string();
 
-    let app_out = app.clone();
-    let app_err = app.clone();
-
     let mut cmd = new_docker_cmd();
-    cmd.args(["compose", "-f", &path_str, "up", "-d"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("Gagal spawn docker: {}", e))?;
-
-    let stdout = child.stdout.take().ok_or("stdout tidak tersedia")?;
-    let stderr = child.stderr.take().ok_or("stderr tidak tersedia")?;
-
-    let stdout_task = tokio::spawn(async move {
-        let mut reader = BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
-            emit_log_line(&app_out, "TRAY", &line);
-        }
-    });
-
-    let stderr_task = tokio::spawn(async move {
-        let mut reader = BufReader::new(stderr).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
-            let _ = app_err.emit(
-                "cmd-output",
-                serde_json::json!({
-                    "line": line,
-                    "stream": "stderr",
-                    "source": "TRAY",
-                }),
-            );
-        }
-    });
-
-    let _ = tokio::join!(stdout_task, stderr_task);
-
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Gagal menunggu docker: {}", e))?;
-
-    if !status.success() {
-        return Err(format!("docker compose up gagal (exit {})", status));
-    }
-
-    Ok(())
+    cmd.args(["compose", "-f", &path_str, "up", "-d", "--remove-orphans"]);
+    stream_and_wait_app(cmd, app).await
 }
 
 async fn tray_services_stop_all(app: &AppHandle) -> Result<(), String> {
-    use std::process::Stdio;
-    use tokio::io::{AsyncBufReadExt, BufReader};
-
     let compose_file = compose_path();
     if !compose_file.exists() {
         return Ok(());
@@ -178,57 +149,13 @@ async fn tray_services_stop_all(app: &AppHandle) -> Result<(), String> {
         .ok_or("compose path tidak valid UTF-8")?
         .to_string();
 
-    let app_out = app.clone();
-    let app_err = app.clone();
-
     let mut cmd = new_docker_cmd();
-    cmd.args(["compose", "-f", &path_str, "down"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("Gagal spawn docker: {}", e))?;
-
-    let stdout = child.stdout.take().ok_or("stdout tidak tersedia")?;
-    let stderr = child.stderr.take().ok_or("stderr tidak tersedia")?;
-
-    let stdout_task = tokio::spawn(async move {
-        let mut reader = BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
-            emit_log_line(&app_out, "TRAY", &line);
-        }
-    });
-
-    let stderr_task = tokio::spawn(async move {
-        let mut reader = BufReader::new(stderr).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
-            let _ = app_err.emit(
-                "cmd-output",
-                serde_json::json!({
-                    "line": line,
-                    "stream": "stderr",
-                    "source": "TRAY",
-                }),
-            );
-        }
-    });
-
-    let _ = tokio::join!(stdout_task, stderr_task);
-
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Gagal menunggu docker: {}", e))?;
-
-    if !status.success() {
-        return Err(format!("docker compose down gagal (exit {})", status));
-    }
-
-    Ok(())
+    cmd.args(["compose", "-f", &path_str, "down"]);
+    stream_and_wait_app(cmd, app).await
 }
 
 fn new_docker_cmd() -> tokio::process::Command {
+    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
     let mut cmd = tokio::process::Command::new("docker");
     #[cfg(target_os = "windows")]
     {

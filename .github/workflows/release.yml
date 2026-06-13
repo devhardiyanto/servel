@@ -1,0 +1,137 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    outputs:
+      changelog: ${{ steps.gen.outputs.changelog }}
+      prerelease: ${{ steps.flag.outputs.prerelease }}
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        id: gen
+        shell: bash
+        run: |
+          set -e
+          CURRENT_TAG="${GITHUB_REF_NAME}"
+          PREV_TAG="$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo '')"
+          if [ -z "$PREV_TAG" ]; then
+            RANGE="${CURRENT_TAG}"
+            LOG="$(git log --pretty='* %s' "$CURRENT_TAG")"
+          else
+            RANGE="${PREV_TAG}..${CURRENT_TAG}"
+            LOG="$(git log --pretty='* %s' "$RANGE")"
+          fi
+          {
+            echo "changelog<<EOF"
+            echo "## What's Changed"
+            echo ""
+            echo "$LOG"
+            echo ""
+            echo "**Range:** \`${RANGE}\`"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Detect prerelease
+        id: flag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_NAME}" =~ -(beta|rc|alpha) ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    needs: changelog
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rust-target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            rust-target: aarch64-apple-darwin
+          - os: macos-latest
+            rust-target: x86_64-apple-darwin
+          - os: ubuntu-latest
+            rust-target: x86_64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            build-essential \
+            curl \
+            wget \
+            file
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+
+      - name: Cache Cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ matrix.os }}-${{ matrix.rust-target }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ matrix.os }}-${{ matrix.rust-target }}-cargo-
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build & publish release via tauri-action
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Servel ${{ github.ref_name }}'
+          releaseBody: |
+            ${{ needs.changelog.outputs.changelog }}
+
+            ## Install
+
+            - **Windows:** download `.exe` (NSIS installer), run, follow prompts.
+            - **macOS:** download `.dmg`, open, drag Servel.app to Applications.
+            - **Linux:** download `.AppImage`, `chmod +x`, run.
+
+            See [README](https://github.com/${{ github.repository }}#readme) for prerequisites (Docker Desktop, WSL2 on Windows).
+          releaseDraft: true
+          prerelease: ${{ needs.changelog.outputs.prerelease }}
+          args: --target ${{ matrix.rust-target }}

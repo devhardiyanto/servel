@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -85,6 +86,14 @@ pub async fn config_read(app: AppHandle) -> Result<ConfigState, String> {
         cfg.version = 1;
     }
 
+    // Sync ke in-memory Mutex agar tray (yang baca Mutex) lihat selection tersimpan
+    // tanpa harus menunggu user toggle ulang setelah app boot.
+    if let Some(state) = app.try_state::<Mutex<ConfigState>>() {
+        if let Ok(mut guard) = state.lock() {
+            *guard = cfg.clone();
+        }
+    }
+
     Ok(cfg)
 }
 
@@ -106,6 +115,14 @@ pub async fn config_write(app: AppHandle, config: ConfigState) -> Result<(), Str
         .map_err(|e| format!("gagal tulis config.tmp: {}", e))?;
     std::fs::rename(&tmp_path, &path)
         .map_err(|e| format!("gagal rename config.tmp → config.json: {}", e))?;
+
+    // Sync ke in-memory Mutex<ConfigState> — tray membaca dari Mutex ini
+    // saat user klik "Start all selected". Tanpa sync, Mutex stale = default kosong.
+    if let Some(state) = app.try_state::<Mutex<ConfigState>>() {
+        if let Ok(mut guard) = state.lock() {
+            *guard = config.clone();
+        }
+    }
 
     Ok(())
 }

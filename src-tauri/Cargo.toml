@@ -1,8 +1,8 @@
 [package]
 name = "servel"
-version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+version = "1.0.0-beta.1"
+description = "One app. All your local dev environment."
+authors = ["devhardiyanto <dev.hardiyanto@gmail.com>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
