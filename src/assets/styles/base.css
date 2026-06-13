@@ -24,6 +24,47 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Native app feel: chrome non-selectable by default,
+     opt-in via .selectable class atau scoped style. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Opt-in selectable content — kontent textual yang masuk akal di-copy.
+   Pakai class .selectable di element/container untuk enable text selection. */
+.selectable,
+.selectable * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Data values — selectable supaya bisa di-copy (port, version, stats, etc) */
+.svc-port,
+.svc-ram,
+.svc-name,
+.svc-version,
+.ver-tag,
+.ver-patch,
+.stat-val,
+.setting-value-mono,
+.about-version,
+.about-name,
+.dash-error,
+.log-tail-body,
+.log-line,
+.log-text,
+.lv-area,
+.lv-line,
+.lv-text {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 #app {

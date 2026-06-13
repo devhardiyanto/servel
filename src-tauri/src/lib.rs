@@ -1,10 +1,12 @@
 mod commands;
+mod tray;
 mod watcher;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 
+use commands::config::ConfigState;
 use commands::services::ServiceDef;
 use commands::util::emit_log_line;
 
@@ -36,6 +38,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(watcher::default_watcher_state())
         .manage(Mutex::new(HashMap::<String, bool>::new()))
+        .manage(Mutex::new(ConfigState::default()))
         .invoke_handler(tauri::generate_handler![
             commands::prereq::check_prerequisites,
             commands::prereq::start_docker,
@@ -43,6 +46,7 @@ pub fn run() {
             commands::php::php_get_active,
             commands::php::php_switch,
             commands::php::php_install,
+            commands::php::php_hook_status,
             commands::node::node_list_installed,
             commands::node::node_get_active,
             commands::node::node_switch,
@@ -52,9 +56,30 @@ pub fn run() {
             commands::services::services_start,
             commands::services::services_stop,
             commands::services::services_stop_all,
+            commands::compose::get_compose_path,
             watcher::watch_project,
+            commands::config::config_read,
+            commands::config::config_write,
         ])
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                let should_minimize = {
+                    let state = window.app_handle().state::<Mutex<ConfigState>>();
+                    let val = state.lock().unwrap().minimize_to_tray;
+                    val
+                };
+                if should_minimize {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .setup(|app| {
+            // Tray init — non-fatal: kalau gagal (mis. Linux tanpa appindicator) log warning + lanjut.
+            if let Err(e) = tray::init(app.handle()) {
+                eprintln!("[tray] init gagal, skip tray: {}", e);
+            }
+
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 // Load service definitions sekali di awal — services.json bundled, tidak berubah runtime.
@@ -144,8 +169,11 @@ pub fn run() {
                         }
                     }
 
+                    let running_count = current.values().filter(|&&r| r).count();
                     *prev = current;
                     is_first_tick = false;
+
+                    tray::update_tooltip(&app_handle, running_count);
                 }
             });
             Ok(())

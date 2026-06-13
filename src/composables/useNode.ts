@@ -2,6 +2,7 @@ import { ref, computed, onMounted } from 'vue'
 // invoke langsung (bukan via call()) agar string error dari Rust bisa di-catch untuk node_switch dan node_install
 import { invoke } from '@tauri-apps/api/core'
 import { useTauri } from './useTauri'
+import { useConfig } from './useConfig'
 import type { NodeVersion } from '@/types/version'
 import type { VersionFileDetected } from '@/types/watcher'
 
@@ -41,7 +42,10 @@ export function useNode() {
       await invoke<void>('node_switch', { version })
       // Konfirmasi aktif versi dari Rust (optimistic + verify)
       const confirmed = await call<string | null>('node_get_active')
-      if (confirmed !== undefined) active.value = confirmed ?? null
+      if (confirmed !== undefined) {
+        active.value = confirmed ?? null
+        useConfig().setLastNodeVersion(active.value)
+      }
     } catch (err) {
       error.value = typeof err === 'string' ? err : String(err)
     } finally {

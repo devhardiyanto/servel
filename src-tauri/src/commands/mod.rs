@@ -4,3 +4,4 @@ pub mod node;
 pub(crate) mod util;
 pub mod services;
 pub(crate) mod compose;
+pub mod config;

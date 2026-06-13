@@ -8,7 +8,6 @@ defineProps<{
 
 const emit = defineEmits<{
   toggle: [id: string]
-  stop: [id: string]
 }>()
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -40,7 +39,7 @@ function imageTag(def: ServiceDef): string {
 <template>
   <div
     class="svc-row"
-    :class="{ 'svc-row--selected': state.selected }"
+    :class="{ 'svc-row--enabled': state.selected }"
     @click="emit('toggle', def.id)"
   >
     <div class="svc-toggle" :class="{ 'svc-toggle--on': state.selected }" @click.stop="emit('toggle', def.id)">
@@ -54,29 +53,29 @@ function imageTag(def: ServiceDef): string {
     <span class="svc-port">{{ formatPorts(def) }}</span>
     <span class="svc-ram">~{{ def.ramEstimateMb }} MB</span>
     <div class="svc-status-cell">
-      <button
-        v-if="state.status === 'running' || state.status === 'stopping'"
-        class="svc-stop-btn"
-        :disabled="state.status === 'stopping'"
-        @click.stop="emit('stop', def.id)"
-      >
-        ×
-      </button>
       <span
-        class="status-badge"
-        :class="{
-          'badge-run': state.status === 'running',
-          'badge-stop': state.status === 'stopped' || state.status === 'not_created',
-          'badge-starting': state.status === 'starting' || state.status === 'stopping',
-          'badge-error': state.status === 'error',
-        }"
+        v-if="state.status === 'starting' || state.status === 'stopping'"
+        class="status-badge badge-starting"
       >
-        <span class="sdot"></span>
-        <span v-if="state.status === 'running'">up</span>
-        <span v-else-if="state.status === 'starting'">···</span>
-        <span v-else-if="state.status === 'stopping'">···</span>
-        <span v-else-if="state.status === 'error'">err</span>
-        <span v-else>off</span>
+        <span class="sdot"></span>&#8943;
+      </span>
+      <span
+        v-else-if="state.status === 'running'"
+        class="status-badge badge-run"
+      >
+        <span class="sdot"></span>up
+      </span>
+      <span
+        v-else-if="state.status === 'error'"
+        class="status-badge badge-error"
+      >
+        <span class="sdot"></span>err
+      </span>
+      <span
+        v-else
+        class="status-badge badge-stop"
+      >
+        <span class="sdot"></span>off
       </span>
     </div>
   </div>
@@ -99,7 +98,7 @@ function imageTag(def: ServiceDef): string {
   background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
-.svc-row--selected {
+.svc-row--enabled {
   background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
@@ -176,77 +175,53 @@ function imageTag(def: ServiceDef): string {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-2);
-}
-
-.svc-stop-btn {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: var(--red);
-  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
-  border-radius: 3px;
-  cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
-  line-height: 1;
-  padding: 0;
-  flex-shrink: 0;
-}
-
-.svc-stop-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--red) 12%, transparent);
-  border-color: color-mix(in srgb, var(--red) 70%, transparent);
-}
-
-.svc-stop-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 10px;
   letter-spacing: 0.04em;
 }
 
 .sdot {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
+  position: relative;
 }
 
+/* Running — green, soft "alive" pulse with halo */
 .badge-run {
   color: var(--green);
 }
 .badge-run .sdot {
   background: var(--green);
-  animation: pulse 2s infinite;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 60%, transparent);
+  animation: heartbeat-run 1.8s ease-in-out infinite;
 }
 
+/* Stopped — dim, subtle slow pulse (idle) */
 .badge-stop {
   color: var(--dim);
 }
 .badge-stop .sdot {
   background: var(--dim);
-  animation: pulse 2.4s infinite;
+  animation: heartbeat-stop 3s ease-in-out infinite;
 }
 
+/* Starting / stopping — amber, fast urgent pulse */
 .badge-starting {
   color: var(--amber);
 }
 .badge-starting .sdot {
   background: var(--amber);
-  animation: spin-dot 1s linear infinite;
+  animation: heartbeat-active 0.9s ease-in-out infinite;
 }
 
+/* Error — red, static */
 .badge-error {
   color: var(--red);
 }
@@ -254,13 +229,24 @@ function imageTag(def: ServiceDef): string {
   background: var(--red);
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+@keyframes heartbeat-run {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 50%, transparent);
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 0%, transparent);
+  }
 }
 
-@keyframes spin-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.2; }
+@keyframes heartbeat-stop {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.85; }
+}
+
+@keyframes heartbeat-active {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
 }
 </style>

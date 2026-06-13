@@ -180,6 +180,75 @@ pub async fn php_install(window: Window, version: String) -> Result<(), String> 
     Ok(())
 }
 
+/// Probe `phpvm hook status` and classify the result.
+/// Returns `"installed"`, `"not_installed"`, or `"unknown"` (probe failed
+/// or output not recognisable). Never errors — the UI uses this purely as a hint.
+#[tauri::command]
+pub async fn php_hook_status() -> Result<String, String> {
+    let output = build_phpvm_command("hook status")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .await;
+
+    let Ok(output) = output else {
+        return Ok("unknown".to_string());
+    };
+
+    let raw = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    // Strip ANSI escape sequences (ESC [ ... letter)
+    let mut cleaned = String::with_capacity(raw.len());
+    let mut chars = raw.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                for cc in chars.by_ref() {
+                    if cc.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+                continue;
+            }
+        }
+        cleaned.push(c);
+    }
+    let combined = cleaned.to_lowercase();
+
+    // Order matters — check negative patterns first.
+    let negative_keywords = [
+        "hook not installed",
+        "not installed",
+        "no $profile",
+        "no profile",
+    ];
+    for kw in negative_keywords {
+        if combined.contains(kw) {
+            return Ok("not_installed".to_string());
+        }
+    }
+    let positive_keywords = [
+        "hook installed",
+        "hook is installed",
+        "hook: installed",
+        "powershell hook: installed",
+    ];
+    for kw in positive_keywords {
+        if combined.contains(kw) {
+            return Ok("installed".to_string());
+        }
+    }
+    // Bare "installed" fallback — risky karena bisa salah, jadi terakhir.
+    if combined.contains("installed") && !combined.contains("not") {
+        return Ok("installed".to_string());
+    }
+    Ok("unknown".to_string())
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------

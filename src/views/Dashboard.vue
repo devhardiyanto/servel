@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, onUnmounted, computed, inject, ref, watch } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { usePhp } from '@/composables/usePhp'
+import { usePhpHookStatus } from '@/composables/usePhpHookStatus'
 import { useNode } from '@/composables/useNode'
 import { useLogs } from '@/composables/useLogs'
 import { useServices } from '@/composables/useServices'
+import { useConfig } from '@/composables/useConfig'
 import { useUptime } from '@/composables/useUptime'
+import { SetViewKey } from '@/types/navigation'
 import LogTail from '@/components/LogTail.vue'
 import ServiceRow from '@/components/ServiceRow.vue'
 
@@ -30,6 +34,21 @@ const {
   dismissSuggestion: dismissNodeSuggestion,
 } = useNode()
 
+const setView = inject(SetViewKey)!
+const { status: phpHookStatus, refresh: refreshPhpHookStatus } = usePhpHookStatus()
+
+const phpHookCommand = 'phpvm hook install'
+const phpHookCopied = ref(false)
+async function copyPhpHookCommand(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(phpHookCommand)
+    phpHookCopied.value = true
+    setTimeout(() => { phpHookCopied.value = false }, 1500)
+  } catch {
+    // clipboard tidak available — silent
+  }
+}
+
 const { lines: logLines } = useLogs()
 const { formatted: uptimeFormatted } = useUptime()
 
@@ -42,21 +61,25 @@ const {
   coreServices,
   additionalServices,
   runningCount,
-  totalRamEstimateSelected,
+  runningIds,
   hasStarting,
   hasStopping,
   definitions,
   serviceError,
   load: loadServices,
   toggle,
+  setSelectedIds,
   start,
-  stop,
   stopAll,
 } = useServices()
 
-const totalRamWithBaseline = computed(() =>
-  totalRamEstimateSelected.value + RUNTIME_RAM_BASELINE
-)
+const totalRamWithBaseline = computed(() => {
+  const runningRam = runningIds.value.reduce((acc, id) => {
+    const def = definitions.value.find((d) => d.id === id)
+    return acc + (def?.ramEstimateMb ?? 0)
+  }, 0)
+  return runningRam + RUNTIME_RAM_BASELINE
+})
 
 const stoppedCount = computed(() => definitions.value.length - runningCount.value)
 
@@ -107,8 +130,58 @@ function nodeIdx(): number {
   return nodeVersions.value.findIndex((v) => v.version === nodeActive.value)
 }
 
-onMounted(() => {
-  loadServices()
+const handleWindowFocus = (): void => {
+  void refreshPhpHookStatus()
+}
+
+watch(phpActive, () => {
+  void refreshPhpHookStatus()
+})
+
+function nowTs(): string {
+  return new Date().toTimeString().slice(0, 8)
+}
+
+onMounted(async () => {
+  await loadServices()
+  void refreshPhpHookStatus()
+  await useConfig().load()
+
+  const cfg = useConfig().config.value
+  const { push: pushLog } = useLogs('ENV')
+
+  // Restore selection UI dari config
+  if (cfg.selectedServiceIds.length > 0) {
+    setSelectedIds(cfg.selectedServiceIds)
+  }
+
+  // Diagnostic + auto-start path
+  if (!cfg.autoStart) {
+    pushLog({ ts: nowTs(), src: 'ENV', text: 'auto-start: disabled' })
+  } else if (cfg.selectedServiceIds.length === 0) {
+    pushLog({ ts: nowTs(), src: 'ENV', text: 'auto-start: no saved selection' })
+  } else {
+    let dockerRunning = false
+    try {
+      const prereqResult = await invoke<import('@/types/prereq').PrereqStatus>('check_prerequisites')
+      dockerRunning = prereqResult.docker_running
+    } catch {
+      dockerRunning = false
+    }
+
+    if (!dockerRunning) {
+      pushLog({ ts: nowTs(), src: 'ENV', text: 'auto-start: Docker not ready — skipped' })
+    } else {
+      await start(cfg.selectedServiceIds)
+      pushLog({ ts: nowTs(), src: 'ENV', text: `auto-started: ${cfg.selectedServiceIds.join(', ')}` })
+    }
+  }
+
+  window.addEventListener('focus', handleWindowFocus)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('focus', handleWindowFocus)
 })
 </script>
 
@@ -119,7 +192,10 @@ onMounted(() => {
         <span class="app-strip__name">servel</span>
         <span class="app-strip__tag">local dev environment</span>
       </div>
-      <div class="app-strip__uptime">uptime {{ uptimeFormatted }}</div>
+      <div class="app-strip__right">
+        <span class="app-strip__uptime">uptime {{ uptimeFormatted }}</span>
+        <button class="app-strip__settings-btn" title="Settings" @click="setView('settings')">&#9881;</button>
+      </div>
     </header>
 
     <div class="dashboard-content">
@@ -131,6 +207,15 @@ onMounted(() => {
             <span class="cb-live-dot" :style="{ background: phpAccent }"></span>
             active
           </span>
+        </div>
+
+        <div v-if="phpHookStatus === 'not_installed'" class="vp-hook-banner">
+          <span class="vp-hook-text">
+            Run <code class="vp-hook-cmd">phpvm hook install</code> di PowerShell untuk PATH integration.
+          </span>
+          <button class="vp-hook-copy" :title="phpHookCopied ? 'Copied' : 'Copy command'" @click="copyPhpHookCommand">
+            {{ phpHookCopied ? '✓ Copied' : 'Copy' }}
+          </button>
         </div>
 
         <div v-if="phpSuggested" class="vp-suggest-banner">
@@ -287,7 +372,6 @@ onMounted(() => {
             :def="def"
             :state="uiState[def.id]"
             @toggle="toggle"
-            @stop="(id) => stop([id])"
           />
         </template>
         <template v-if="additionalServices.length > 0">
@@ -298,7 +382,6 @@ onMounted(() => {
             :def="def"
             :state="uiState[def.id]"
             @toggle="toggle"
-            @stop="(id) => stop([id])"
           />
         </template>
         <div v-if="definitions.length === 0" class="svc-loading">loading&#x2026;</div>
@@ -306,6 +389,10 @@ onMounted(() => {
     </section>
 
     <section class="log-wrap">
+      <div class="log-wrap__bar">
+        <span class="log-wrap__label">LOGS</span>
+        <button class="log-wrap__expand-btn" @click="setView('logs')">expand &#8599;</button>
+      </div>
       <LogTail :lines="logLines" max-height="148px" />
     </section>
     </div>
@@ -354,10 +441,33 @@ onMounted(() => {
   letter-spacing: 0.04em;
 }
 
+.app-strip__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .app-strip__uptime {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--dim);
+}
+
+.app-strip__settings-btn {
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 3px;
+  line-height: 1;
+  transition: color 0.1s, background 0.1s;
+}
+
+.app-strip__settings-btn:hover {
+  color: var(--text);
+  background: var(--surface2);
 }
 
 .dashboard-content {
@@ -520,6 +630,53 @@ onMounted(() => {
   background: color-mix(in srgb, var(--amber) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
   border-radius: 4px;
+}
+
+.vp-hook-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: color-mix(in srgb, var(--muted) 8%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.vp-hook-text {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--muted);
+  flex: 1;
+  min-width: 0;
+}
+
+.vp-hook-cmd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 1px 5px;
+  background: var(--surface2);
+  border-radius: 3px;
+  color: var(--text);
+}
+
+.vp-hook-copy {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s;
+}
+
+.vp-hook-copy:hover {
+  background: var(--dim);
+  color: var(--text);
 }
 
 .vp-suggest-text {
@@ -741,7 +898,38 @@ onMounted(() => {
 
 .log-wrap {
   margin: 0;
-  height: 168px;
+  height: 184px;
   flex-shrink: 0;
+}
+
+.log-wrap__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-2) 4px;
+}
+
+.log-wrap__label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+
+.log-wrap__expand-btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: transparent;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.1s;
+}
+
+.log-wrap__expand-btn:hover {
+  color: var(--accent);
 }
 </style>
