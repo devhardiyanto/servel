@@ -199,6 +199,23 @@ Requirements: Node.js 20 LTS, Rust stable (via [rustup](https://rustup.rs/)), an
 
 ---
 
+## Privacy policy
+
+Servel does not collect, transmit, or store any personal data. All configuration is saved locally on your machine only. There is no telemetry, no analytics, and no network calls except those explicitly initiated by the user (Docker image pulls, `phpvm` / `fnm` version installs, etc).
+
+---
+
+## Code signing policy
+
+Free code signing on Windows provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+
+- Committers and reviewers: [@devhardiyanto](https://github.com/devhardiyanto)
+- Approvers: [@devhardiyanto](https://github.com/devhardiyanto)
+
+This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+
+---
+
 ## License
 
 MIT. See [LICENSE](LICENSE) for details.
