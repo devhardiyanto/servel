@@ -1,0 +1,87 @@
+name: Bug report
+description: Report a reproducible bug in Servel.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please fill out the form below so we can reproduce and fix it quickly.
+
+  - type: input
+    id: version
+    attributes:
+      label: Servel version
+      description: See the bottom-right of the app, or run `servel --version`.
+      placeholder: "v1.0.0-beta.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Linux (Ubuntu/Debian)
+        - Linux (Fedora/RHEL)
+        - Linux (Arch)
+        - Linux (other)
+    validations:
+      required: true
+
+  - type: input
+    id: docker
+    attributes:
+      label: Docker version
+      description: Output of `docker --version` (only if relevant).
+      placeholder: "Docker version 27.x.x"
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to trigger the bug.
+      placeholder: |
+        1. Open Servel
+        2. Toggle MySQL ON
+        3. Click tray "Start all selected"
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: "MySQL container should start and badge turn green."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: "Badge stays amber, log shows 'port already allocated' error."
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste log lines from the Logs Viewer or terminal output. Use code blocks.
+      render: shell
+
+  - type: checkboxes
+    id: prereq-check
+    attributes:
+      label: Prerequisites
+      options:
+        - label: I have searched existing issues and confirmed this is not a duplicate.
+          required: true
+        - label: I am on the latest Servel release.
+          required: true
