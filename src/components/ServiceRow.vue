@@ -1,10 +1,19 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { ServiceDef, ServiceUiState } from '@/types/service'
 
-defineProps<{
+const props = defineProps<{
   def: ServiceDef
   state: ServiceUiState
 }>()
+
+const ramDisplay = computed(() => {
+  const ui = props.state
+  if (ui?.status === 'running' && ui.memMb != null) {
+    return `${Math.round(ui.memMb)} MB`
+  }
+  return `~${props.def.ramEstimateMb} MB`
+})
 
 const emit = defineEmits<{
   toggle: [id: string]
@@ -51,7 +60,7 @@ function imageTag(def: ServiceDef): string {
       <span class="svc-version">{{ imageTag(def) }}</span>
     </div>
     <span class="svc-port">{{ formatPorts(def) }}</span>
-    <span class="svc-ram">~{{ def.ramEstimateMb }} MB</span>
+    <span class="svc-ram">{{ ramDisplay }}</span>
     <div class="svc-status-cell">
       <span
         v-if="state.status === 'starting' || state.status === 'stopping'"

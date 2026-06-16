@@ -4,6 +4,7 @@ import { SetViewKey } from '../types/navigation'
 import { usePrereq } from '@/composables/usePrereq'
 import PrereqCard from '@/components/PrereqCard.vue'
 import type { PrereqAction } from '@/components/PrereqCard.vue'
+import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 
 const setView = inject(SetViewKey)!
 
@@ -104,7 +105,20 @@ const fnmOkDesc = computed<string>(() => {
           <span class="ob-progress-label">{{ readyCount }}/{{ totalCount }} ready</span>
         </div>
 
-        <div class="ob-cards">
+        <div v-if="status === null" class="ob-cards" aria-busy="true" aria-label="Checking prerequisites">
+          <div v-for="i in 3" :key="`prereq-skel-${i}`" class="prereq-skel">
+            <SkeletonBox width="36px" height="36px" radius="8px" />
+            <div class="prereq-skel__body">
+              <div class="prereq-skel__row">
+                <SkeletonBox width="100px" height="14px" />
+                <SkeletonBox variant="chip" width="76px" height="16px" />
+              </div>
+              <SkeletonBox width="70%" height="11px" />
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="ob-cards">
           <PrereqCard
             name="Docker"
             :installed="status?.docker_installed ?? false"
@@ -288,6 +302,32 @@ const fnmOkDesc = computed<string>(() => {
   flex-direction: column;
   gap: var(--space-3);
   margin-bottom: var(--space-6);
+}
+
+/* Skeleton mirror layout PrereqCard supaya tidak ada layout shift saat status arrive */
+.prereq-skel {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--space-4);
+}
+
+.prereq-skel__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: 4px;
+}
+
+.prereq-skel__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .ob-error {

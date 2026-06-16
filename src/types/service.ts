@@ -28,4 +28,10 @@ export interface ServiceUiState {
   id: string
   selected: boolean
   status: 'not_created' | 'stopped' | 'running' | 'starting' | 'stopping' | 'error'
+  memMb: number | null
+}
+
+export interface ContainerMemStat {
+  id: string
+  memMb: number
 }

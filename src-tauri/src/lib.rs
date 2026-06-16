@@ -96,31 +96,74 @@ pub fn run() {
                         }
                     };
 
-                let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(3));
+                // Backoff scheduling: 3s normal, 10s/30s saat docker daemon mati.
+                // Hindari spam log + retry agresif yang bikin CPU/IO sia-sia.
+                let base_delay = tokio::time::Duration::from_secs(3);
+                #[allow(unused_assignments)]
+                let mut current_delay = base_delay;
+                let mut consecutive_failures: u32 = 0;
+                let mut last_daemon_ok: Option<bool> = None;
                 let mut is_first_tick = true;
 
                 loop {
-                    interval.tick().await;
+                    let status_result = commands::services::services_status_internal().await;
 
-                    let current = match commands::services::services_status_internal().await {
-                        Ok(statuses) => statuses
-                            .into_iter()
-                            .map(|s| (s.id, s.running))
-                            .collect::<HashMap<String, bool>>(),
+                    let current = match status_result {
+                        Ok(statuses) => {
+                            // Recovery transition: false -> true.
+                            if last_daemon_ok == Some(false) {
+                                let _ = app_handle.emit(
+                                    "docker-daemon-status",
+                                    serde_json::json!({ "running": true, "error": null }),
+                                );
+                                emit_log_line(
+                                    &app_handle,
+                                    "SERVEL",
+                                    "[polling] docker daemon recovered",
+                                );
+                            }
+                            last_daemon_ok = Some(true);
+                            consecutive_failures = 0;
+                            current_delay = base_delay;
+
+                            statuses
+                                .into_iter()
+                                .map(|s| (s.id, s.running))
+                                .collect::<HashMap<String, bool>>()
+                        }
                         Err(err) => {
-                            let _ = app_handle.emit(
-                                "cmd-output",
-                                serde_json::json!({
-                                    "line": format!("[polling] services_status error: {}", err),
-                                    "stream": "stderr",
-                                    "source": "SERVEL",
-                                    "level": "warn",
-                                }),
-                            );
+                            consecutive_failures = consecutive_failures.saturating_add(1);
+                            // Mapping backoff: 1-2 fail -> 10s, 3-5 -> 30s, >5 -> cap 30s.
+                            current_delay = match consecutive_failures {
+                                1..=2 => tokio::time::Duration::from_secs(10),
+                                _ => tokio::time::Duration::from_secs(30),
+                            };
+
+                            // Emit event hanya saat transition None/true -> false.
+                            if last_daemon_ok != Some(false) {
+                                let stripped = err.trim().to_string();
+                                let _ = app_handle.emit(
+                                    "docker-daemon-status",
+                                    serde_json::json!({
+                                        "running": false,
+                                        "error": stripped,
+                                    }),
+                                );
+                                emit_log_line(
+                                    &app_handle,
+                                    "SERVEL",
+                                    "[polling] docker daemon not reachable \u{2014} backing off",
+                                );
+                            }
+                            last_daemon_ok = Some(false);
+
+                            tokio::time::sleep(current_delay).await;
                             continue;
                         }
                     };
 
+                    let running_count;
+                    {
                     let state = app_handle.state::<Mutex<HashMap<String, bool>>>();
                     let mut prev = state.lock().unwrap();
 
@@ -169,13 +212,51 @@ pub fn run() {
                         }
                     }
 
-                    let running_count = current.values().filter(|&&r| r).count();
+                    running_count = current.values().filter(|&&r| r).count();
                     *prev = current;
                     is_first_tick = false;
+                    }
 
                     tray::update_tooltip(&app_handle, running_count);
+
+                    tokio::time::sleep(current_delay).await;
                 }
             });
+
+            // Polling kedua: `docker stats` untuk realtime memory usage per container.
+            // Interval 5s (lebih lambat dari status 3s) karena `docker stats` lebih mahal.
+            // Backoff lokal saat error (3s -> 10s -> 30s) — daemon-down event sudah di-handle
+            // polling status, jadi di sini cukup silent backoff tanpa emit error.
+            let stats_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let base_delay = tokio::time::Duration::from_secs(5);
+                #[allow(unused_assignments)]
+                let mut current_delay = base_delay;
+                let mut consecutive_failures: u32 = 0;
+
+                loop {
+                    match commands::stats::fetch_container_stats().await {
+                        Ok(stats) => {
+                            consecutive_failures = 0;
+                            current_delay = base_delay;
+
+                            if !stats.is_empty() {
+                                let _ = stats_handle.emit("container-stats-changed", &stats);
+                            }
+                        }
+                        Err(_) => {
+                            consecutive_failures = consecutive_failures.saturating_add(1);
+                            current_delay = match consecutive_failures {
+                                1..=2 => tokio::time::Duration::from_secs(10),
+                                _ => tokio::time::Duration::from_secs(30),
+                            };
+                        }
+                    }
+
+                    tokio::time::sleep(current_delay).await;
+                }
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())

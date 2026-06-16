@@ -4,7 +4,7 @@ import { listen } from '@tauri-apps/api/event'
 import { useTauri } from './useTauri'
 import { useConfig } from './useConfig'
 import { useLogs } from './useLogs'
-import type { ServiceDef, ServiceStatus, ServiceUiState } from '@/types/service'
+import type { ServiceDef, ServiceStatus, ServiceUiState, ContainerMemStat } from '@/types/service'
 
 interface ContainerStatusChangedPayload {
   service: string
@@ -24,6 +24,7 @@ const serviceError = ref<string | null>(null)
 let initialized = false
 let listenerRegistered = false
 let servicesActionListenerRegistered = false
+let statsListenerRegistered = false
 let persistWatchRegistered = false
 
 function deriveStatus(id: string): ServiceUiState['status'] {
@@ -42,6 +43,7 @@ function initUiState(defs: ServiceDef[]): void {
       id: def.id,
       selected: uiState.value[def.id]?.selected ?? false,
       status: uiState.value[def.id]?.status ?? deriveStatus(def.id),
+      memMb: uiState.value[def.id]?.memMb ?? null,
     }
   }
   uiState.value = next
@@ -78,7 +80,11 @@ function applyStatusChange(id: string, running: boolean): void {
       (current.status === 'starting' && !running) ||
       (current.status === 'stopping' && running)
     if (!holdTransition) {
-      uiState.value[id] = { ...current, status: running ? 'running' : 'stopped' }
+      uiState.value[id] = {
+        ...current,
+        status: running ? 'running' : 'stopped',
+        memMb: running ? current.memMb : null,
+      }
     }
   }
 }
@@ -88,6 +94,31 @@ async function registerListener(): Promise<void> {
   listenerRegistered = true
   await listen<ContainerStatusChangedPayload>('container-status-changed', (e) => {
     applyStatusChange(e.payload.service, e.payload.running)
+  })
+}
+
+async function registerStatsListener(): Promise<void> {
+  if (statsListenerRegistered) return
+  statsListenerRegistered = true
+  await listen<ContainerMemStat[]>('container-stats-changed', (e) => {
+    const payload = e.payload
+    const idsInPayload = new Set<string>()
+    for (const stat of payload) {
+      idsInPayload.add(stat.id)
+      const current = uiState.value[stat.id]
+      if (current) {
+        uiState.value[stat.id] = { ...current, memMb: stat.memMb }
+      }
+    }
+    // Absent dari payload = stopped / no data → fallback ke estimate.
+    for (const id of Object.keys(uiState.value)) {
+      if (!idsInPayload.has(id)) {
+        const current = uiState.value[id]
+        if (current && current.memMb !== null) {
+          uiState.value[id] = { ...current, memMb: null }
+        }
+      }
+    }
   })
 }
 
@@ -198,6 +229,7 @@ export function useServices() {
 
       await registerListener()
       await registerServicesActionListener()
+      await registerStatsListener()
       registerPersistWatch()
     } catch (err) {
       initialized = false

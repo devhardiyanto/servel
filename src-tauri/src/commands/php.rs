@@ -279,8 +279,14 @@ fn build_phpvm_command(subcommand: &str) -> tokio::process::Command {
 }
 
 /// Parse `phpvm list` output into a `Vec<PhpVersion>`.
-/// Each line is either `"  <version>"` (inactive) or `"* <version>"` (active).
+/// Recognised active markers (prefix): `*`, `->`, `=>`.
+/// Recognised active suffix: ` (active)` (case-insensitive).
 /// Leading/trailing whitespace and optional `v` prefix are stripped.
+/// Example real-world Windows output:
+///   "Installed versions:"
+///   "    7.4.33"
+///   " -> 8.3.31 (active)"
+///   "    8.5.6"
 fn parse_phpvm_list(output: &str) -> Vec<PhpVersion> {
     output
         .lines()
@@ -290,16 +296,40 @@ fn parse_phpvm_list(output: &str) -> Vec<PhpVersion> {
                 return None;
             }
 
-            let (active, rest) = if let Some(stripped) = line.strip_prefix('*') {
-                (true, stripped.trim())
+            // Detect & strip active marker prefix.
+            let (mut active, rest_after_prefix) = if let Some(s) = line.strip_prefix("->") {
+                (true, s.trim_start())
+            } else if let Some(s) = line.strip_prefix("=>") {
+                (true, s.trim_start())
+            } else if let Some(s) = line.strip_prefix('*') {
+                (true, s.trim_start())
             } else {
                 (false, line)
             };
 
-            // Strip optional leading `v` (e.g. "v8.3.0" → "8.3.0")
-            let version = rest.trim_start_matches('v').trim().to_string();
+            // Detect & strip active suffix " (active)" (case-insensitive).
+            let rest_trimmed = rest_after_prefix.trim_end();
+            let rest_no_suffix = {
+                let lower = rest_trimmed.to_ascii_lowercase();
+                if let Some(idx) = lower.rfind("(active)") {
+                    // Ensure preceding char (if any) is whitespace so we don't
+                    // accidentally slice into a version segment.
+                    let before = &rest_trimmed[..idx];
+                    if before.is_empty() || before.ends_with(char::is_whitespace) {
+                        active = true;
+                        before.trim_end()
+                    } else {
+                        rest_trimmed
+                    }
+                } else {
+                    rest_trimmed
+                }
+            };
 
-            // Skip lines that don't look like a version (e.g. header text)
+            // Strip optional leading `v` (e.g. "v8.3.0" → "8.3.0").
+            let version = rest_no_suffix.trim_start_matches('v').trim().to_string();
+
+            // Skip lines that don't look like a version (e.g. header text).
             if version.is_empty() || !version.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
                 return None;
             }
@@ -371,5 +401,41 @@ mod tests {
         let versions = parse_phpvm_list(output);
         // "Installed PHP versions:" starts with 'I', not digit — skipped
         assert_eq!(versions.len(), 2);
+    }
+
+    #[test]
+    fn test_parse_phpvm_list_arrow_marker() {
+        // Real-world phpvm (Windows) output uses "->" marker plus "(active)" suffix.
+        let output = "Installed versions:\n    7.4.33\n -> 8.3.31 (active)\n    8.5.6\n";
+        let versions = parse_phpvm_list(output);
+        assert_eq!(versions.len(), 3);
+        assert_eq!(versions[0].version, "7.4.33");
+        assert!(!versions[0].active);
+        assert_eq!(versions[1].version, "8.3.31");
+        assert!(versions[1].active);
+        assert_eq!(versions[2].version, "8.5.6");
+        assert!(!versions[2].active);
+    }
+
+    #[test]
+    fn test_parse_phpvm_list_fat_arrow_marker() {
+        let output = " => 8.2.21\n    8.1.29\n";
+        let versions = parse_phpvm_list(output);
+        assert_eq!(versions.len(), 2);
+        assert_eq!(versions[0].version, "8.2.21");
+        assert!(versions[0].active);
+        assert!(!versions[1].active);
+    }
+
+    #[test]
+    fn test_parse_phpvm_list_active_suffix_only() {
+        // Some phpvm builds omit prefix marker but keep "(active)" suffix.
+        let output = "    7.4.33\n    8.3.31 (active)\n    8.5.6\n";
+        let versions = parse_phpvm_list(output);
+        assert_eq!(versions.len(), 3);
+        assert!(!versions[0].active);
+        assert_eq!(versions[1].version, "8.3.31");
+        assert!(versions[1].active);
+        assert!(!versions[2].active);
     }
 }
