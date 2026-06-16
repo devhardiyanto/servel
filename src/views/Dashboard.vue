@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, computed, inject, ref, watch } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
 import { usePhp } from '@/composables/usePhp'
 import { usePhpHookStatus } from '@/composables/usePhpHookStatus'
 import { useNode } from '@/composables/useNode'
@@ -8,9 +7,13 @@ import { useLogs } from '@/composables/useLogs'
 import { useServices } from '@/composables/useServices'
 import { useConfig } from '@/composables/useConfig'
 import { useUptime } from '@/composables/useUptime'
+import { useDockerStatus } from '@/composables/useDockerStatus'
 import { SetViewKey } from '@/types/navigation'
 import LogTail from '@/components/LogTail.vue'
 import ServiceRow from '@/components/ServiceRow.vue'
+import SkeletonBox from '@/components/ui/SkeletonBox.vue'
+
+const SKELETON_ROW_COUNT = 9
 
 const {
   versions: phpVersions,
@@ -51,6 +54,18 @@ async function copyPhpHookCommand(): Promise<void> {
 
 const { lines: logLines } = useLogs()
 const { formatted: uptimeFormatted } = useUptime()
+const { dockerStatus, lastError: dockerLastError, refresh: refreshDocker } = useDockerStatus()
+
+const refreshingDocker = ref(false)
+async function handleDockerRefresh(): Promise<void> {
+  if (refreshingDocker.value) return
+  refreshingDocker.value = true
+  try {
+    await refreshDocker()
+  } finally {
+    refreshingDocker.value = false
+  }
+}
 
 const phpAccent = '#22d3ee'
 const nodeAccent = '#4ade80'
@@ -75,6 +90,8 @@ const {
 
 const totalRamWithBaseline = computed(() => {
   const runningRam = runningIds.value.reduce((acc, id) => {
+    const ui = uiState.value[id]
+    if (ui?.memMb != null) return acc + ui.memMb
     const def = definitions.value.find((d) => d.id === id)
     return acc + (def?.ramEstimateMb ?? 0)
   }, 0)
@@ -138,43 +155,16 @@ watch(phpActive, () => {
   void refreshPhpHookStatus()
 })
 
-function nowTs(): string {
-  return new Date().toTimeString().slice(0, 8)
-}
-
 onMounted(async () => {
   await loadServices()
   void refreshPhpHookStatus()
   await useConfig().load()
 
   const cfg = useConfig().config.value
-  const { push: pushLog } = useLogs('ENV')
 
   // Restore selection UI dari config
   if (cfg.selectedServiceIds.length > 0) {
     setSelectedIds(cfg.selectedServiceIds)
-  }
-
-  // Diagnostic + auto-start path
-  if (!cfg.autoStart) {
-    pushLog({ ts: nowTs(), src: 'ENV', text: 'auto-start: disabled' })
-  } else if (cfg.selectedServiceIds.length === 0) {
-    pushLog({ ts: nowTs(), src: 'ENV', text: 'auto-start: no saved selection' })
-  } else {
-    let dockerRunning = false
-    try {
-      const prereqResult = await invoke<import('@/types/prereq').PrereqStatus>('check_prerequisites')
-      dockerRunning = prereqResult.docker_running
-    } catch {
-      dockerRunning = false
-    }
-
-    if (!dockerRunning) {
-      pushLog({ ts: nowTs(), src: 'ENV', text: 'auto-start: Docker not ready — skipped' })
-    } else {
-      await start(cfg.selectedServiceIds)
-      pushLog({ ts: nowTs(), src: 'ENV', text: `auto-started: ${cfg.selectedServiceIds.join(', ')}` })
-    }
   }
 
   window.addEventListener('focus', handleWindowFocus)
@@ -199,6 +189,19 @@ onUnmounted(() => {
     </header>
 
     <div class="dashboard-content">
+    <div v-if="dockerStatus === 'down'" class="docker-down-banner">
+      <span class="ddb-icon">&#9888;</span>
+      <div class="ddb-text">
+        <strong>Docker daemon not running</strong>
+        <span class="ddb-sub">
+          Start Docker Desktop to use services.<span v-if="dockerLastError"> ({{ dockerLastError }})</span>
+        </span>
+      </div>
+      <button class="ddb-retry" :disabled="refreshingDocker" @click="handleDockerRefresh">
+        {{ refreshingDocker ? '...' : 'Retry' }}
+      </button>
+    </div>
+
     <section class="control-strip">
       <div class="control-block" :style="{ borderColor: phpAccent + '40' }">
         <div class="cb-label">
@@ -384,7 +387,25 @@ onUnmounted(() => {
             @toggle="toggle"
           />
         </template>
-        <div v-if="definitions.length === 0" class="svc-loading">loading&#x2026;</div>
+        <template v-if="definitions.length === 0 && !serviceError">
+          <div
+            v-for="i in SKELETON_ROW_COUNT"
+            :key="`skeleton-${i}`"
+            class="svc-row-skeleton"
+            aria-busy="true"
+            aria-label="Loading service"
+          >
+            <SkeletonBox width="28px" height="15px" radius="8px" />
+            <SkeletonBox width="18px" height="18px" radius="4px" />
+            <div class="svc-row-skeleton__id">
+              <SkeletonBox width="60%" height="12px" />
+              <SkeletonBox width="40%" height="9px" />
+            </div>
+            <SkeletonBox width="70px" height="11px" />
+            <SkeletonBox width="50px" height="11px" />
+            <SkeletonBox variant="chip" width="40px" height="14px" />
+          </div>
+        </template>
       </div>
     </section>
 
@@ -776,6 +797,71 @@ onUnmounted(() => {
   letter-spacing: 0.06em;
 }
 
+.docker-down-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.ddb-icon {
+  font-size: 18px;
+  color: var(--red);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.ddb-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ddb-text strong {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--red);
+}
+
+.ddb-sub {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ddb-retry {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 12px;
+  background: color-mix(in srgb, var(--red) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
+  border-radius: 4px;
+  color: var(--red);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.ddb-retry:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--red) 28%, transparent);
+  border-color: color-mix(in srgb, var(--red) 65%, transparent);
+}
+
+.ddb-retry:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .dash-error {
   margin: 0;
   padding: var(--space-2) var(--space-3);
@@ -894,6 +980,23 @@ onUnmounted(() => {
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--dim);
+}
+
+/* Skeleton row — mirror .svc-row grid sehingga real content tidak shift */
+.svc-row-skeleton {
+  display: grid;
+  grid-template-columns: 36px 24px 1fr 100px 68px 80px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 5px var(--space-4);
+  /* Height match-able dengan ServiceRow (svc-row punya font-size 12px + padding 5px) */
+}
+
+.svc-row-skeleton__id {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 
 .log-wrap {

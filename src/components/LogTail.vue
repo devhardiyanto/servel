@@ -24,9 +24,13 @@ watch(
   },
 )
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('keydown', handleKeydown)
   containerRef.value?.addEventListener('copy', handleCopy)
+  await nextTick()
+  if (containerRef.value) {
+    containerRef.value.scrollTop = containerRef.value.scrollHeight
+  }
 })
 
 onUnmounted(() => {

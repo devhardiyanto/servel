@@ -55,9 +55,11 @@ function scrollToBottom(): void {
 
 const { handleKeydown, handleCopy, focusContainer } = useLogCopy(logAreaRef, filteredLines)
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('keydown', handleKeydown)
   logAreaRef.value?.addEventListener('copy', handleCopy)
+  await nextTick()
+  scrollToBottom()
 })
 
 onUnmounted(() => {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, inject, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { getVersion } from '@tauri-apps/api/app'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { SetViewKey } from '@/types/navigation'
 import { useConfig } from '@/composables/useConfig'
@@ -27,6 +28,7 @@ const activeNav = ref<SettingsNav>('general')
 const composePath = ref<string>('')
 const dockerRunning = ref<boolean | null>(null)
 const checkingDocker = ref(false)
+const version = ref<string>('')
 
 async function fetchComposePath(): Promise<void> {
   try {
@@ -68,6 +70,11 @@ onMounted(async () => {
   if (!loaded.value) await load()
   await fetchComposePath()
   await checkDocker()
+  try {
+    version.value = await getVersion()
+  } catch {
+    version.value = ''
+  }
 })
 </script>
 
@@ -214,7 +221,7 @@ onMounted(async () => {
             <div class="about-block">
               <span class="about-name">servel</span>
               <span class="about-desc">Local dev environment manager</span>
-              <span class="about-version">v1.0.0</span>
+              <span class="about-version">v{{ version || '...' }}</span>
             </div>
           </div>
         </template>
