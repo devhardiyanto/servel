@@ -84,6 +84,7 @@ const {
   load: loadServices,
   toggle,
   setSelectedIds,
+  reconcileSelectedWithRunning,
   start,
   stopAll,
 } = useServices()
@@ -166,6 +167,12 @@ onMounted(async () => {
   if (cfg.selectedServiceIds.length > 0) {
     setSelectedIds(cfg.selectedServiceIds)
   }
+
+  // Rekonsiliasi: container yang auto-restart (restart: unless-stopped) setelah
+  // reboot tampil running → switch harus ON walau tidak ada di saved config.
+  // Dipanggil SETELAH config loaded + setSelectedIds; persist watch akan menulis
+  // ulang selection dari running state (menyembuhkan config yang hilang).
+  reconcileSelectedWithRunning()
 
   window.addEventListener('focus', handleWindowFocus)
 })

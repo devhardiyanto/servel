@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
@@ -41,6 +42,43 @@ impl Default for ConfigState {
             minimize_to_tray: true,
         }
     }
+}
+
+/// Tulis config ke `path` secara atomik + durable terhadap hard restart PC.
+///
+/// Urutan: tulis ke `.tmp` → `sync_all()` (fsync isi file ke disk) → `rename` →
+/// fsync direktori parent (best-effort) agar entri rename ikut durable.
+/// Tanpa fsync file, pada hard power-loss isi bisa belum ter-flush walau rename
+/// sudah ter-journal → config.json kosong/truncated.
+fn write_config_atomic(path: &Path, json: &str) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("gagal create_dir_all: {}", e))?;
+    }
+
+    let tmp_path = path.with_extension("tmp");
+    {
+        let mut f = std::fs::File::create(&tmp_path)
+            .map_err(|e| format!("gagal buat config.tmp: {}", e))?;
+        f.write_all(json.as_bytes())
+            .map_err(|e| format!("gagal tulis config.tmp: {}", e))?;
+        f.sync_all()
+            .map_err(|e| format!("gagal fsync config.tmp: {}", e))?;
+    }
+
+    std::fs::rename(&tmp_path, path)
+        .map_err(|e| format!("gagal rename config.tmp \u{2192} config.json: {}", e))?;
+
+    // fsync direktori parent agar entri rename durable. Pada Windows File::open ke
+    // direktori tidak selalu didukung — best-effort, abaikan error.
+    #[cfg(unix)]
+    if let Some(parent) = path.parent() {
+        if let Ok(dir) = std::fs::File::open(parent) {
+            let _ = dir.sync_all();
+        }
+    }
+
+    Ok(())
 }
 
 pub fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -101,20 +139,11 @@ pub async fn config_read(app: AppHandle) -> Result<ConfigState, String> {
 pub async fn config_write(app: AppHandle, config: ConfigState) -> Result<(), String> {
     let path = config_path(&app)?;
 
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("gagal create_dir_all: {}", e))?;
-    }
-
     let json = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("gagal serialize config: {}", e))?;
 
-    // Atomic write: tulis ke .tmp lalu rename
-    let tmp_path = path.with_extension("tmp");
-    std::fs::write(&tmp_path, &json)
-        .map_err(|e| format!("gagal tulis config.tmp: {}", e))?;
-    std::fs::rename(&tmp_path, &path)
-        .map_err(|e| format!("gagal rename config.tmp → config.json: {}", e))?;
+    // Atomic + durable write: tulis ke .tmp, fsync, lalu rename.
+    write_config_atomic(&path, &json)?;
 
     // Sync ke in-memory Mutex<ConfigState> — tray membaca dari Mutex ini
     // saat user klik "Start all selected". Tanpa sync, Mutex stale = default kosong.
@@ -198,6 +227,41 @@ mod tests {
         assert!(!cfg.auto_start);
         assert!(cfg.remember_session);
         assert!(cfg.minimize_to_tray);
+    }
+
+    #[test]
+    fn test_write_config_atomic_roundtrip() {
+        // Tulis ke tempdir lalu baca ulang & verifikasi isi durable + benar.
+        let mut dir = std::env::temp_dir();
+        dir.push(format!("servel_test_{}", std::process::id()));
+        let path = dir.join("config.json");
+
+        let cfg = ConfigState {
+            version: 1,
+            selected_service_ids: vec!["mysql".to_string(), "minio".to_string()],
+            last_php_version: Some("8.3".to_string()),
+            last_node_version: None,
+            watched_path: Some("/tmp/proj".to_string()),
+            auto_start: true,
+            remember_session: true,
+            minimize_to_tray: false,
+        };
+        let json = serde_json::to_string_pretty(&cfg).expect("serialize");
+
+        write_config_atomic(&path, &json).expect("write_config_atomic gagal");
+
+        let raw = std::fs::read_to_string(&path).expect("baca ulang gagal");
+        let restored: ConfigState = serde_json::from_str(&raw).expect("parse ulang gagal");
+        assert_eq!(restored.selected_service_ids, cfg.selected_service_ids);
+        assert_eq!(restored.last_php_version, cfg.last_php_version);
+        assert_eq!(restored.watched_path, cfg.watched_path);
+        assert!(restored.auto_start);
+        assert!(!restored.minimize_to_tray);
+
+        // tmp tidak boleh tersisa setelah rename.
+        assert!(!path.with_extension("tmp").exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
