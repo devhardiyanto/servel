@@ -148,6 +148,19 @@ function setSelectedIds(ids: string[]): void {
   }
 }
 
+// Rekonsiliasi: container yang sedang running → switch ON, di-OR dengan saved
+// selection. Hanya mengubah flag `selected` (untuk tampilan + persist); TIDAK
+// memicu start/stop. Panggil SETELAH config loaded + setSelectedIds.
+function reconcileSelectedWithRunning(): void {
+  for (const id of Object.keys(uiState.value)) {
+    const entry = uiState.value[id]
+    if (!entry) continue
+    if (!entry.selected && entry.status === 'running') {
+      uiState.value[id] = { ...entry, selected: true }
+    }
+  }
+}
+
 function registerPersistWatch(): void {
   if (persistWatchRegistered) return
   persistWatchRegistered = true
@@ -384,6 +397,7 @@ export function useServices() {
     toggle,
     syncStatuses,
     setSelectedIds,
+    reconcileSelectedWithRunning,
     start,
     stop,
     stopAll,

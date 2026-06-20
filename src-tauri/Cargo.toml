@@ -1,6 +1,6 @@
 [package]
 name = "servel"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 description = "One app. All your local dev environment."
 authors = ["devhardiyanto <dev.hardiyanto@gmail.com>"]
 edition = "2021"
@@ -26,4 +26,7 @@ serde_json = "1"
 tokio = { version = "1", features = ["full"] }
 notify = "6"
 notify-debouncer-mini = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_System_Diagnostics_Debug"] }
 

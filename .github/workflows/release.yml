@@ -16,7 +16,7 @@ jobs:
       prerelease: ${{ steps.flag.outputs.prerelease }}
     steps:
       - name: Checkout (full history)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -73,7 +73,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Linux dependencies
         if: matrix.os == 'ubuntu-latest'
@@ -91,7 +91,7 @@ jobs:
             file
 
       - name: Setup Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -102,7 +102,7 @@ jobs:
           targets: ${{ matrix.rust-target }}
 
       - name: Cache Cargo registry + target
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
