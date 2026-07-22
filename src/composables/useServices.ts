@@ -83,6 +83,11 @@ function applyStatusChange(id: string, running: boolean): void {
       uiState.value[id] = {
         ...current,
         status: running ? 'running' : 'stopped',
+        // Continuous reconcile: container yang terobservasi running → switch ON.
+        // Jaga selectedIds selalu ⊇ running supaya `start` mengirim full set dan
+        // --remove-orphans (backend) tak menghancurkan yang running. Tidak
+        // meng-deselect saat stop — `selected` = keinginan terakhir user.
+        selected: running ? true : current.selected,
         memMb: running ? current.memMb : null,
       }
     }
