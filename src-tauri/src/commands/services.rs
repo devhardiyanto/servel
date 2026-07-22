@@ -104,6 +104,20 @@ pub fn id_from_container_name(name: &str) -> Option<String> {
     name.strip_prefix("servel_").map(|s| s.to_string())
 }
 
+/// Gabungkan `requested` dengan id container yang sedang running (dari status),
+/// jaga urutan `requested` dulu lalu running yang belum ada. Dipakai
+/// `services_start` agar `--remove-orphans` tak menghancurkan service running
+/// yang tidak ikut dikirim frontend.
+pub fn union_with_running(requested: &[String], statuses: &[ServiceStatus]) -> Vec<String> {
+    let mut effective = requested.to_vec();
+    for s in statuses {
+        if s.running && !effective.contains(&s.id) {
+            effective.push(s.id.clone());
+        }
+    }
+    effective
+}
+
 
 /// Inti load_services tanpa #[tauri::command], bisa dipanggil internal.
 pub(crate) async fn load_services_internal(app: &AppHandle) -> Result<Vec<ServiceDef>, String> {
@@ -183,7 +197,16 @@ pub async fn services_status() -> Result<Vec<ServiceStatus>, String> {
 pub async fn services_start(app: AppHandle, services: Vec<String>) -> Result<(), String> {
     let defs = load_services_internal(&app).await?;
 
-    let yaml = crate::commands::compose::generate_compose(&defs, &services);
+    // Safety net: gabungkan container servel_ yang SEDANG running ke compose.
+    // Tanpa ini, `up --remove-orphans` (di bawah) menghancurkan service yang
+    // tidak ada di `services` — mis. saat frontend mengirim subset karena race
+    // state setelah boot. Union hanya melindungi yang running; yang sudah exited
+    // (di-deselect) tetap boleh dibersihkan orphan. Jika docker belum ready,
+    // status gagal → pakai `services` apa adanya (tak ada yang running dilindungi).
+    let running = services_status_internal().await.unwrap_or_default();
+    let effective = union_with_running(&services, &running);
+
+    let yaml = crate::commands::compose::generate_compose(&defs, &effective);
 
     let compose_file = crate::commands::compose::compose_path();
     if let Some(parent) = compose_file.parent() {
@@ -288,6 +311,43 @@ mod tests {
         assert!(!s.running);
         assert_eq!(s.state, "exited");
         assert_eq!(s.exit_code, Some(1));
+    }
+
+    fn status(id: &str, running: bool) -> ServiceStatus {
+        ServiceStatus {
+            id: id.to_string(),
+            container_name: format!("servel_{}", id),
+            running,
+            state: if running { "running" } else { "exited" }.to_string(),
+            exit_code: if running { None } else { Some(0) },
+        }
+    }
+
+    #[test]
+    fn test_union_preserves_running_not_requested() {
+        // Toggle sqlserver saja, tapi 4 lain sedang running → semua ikut compose.
+        let requested = vec!["sqlserver".to_string()];
+        let running = vec![
+            status("mysql", true),
+            status("postgres", true),
+            status("minio", true),
+            status("redis", true),
+        ];
+        let effective = union_with_running(&requested, &running);
+        assert_eq!(effective.len(), 5);
+        assert_eq!(effective[0], "sqlserver", "requested harus tetap di depan");
+        for id in ["mysql", "postgres", "minio", "redis"] {
+            assert!(effective.contains(&id.to_string()), "{} harus terlindungi", id);
+        }
+    }
+
+    #[test]
+    fn test_union_ignores_stopped_and_dedupes() {
+        // exited (di-deselect) tidak ikut; running yang sudah diminta tidak dobel.
+        let requested = vec!["mysql".to_string(), "redis".to_string()];
+        let running = vec![status("mysql", true), status("postgres", false)];
+        let effective = union_with_running(&requested, &running);
+        assert_eq!(effective, vec!["mysql".to_string(), "redis".to_string()]);
     }
 
     #[test]
