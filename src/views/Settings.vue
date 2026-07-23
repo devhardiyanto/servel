@@ -21,10 +21,55 @@ const {
   setAutoStart,
   setRememberSession,
   setMinimizeToTray,
+  createProfile,
+  renameProfile,
+  deleteProfile,
   reset,
 } = useConfig()
 
 const activeNav = ref<SettingsNav>('general')
+
+// --- Profiles CRUD ---
+const newProfileName = ref('')
+const editingId = ref<string | null>(null)
+const editingName = ref('')
+
+function handleCreateProfile(): void {
+  const name = newProfileName.value.trim()
+  if (!name) return
+  // Snapshot selection saat ini sebagai preset awal profil baru.
+  createProfile(name, [...config.value.selectedServiceIds])
+  newProfileName.value = ''
+}
+
+function startEditProfile(id: string, name: string): void {
+  editingId.value = id
+  editingName.value = name
+}
+
+function commitEditProfile(): void {
+  const name = editingName.value.trim()
+  if (editingId.value && name) renameProfile(editingId.value, name)
+  editingId.value = null
+  editingName.value = ''
+}
+
+function cancelEditProfile(): void {
+  editingId.value = null
+  editingName.value = ''
+}
+
+async function handleDeleteProfile(id: string, name: string): Promise<void> {
+  if (config.value.profiles.length <= 1) return
+  let ok = false
+  try {
+    ok = await ask(`Hapus profil "${name}"?`, { title: 'Hapus Profil', kind: 'warning' })
+  } catch {
+    ok = window.confirm(`Hapus profil "${name}"?`)
+  }
+  if (!ok) return
+  deleteProfile(id)
+}
 
 const {
   latestVersion,
@@ -213,8 +258,61 @@ onMounted(async () => {
 
         <template v-else-if="activeNav === 'services'">
           <div class="section-block">
-            <div class="section-title">SERVICES</div>
-            <p class="placeholder-text">Service configuration — coming soon.</p>
+            <div class="section-title">PROFIL</div>
+            <p class="section-hint">
+              Preset pilihan service. Ganti profil aktif lewat switcher di Dashboard.
+            </p>
+
+            <div class="profile-list">
+              <div v-for="p in config.profiles" :key="p.id" class="profile-item">
+                <template v-if="editingId === p.id">
+                  <input
+                    v-model="editingName"
+                    class="profile-edit-input"
+                    type="text"
+                    maxlength="40"
+                    @keyup.enter="commitEditProfile"
+                    @keyup.esc="cancelEditProfile"
+                  />
+                  <div class="profile-actions">
+                    <button class="action-btn" @click="commitEditProfile">Simpan</button>
+                    <button class="action-btn" @click="cancelEditProfile">Batal</button>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="profile-info">
+                    <span class="profile-name">{{ p.name }}</span>
+                    <span v-if="p.id === config.activeProfileId" class="profile-badge">aktif</span>
+                    <span class="profile-count">{{ p.serviceIds.length }} service</span>
+                  </div>
+                  <div class="profile-actions">
+                    <button class="action-btn" @click="startEditProfile(p.id, p.name)">Rename</button>
+                    <button
+                      class="action-btn action-btn--red"
+                      :disabled="config.profiles.length <= 1"
+                      :title="config.profiles.length <= 1 ? 'Minimal 1 profil' : 'Hapus profil'"
+                      @click="handleDeleteProfile(p.id, p.name)"
+                    >Hapus</button>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div class="profile-create">
+              <input
+                v-model="newProfileName"
+                class="profile-create-input"
+                type="text"
+                maxlength="40"
+                placeholder="Nama profil baru…"
+                @keyup.enter="handleCreateProfile"
+              />
+              <button
+                class="action-btn action-btn--accent"
+                :disabled="!newProfileName.trim()"
+                @click="handleCreateProfile"
+              >Buat dari selection</button>
+            </div>
           </div>
         </template>
 
@@ -597,5 +695,110 @@ onMounted(async () => {
   color: var(--dim);
   margin: 0;
   padding: var(--space-4) 0;
+}
+
+/* Profiles CRUD */
+.section-hint {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--dim);
+  margin: 0 0 var(--space-3);
+}
+
+.profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.profile-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.profile-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.profile-name {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-badge {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.profile-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--dim);
+  flex-shrink: 0;
+}
+
+.profile-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.profile-edit-input,
+.profile-create-input {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.profile-edit-input:focus,
+.profile-create-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.profile-create {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.action-btn--accent {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.action-btn--accent:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
 }
 </style>

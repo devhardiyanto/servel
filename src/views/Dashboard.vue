@@ -86,11 +86,20 @@ const {
   toggle,
   setSelectedIds,
   reconcileSelectedWithRunning,
+  applyProfile,
   start,
   stopAll,
   dismissPortConflicts,
   startIgnoringConflicts,
 } = useServices()
+
+const profiles = computed(() => useConfig().config.value.profiles)
+const activeProfileId = computed(() => useConfig().config.value.activeProfileId)
+
+function onProfileChange(e: Event): void {
+  const id = (e.target as HTMLSelectElement).value
+  if (id) applyProfile(id)
+}
 
 const totalRamWithBaseline = computed(() => {
   const runningRam = runningIds.value.reduce((acc, id) => {
@@ -376,6 +385,17 @@ onUnmounted(() => {
       <header class="sw-header">
         <span class="sw-title">Services</span>
         <span class="sw-counter">{{ runningCount }}/{{ definitions.length }}</span>
+        <div v-if="profiles.length > 0" class="sw-profile">
+          <span class="sw-profile__label">profil</span>
+          <select
+            class="sw-profile__select"
+            :value="activeProfileId ?? ''"
+            title="Ganti profil aktif"
+            @change="onProfileChange"
+          >
+            <option v-for="p in profiles" :key="p.id" :value="p.id">{{ p.name }}</option>
+          </select>
+        </div>
         <div class="sw-actions">
           <button
             class="sw-btn sw-btn--stop"
@@ -1019,6 +1039,39 @@ onUnmounted(() => {
   font-size: 11px;
   color: var(--dim);
   margin-right: auto;
+}
+
+.sw-profile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-right: var(--space-2);
+}
+
+.sw-profile__label {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.sw-profile__select {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  max-width: 160px;
+  transition: border-color 0.1s;
+}
+
+.sw-profile__select:hover {
+  border-color: var(--dim);
 }
 
 .sw-actions {
