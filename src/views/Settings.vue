@@ -6,6 +6,7 @@ import { ask } from '@tauri-apps/plugin-dialog'
 import { SetViewKey } from '@/types/navigation'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
+import { useUpdateCheck } from '@/composables/useUpdateCheck'
 import SettingRow from '@/components/SettingRow.vue'
 import type { PrereqStatus } from '@/types/prereq'
 
@@ -24,6 +25,15 @@ const {
 } = useConfig()
 
 const activeNav = ref<SettingsNav>('general')
+
+const {
+  latestVersion,
+  updateAvailable,
+  checking: checkingUpdate,
+  lastChecked,
+  check: checkUpdate,
+  openReleasePage,
+} = useUpdateCheck()
 
 const composePath = ref<string>('')
 const dockerRunning = ref<boolean | null>(null)
@@ -222,6 +232,18 @@ onMounted(async () => {
               <span class="about-name">servel</span>
               <span class="about-desc">Local dev environment manager</span>
               <span class="about-version">v{{ version || '...' }}</span>
+            </div>
+
+            <div v-if="updateAvailable" class="update-banner">
+              <span class="ub-text">Versi baru tersedia: <strong>v{{ latestVersion }}</strong></span>
+              <button class="ub-download" @click="openReleasePage">Buka halaman rilis</button>
+            </div>
+
+            <div class="update-row">
+              <button class="update-check-btn" :disabled="checkingUpdate" @click="checkUpdate">
+                {{ checkingUpdate ? 'Memeriksa…' : 'Cek update' }}
+              </button>
+              <span v-if="!updateAvailable && lastChecked" class="update-uptodate">Sudah versi terbaru</span>
             </div>
           </div>
         </template>
@@ -496,6 +518,76 @@ onMounted(async () => {
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--dim);
+}
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-radius: 6px;
+}
+
+.ub-text {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.ub-download {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 12px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 4px;
+  color: var(--accent);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.ub-download:hover {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.update-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.update-check-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.1s;
+}
+
+.update-check-btn:hover:not(:disabled) {
+  border-color: var(--dim);
+}
+
+.update-check-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.update-uptodate {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--muted);
 }
 
 /* Placeholder */
