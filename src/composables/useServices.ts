@@ -268,7 +268,8 @@ export function useServices() {
       .filter((s) => s.selected)
       .map((s) => s.id)
     if (useConfig().loaded.value) {
-      useConfig().config.value.selectedServiceIds = newSelectedIds
+      // Toggle = edit profil aktif: sinkronkan selection + serviceIds profil aktif.
+      useConfig().applySelection(newSelectedIds)
       void useConfig().saveImmediate()
     }
 
@@ -373,6 +374,18 @@ export function useServices() {
     }
   }
 
+  // Terapkan profil: set switch (uiState) sesuai serviceIds profil, jadikan aktif,
+  // dan persist segera agar tray baca selection terbaru. Tidak meng-start/stop
+  // container yang sedang jalan — hanya mengubah selection (desired state).
+  function applyProfile(id: string): void {
+    const cfg = useConfig()
+    const p = cfg.config.value.profiles.find((pr) => pr.id === id)
+    if (!p) return
+    setSelectedIds(p.serviceIds)
+    cfg.setActiveProfile(id)
+    void cfg.saveImmediate()
+  }
+
   function dismissPortConflicts(): void {
     portConflicts.value = []
   }
@@ -434,6 +447,7 @@ export function useServices() {
     syncStatuses,
     setSelectedIds,
     reconcileSelectedWithRunning,
+    applyProfile,
     start,
     stop,
     stopAll,
