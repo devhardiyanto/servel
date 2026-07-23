@@ -43,6 +43,15 @@ pub struct ServiceStatus {
     pub exit_code: Option<i32>,
 }
 
+/// Satu konflik port: host `port` service `service_id` sudah dipakai proses lain.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PortConflict {
+    pub service_id: String,
+    pub service_name: String,
+    pub port: u16,
+}
+
 /// Parse line-delimited JSON output dari `docker ps -a --format json`.
 /// Docker mengembalikan satu objek JSON per baris (bukan JSON array).
 pub fn parse_docker_ps_json(stdout: &str) -> Vec<ServiceStatus> {
@@ -118,6 +127,13 @@ pub fn union_with_running(requested: &[String], statuses: &[ServiceStatus]) -> V
     effective
 }
 
+/// True bila host `port` sudah dipakai proses lain (bind gagal = terpakai).
+/// Bind ke `127.0.0.1` — portable lintas-OS (std::net), tak perlu parse `netstat`.
+/// Cukup untuk mapping default docker (host port ter-expose di loopback).
+pub fn probe_host_port(port: u16) -> bool {
+    std::net::TcpListener::bind(("127.0.0.1", port)).is_err()
+}
+
 
 /// Inti load_services tanpa #[tauri::command], bisa dipanggil internal.
 pub(crate) async fn load_services_internal(app: &AppHandle) -> Result<Vec<ServiceDef>, String> {
@@ -191,6 +207,50 @@ pub async fn load_services(app: AppHandle) -> Result<Vec<ServiceDef>, String> {
 #[tauri::command]
 pub async fn services_status() -> Result<Vec<ServiceStatus>, String> {
     services_status_internal().await
+}
+
+/// Cek apakah host port service yang akan di-start sudah dipakai proses lain.
+/// Service yang SEDANG running di-exclude (port-nya dipegang container servel
+/// sendiri — bukan konflik). Jika docker down, `services_status` gagal →
+/// anggap tak ada yang running, semua port di-probe apa adanya.
+#[tauri::command]
+pub async fn check_port_conflicts(
+    app: AppHandle,
+    services: Vec<String>,
+) -> Result<Vec<PortConflict>, String> {
+    let defs = load_services_internal(&app).await?;
+
+    let running: std::collections::HashSet<String> = services_status_internal()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|s| s.running)
+        .map(|s| s.id)
+        .collect();
+
+    let mut conflicts = Vec::new();
+    for id in &services {
+        if running.contains(id) {
+            continue;
+        }
+        let Some(def) = defs.iter().find(|d| &d.id == id) else {
+            continue;
+        };
+        for pm in &def.ports {
+            let Ok(port) = pm.host.parse::<u16>() else {
+                continue;
+            };
+            if probe_host_port(port) {
+                conflicts.push(PortConflict {
+                    service_id: def.id.clone(),
+                    service_name: def.name.clone(),
+                    port,
+                });
+            }
+        }
+    }
+
+    Ok(conflicts)
 }
 
 #[tauri::command]
@@ -348,6 +408,24 @@ mod tests {
         let running = vec![status("mysql", true), status("postgres", false)];
         let effective = union_with_running(&requested, &running);
         assert_eq!(effective, vec!["mysql".to_string(), "redis".to_string()]);
+    }
+
+    #[test]
+    fn test_probe_host_port_detects_in_use() {
+        // Bind port ephemeral → probe pada port itu harus true (terpakai).
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert!(probe_host_port(port), "port yang sedang di-bind harus terdeteksi terpakai");
+    }
+
+    #[test]
+    fn test_probe_host_port_free_after_release() {
+        // Bind lalu drop listener → port kembali bebas → probe false.
+        let port = {
+            let l = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+            l.local_addr().unwrap().port()
+        };
+        assert!(!probe_host_port(port), "port yang sudah dilepas harus terdeteksi bebas");
     }
 
     #[test]

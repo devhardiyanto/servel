@@ -76,6 +76,7 @@ pub fn run() {
             commands::node::node_install,
             commands::services::load_services,
             commands::services::services_status,
+            commands::services::check_port_conflicts,
             commands::services::services_start,
             commands::services::services_stop,
             commands::services::services_stop_all,
