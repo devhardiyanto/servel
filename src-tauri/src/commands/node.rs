@@ -1,7 +1,7 @@
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use serde::{Deserialize, Serialize};
-use tauri::{Emitter, Window};
+use tauri::{Emitter, Manager, Window};
 
 use super::util::{emit_env_line, extract_semver, silent_command};
 
@@ -112,6 +112,13 @@ pub async fn node_switch(window: Window, version: String) -> Result<(), String> 
     }
 
     emit_env_line(&window, &format!("switched node → {} (via fnm)", version));
+
+    // Rebuild submenu tray agar ● ikut versi aktif terbaru (apa pun pemicunya).
+    let app = window.app_handle().clone();
+    tauri::async_runtime::spawn(async move {
+        crate::tray::refresh_version_submenus(&app).await;
+    });
+
     Ok(())
 }
 
