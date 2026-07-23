@@ -1,6 +1,6 @@
 [package]
 name = "servel"
-version = "1.1.0"
+version = "1.2.0"
 description = "One app. All your local dev environment."
 authors = ["devhardiyanto <dev.hardiyanto@gmail.com>"]
 edition = "2021"
