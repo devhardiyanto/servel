@@ -82,18 +82,32 @@ fn build_version_submenu(
 
 /// Ambil daftar versi PHP & Node lalu rebuild menu tray (set_menu). Dipanggil
 /// async setelah init karena listing versi butuh spawn subprocess (phpvm/fnm).
-async fn refresh_version_submenus(app: &AppHandle) {
+///
+/// Penanda aktif (●) diambil dari sumber otoritatif `php_get_active()` /
+/// `node_get_active()` (bukan flag `active` hasil parse listing) — konsisten
+/// dengan frontend, dan tahan terhadap output listing yang menandai `*` di
+/// setiap baris (mis. `fnm list`).
+pub(crate) async fn refresh_version_submenus(app: &AppHandle) {
+    let php_active = crate::commands::php::php_get_active().await.ok().flatten();
     let php: Vec<(String, bool)> = crate::commands::php::php_list_installed()
         .await
         .unwrap_or_default()
         .into_iter()
-        .map(|v| (v.version, v.active))
+        .map(|v| {
+            let active = php_active.as_deref() == Some(v.version.as_str());
+            (v.version, active)
+        })
         .collect();
+
+    let node_active = crate::commands::node::node_get_active().await.ok().flatten();
     let node: Vec<(String, bool)> = crate::commands::node::node_list_installed()
         .await
         .unwrap_or_default()
         .into_iter()
-        .map(|v| (v.version, v.active))
+        .map(|v| {
+            let active = node_active.as_deref() == Some(v.version.as_str());
+            (v.version, active)
+        })
         .collect();
 
     match build_menu(app, &php, &node) {
