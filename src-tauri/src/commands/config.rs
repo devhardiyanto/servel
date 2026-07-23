@@ -4,13 +4,31 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 
+/// Preset pilihan service ber-nama. User bisa punya beberapa profil (mis. per
+/// proyek) dan menukar set service aktif dengan meng-`apply` salah satunya.
+/// `id` di-generate frontend (`crypto.randomUUID`); migrasi memakai id "default".
+#[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Profile {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub service_ids: Vec<String>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfigState {
     #[serde(default)]
     pub version: u32,
+    /// Proyeksi `service_ids` profil aktif. Tray & compose membaca field ini —
+    /// selalu di-sinkronkan dari profil aktif saat write (lihat `config_write`).
     #[serde(default)]
     pub selected_service_ids: Vec<String>,
+    #[serde(default)]
+    pub profiles: Vec<Profile>,
+    #[serde(default)]
+    pub active_profile_id: Option<String>,
     #[serde(default)]
     pub last_php_version: Option<String>,
     #[serde(default)]
@@ -29,11 +47,69 @@ fn default_true() -> bool {
     true
 }
 
+/// Migrasikan config lama ke skema terkini (`CURRENT_VERSION`).
+///
+/// - v0 → v1: `version` absent (serde default 0) → bump ke 1.
+/// - v1 → v2: config flat (`selected_service_ids`, tanpa `profiles`) → buat
+///   profil "Default" berisi selection existing, set `active_profile_id`.
+///
+/// Idempotent: config yang sudah v2 & punya profil valid dibiarkan apa adanya.
+fn migrate(mut cfg: ConfigState) -> ConfigState {
+    if cfg.version == 0 {
+        cfg.version = 1;
+    }
+
+    // v1 → v2: perkenalkan profiles. Config lama tak punya profil sama sekali.
+    if cfg.profiles.is_empty() {
+        cfg.profiles = vec![Profile {
+            id: DEFAULT_PROFILE_ID.to_string(),
+            name: "Default".to_string(),
+            service_ids: cfg.selected_service_ids.clone(),
+        }];
+        cfg.active_profile_id = Some(DEFAULT_PROFILE_ID.to_string());
+    }
+
+    // Jaga invariant: active_profile_id harus menunjuk profil yang ada.
+    let active_valid = cfg
+        .active_profile_id
+        .as_ref()
+        .is_some_and(|id| cfg.profiles.iter().any(|p| &p.id == id));
+    if !active_valid {
+        cfg.active_profile_id = cfg.profiles.first().map(|p| p.id.clone());
+    }
+
+    cfg.version = CURRENT_VERSION;
+    project_active_selection(&mut cfg);
+    cfg
+}
+
+/// Sinkronkan `selected_service_ids` = `service_ids` profil aktif. Menjamin tray
+/// & compose (yang membaca `selected_service_ids`) selalu match profil aktif.
+fn project_active_selection(cfg: &mut ConfigState) {
+    if let Some(active_id) = cfg.active_profile_id.clone() {
+        if let Some(p) = cfg.profiles.iter().find(|p| p.id == active_id) {
+            cfg.selected_service_ids = p.service_ids.clone();
+        }
+    }
+}
+
+/// Id profil bawaan yang dibuat saat migrasi/instal baru.
+const DEFAULT_PROFILE_ID: &str = "default";
+
+/// Skema config terkini. Naikkan saat ada perubahan struktur yang butuh migrasi.
+const CURRENT_VERSION: u32 = 2;
+
 impl Default for ConfigState {
     fn default() -> Self {
         Self {
-            version: 1,
+            version: CURRENT_VERSION,
             selected_service_ids: Vec::new(),
+            profiles: vec![Profile {
+                id: DEFAULT_PROFILE_ID.to_string(),
+                name: "Default".to_string(),
+                service_ids: Vec::new(),
+            }],
+            active_profile_id: Some(DEFAULT_PROFILE_ID.to_string()),
             last_php_version: None,
             last_node_version: None,
             watched_path: None,
@@ -108,7 +184,7 @@ pub async fn config_read(app: AppHandle) -> Result<ConfigState, String> {
         }
     };
 
-    let mut cfg: ConfigState = match serde_json::from_str(&raw) {
+    let cfg: ConfigState = match serde_json::from_str(&raw) {
         Ok(c) => c,
         Err(err) => {
             eprintln!(
@@ -119,10 +195,9 @@ pub async fn config_read(app: AppHandle) -> Result<ConfigState, String> {
         }
     };
 
-    // Migrasi v0 → v1: kalau version absent di JSON, serde(default) akan set 0.
-    if cfg.version == 0 {
-        cfg.version = 1;
-    }
+    // Migrasi ke skema terkini (v0→v1→v2). Config lama tetap kebaca lewat serde
+    // default lalu dinaikkan; selection lama masuk ke profil "Default".
+    let cfg = migrate(cfg);
 
     // Sync ke in-memory Mutex agar tray (yang baca Mutex) lihat selection tersimpan
     // tanpa harus menunggu user toggle ulang setelah app boot.
@@ -136,8 +211,12 @@ pub async fn config_read(app: AppHandle) -> Result<ConfigState, String> {
 }
 
 #[tauri::command]
-pub async fn config_write(app: AppHandle, config: ConfigState) -> Result<(), String> {
+pub async fn config_write(app: AppHandle, mut config: ConfigState) -> Result<(), String> {
     let path = config_path(&app)?;
+
+    // Invariant: selected_service_ids selalu = profil aktif (proyeksi). Tray &
+    // compose membaca field ini; frontend cukup update profil, backend proyeksi.
+    project_active_selection(&mut config);
 
     let json = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("gagal serialize config: {}", e))?;
@@ -163,7 +242,7 @@ mod tests {
     #[test]
     fn test_default_config_shape() {
         let cfg = ConfigState::default();
-        assert_eq!(cfg.version, 1);
+        assert_eq!(cfg.version, 2);
         assert!(!cfg.auto_start);
         assert!(cfg.remember_session);
         assert!(cfg.minimize_to_tray);
@@ -171,13 +250,24 @@ mod tests {
         assert!(cfg.last_php_version.is_none());
         assert!(cfg.last_node_version.is_none());
         assert!(cfg.watched_path.is_none());
+        // Instal baru: tepat 1 profil "Default" yang aktif.
+        assert_eq!(cfg.profiles.len(), 1);
+        assert_eq!(cfg.profiles[0].id, "default");
+        assert_eq!(cfg.profiles[0].name, "Default");
+        assert_eq!(cfg.active_profile_id.as_deref(), Some("default"));
     }
 
     #[test]
     fn test_serialize_deserialize_roundtrip() {
         let original = ConfigState {
-            version: 1,
+            version: 2,
             selected_service_ids: vec!["mysql".to_string(), "redis".to_string()],
+            profiles: vec![Profile {
+                id: "default".to_string(),
+                name: "Default".to_string(),
+                service_ids: vec!["mysql".to_string(), "redis".to_string()],
+            }],
+            active_profile_id: Some("default".to_string()),
             last_php_version: Some("8.3".to_string()),
             last_node_version: Some("20.0.0".to_string()),
             watched_path: Some("/home/user/project".to_string()),
@@ -196,10 +286,16 @@ mod tests {
         assert!(json.contains("autoStart"));
         assert!(json.contains("rememberSession"));
         assert!(json.contains("minimizeToTray"));
+        assert!(json.contains("profiles"));
+        assert!(json.contains("activeProfileId"));
+        assert!(json.contains("serviceIds"));
 
         let restored: ConfigState = serde_json::from_str(&json).expect("deserialize gagal");
         assert_eq!(restored.version, original.version);
         assert_eq!(restored.selected_service_ids, original.selected_service_ids);
+        assert_eq!(restored.profiles.len(), 1);
+        assert_eq!(restored.profiles[0].service_ids, original.profiles[0].service_ids);
+        assert_eq!(restored.active_profile_id, original.active_profile_id);
         assert_eq!(restored.last_php_version, original.last_php_version);
         assert_eq!(restored.last_node_version, original.last_node_version);
         assert_eq!(restored.watched_path, original.watched_path);
@@ -237,8 +333,14 @@ mod tests {
         let path = dir.join("config.json");
 
         let cfg = ConfigState {
-            version: 1,
+            version: 2,
             selected_service_ids: vec!["mysql".to_string(), "minio".to_string()],
+            profiles: vec![Profile {
+                id: "default".to_string(),
+                name: "Default".to_string(),
+                service_ids: vec!["mysql".to_string(), "minio".to_string()],
+            }],
+            active_profile_id: Some("default".to_string()),
             last_php_version: Some("8.3".to_string()),
             last_node_version: None,
             watched_path: Some("/tmp/proj".to_string()),
@@ -265,23 +367,95 @@ mod tests {
     }
 
     #[test]
-    fn test_migrate_v0_to_v1() {
-        // JSON tanpa field "version" → serde(default) set 0 → harus di-bump ke 1
+    fn test_migrate_v1_to_v2_builds_default_profile() {
+        // Config lama (v1: selectedServiceIds, tanpa profiles) → migrasi buat
+        // profil "Default" berisi selection existing + set active_profile_id.
         let json = r#"{
-            "selectedServiceIds": ["postgres"],
+            "version": 1,
+            "selectedServiceIds": ["postgres", "redis"],
             "autoStart": false,
             "rememberSession": true,
             "minimizeToTray": false
         }"#;
 
-        let mut cfg: ConfigState = serde_json::from_str(json).expect("parse gagal");
-        // Simulasi logika migrasi yang ada di config_read
-        if cfg.version == 0 {
-            cfg.version = 1;
-        }
+        let cfg: ConfigState = serde_json::from_str(json).expect("parse gagal");
+        let cfg = migrate(cfg);
 
-        assert_eq!(cfg.version, 1);
-        assert_eq!(cfg.selected_service_ids, vec!["postgres"]);
+        assert_eq!(cfg.version, 2);
+        assert_eq!(cfg.profiles.len(), 1);
+        assert_eq!(cfg.profiles[0].id, "default");
+        assert_eq!(cfg.profiles[0].name, "Default");
+        assert_eq!(cfg.profiles[0].service_ids, vec!["postgres", "redis"]);
+        assert_eq!(cfg.active_profile_id.as_deref(), Some("default"));
+        // selected_service_ids tetap = proyeksi profil aktif.
+        assert_eq!(cfg.selected_service_ids, vec!["postgres", "redis"]);
         assert!(!cfg.minimize_to_tray);
+    }
+
+    #[test]
+    fn test_migrate_v0_absent_version() {
+        // JSON tanpa "version" → serde default 0 → naik ke v2 + profil Default.
+        let json = r#"{ "selectedServiceIds": ["mysql"] }"#;
+        let cfg: ConfigState = serde_json::from_str(json).expect("parse gagal");
+        let cfg = migrate(cfg);
+        assert_eq!(cfg.version, 2);
+        assert_eq!(cfg.active_profile_id.as_deref(), Some("default"));
+        assert_eq!(cfg.profiles[0].service_ids, vec!["mysql"]);
+    }
+
+    #[test]
+    fn test_migrate_v2_idempotent() {
+        // Config v2 dgn profil custom aktif tidak boleh diubah/ditimpa.
+        let original = ConfigState {
+            version: 2,
+            selected_service_ids: vec!["mongodb".to_string()],
+            profiles: vec![
+                Profile {
+                    id: "p-abc".to_string(),
+                    name: "Kerja".to_string(),
+                    service_ids: vec!["mongodb".to_string()],
+                },
+                Profile {
+                    id: "p-xyz".to_string(),
+                    name: "Sampingan".to_string(),
+                    service_ids: vec!["mysql".to_string(), "minio".to_string()],
+                },
+            ],
+            active_profile_id: Some("p-abc".to_string()),
+            ..Default::default()
+        };
+
+        let migrated = migrate(original.clone());
+        assert_eq!(migrated.version, 2);
+        assert_eq!(migrated.profiles.len(), 2);
+        assert_eq!(migrated.active_profile_id.as_deref(), Some("p-abc"));
+        assert_eq!(migrated.selected_service_ids, vec!["mongodb"]);
+    }
+
+    #[test]
+    fn test_migrate_invalid_active_falls_back_to_first() {
+        // active_profile_id menunjuk profil yang tak ada → fallback ke profil pertama.
+        let cfg = ConfigState {
+            version: 2,
+            profiles: vec![Profile {
+                id: "p-1".to_string(),
+                name: "Satu".to_string(),
+                service_ids: vec!["redis".to_string()],
+            }],
+            active_profile_id: Some("hilang".to_string()),
+            ..Default::default()
+        };
+        let cfg = migrate(cfg);
+        assert_eq!(cfg.active_profile_id.as_deref(), Some("p-1"));
+        assert_eq!(cfg.selected_service_ids, vec!["redis"]);
+    }
+
+    #[test]
+    fn test_empty_config_gets_default_profile() {
+        // Config kosong total → default 1 profil aktif.
+        let cfg: ConfigState = serde_json::from_str("{}").expect("parse gagal");
+        let cfg = migrate(cfg);
+        assert_eq!(cfg.profiles.len(), 1);
+        assert_eq!(cfg.active_profile_id.as_deref(), Some("default"));
     }
 }
