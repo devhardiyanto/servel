@@ -72,6 +72,10 @@ export function usePhp() {
       if (payload.version === active.value) return
       suggested.value = payload
     })
+    // Quick-switch dari tray menu → reuse switchTo (update active + persist).
+    await on<{ kind: string; version: string }>('tray-switch-version', (payload) => {
+      if (payload.kind === 'php') void switchTo(payload.version)
+    })
   })
 
   return {

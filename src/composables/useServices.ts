@@ -4,7 +4,7 @@ import { listen } from '@tauri-apps/api/event'
 import { useTauri } from './useTauri'
 import { useConfig } from './useConfig'
 import { useLogs } from './useLogs'
-import type { ServiceDef, ServiceStatus, ServiceUiState, ContainerMemStat } from '@/types/service'
+import type { ServiceDef, ServiceStatus, ServiceUiState, ContainerMemStat, PortConflict } from '@/types/service'
 
 interface ContainerStatusChangedPayload {
   service: string
@@ -21,6 +21,7 @@ const definitions = ref<ServiceDef[]>([])
 const statuses = ref<ServiceStatus[]>([])
 const uiState = ref<Record<string, ServiceUiState>>({})
 const serviceError = ref<string | null>(null)
+const portConflicts = ref<PortConflict[]>([])
 let initialized = false
 let listenerRegistered = false
 let servicesActionListenerRegistered = false
@@ -283,7 +284,7 @@ export function useServices() {
     }
   }
 
-  async function start(ids?: string[]): Promise<void> {
+  async function start(ids?: string[], opts?: { force?: boolean }): Promise<void> {
     // Backend SELALU butuh full selection untuk regenerate compose file —
     // kalau cuma kirim subset, --remove-orphans bakal nge-remove container
     // yang sedang running tapi tidak ada di compose (bug stuck loading sebelumnya).
@@ -306,6 +307,24 @@ export function useServices() {
       })
       return
     }
+
+    // Cek konflik host port SEBELUM start (kecuali user pilih "Tetap mulai").
+    // Konflik = port dipakai proses lain (bukan container servel yang running).
+    if (!opts?.force) {
+      const conflicts = await call<PortConflict[]>('check_port_conflicts', { services: newOnes })
+      if (conflicts && conflicts.length > 0) {
+        portConflicts.value = conflicts
+        for (const c of conflicts) {
+          useLogs('ENV').push({
+            ts: new Date().toTimeString().slice(0, 8),
+            src: 'ENV',
+            text: `port ${c.port} (${c.serviceName}) sudah dipakai proses lain`,
+          })
+        }
+        return
+      }
+    }
+    portConflicts.value = []
 
     serviceError.value = null
     for (const id of newOnes) {
@@ -354,6 +373,17 @@ export function useServices() {
     }
   }
 
+  function dismissPortConflicts(): void {
+    portConflicts.value = []
+  }
+
+  // "Tetap mulai" dari banner konflik: start service yang tadi diblok, lewati probe.
+  async function startIgnoringConflicts(): Promise<void> {
+    const ids = portConflicts.value.map((c) => c.serviceId)
+    portConflicts.value = []
+    if (ids.length > 0) await start(ids, { force: true })
+  }
+
   async function stopAll(): Promise<void> {
     serviceError.value = null
     const runningSnapshot = [...runningIds.value]
@@ -389,6 +419,7 @@ export function useServices() {
     statuses,
     uiState,
     serviceError,
+    portConflicts,
     coreServices,
     additionalServices,
     selectedIds,
@@ -406,5 +437,7 @@ export function useServices() {
     start,
     stop,
     stopAll,
+    dismissPortConflicts,
+    startIgnoringConflicts,
   }
 }

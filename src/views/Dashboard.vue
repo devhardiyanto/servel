@@ -81,12 +81,15 @@ const {
   hasStopping,
   definitions,
   serviceError,
+  portConflicts,
   load: loadServices,
   toggle,
   setSelectedIds,
   reconcileSelectedWithRunning,
   start,
   stopAll,
+  dismissPortConflicts,
+  startIgnoringConflicts,
 } = useServices()
 
 const totalRamWithBaseline = computed(() => {
@@ -207,6 +210,23 @@ onUnmounted(() => {
       <button class="ddb-retry" :disabled="refreshingDocker" @click="handleDockerRefresh">
         {{ refreshingDocker ? '...' : 'Retry' }}
       </button>
+    </div>
+
+    <div v-if="portConflicts.length > 0" class="port-conflict-banner">
+      <span class="pcb-icon">&#9888;</span>
+      <div class="pcb-text">
+        <strong>Konflik port terdeteksi</strong>
+        <span class="pcb-sub">
+          Port berikut sudah dipakai proses lain:
+          <template v-for="(c, i) in portConflicts" :key="c.serviceId + ':' + c.port">
+            <span class="pcb-port">{{ c.serviceName }} ({{ c.port }})</span><span v-if="i < portConflicts.length - 1">, </span>
+          </template>
+        </span>
+      </div>
+      <div class="pcb-actions">
+        <button class="pcb-force" @click="startIgnoringConflicts">Tetap mulai</button>
+        <button class="pcb-dismiss" @click="dismissPortConflicts">Tutup</button>
+      </div>
     </div>
 
     <section class="control-strip">
@@ -867,6 +887,88 @@ onUnmounted(() => {
 .ddb-retry:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.port-conflict-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.pcb-icon {
+  font-size: 18px;
+  color: var(--amber);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.pcb-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.pcb-text strong {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--amber);
+}
+
+.pcb-sub {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.pcb-port {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.pcb-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.pcb-force,
+.pcb-dismiss {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.pcb-force {
+  background: color-mix(in srgb, var(--amber) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
+  color: var(--amber);
+}
+
+.pcb-force:hover {
+  background: color-mix(in srgb, var(--amber) 28%, transparent);
+  border-color: color-mix(in srgb, var(--amber) 65%, transparent);
+}
+
+.pcb-dismiss {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.pcb-dismiss:hover {
+  color: var(--text);
+  border-color: var(--dim);
 }
 
 .dash-error {

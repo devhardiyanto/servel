@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -9,24 +9,107 @@ use crate::commands::compose::compose_path;
 use crate::commands::services::load_services_internal;
 use crate::commands::util::{emit_log_line, stream_and_wait_app};
 
-pub fn init(app: &AppHandle) -> tauri::Result<()> {
+/// Bangun menu tray lengkap termasuk submenu quick-switch versi PHP/Node.
+/// `php`/`node` = daftar (versi, aktif). Kosong → submenu berisi item disabled.
+/// Item versi ber-id `php:<versi>` / `node:<versi>` → di-handle di on_menu_event.
+fn build_menu(
+    app: &AppHandle,
+    php: &[(String, bool)],
+    node: &[(String, bool)],
+) -> tauri::Result<Menu<tauri::Wry>> {
     let show = MenuItem::with_id(app, "show", "Show Servel", true, None::<&str>)?;
-    let start_all =
-        MenuItem::with_id(app, "start_all", "Start all selected", true, None::<&str>)?;
+    let start_all = MenuItem::with_id(app, "start_all", "Start all selected", true, None::<&str>)?;
     let stop_all = MenuItem::with_id(app, "stop_all", "Stop all", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Servel", true, None::<&str>)?;
 
-    let menu = Menu::with_items(
+    let php_submenu = build_version_submenu(app, "PHP", "php", php)?;
+    let node_submenu = build_version_submenu(app, "Node", "node", node)?;
+
+    Menu::with_items(
         app,
         &[
             &show,
+            &PredefinedMenuItem::separator(app)?,
+            &php_submenu,
+            &node_submenu,
             &PredefinedMenuItem::separator(app)?,
             &start_all,
             &stop_all,
             &PredefinedMenuItem::separator(app)?,
             &quit,
         ],
-    )?;
+    )
+}
+
+/// Submenu versi: satu item per versi (id `<kind>:<versi>`), versi aktif diberi
+/// prefix ●. Kalau kosong → satu item disabled sebagai placeholder.
+fn build_version_submenu(
+    app: &AppHandle,
+    title: &str,
+    kind: &str,
+    versions: &[(String, bool)],
+) -> tauri::Result<Submenu<tauri::Wry>> {
+    if versions.is_empty() {
+        let empty = MenuItem::with_id(
+            app,
+            format!("{}_none", kind),
+            "Tidak ada versi terpasang",
+            false,
+            None::<&str>,
+        )?;
+        return Submenu::with_items(app, title, true, &[&empty]);
+    }
+
+    let mut items = Vec::with_capacity(versions.len());
+    for (ver, active) in versions {
+        let label = if *active {
+            format!("● {}", ver)
+        } else {
+            format!("   {}", ver)
+        };
+        items.push(MenuItem::with_id(
+            app,
+            format!("{}:{}", kind, ver),
+            label,
+            true,
+            None::<&str>,
+        )?);
+    }
+    let refs: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> =
+        items.iter().map(|i| i as &dyn tauri::menu::IsMenuItem<tauri::Wry>).collect();
+    Submenu::with_items(app, title, true, &refs)
+}
+
+/// Ambil daftar versi PHP & Node lalu rebuild menu tray (set_menu). Dipanggil
+/// async setelah init karena listing versi butuh spawn subprocess (phpvm/fnm).
+async fn refresh_version_submenus(app: &AppHandle) {
+    let php: Vec<(String, bool)> = crate::commands::php::php_list_installed()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|v| (v.version, v.active))
+        .collect();
+    let node: Vec<(String, bool)> = crate::commands::node::node_list_installed()
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|v| (v.version, v.active))
+        .collect();
+
+    match build_menu(app, &php, &node) {
+        Ok(menu) => {
+            if let Some(tray) = app.tray_by_id("main") {
+                let _ = tray.set_menu(Some(menu));
+            }
+        }
+        Err(e) => emit_log_line(app, "TRAY", &format!("rebuild menu gagal: {}", e)),
+    }
+}
+
+pub fn init(app: &AppHandle) -> tauri::Result<()> {
+    // Menu awal dengan submenu versi kosong (placeholder) — di-refresh async
+    // setelah init lewat refresh_version_submenus.
+    let menu = build_menu(app, &[], &[])?;
 
     let icon = app
         .default_window_icon()
@@ -37,7 +120,25 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
         .icon(icon)
         .tooltip("Servel — idle")
         .menu(&menu)
-        .on_menu_event(|app, event| match event.id.as_ref() {
+        .on_menu_event(|app, event| {
+            let id = event.id.as_ref();
+            // Quick-switch versi: id `php:<ver>` / `node:<ver>` → emit ke frontend,
+            // reuse php_switch/node_switch (butuh Window untuk streaming).
+            if let Some(ver) = id.strip_prefix("php:") {
+                let _ = app.emit(
+                    "tray-switch-version",
+                    serde_json::json!({ "kind": "php", "version": ver }),
+                );
+                return;
+            }
+            if let Some(ver) = id.strip_prefix("node:") {
+                let _ = app.emit(
+                    "tray-switch-version",
+                    serde_json::json!({ "kind": "node", "version": ver }),
+                );
+                return;
+            }
+            match id {
             "show" => {
                 if let Some(w) = app.get_webview_window("main") {
                     let _ = w.show();
@@ -97,8 +198,15 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
                 app.exit(0);
             }
             _ => {}
+            }
         })
         .build(app)?;
+
+    // Populate submenu versi PHP/Node secara async (listing butuh subprocess).
+    let refresh_handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        refresh_version_submenus(&refresh_handle).await;
+    });
 
     Ok(())
 }
