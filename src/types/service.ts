@@ -35,3 +35,9 @@ export interface ContainerMemStat {
   id: string
   memMb: number
 }
+
+export interface PortConflict {
+  serviceId: string
+  serviceName: string
+  port: number
+}
