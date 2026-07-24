@@ -84,6 +84,9 @@ pub fn run() {
             watcher::watch_project,
             commands::config::config_read,
             commands::config::config_write,
+            commands::hosts::sites_status,
+            commands::hosts::sites_apply,
+            commands::hosts::sites_restore,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
