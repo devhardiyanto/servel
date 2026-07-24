@@ -7,11 +7,21 @@ export interface Profile {
   serviceIds: string[]
 }
 
+// Domain lokal → IP via file hosts (fitur Sites, M11). Hosts = proyeksi sites
+// yang enabled; config.json = source of truth. Apply ke hosts bersifat manual.
+export interface Site {
+  id: string
+  domain: string
+  ip: string
+  enabled: boolean
+}
+
 export interface ConfigState {
   version: number
   selectedServiceIds: string[]
   profiles: Profile[]
   activeProfileId: string | null
+  sites: Site[]
   lastPhpVersion: string | null
   lastNodeVersion: string | null
   watchedPath: string | null
@@ -21,10 +31,11 @@ export interface ConfigState {
 }
 
 const DEFAULT_CONFIG: ConfigState = {
-  version: 2,
+  version: 3,
   selectedServiceIds: [],
   profiles: [{ id: 'default', name: 'Default', serviceIds: [] }],
   activeProfileId: 'default',
+  sites: [],
   lastPhpVersion: null,
   lastNodeVersion: null,
   watchedPath: null,
@@ -181,6 +192,7 @@ export function useConfig() {
     load,
     save,
     saveImmediate,
+    scheduleSave,
     setAutoStart,
     setRememberSession,
     setMinimizeToTray,

@@ -5,4 +5,5 @@ pub(crate) mod util;
 pub mod services;
 pub(crate) mod compose;
 pub mod config;
+pub mod hosts;
 pub(crate) mod stats;
