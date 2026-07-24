@@ -7,10 +7,17 @@ import { SetViewKey } from '@/types/navigation'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
+import {
+  useSites,
+  isValidIpv4,
+  isValidDomain,
+  type SitesStatus,
+  type DiffResult,
+} from '@/composables/useSites'
 import SettingRow from '@/components/SettingRow.vue'
 import type { PrereqStatus } from '@/types/prereq'
 
-type SettingsNav = 'general' | 'services' | 'php_node' | 'about'
+type SettingsNav = 'general' | 'services' | 'sites' | 'php_node' | 'about'
 
 const setView = inject(SetViewKey)!
 
@@ -71,6 +78,153 @@ async function handleDeleteProfile(id: string, name: string): Promise<void> {
   deleteProfile(id)
 }
 
+// --- Sites (hosts) ---
+const {
+  sites,
+  addSite,
+  updateSite,
+  deleteSite,
+  toggleSite,
+  status: fetchSitesStatus,
+  apply: applySites,
+  restore: restoreSites,
+} = useSites()
+
+const newDomain = ref('')
+const newIp = ref('127.0.0.1')
+const siteError = ref('')
+const editingSiteId = ref<string | null>(null)
+const editDomain = ref('')
+const editIp = ref('')
+
+const sitesStatus = ref<SitesStatus | null>(null)
+const sitesBusy = ref(false) // apply/restore sedang jalan (UAC)
+const applyError = ref('')
+const showDiffModal = ref(false)
+const pendingDiff = ref<DiffResult | null>(null)
+const selectedBackup = ref('')
+
+async function refreshSitesStatus(): Promise<void> {
+  sitesStatus.value = await fetchSitesStatus()
+}
+
+function handleAddSite(): void {
+  const d = newDomain.value.trim()
+  const ip = newIp.value.trim() || '127.0.0.1'
+  siteError.value = ''
+  if (!isValidDomain(d)) {
+    siteError.value = 'Domain tidak valid'
+    return
+  }
+  if (!isValidIpv4(ip)) {
+    siteError.value = 'IP tidak valid'
+    return
+  }
+  if (sites.value.some((s) => s.domain === d)) {
+    siteError.value = 'Domain sudah terdaftar'
+    return
+  }
+  addSite(d, ip)
+  newDomain.value = ''
+  newIp.value = '127.0.0.1'
+  void refreshSitesStatus()
+}
+
+function startEditSite(id: string, domain: string, ip: string): void {
+  editingSiteId.value = id
+  editDomain.value = domain
+  editIp.value = ip
+  siteError.value = ''
+}
+
+function commitEditSite(): void {
+  const d = editDomain.value.trim()
+  const ip = editIp.value.trim() || '127.0.0.1'
+  siteError.value = ''
+  if (!isValidDomain(d) || !isValidIpv4(ip)) {
+    siteError.value = 'Domain atau IP tidak valid'
+    return
+  }
+  if (editingSiteId.value) updateSite(editingSiteId.value, { domain: d, ip })
+  editingSiteId.value = null
+  void refreshSitesStatus()
+}
+
+function cancelEditSite(): void {
+  editingSiteId.value = null
+  siteError.value = ''
+}
+
+async function handleDeleteSite(id: string, domain: string): Promise<void> {
+  let ok = false
+  try {
+    ok = await ask(`Hapus domain "${domain}"?`, { title: 'Hapus Site', kind: 'warning' })
+  } catch {
+    ok = window.confirm(`Hapus domain "${domain}"?`)
+  }
+  if (!ok) return
+  deleteSite(id)
+  void refreshSitesStatus()
+}
+
+function handleToggleSite(id: string): void {
+  toggleSite(id)
+  void refreshSitesStatus()
+}
+
+// Buka modal diff sebelum menulis hosts (konfirmasi + UAC manual).
+async function openApply(): Promise<void> {
+  applyError.value = ''
+  await refreshSitesStatus()
+  if (!sitesStatus.value || sitesStatus.value.inSync) return
+  pendingDiff.value = sitesStatus.value.diff
+  showDiffModal.value = true
+}
+
+async function confirmApply(): Promise<void> {
+  applyError.value = ''
+  sitesBusy.value = true
+  try {
+    await applySites()
+    showDiffModal.value = false
+    await refreshSitesStatus()
+  } catch (err) {
+    applyError.value = String(err)
+  } finally {
+    sitesBusy.value = false
+  }
+}
+
+function cancelApply(): void {
+  showDiffModal.value = false
+  applyError.value = ''
+}
+
+async function handleRestore(): Promise<void> {
+  const backup = selectedBackup.value
+  if (!backup) return
+  let ok = false
+  try {
+    ok = await ask(`Pulihkan hosts dari backup ini?\n${backup}`, {
+      title: 'Restore Hosts',
+      kind: 'warning',
+    })
+  } catch {
+    ok = window.confirm(`Pulihkan hosts dari backup "${backup}"?`)
+  }
+  if (!ok) return
+  applyError.value = ''
+  sitesBusy.value = true
+  try {
+    await restoreSites(backup)
+    await refreshSitesStatus()
+  } catch (err) {
+    applyError.value = String(err)
+  } finally {
+    sitesBusy.value = false
+  }
+}
+
 const {
   latestVersion,
   updateAvailable,
@@ -125,6 +279,7 @@ onMounted(async () => {
   if (!loaded.value) await load()
   await fetchComposePath()
   await checkDocker()
+  await refreshSitesStatus()
   try {
     version.value = await getVersion()
   } catch {
@@ -153,6 +308,11 @@ onMounted(async () => {
           :class="{ 'snav-item--active': activeNav === 'services' }"
           @click="activeNav = 'services'"
         >Services</button>
+        <button
+          class="snav-item"
+          :class="{ 'snav-item--active': activeNav === 'sites' }"
+          @click="activeNav = 'sites'"
+        >Sites</button>
         <button
           class="snav-item"
           :class="{ 'snav-item--active': activeNav === 'php_node' }"
@@ -316,6 +476,130 @@ onMounted(async () => {
           </div>
         </template>
 
+        <template v-else-if="activeNav === 'sites'">
+          <div class="section-block">
+            <div class="section-title">SITES</div>
+            <p class="section-hint">
+              Domain lokal → IP lewat file hosts. Perubahan ditulis ke hosts hanya saat
+              kamu klik <strong>Terapkan ke hosts</strong> (butuh izin admin/UAC).
+            </p>
+
+            <div class="sites-statusbar">
+              <span
+                v-if="sitesStatus"
+                class="status-pill"
+                :class="sitesStatus.inSync ? 'status-pill--green' : 'status-pill--amber'"
+              >
+                <span class="status-dot"></span>
+                {{ sitesStatus.inSync ? 'Sinkron dengan hosts' : 'Ada perubahan belum diterapkan' }}
+              </span>
+              <button
+                class="action-btn action-btn--accent"
+                :disabled="sitesBusy || (sitesStatus?.inSync ?? false)"
+                @click="openApply"
+              >{{ sitesBusy ? 'Menerapkan…' : 'Terapkan ke hosts' }}</button>
+            </div>
+
+            <div class="site-list">
+              <div v-for="s in sites" :key="s.id" class="site-item">
+                <template v-if="editingSiteId === s.id">
+                  <input
+                    v-model="editDomain"
+                    class="profile-edit-input"
+                    type="text"
+                    maxlength="253"
+                    placeholder="domain.test"
+                    @keyup.enter="commitEditSite"
+                    @keyup.esc="cancelEditSite"
+                  />
+                  <input
+                    v-model="editIp"
+                    class="profile-edit-input site-ip-input"
+                    type="text"
+                    maxlength="15"
+                    placeholder="127.0.0.1"
+                    @keyup.enter="commitEditSite"
+                    @keyup.esc="cancelEditSite"
+                  />
+                  <div class="profile-actions">
+                    <button class="action-btn" @click="commitEditSite">Simpan</button>
+                    <button class="action-btn" @click="cancelEditSite">Batal</button>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="site-info">
+                    <button
+                      class="toggle toggle--sm"
+                      :class="{ 'toggle--on': s.enabled }"
+                      role="switch"
+                      :aria-checked="s.enabled"
+                      :title="s.enabled ? 'Nonaktifkan' : 'Aktifkan'"
+                      @click="handleToggleSite(s.id)"
+                    >
+                      <span class="toggle-knob"></span>
+                    </button>
+                    <span class="site-domain" :class="{ 'site-domain--off': !s.enabled }">{{ s.domain }}</span>
+                    <span class="site-arrow">→</span>
+                    <span class="site-ip">{{ s.ip }}</span>
+                  </div>
+                  <div class="profile-actions">
+                    <button class="action-btn" @click="startEditSite(s.id, s.domain, s.ip)">Edit</button>
+                    <button
+                      class="action-btn action-btn--red"
+                      @click="handleDeleteSite(s.id, s.domain)"
+                    >Hapus</button>
+                  </div>
+                </template>
+              </div>
+              <p v-if="sites.length === 0" class="placeholder-text">
+                Belum ada domain. Tambahkan di bawah.
+              </p>
+            </div>
+
+            <div class="site-create">
+              <input
+                v-model="newDomain"
+                class="profile-create-input"
+                type="text"
+                maxlength="253"
+                placeholder="myapp.test"
+                @keyup.enter="handleAddSite"
+              />
+              <input
+                v-model="newIp"
+                class="profile-create-input site-ip-input"
+                type="text"
+                maxlength="15"
+                placeholder="127.0.0.1"
+                @keyup.enter="handleAddSite"
+              />
+              <button
+                class="action-btn action-btn--accent"
+                :disabled="!newDomain.trim()"
+                @click="handleAddSite"
+              >Tambah</button>
+            </div>
+            <p v-if="siteError" class="site-error">{{ siteError }}</p>
+            <p v-if="applyError && !showDiffModal" class="site-error">{{ applyError }}</p>
+          </div>
+
+          <div v-if="(sitesStatus?.backups.length ?? 0) > 0" class="section-block">
+            <div class="section-title">RESTORE BACKUP</div>
+            <p class="section-hint">Pulihkan file hosts dari backup otomatis (5 terakhir).</p>
+            <div class="site-create">
+              <select v-model="selectedBackup" class="profile-create-input">
+                <option value="">Pilih backup…</option>
+                <option v-for="b in sitesStatus?.backups" :key="b" :value="b">{{ b }}</option>
+              </select>
+              <button
+                class="action-btn action-btn--red"
+                :disabled="!selectedBackup || sitesBusy"
+                @click="handleRestore"
+              >Restore</button>
+            </div>
+          </div>
+        </template>
+
         <template v-else-if="activeNav === 'php_node'">
           <div class="section-block">
             <div class="section-title">PHP &amp; NODE</div>
@@ -346,6 +630,37 @@ onMounted(async () => {
           </div>
         </template>
       </main>
+    </div>
+
+    <div v-if="showDiffModal" class="modal-overlay" @click.self="cancelApply">
+      <div class="modal-card">
+        <div class="modal-title">Konfirmasi perubahan hosts</div>
+        <p class="modal-desc">
+          Servel akan menulis blok terkelola di file hosts. Baris di luar blok tidak disentuh.
+          Klik <strong>Ya, terapkan</strong> lalu setujui prompt UAC.
+        </p>
+
+        <div class="diff-box">
+          <div v-for="l in pendingDiff?.removed ?? []" :key="'r-' + l" class="diff-line diff-line--del">- {{ l }}</div>
+          <div v-for="l in pendingDiff?.added ?? []" :key="'a-' + l" class="diff-line diff-line--add">+ {{ l }}</div>
+          <div v-for="l in pendingDiff?.unchanged ?? []" :key="'u-' + l" class="diff-line diff-line--same">&nbsp;&nbsp;{{ l }}</div>
+          <div
+            v-if="(pendingDiff?.added.length ?? 0) === 0 && (pendingDiff?.removed.length ?? 0) === 0"
+            class="diff-line diff-line--same"
+          >Tidak ada perubahan entri.</div>
+        </div>
+
+        <p v-if="applyError" class="site-error">{{ applyError }}</p>
+
+        <div class="modal-actions">
+          <button class="action-btn" :disabled="sitesBusy" @click="cancelApply">Batal</button>
+          <button
+            class="action-btn action-btn--accent"
+            :disabled="sitesBusy"
+            @click="confirmApply"
+          >{{ sitesBusy ? 'Menerapkan…' : 'Ya, terapkan' }}</button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -800,5 +1115,180 @@ onMounted(async () => {
 .action-btn--accent:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
   border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+/* Sites (hosts) */
+.status-pill--amber {
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  border-color: color-mix(in srgb, var(--amber) 35%, transparent);
+  color: var(--amber);
+}
+
+.sites-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.site-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.site-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.site-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.toggle--sm {
+  width: 30px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
+.toggle--sm .toggle-knob {
+  width: 11px;
+  height: 11px;
+}
+
+.toggle--sm.toggle--on .toggle-knob {
+  transform: translateX(13px);
+}
+
+.site-domain {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-domain--off {
+  color: var(--dim);
+  text-decoration: line-through;
+}
+
+.site-arrow {
+  color: var(--dim);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.site-ip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.site-ip-input {
+  flex: 0 0 110px;
+  max-width: 110px;
+}
+
+.site-create {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.site-error {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--red);
+  margin: var(--space-2) 0 0;
+}
+
+/* Diff-confirm modal */
+.modal-overlay {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  z-index: 50;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.modal-title {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.modal-desc {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--dim);
+  margin: 0;
+}
+
+.diff-box {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: var(--space-3);
+  max-height: 200px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.diff-line {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.diff-line--add {
+  color: var(--green);
+}
+
+.diff-line--del {
+  color: var(--red);
+}
+
+.diff-line--same {
+  color: var(--muted);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
 }
 </style>
