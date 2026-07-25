@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::process::Stdio;
-use tokio::process::Command;
+
+use super::util::silent_command;
 
 /// Single container memory snapshot — payload entry untuk event `container-stats-changed`.
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -84,17 +85,10 @@ pub fn parse_docker_stats_json(stdout: &str) -> Vec<ContainerMemStat> {
 /// Panggil `docker stats --no-stream --format json` (tanpa `--filter` agar kompatibel
 /// di Docker lama). Filter prefix `servel_` dilakukan di Rust saat parse.
 pub async fn fetch_container_stats() -> Result<Vec<ContainerMemStat>, String> {
-    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
-    let mut cmd = Command::new("docker");
+    let mut cmd = silent_command("docker");
     cmd.args(["stats", "--no-stream", "--format", "json"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-
-    #[cfg(target_os = "windows")]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
 
     let output = cmd
         .output()

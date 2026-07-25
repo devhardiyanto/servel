@@ -88,7 +88,7 @@ async fn probe_version(cmd: &str, args: &[&str]) -> Option<String> {
     };
 
     #[cfg(not(target_os = "windows"))]
-    let output = Command::new(cmd)
+    let output = silent_command(cmd)
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

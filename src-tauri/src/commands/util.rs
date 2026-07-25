@@ -19,7 +19,91 @@ pub fn silent_command(program: &str) -> Command {
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
 
+    // GUI-launched apps (AppImage / .app dari launcher) TIDAK mewarisi PATH shell
+    // interaktif, jadi tool yang di-install via shell rc (fnm, phpvm → ~/.local/bin,
+    // ~/.fnm, dll.) tak ketemu. Inject PATH hasil resolusi login-shell + dir umum.
+    #[cfg(not(target_os = "windows"))]
+    {
+        cmd.env("PATH", resolved_path());
+    }
+
     cmd
+}
+
+/// PATH yang sudah di-augment untuk spawn tool eksternal di Linux/macOS.
+/// Di-resolve sekali (login-interactive shell → source .bashrc/.zshrc) lalu di-cache.
+#[cfg(not(target_os = "windows"))]
+pub fn resolved_path() -> &'static str {
+    use std::sync::OnceLock;
+    static CACHE: OnceLock<String> = OnceLock::new();
+    CACHE.get_or_init(build_resolved_path)
+}
+
+/// Susun PATH: PATH login-shell (bila terbaca) ∪ PATH proses ∪ dir install umum.
+/// Dedup jaga urutan; buang segmen kosong.
+#[cfg(not(target_os = "windows"))]
+fn build_resolved_path() -> String {
+    use std::collections::HashSet;
+
+    let mut parts: Vec<String> = Vec::new();
+
+    if let Some(shell_path) = capture_login_shell_path() {
+        parts.extend(shell_path.split(':').map(str::to_string));
+    }
+    if let Ok(current) = std::env::var("PATH") {
+        parts.extend(current.split(':').map(str::to_string));
+    }
+
+    let home = std::env::var("HOME").unwrap_or_default();
+    if !home.is_empty() {
+        parts.push(format!("{home}/.local/bin"));
+        parts.push(format!("{home}/.fnm"));
+        parts.push(format!("{home}/.local/share/fnm"));
+        parts.push(format!("{home}/.cargo/bin"));
+    }
+    parts.push("/usr/local/bin".to_string());
+    parts.push("/opt/homebrew/bin".to_string());
+
+    let mut seen = HashSet::new();
+    parts
+        .into_iter()
+        .filter(|p| !p.is_empty() && seen.insert(p.clone()))
+        .collect::<Vec<_>>()
+        .join(":")
+}
+
+/// Jalankan login-interactive shell user untuk membaca PATH final-nya (setelah
+/// .bashrc/.zshrc di-source). Timeout 5s + stdin null supaya tak pernah hang.
+/// Return None kalau shell gagal / tak ada / kosong (caller fallback ke dir umum).
+#[cfg(not(target_os = "windows"))]
+fn capture_login_shell_path() -> Option<String> {
+    use std::process::{Command as StdCommand, Stdio as StdStdio};
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+    let (tx, rx) = mpsc::channel();
+
+    std::thread::spawn(move || {
+        let out = StdCommand::new(&shell)
+            .args(["-lic", "printf '%s' \"$PATH\""])
+            .stdin(StdStdio::null())
+            .stderr(StdStdio::null())
+            .output();
+        let _ = tx.send(out);
+    });
+
+    match rx.recv_timeout(Duration::from_secs(5)) {
+        Ok(Ok(out)) if out.status.success() => {
+            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
+        }
+        _ => None,
+    }
 }
 
 /// Build a PowerShell command that executes `script_body` as a `-Command` string.
