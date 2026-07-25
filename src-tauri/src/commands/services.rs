@@ -4,7 +4,7 @@ use std::process::Stdio;
 use tauri::{AppHandle, Manager};
 use tokio::process::Command;
 
-use crate::commands::util::stream_and_wait_app;
+use crate::commands::util::{silent_command, stream_and_wait_app};
 
 
 
@@ -162,16 +162,10 @@ pub(crate) async fn load_services_internal(app: &AppHandle) -> Result<Vec<Servic
 
 /// Inti services_status tanpa #[tauri::command], bisa dipanggil dari polling.
 pub(crate) async fn services_status_internal() -> Result<Vec<ServiceStatus>, String> {
-    let mut cmd = Command::new("docker");
+    let mut cmd = silent_command("docker");
     cmd.args(["ps", "-a", "--filter", "name=servel_", "--format", "json"])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-
-    #[cfg(target_os = "windows")]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
 
     let output = cmd
         .output()
@@ -188,14 +182,7 @@ pub(crate) async fn services_status_internal() -> Result<Vec<ServiceStatus>, Str
 }
 
 fn new_docker_cmd() -> Command {
-    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
-    let mut cmd = Command::new("docker");
-    #[cfg(target_os = "windows")]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-    cmd
+    silent_command("docker")
 }
 
 
