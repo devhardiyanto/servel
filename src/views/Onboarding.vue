@@ -1,12 +1,23 @@
 <script setup lang="ts">
-import { inject, computed } from 'vue'
+import { inject, computed, ref, onMounted } from 'vue'
 import { SetViewKey } from '../types/navigation'
 import { usePrereq } from '@/composables/usePrereq'
+import { useTauri } from '@/composables/useTauri'
 import PrereqCard from '@/components/PrereqCard.vue'
 import type { PrereqAction } from '@/components/PrereqCard.vue'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 
 const setView = inject(SetViewKey)!
+
+// Platform dipakai untuk menampilkan instruksi prasyarat yang sesuai OS.
+// Default "windows" (target utama) sampai command resolve.
+const { call } = useTauri()
+const platform = ref<string>('windows')
+onMounted(async () => {
+  const p = await call<string>('get_platform')
+  if (p) platform.value = p
+})
+const isLinux = computed<boolean>(() => platform.value === 'linux')
 
 const {
   status,
@@ -33,25 +44,57 @@ const totalCount = 3
 
 const progressPct = computed<number>(() => (readyCount.value / totalCount) * 100)
 
-const isLinuxDockerError = computed<boolean>(() =>
-  startDockerError.value?.includes('systemctl') ?? false
-)
-
 function openUrl(url: string): void {
   window.open(url, '_blank', 'noopener')
 }
 
-const dockerActions = computed<PrereqAction[]>(() => [
-  {
-    label: '⬇ Download Docker Desktop',
-    primary: true,
-    onClick: () => openUrl('https://www.docker.com/products/docker-desktop/'),
-  },
-  {
-    label: 'WSL2 + Docker Engine Guide ↗',
-    onClick: () => openUrl('https://docs.docker.com/desktop/wsl/'),
-  },
-])
+const dockerActions = computed<PrereqAction[]>(() => {
+  if (isLinux.value) {
+    return [
+      {
+        label: '⬇ Install Docker Engine',
+        primary: true,
+        onClick: () => openUrl('https://docs.docker.com/engine/install/'),
+      },
+      {
+        label: 'Post-install (grup docker / rootless) ↗',
+        onClick: () => openUrl('https://docs.docker.com/engine/install/linux-postinstall/'),
+      },
+    ]
+  }
+  if (platform.value === 'macos') {
+    return [
+      {
+        label: '⬇ Download Docker Desktop',
+        primary: true,
+        onClick: () => openUrl('https://www.docker.com/products/docker-desktop/'),
+      },
+    ]
+  }
+  return [
+    {
+      label: '⬇ Download Docker Desktop',
+      primary: true,
+      onClick: () => openUrl('https://www.docker.com/products/docker-desktop/'),
+    },
+    {
+      label: 'WSL2 + Docker Engine Guide ↗',
+      onClick: () => openUrl('https://docs.docker.com/desktop/wsl/'),
+    },
+  ]
+})
+
+// Perintah install fnm per-OS untuk ditampilkan di code-block prereq card.
+const fnmInstallCmd = computed<string>(() => {
+  switch (platform.value) {
+    case 'macos':
+      return 'brew install fnm'
+    case 'linux':
+      return 'curl -fsSL https://fnm.vercel.app/install | bash'
+    default:
+      return 'winget install Schniz.fnm'
+  }
+})
 
 const phpvmActions = computed<PrereqAction[]>(() => [
   {
@@ -149,25 +192,25 @@ const fnmOkDesc = computed<string>(() => {
             :ok-desc="fnmOkDesc"
             not-found-desc="Fast Node version manager, built in Rust"
             :actions="fnmActions"
-            code="winget install Schniz.fnm"
+            :code="fnmInstallCmd"
           />
         </div>
 
-        <div v-if="startDockerError && !isLinuxDockerError" class="ob-error">
+        <div v-if="startDockerError && !isLinux" class="ob-error">
           {{ startDockerError }}
         </div>
 
-        <div v-if="isLinuxDockerError" class="ob-instruction">
+        <div v-if="isLinux && dockerInstalledButNotRunning" class="ob-instruction">
           <p class="ob-instruction__title">Start Docker manually:</p>
           <code class="ob-instruction__cmd">sudo systemctl start docker</code>
-          <p class="ob-instruction__hint">Then click "Refresh checks" to refresh the status.</p>
+          <p class="ob-instruction__hint">Lalu klik "Refresh checks" untuk perbarui status.</p>
         </div>
 
         <p class="ob-note">Already installed everything? Click Refresh to re-check.</p>
 
         <div class="ob-cta-row">
           <button
-            v-if="dockerInstalledButNotRunning"
+            v-if="dockerInstalledButNotRunning && !isLinux"
             class="ob-btn ob-btn--primary"
             :disabled="startingDocker"
             @click="startDocker"
