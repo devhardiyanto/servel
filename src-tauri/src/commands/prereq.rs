@@ -170,3 +170,17 @@ pub async fn start_docker() -> Result<(), String> {
         Err("Docker daemon harus distart manual via systemctl start docker.".to_string())
     }
 }
+
+/// Return OS platform sebagai string: `"windows"` | `"macos"` | `"linux"`.
+/// Dipakai frontend untuk menampilkan instruksi prasyarat yang sesuai OS
+/// (mis. perintah install fnm, guidance Docker).
+#[tauri::command]
+pub fn get_platform() -> String {
+    if cfg!(target_os = "windows") {
+        "windows".to_string()
+    } else if cfg!(target_os = "macos") {
+        "macos".to_string()
+    } else {
+        "linux".to_string()
+    }
+}
