@@ -25,6 +25,7 @@ const {
   config,
   loaded,
   load,
+  saveImmediate,
   setAutoStart,
   setRememberSession,
   setMinimizeToTray,
@@ -105,6 +106,9 @@ const pendingDiff = ref<DiffResult | null>(null)
 const selectedBackup = ref('')
 
 async function refreshSitesStatus(): Promise<void> {
+  // Flush debounce config dulu: sites_status baca config dari disk, jadi mutasi
+  // (add/edit/delete/toggle) harus ter-tulis sebelum status dibaca (hindari race).
+  await saveImmediate()
   sitesStatus.value = await fetchSitesStatus()
 }
 
