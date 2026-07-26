@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { useConfig, type Site } from './useConfig'
+import { useConfig, type Site, type SiteTarget } from './useConfig'
 
 // Entri hosts hasil proyeksi (mirror `HostEntry` di Rust).
 export interface HostEntry {
@@ -37,14 +37,24 @@ export function isValidDomain(domain: string): boolean {
   return /^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)*$/.test(d)
 }
 
+// Port tujuan proxy: 1–65535. String kosong = site hosts-only (tanpa proxy).
+export function parsePort(input: string): SiteTarget | null {
+  const t = input.trim()
+  if (t === '') return null
+  if (!/^\d{1,5}$/.test(t)) return null
+  const value = Number(t)
+  if (value < 1 || value > 65535) return null
+  return { kind: 'port', value }
+}
+
 export function useSites() {
   const { config, scheduleSave } = useConfig()
 
   const sites = computed<Site[]>(() => config.value.sites)
 
-  function addSite(domain: string, ip = '127.0.0.1'): string {
+  function addSite(domain: string, ip = '127.0.0.1', target: SiteTarget | null = null): string {
     const id = crypto.randomUUID()
-    config.value.sites.push({ id, domain: domain.trim(), ip: ip.trim(), enabled: true })
+    config.value.sites.push({ id, domain: domain.trim(), ip: ip.trim(), enabled: true, target })
     scheduleSave()
     return id
   }
@@ -55,6 +65,7 @@ export function useSites() {
     if (patch.domain !== undefined) s.domain = patch.domain.trim()
     if (patch.ip !== undefined) s.ip = patch.ip.trim()
     if (patch.enabled !== undefined) s.enabled = patch.enabled
+    if (patch.target !== undefined) s.target = patch.target
     scheduleSave()
   }
 

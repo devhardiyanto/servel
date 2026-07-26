@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, inject, onMounted } from 'vue'
+import { ref, computed, inject, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -11,9 +11,11 @@ import {
   useSites,
   isValidIpv4,
   isValidDomain,
+  parsePort,
   type SitesStatus,
   type DiffResult,
 } from '@/composables/useSites'
+import { useProxy } from '@/composables/useProxy'
 import SettingRow from '@/components/SettingRow.vue'
 import type { PrereqStatus } from '@/types/prereq'
 
@@ -93,10 +95,12 @@ const {
 
 const newDomain = ref('')
 const newIp = ref('127.0.0.1')
+const newPort = ref('')
 const siteError = ref('')
 const editingSiteId = ref<string | null>(null)
 const editDomain = ref('')
 const editIp = ref('')
+const editPort = ref('')
 
 const sitesStatus = ref<SitesStatus | null>(null)
 const sitesBusy = ref(false) // apply/restore sedang jalan (UAC)
@@ -128,16 +132,24 @@ function handleAddSite(): void {
     siteError.value = 'Domain sudah terdaftar'
     return
   }
-  addSite(d, ip)
+  const target = parsePort(newPort.value)
+  if (newPort.value.trim() !== '' && target === null) {
+    siteError.value = 'Port tujuan harus angka 1–65535'
+    return
+  }
+  addSite(d, ip, target)
   newDomain.value = ''
   newIp.value = '127.0.0.1'
+  newPort.value = ''
   void refreshSitesStatus()
+  void applyProxyChanges()
 }
 
-function startEditSite(id: string, domain: string, ip: string): void {
+function startEditSite(id: string, domain: string, ip: string, port: number | null): void {
   editingSiteId.value = id
   editDomain.value = domain
   editIp.value = ip
+  editPort.value = port === null ? '' : String(port)
   siteError.value = ''
 }
 
@@ -149,9 +161,15 @@ function commitEditSite(): void {
     siteError.value = 'Domain atau IP tidak valid'
     return
   }
-  if (editingSiteId.value) updateSite(editingSiteId.value, { domain: d, ip })
+  const target = parsePort(editPort.value)
+  if (editPort.value.trim() !== '' && target === null) {
+    siteError.value = 'Port tujuan harus angka 1–65535'
+    return
+  }
+  if (editingSiteId.value) updateSite(editingSiteId.value, { domain: d, ip, target })
   editingSiteId.value = null
   void refreshSitesStatus()
+  void applyProxyChanges()
 }
 
 function cancelEditSite(): void {
@@ -169,11 +187,72 @@ async function handleDeleteSite(id: string, domain: string): Promise<void> {
   if (!ok) return
   deleteSite(id)
   void refreshSitesStatus()
+  void applyProxyChanges()
 }
 
 function handleToggleSite(id: string): void {
   toggleSite(id)
   void refreshSitesStatus()
+  void applyProxyChanges()
+}
+
+// --- Sites (reverse proxy) ---
+const {
+  status: proxyStatus,
+  binary: proxyBinary,
+  progress: proxyProgress,
+  refresh: refreshProxy,
+  installBinary: installProxyBinary,
+  start: startProxy,
+  stop: stopProxy,
+  reload: reloadProxy,
+  installCert: installProxyCert,
+} = useProxy()
+
+const proxyBusy = ref(false)
+const proxyError = ref('')
+
+// Jumlah site yang layak di-proxy: aktif + punya port tujuan. Dipakai untuk
+// menonaktifkan tombol start sebelum backend menolaknya.
+const proxyableCount = computed(
+  () => sites.value.filter((s) => s.enabled && s.target != null).length,
+)
+
+// Perubahan site harus sampai ke proxy yang sedang jalan. Config disimpan
+// debounce, jadi flush dulu supaya backend membaca versi terbaru dari disk.
+async function applyProxyChanges(): Promise<void> {
+  if (!proxyStatus.value?.running) return
+  try {
+    await saveImmediate()
+    await reloadProxy()
+  } catch (err) {
+    proxyError.value = String(err)
+  }
+}
+
+async function runProxyAction(action: () => Promise<void>): Promise<void> {
+  proxyBusy.value = true
+  proxyError.value = ''
+  try {
+    await saveImmediate()
+    await action()
+  } catch (err) {
+    proxyError.value = String(err)
+  } finally {
+    proxyBusy.value = false
+  }
+}
+
+function handleInstallProxyBinary(): void {
+  void runProxyAction(installProxyBinary)
+}
+
+function handleToggleProxy(): void {
+  void runProxyAction(proxyStatus.value?.running ? stopProxy : startProxy)
+}
+
+function handleInstallCert(): void {
+  void runProxyAction(installProxyCert)
 }
 
 // Buka modal diff sebelum menulis hosts (konfirmasi + UAC manual).
@@ -284,6 +363,7 @@ onMounted(async () => {
   await fetchComposePath()
   await checkDocker()
   await refreshSitesStatus()
+  await refreshProxy()
   try {
     version.value = await getVersion()
   } catch {
@@ -525,6 +605,16 @@ onMounted(async () => {
                     @keyup.enter="commitEditSite"
                     @keyup.esc="cancelEditSite"
                   />
+                  <input
+                    v-model="editPort"
+                    class="profile-edit-input site-port-input"
+                    type="text"
+                    maxlength="5"
+                    placeholder="port"
+                    title="Port dev server tujuan. Kosongkan bila domain ini hanya perlu resolve nama."
+                    @keyup.enter="commitEditSite"
+                    @keyup.esc="cancelEditSite"
+                  />
                   <div class="profile-actions">
                     <button class="action-btn" @click="commitEditSite">Simpan</button>
                     <button class="action-btn" @click="cancelEditSite">Batal</button>
@@ -545,9 +635,16 @@ onMounted(async () => {
                     <span class="site-domain" :class="{ 'site-domain--off': !s.enabled }">{{ s.domain }}</span>
                     <span class="site-arrow">→</span>
                     <span class="site-ip">{{ s.ip }}</span>
+                    <span v-if="s.target" class="site-port">:{{ s.target.value }}</span>
+                    <span v-else class="site-port site-port--none" title="Nama resolve, tapi tak ada yang mem-proxy-kan">
+                      tanpa proxy
+                    </span>
                   </div>
                   <div class="profile-actions">
-                    <button class="action-btn" @click="startEditSite(s.id, s.domain, s.ip)">Edit</button>
+                    <button
+                      class="action-btn"
+                      @click="startEditSite(s.id, s.domain, s.ip, s.target?.value ?? null)"
+                    >Edit</button>
                     <button
                       class="action-btn action-btn--red"
                       @click="handleDeleteSite(s.id, s.domain)"
@@ -577,6 +674,15 @@ onMounted(async () => {
                 placeholder="127.0.0.1"
                 @keyup.enter="handleAddSite"
               />
+              <input
+                v-model="newPort"
+                class="profile-create-input site-port-input"
+                type="text"
+                maxlength="5"
+                placeholder="port"
+                title="Port dev server tujuan, mis. 5173. Kosongkan bila domain ini hanya perlu resolve nama."
+                @keyup.enter="handleAddSite"
+              />
               <button
                 class="action-btn action-btn--accent"
                 :disabled="!newDomain.trim()"
@@ -585,6 +691,89 @@ onMounted(async () => {
             </div>
             <p v-if="siteError" class="site-error">{{ siteError }}</p>
             <p v-if="applyError && !showDiffModal" class="site-error">{{ applyError }}</p>
+          </div>
+
+          <div class="section-block">
+            <div class="section-title">REVERSE PROXY</div>
+            <p class="section-hint">
+              Hosts hanya membuat nama domain resolve ke IP. Proxy yang meneruskannya ke dev server
+              kamu — jalankan dev server sendiri, isi port tujuannya di daftar domain di atas.
+            </p>
+
+            <div v-if="!proxyBinary?.installed" class="sites-statusbar">
+              <span class="status-pill status-pill--amber">
+                <span class="status-dot"></span>
+                Engine proxy belum terpasang
+              </span>
+              <button
+                class="action-btn action-btn--accent"
+                :disabled="proxyBusy"
+                @click="handleInstallProxyBinary"
+              >
+                {{
+                  proxyBusy && proxyProgress
+                    ? `Mengunduh… ${Math.round((proxyProgress.downloaded / (proxyProgress.total || 1)) * 100)}%`
+                    : proxyBusy
+                      ? 'Mengunduh…'
+                      : 'Pasang engine proxy'
+                }}
+              </button>
+            </div>
+
+            <template v-else>
+              <div class="sites-statusbar">
+                <span
+                  class="status-pill"
+                  :class="proxyStatus?.running ? 'status-pill--green' : 'status-pill--amber'"
+                >
+                  <span class="status-dot"></span>
+                  {{
+                    proxyStatus?.running
+                      ? `Berjalan — ${proxyStatus.routed_sites} domain${proxyStatus.https ? ' (HTTPS)' : ' (HTTP)'}`
+                      : 'Proxy berhenti'
+                  }}
+                </span>
+                <button
+                  class="action-btn action-btn--accent"
+                  :disabled="proxyBusy || (!proxyStatus?.running && proxyableCount === 0)"
+                  :title="
+                    !proxyStatus?.running && proxyableCount === 0
+                      ? 'Aktifkan minimal satu domain dan isi port tujuannya'
+                      : ''
+                  "
+                  @click="handleToggleProxy"
+                >
+                  {{ proxyBusy ? 'Memproses…' : proxyStatus?.running ? 'Hentikan' : 'Jalankan' }}
+                </button>
+              </div>
+
+              <div class="sites-statusbar">
+                <span
+                  class="status-pill"
+                  :class="proxyStatus?.cert_installed ? 'status-pill--green' : 'status-pill--amber'"
+                >
+                  <span class="status-dot"></span>
+                  {{
+                    proxyStatus?.cert_installed
+                      ? 'Sertifikat lokal terpasang'
+                      : 'Belum ada sertifikat — domain dilayani lewat HTTP'
+                  }}
+                </span>
+                <button
+                  v-if="!proxyStatus?.cert_installed"
+                  class="action-btn"
+                  :disabled="proxyBusy"
+                  @click="handleInstallCert"
+                >Pasang sertifikat</button>
+              </div>
+              <p class="section-hint">
+                Sertifikat lokal membuat <code>https://</code> dipercaya browser. Windows akan
+                menampilkan dialog konfirmasi; menolaknya tidak masalah — domain tetap bisa dipakai
+                lewat HTTP.
+              </p>
+            </template>
+
+            <p v-if="proxyError" class="site-error">{{ proxyError }}</p>
           </div>
 
           <div v-if="(sitesStatus?.backups.length ?? 0) > 0" class="section-block">
@@ -1205,6 +1394,23 @@ onMounted(async () => {
 .site-ip-input {
   flex: 0 0 110px;
   max-width: 110px;
+}
+
+.site-port-input {
+  flex: 0 0 70px;
+  max-width: 70px;
+}
+
+.site-port {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.site-port--none {
+  font-family: inherit;
+  font-style: italic;
+  opacity: 0.7;
 }
 
 .site-create {
