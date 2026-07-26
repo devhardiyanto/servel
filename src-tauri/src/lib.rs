@@ -1,4 +1,5 @@
 mod commands;
+mod proxy;
 mod tray;
 mod watcher;
 
@@ -88,6 +89,8 @@ pub fn run() {
             commands::hosts::sites_status,
             commands::hosts::sites_apply,
             commands::hosts::sites_restore,
+            proxy::binary::proxy_binary_status,
+            proxy::binary::proxy_binary_install,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
