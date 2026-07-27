@@ -9,11 +9,17 @@ export interface Profile {
 
 // Domain lokal → IP via file hosts (fitur Sites, M11). Hosts = proyeksi sites
 // yang enabled; config.json = source of truth. Apply ke hosts bersifat manual.
+// Tujuan routing site di balik reverse proxy (mirror `SiteTarget` Rust).
+// Tagged supaya varian lain bisa menyusul tanpa migrasi config ulang.
+export type SiteTarget = { kind: 'port'; value: number }
+
 export interface Site {
   id: string
   domain: string
   ip: string
   enabled: boolean
+  // null = site hosts-only: nama resolve, tapi tak ada yang mem-proxy-kan.
+  target?: SiteTarget | null
 }
 
 export interface ConfigState {

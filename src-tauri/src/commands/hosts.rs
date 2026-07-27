@@ -644,6 +644,8 @@ mod tests {
             domain: domain.to_string(),
             ip: ip.to_string(),
             enabled,
+            // Hosts tak peduli target proxy — itu urusan lapisan proxy.
+            target: None,
         }
     }
 

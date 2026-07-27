@@ -1,4 +1,5 @@
 mod commands;
+mod proxy;
 mod tray;
 mod watcher;
 
@@ -62,6 +63,7 @@ pub fn run() {
         .manage(watcher::default_watcher_state())
         .manage(Mutex::new(HashMap::<String, bool>::new()))
         .manage(Mutex::new(ConfigState::default()))
+        .manage(proxy::lifecycle::ProxyProcess::default())
         .invoke_handler(tauri::generate_handler![
             commands::prereq::check_prerequisites,
             commands::prereq::start_docker,
@@ -88,6 +90,14 @@ pub fn run() {
             commands::hosts::sites_status,
             commands::hosts::sites_apply,
             commands::hosts::sites_restore,
+            proxy::binary::proxy_binary_status,
+            proxy::binary::proxy_binary_install,
+            proxy::lifecycle::proxy_status,
+            proxy::lifecycle::proxy_check_ports,
+            proxy::lifecycle::proxy_start,
+            proxy::lifecycle::proxy_stop,
+            proxy::lifecycle::proxy_reload,
+            proxy::lifecycle::proxy_install_cert,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -316,9 +326,16 @@ pub fn run() {
 
     // Set flag shutdown saat app exit / Windows session-end → kedua loop polling
     // break di awal iterasi berikutnya, hindari spawn docker.exe saat teardown.
-    app.run(move |_handle, event| {
+    app.run(move |handle, event| {
         if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
             run_shutting_down.store(true, Ordering::Relaxed);
+
+            // Caddy adalah child-process yang memegang :80/:443. Tanpa stop
+            // eksplisit, port bisa nyangkut setelah Servel ditutup.
+            let handle = handle.clone();
+            tauri::async_runtime::block_on(async move {
+                let _ = proxy::lifecycle::stop_process(&handle).await;
+            });
         }
     });
 }

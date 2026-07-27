@@ -26,7 +26,16 @@ serde_json = "1"
 tokio = { version = "1", features = ["full"] }
 notify = "6"
 notify-debouncer-mini = "0.4"
+# Unduh + verifikasi binary Caddy (reverse proxy Sites). rustls dipilih supaya
+# tidak menarik OpenSSL sebagai dependensi build di Windows.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+sha2 = "0.10"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_System_Diagnostics_Debug"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[target.'cfg(not(windows))'.dependencies]
+flate2 = "1"
+tar = "0.4"
 

@@ -16,6 +16,18 @@ pub struct Profile {
     pub service_ids: Vec<String>,
 }
 
+/// Tujuan routing sebuah site di balik reverse proxy.
+///
+/// Bentuknya sengaja tagged (`{ "kind": "port", "value": 5173 }`) supaya bisa
+/// tumbuh tanpa migrasi ulang — mis. varian `docroot` untuk mode Valet penuh,
+/// yang di-descope dari v1.5 (lihat keputusan A1 di grooming Phase 12).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum SiteTarget {
+    /// Proxy ke port lokal: `domain` → `127.0.0.1:value`.
+    Port { value: u16 },
+}
+
 /// Domain lokal yang dipetakan ke sebuah IP lewat file hosts sistem.
 /// `id` di-generate frontend (`crypto.randomUUID`), pola sama `Profile`.
 /// Hosts = proyeksi dari `sites` yang `enabled`; config.json = source of truth.
@@ -26,6 +38,10 @@ pub struct Site {
     pub domain: String,
     pub ip: String,
     pub enabled: bool,
+    /// `None` = site hosts-only: nama resolve ke `ip`, tapi tak ada yang
+    /// mem-proxy-kan. Perilaku site v1.4 ke bawah, dan default hasil migrasi.
+    #[serde(default)]
+    pub target: Option<SiteTarget>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -70,8 +86,11 @@ fn default_true() -> bool {
 ///   profil "Default" berisi selection existing, set `active_profile_id`.
 /// - v2 → v3: perkenalkan `sites` (fitur hosts M11). Config lama tanpa field
 ///   ini di-isi `[]` oleh serde default — tak butuh rebuild, cukup bump versi.
+/// - v3 → v4: perkenalkan `Site.target` (reverse proxy M12). Site lama tak
+///   punya makna proxy, jadi sengaja **tidak** diberi target default — serde
+///   mengisinya `None` dan site tetap hosts-only. Cukup bump versi.
 ///
-/// Idempotent: config yang sudah v3 & punya profil valid dibiarkan apa adanya.
+/// Idempotent: config yang sudah v4 & punya profil valid dibiarkan apa adanya.
 fn migrate(mut cfg: ConfigState) -> ConfigState {
     if cfg.version == 0 {
         cfg.version = 1;
@@ -115,7 +134,7 @@ fn project_active_selection(cfg: &mut ConfigState) {
 const DEFAULT_PROFILE_ID: &str = "default";
 
 /// Skema config terkini. Naikkan saat ada perubahan struktur yang butuh migrasi.
-const CURRENT_VERSION: u32 = 3;
+const CURRENT_VERSION: u32 = 4;
 
 impl Default for ConfigState {
     fn default() -> Self {
@@ -311,6 +330,7 @@ mod tests {
                 domain: "myapp.test".to_string(),
                 ip: "127.0.0.1".to_string(),
                 enabled: true,
+                target: Some(SiteTarget::Port { value: 5173 }),
             }],
             last_php_version: Some("8.3".to_string()),
             last_node_version: Some("20.0.0".to_string()),
@@ -345,6 +365,10 @@ mod tests {
         assert_eq!(restored.sites[0].domain, "myapp.test");
         assert_eq!(restored.sites[0].ip, "127.0.0.1");
         assert!(restored.sites[0].enabled);
+        assert_eq!(
+            restored.sites[0].target,
+            Some(SiteTarget::Port { value: 5173 })
+        );
         assert_eq!(restored.last_php_version, original.last_php_version);
         assert_eq!(restored.last_node_version, original.last_node_version);
         assert_eq!(restored.watched_path, original.watched_path);
@@ -454,6 +478,65 @@ mod tests {
     }
 
     #[test]
+    fn test_migrate_v3_to_v4_keeps_sites_hosts_only() {
+        // Config v3 (sites sudah ada, belum kenal target) → naik ke v4 tanpa
+        // memberi target apa pun. Site lama tak punya makna proxy.
+        let json = r#"{
+            "version": 3,
+            "selectedServiceIds": ["mysql"],
+            "profiles": [{ "id": "default", "name": "Default", "serviceIds": ["mysql"] }],
+            "activeProfileId": "default",
+            "sites": [
+                { "id": "s-1", "domain": "myapp.test", "ip": "127.0.0.1", "enabled": true },
+                { "id": "s-2", "domain": "admin.test", "ip": "127.0.0.1", "enabled": false }
+            ]
+        }"#;
+
+        let cfg: ConfigState = serde_json::from_str(json).expect("parse gagal");
+        let cfg = migrate(cfg);
+
+        assert_eq!(cfg.version, 4);
+        assert_eq!(cfg.sites.len(), 2);
+        assert!(cfg.sites.iter().all(|s| s.target.is_none()));
+        // Sisa isi site tak boleh berubah.
+        assert_eq!(cfg.sites[0].domain, "myapp.test");
+        assert!(cfg.sites[0].enabled);
+        assert!(!cfg.sites[1].enabled);
+    }
+
+    #[test]
+    fn test_migrate_v4_preserves_existing_target() {
+        // Config yang sudah v4 tak boleh kehilangan target yang sudah di-set.
+        let json = r#"{
+            "version": 4,
+            "profiles": [{ "id": "default", "name": "Default", "serviceIds": [] }],
+            "activeProfileId": "default",
+            "sites": [
+                { "id": "s-1", "domain": "myapp.test", "ip": "127.0.0.1", "enabled": true,
+                  "target": { "kind": "port", "value": 5173 } }
+            ]
+        }"#;
+
+        let cfg: ConfigState = serde_json::from_str(json).expect("parse gagal");
+        let cfg = migrate(cfg);
+
+        assert_eq!(cfg.version, 4);
+        assert_eq!(cfg.sites[0].target, Some(SiteTarget::Port { value: 5173 }));
+    }
+
+    #[test]
+    fn test_site_target_json_shape_is_tagged() {
+        // Bentuk on-disk dikunci: { "kind": "port", "value": N }. Varian lain
+        // (mis. docroot) menyusul tanpa migrasi ulang.
+        let target = SiteTarget::Port { value: 8000 };
+        let json = serde_json::to_string(&target).expect("serialize gagal");
+        assert_eq!(json, r#"{"kind":"port","value":8000}"#);
+
+        let back: SiteTarget = serde_json::from_str(&json).expect("deserialize gagal");
+        assert_eq!(back, target);
+    }
+
+    #[test]
     fn test_migrate_v2_idempotent() {
         // Config v2 dgn profil custom aktif tidak boleh diubah/ditimpa.
         let original = ConfigState {
@@ -516,7 +599,7 @@ mod tests {
         let cfg: ConfigState = serde_json::from_str(json).expect("parse gagal");
         assert!(cfg.sites.is_empty());
         let cfg = migrate(cfg);
-        assert_eq!(cfg.version, 3);
+        assert_eq!(cfg.version, CURRENT_VERSION);
         assert!(cfg.sites.is_empty());
         // Profil existing dipertahankan (migrasi v2→v3 tak menyentuh profiles).
         assert_eq!(cfg.profiles.len(), 1);
