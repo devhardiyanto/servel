@@ -1,5 +1,6 @@
 ; Servel NSIS installer hook
-; Injects %USERPROFILE%\.wslconfig template required for Docker Desktop WSL2 backend.
+; Injects %USERPROFILE%\.wslconfig (WSL2 VM limits). Dipakai backend WSL2 Docker Desktop;
+; untuk WSL containers (v1.6) efeknya ke VM wslc belum terverifikasi — template tetap aman.
 ;
 ; Behaviour:
 ;   File tidak ada  -> tulis template langsung

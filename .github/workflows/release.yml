@@ -131,7 +131,7 @@ jobs:
             - **macOS:** download `.dmg`, open, drag Servel.app to Applications.
             - **Linux:** download `.AppImage`, `chmod +x`, run.
 
-            See [README](https://github.com/${{ github.repository }}#readme) for prerequisites (Docker Desktop, WSL2 on Windows).
+            See [README](https://github.com/${{ github.repository }}#readme) for prerequisites (Windows: WSL 3.0.1+ for built-in WSL containers, or Docker Desktop; macOS/Linux: Docker).
           releaseDraft: true
           prerelease: ${{ needs.changelog.outputs.prerelease }}
           args: --target ${{ matrix.rust-target }}
