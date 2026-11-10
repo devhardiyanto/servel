@@ -236,16 +236,14 @@ pub async fn php_hook_status() -> Result<String, String> {
     let mut cleaned = String::with_capacity(raw.len());
     let mut chars = raw.chars().peekable();
     while let Some(c) = chars.next() {
-        if c == '\u{1b}' {
-            if chars.peek() == Some(&'[') {
-                chars.next();
-                for cc in chars.by_ref() {
-                    if cc.is_ascii_alphabetic() {
-                        break;
-                    }
+        if c == '\u{1b}' && chars.peek() == Some(&'[') {
+            chars.next();
+            for cc in chars.by_ref() {
+                if cc.is_ascii_alphabetic() {
+                    break;
                 }
-                continue;
             }
+            continue;
         }
         cleaned.push(c);
     }

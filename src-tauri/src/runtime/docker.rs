@@ -19,6 +19,20 @@ pub async fn is_installed() -> bool {
         .unwrap_or(false)
 }
 
+/// Apakah Docker masih menyimpan container Servel (`servel_*`)?
+/// `None` bila daemon tidak bisa ditanya (mati / tidak terpasang / timeout).
+pub async fn has_servel_containers() -> Option<bool> {
+    let fut = silent_command("docker")
+        .args(["ps", "-a", "-q", "--filter", "name=servel_"])
+        .stdout(Stdio::piped())
+        .output();
+    let out = tokio::time::timeout(std::time::Duration::from_secs(10), fut).await.ok()?.ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    Some(!String::from_utf8_lossy(&out.stdout).trim().is_empty())
+}
+
 /// Daemon bisa dihubungi.
 pub async fn is_running() -> bool {
     silent_command("docker")

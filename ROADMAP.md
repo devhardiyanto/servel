@@ -89,31 +89,57 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
 - Format pesan error "not trusted" (pola yang dikenali: `Config files in <path> are not trusted`).
 - `mise install` dari Servel untuk versi yang belum terpasang.
 
+## v1.8.0 — data & kesehatan service
+
+### Selesai
+
+- **Readiness check** (`runtime/readiness.rs`):
+  - Probe di dalam container: `mysqladmin ping`, `pg_isready`, `redis-cli ping`, `mongosh` ping, `rabbitmq-diagnostics ping`, health MinIO.
+  - Status "up" baru dikirim setelah probe lolos; hasilnya di-cache sampai container berhenti.
+  - Exit 126/127 (tool tidak ada di image) dan batas 120 dtk dianggap siap.
+- **Restore database** (`runtime/restore.rs`, Settings → Services):
+  - Start service, tunggu readiness, salin dump, lalu jalankan `mysql` / `psql -v ON_ERROR_STOP=1`.
+  - WSLC: `container cp` ke `/tmp/` dengan cwd folder file, fallback stdin. Docker: `docker cp`.
+- **Import from Docker** (`runtime/migrate.rs`):
+  - MySQL: dump semua database kecuali database sistem.
+  - PostgreSQL: `pg_dump -C` per database (bukan `pg_dumpall`, yang memuat `CREATE ROLE postgres`).
+  - Hasil dump di-restore ke WSLC; file dump sementara dihapus.
+
+### Perlu verifikasi di Windows
+
+- Restore `.sql` nyata ke MySQL dan PostgreSQL di WSLC.
+- Import from Docker (butuh mesin yang masih punya Docker Desktop + data Servel).
+
+## v1.9.0 — project sebagai pusat
+
+### Selesai
+
+- `Project.profileId`: memilih project di Dashboard juga menerapkan profil service-nya. Hanya selection yang berubah; container yang jalan tidak di-stop.
+- CLI `servel use <tool> <versi> [--global]` (target sama dengan `plan_use`), `servel projects` (read-only).
+
+### Ditunda
+
+- Menautkan Sites ke project. Sites sudah punya target port per domain; tautan ke project baru berguna bila nanti ada aksi per project (mis. "start project" yang juga menyalakan proxy).
+
+## v2.0.0 — default baru
+
+### Selesai
+
+- **WSL containers default di Windows** (`runtime::resolve`): Auto memilih WSLC kecuali Docker masih menyimpan container `servel_*`. Daemon Docker yang mati / sisa `docker.exe` tidak lagi menahan pengguna di Docker; data yang mungkin masih ada di sana bisa diambil lewat Import from Docker. Resolusi ulang hanya saat preferensi berubah, supaya simpan config tidak menunggu `docker ps`.
+- **mise di macOS/Linux**: modul `mise` sudah lintas platform (HOME, PATH login shell); ditambah test path Unix.
+- Clippy bersih tanpa warning.
+
+### Tidak bisa dikerjakan dari sisi kode
+
+- **Code signing Windows / notarization macOS**: butuh sertifikat Authenticode dan akun Apple Developer milik maintainer. Setelah tersedia, rahasianya cukup ditambahkan ke workflow `release`.
+- **`wslc compose` / endpoint Docker API**: menunggu Microsoft ([microsoft/WSL#40948](https://github.com/microsoft/WSL/issues/40948), [#40976](https://github.com/microsoft/WSL/issues/40976)). Servel tidak bergantung pada keduanya.
+
 ## Rilis
 
-v1.6.0 tidak dirilis terpisah. Tag `v1.7.0` menghasilkan satu rilis yang mencakup v1.6 (WSL containers, CLI `servel`, tema soft) dan v1.7 (mise); changelog otomatis disusun dari `v1.5.0..v1.7.0`. Catatan rilis: `docs/releases/v1.7.0.md`.
+v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang mencakup semuanya; changelog otomatis disusun dari `v1.5.0..v2.0.0`. Catatan rilis: `docs/releases/v2.0.0.md`.
 
-## Berikutnya
+## Setelah v2.0 (kandidat)
 
-Urutannya: stabilkan hasil v1.6–v1.7 di lapangan dulu, lalu fitur yang memanfaatkan fondasi itu (engine + project), dan terakhir perubahan default yang menunggu Microsoft.
-
-### v1.7.x — patch lapangan
-
-- Perbaikan dari pemakaian sehari-hari: hal di "Perlu verifikasi" v1.6 dan v1.7.
-
-### v1.8 — data & kesehatan service
-
-- **Wizard migrasi Docker → WSL containers**: dump database dari volume Docker, lalu restore ke container WSLC (pola `servel restore`), sekali klik per service.
-- **Restore lewat UI**: pilih file `.sql`, lalu restore ke MySQL/PostgreSQL; padanan GUI dari `servel restore`.
-- **Readiness check** per service (`mysqladmin ping`, `pg_isready`, `redis-cli ping`): status "up" baru tampil setelah service benar-benar siap, bukan sekadar container running.
-
-### v1.9 — project sebagai pusat
-
-- **Project ↔ Sites ↔ profil service**: satu project menyimpan domain lokal, profil service, dan versi PHP/Node-nya. Memilih project di Dashboard menyiapkan semuanya sekaligus.
-- CLI mengikuti: `servel use php 8.3` (mise, di folder saat ini), `servel project` (daftar/aktifkan project).
-
-### v2.0 — default baru
-
-- **WSL containers menjadi default di Windows** begitu `wslc compose` ([microsoft/WSL#40948](https://github.com/microsoft/WSL/issues/40948)) atau endpoint Docker API ([microsoft/WSL#40976](https://github.com/microsoft/WSL/issues/40976)) tersedia. Bergantung pada Microsoft, jadi waktunya tidak bisa dipastikan.
-- **mise di macOS/Linux** setara Windows.
-- **Code signing Windows dan notarization macOS** (tertunda sejak v1.0): menghilangkan peringatan SmartScreen/Gatekeeper.
+- Patch dari pemakaian lapangan (item "Perlu verifikasi" di atas).
+- Tautan Sites ↔ project dan aksi "start project" (service + proxy sekaligus).
+- Code signing begitu sertifikat tersedia.

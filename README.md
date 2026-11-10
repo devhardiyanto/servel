@@ -10,6 +10,9 @@ Servel is a desktop app (Tauri 2 + Vue 3) that orchestrates your local developme
 
 ## Features
 
+- **Projects (v1.9)** — link a project folder to a service profile: selecting the project switches its PHP/Node versions (via mise) and its service selection together.
+- **Database restore & Docker import (v1.8)** — restore a `.sql` dump into MySQL/PostgreSQL from Settings, or copy your databases from an old Docker container into WSL containers.
+- **Readiness checks (v1.8)** — a service shows "up" only once it accepts connections, not just when its container starts.
 - **mise integration (new in v1.7)** — when [mise](https://mise.jdx.dev) is installed, Servel shows and switches PHP/Node versions per project folder. It writes to the `mise.toml` that actually applies, and asks before pinning a version that currently comes from your global config.
 - **PHP version switching** via [phpvm](https://github.com/devhardiyanto/phpvm) — list installed versions, switch active, install new.
 - **Node version switching** via [fnm](https://github.com/Schniz/fnm) — same workflow as PHP.
@@ -80,7 +83,7 @@ wsl --update
 wsl --version   # WSL version must be 3.0.1 or newer
 ```
 
-Servel picks the engine automatically (**Settings → Container engine → Auto**): WSL containers when `wslc` is available and Docker is not installed, otherwise Docker. You can force either one in Settings.
+Servel picks the engine automatically (**Settings → Container engine → Auto**). Since v2.0, WSL containers are the default on Windows; Servel stays on Docker only when `wslc` is missing or Docker still holds your `servel_*` containers. You can force either one in Settings.
 
 Notes:
 
@@ -102,6 +105,9 @@ servel status
 servel logs mysql -f
 servel shell postgres            # shell inside the container
 servel restore mysql D:\backup\dump.sql   # or a folder of .sql files
+servel use php 8.3               # via mise, in the current project folder
+servel use node 22 --global      # change the global version
+servel projects                  # list the projects configured in the app
 ```
 
 The app and the CLI share state, so you can use them interchangeably. Open a **new** terminal after installing so it picks up the new PATH. If you previously aliased `servel` in your shell profile, remove that alias; otherwise it shadows the bundled command.

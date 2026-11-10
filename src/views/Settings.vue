@@ -628,7 +628,7 @@ onMounted(async () => {
             <SettingRow
               v-if="platform === 'windows'"
               label="Engine"
-              desc="Auto uses WSL containers when Docker is not installed"
+              desc="Auto uses WSL containers, unless Docker still holds your Servel containers"
             >
               <div class="segmented" role="radiogroup" aria-label="Container engine">
                 <button

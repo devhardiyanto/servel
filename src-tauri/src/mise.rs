@@ -600,6 +600,18 @@ mod tests {
     }
 
     #[test]
+    fn classify_on_macos_and_linux() {
+        // v2.0: integrasi mise juga untuk macOS/Linux (HOME, bukan USERPROFILE).
+        let env = |k: &str| (k == "HOME").then(|| "/home/irfan".to_string());
+        let r = global_config_roots(&env);
+        assert_eq!(classify_source(Some("/home/irfan/.config/mise/config.toml"), &r), SourceScope::Global);
+        assert_eq!(classify_source(Some("/home/irfan/code/app/mise.toml"), &r), SourceScope::Project);
+        let mac = |k: &str| (k == "HOME").then(|| "/Users/irfan".to_string());
+        let r = global_config_roots(&mac);
+        assert_eq!(classify_source(Some("/Users/irfan/.tool-versions"), &r), SourceScope::Global);
+    }
+
+    #[test]
     fn global_roots_respect_overrides() {
         let env = |k: &str| match k {
             "MISE_GLOBAL_CONFIG_FILE" => Some(r"E:\cfg\mise.toml".to_string()),
