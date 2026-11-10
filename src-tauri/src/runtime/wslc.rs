@@ -48,7 +48,7 @@ const RETRY_DELAY: Duration = Duration::from_millis(1500);
 const QUERY_TIMEOUT: Duration = Duration::from_secs(30);
 const STATS_TIMEOUT: Duration = Duration::from_secs(10);
 const STOP_TIMEOUT: Duration = Duration::from_secs(90);
-/// `run` bisa menarik image besar (SQL Server ~1.5 GB).
+/// `run` bisa menarik image besar (pull pertama kali).
 const RUN_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 static LOCK: Mutex<()> = Mutex::const_new(());
@@ -157,7 +157,10 @@ async fn run_streamed(
                 let mut lines = BufReader::new(stderr).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
                     if !line.trim().is_empty() {
-                        emit(&app_err, &src_err, "stderr", &line);
+                        // WSLC menulis progress (pull, "Unable to find image
+                        // locally") ke stderr. Tampilkan sebagai output biasa;
+                        // pesan error final di-emit caller bila perintah gagal.
+                        emit(&app_err, &src_err, "stdout", &line);
                         acc.push(line);
                     }
                 }
@@ -869,7 +872,7 @@ mod tests {
             got.join(" "),
             "mysql=7f8aaf88c96028cb postgres=f3ee80d28629a906 redis=72bb252f63b247e2 \
              rabbitmq=ff8170d88e5c25e8 mongodb=221430f9a2bd43ab minio=3a353b79fe64f289 \
-             mailpit=b0b50e663dabc812 gotenberg=0a3d299152c47ba6 sqlserver=7e0ae416c1a3fed2"
+             mailpit=b0b50e663dabc812 gotenberg=0a3d299152c47ba6"
         );
     }
 

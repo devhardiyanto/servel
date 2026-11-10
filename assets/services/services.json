@@ -98,20 +98,5 @@
     "containerName": "servel_gotenberg",
     "ports": [{ "host": "3030", "container": "3000" }],
     "ramEstimateMb": 60
-  },
-  {
-    "id": "sqlserver",
-    "name": "SQL Server",
-    "category": "additional",
-    "image": "mcr.microsoft.com/mssql/server:2022-latest",
-    "containerName": "servel_sqlserver",
-    "ports": [{ "host": "1433", "container": "1433" }],
-    "environment": {
-      "ACCEPT_EULA": "Y",
-      "MSSQL_SA_PASSWORD": "devlocal123@!#",
-      "MSSQL_PID": "Developer"
-    },
-    "volumes": ["servel_sqlserver_data:/var/opt/mssql"],
-    "ramEstimateMb": 600
   }
 ]

@@ -74,15 +74,46 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
   - Settings → PHP & Node: pemilih provider, info mise, aksi pemulihan, daftar project (tambah lewat dialog folder).
   - Onboarding: satu kartu mise menggantikan phpvm + fnm.
 
+- **SQL Server dihapus** dari daftar service (image ~1.5 GB, jarang dipakai); id `sqlserver` dibuang dari profil tersimpan saat migrasi config.
+- **Log tidak lagi menandai progress sebagai error**: `wslc`, `mise`, dan `docker compose` menulis progress (pull, install) ke stderr. Baris itu kini tampil sebagai output biasa; hanya pesan kegagalan final yang ditandai error.
+- Tab Logs: PHP / Node / mise (menggantikan phpvm / fnm).
+
+### Terverifikasi di Windows (2026-11-10)
+
+- Onboarding: WSL containers + mise terdeteksi (2/2 ready).
+- Container buatan `servel.ps1` diadopsi apa adanya dan di-start lewat `wslc start`; service baru dibuat dengan `volume create` + `run` (pull image berjalan).
+
 ### Perlu verifikasi di Windows
 
 - `mise use --path <file>` benar-benar memperbarui file yang ditunjuk (bukan membuat baru) di mise 2026.11.x.
 - Format pesan error "not trusted" (pola yang dikenali: `Config files in <path> are not trusted`).
 - `mise install` dari Servel untuk versi yang belum terpasang.
 
-## Berikutnya (kandidat)
+## Rilis
 
-- **v1.8** — Wizard migrasi data Docker → WSLC: dump dari volume Docker lalu restore ke container WSLC, dengan pola `servel.ps1 restore`.
-- **v1.8** — Readiness check per service (mis. `mysqladmin ping`, `pg_isready`) sebelum status dianggap "up".
-- **v2.0** — WSLC menjadi default di Windows setelah `wslc compose` resmi tersedia ([microsoft/WSL#40948](https://github.com/microsoft/WSL/issues/40948)) atau endpoint Docker API ([microsoft/WSL#40976](https://github.com/microsoft/WSL/issues/40976)).
-- Code signing Windows dan notarization macOS (tertunda sejak v1.0).
+v1.6.0 tidak dirilis terpisah. Tag `v1.7.0` menghasilkan satu rilis yang mencakup v1.6 (WSL containers, CLI `servel`, tema soft) dan v1.7 (mise); changelog otomatis disusun dari `v1.5.0..v1.7.0`. Catatan rilis: `docs/releases/v1.7.0.md`.
+
+## Berikutnya
+
+Urutannya: stabilkan hasil v1.6–v1.7 di lapangan dulu, lalu fitur yang memanfaatkan fondasi itu (engine + project), dan terakhir perubahan default yang menunggu Microsoft.
+
+### v1.7.x — patch lapangan
+
+- Perbaikan dari pemakaian sehari-hari: hal di "Perlu verifikasi" v1.6 dan v1.7.
+
+### v1.8 — data & kesehatan service
+
+- **Wizard migrasi Docker → WSL containers**: dump database dari volume Docker, lalu restore ke container WSLC (pola `servel restore`), sekali klik per service.
+- **Restore lewat UI**: pilih file `.sql`, lalu restore ke MySQL/PostgreSQL; padanan GUI dari `servel restore`.
+- **Readiness check** per service (`mysqladmin ping`, `pg_isready`, `redis-cli ping`): status "up" baru tampil setelah service benar-benar siap, bukan sekadar container running.
+
+### v1.9 — project sebagai pusat
+
+- **Project ↔ Sites ↔ profil service**: satu project menyimpan domain lokal, profil service, dan versi PHP/Node-nya. Memilih project di Dashboard menyiapkan semuanya sekaligus.
+- CLI mengikuti: `servel use php 8.3` (mise, di folder saat ini), `servel project` (daftar/aktifkan project).
+
+### v2.0 — default baru
+
+- **WSL containers menjadi default di Windows** begitu `wslc compose` ([microsoft/WSL#40948](https://github.com/microsoft/WSL/issues/40948)) atau endpoint Docker API ([microsoft/WSL#40976](https://github.com/microsoft/WSL/issues/40976)) tersedia. Bergantung pada Microsoft, jadi waktunya tidak bisa dipastikan.
+- **mise di macOS/Linux** setara Windows.
+- **Code signing Windows dan notarization macOS** (tertunda sejak v1.0): menghilangkan peringatan SmartScreen/Gatekeeper.

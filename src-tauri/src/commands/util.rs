@@ -230,7 +230,7 @@ pub fn extract_semver(input: &str) -> Option<String> {
 
 const SERVICE_IDS: &[&str] = &[
     "mysql", "postgres", "redis", "rabbitmq", "mongodb",
-    "minio", "mailpit", "gotenberg", "sqlserver",
+    "minio", "mailpit", "gotenberg",
 ];
 
 /// Derive log source tag dari docker compose output line.
@@ -303,9 +303,12 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
                 buf.push(line.clone());
             }
             let source = src_from_line(&line);
+            // docker compose menulis progress (Pulling, Created, Started) ke
+            // stderr — tampilkan sebagai output biasa. Pesan error final
+            // di-emit di bawah bila perintah gagal.
             let _ = app_err.emit(
                 "cmd-output",
-                serde_json::json!({ "line": line, "stream": "stderr", "source": source }),
+                serde_json::json!({ "line": line, "stream": "stdout", "source": source }),
             );
         }
     });
@@ -322,10 +325,13 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
             .lock()
             .map(|b| b.join("\n"))
             .unwrap_or_default();
-        if let Some(friendly) = parse_docker_error(&acc) {
-            return Err(friendly);
-        }
-        return Err(format!("docker compose gagal (exit {})", status));
+        let msg = parse_docker_error(&acc)
+            .unwrap_or_else(|| format!("docker compose gagal (exit {})", status));
+        let _ = app.emit(
+            "cmd-output",
+            serde_json::json!({ "line": msg, "stream": "stderr", "source": "SERVEL" }),
+        );
+        return Err(msg);
     }
 
     Ok(())

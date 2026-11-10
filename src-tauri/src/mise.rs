@@ -344,7 +344,8 @@ async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), 
         let mut lines = BufReader::new(stderr).lines();
         while let Ok(Some(l)) = lines.next_line().await {
             if !l.trim().is_empty() {
-                let _ = app_err.emit("cmd-output", serde_json::json!({ "line": l, "stream": "stderr", "source": "MISE" }));
+                // mise menulis progress install ke stderr — bukan error.
+                let _ = app_err.emit("cmd-output", serde_json::json!({ "line": l, "stream": "stdout", "source": "MISE" }));
                 acc.push(l);
             }
         }
@@ -360,7 +361,9 @@ async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), 
     if status.success() {
         Ok(())
     } else {
-        Err(map_error(&err, ""))
+        let e = map_error(&err, "");
+        emit(&e, "stderr");
+        Err(e)
     }
 }
 

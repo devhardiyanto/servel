@@ -157,6 +157,14 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
             });
         }
     }
+    // Service yang dihapus dari services.json dibuang dari profil, supaya Start
+    // tidak mencoba service yang sudah tidak ada. Idempotent.
+    for p in cfg.profiles.iter_mut() {
+        p.service_ids.retain(|id| !REMOVED_SERVICE_IDS.contains(&id.as_str()));
+    }
+    cfg.selected_service_ids
+        .retain(|id| !REMOVED_SERVICE_IDS.contains(&id.as_str()));
+
     // Invariant: active_project_id menunjuk project yang ada (atau None).
     if let Some(id) = cfg.active_project_id.clone() {
         if !cfg.projects.iter().any(|p| p.id == id) {
@@ -188,6 +196,10 @@ fn project_active_selection(cfg: &mut ConfigState) {
         }
     }
 }
+
+/// Service yang pernah ada lalu dihapus dari services.json.
+/// - `sqlserver`: dihapus di v1.7 (image ~1.5 GB, jarang dipakai).
+const REMOVED_SERVICE_IDS: &[&str] = &["sqlserver"];
 
 /// Id profil bawaan yang dibuat saat migrasi/instal baru.
 const DEFAULT_PROFILE_ID: &str = "default";
@@ -634,6 +646,20 @@ mod tests {
         assert_eq!(cfg.projects[0].path, r"D:\dev\astra\");
         assert!(cfg.active_project_id.is_none());
         assert_eq!(cfg.container_runtime, "wslc");
+    }
+
+    #[test]
+    fn test_migrate_drops_removed_services() {
+        let json = r#"{
+            "version": 6,
+            "selectedServiceIds": ["mysql", "sqlserver"],
+            "profiles": [{ "id": "default", "name": "Default", "serviceIds": ["sqlserver", "redis"] }],
+            "activeProfileId": "default"
+        }"#;
+        let cfg = migrate(serde_json::from_str::<ConfigState>(json).unwrap());
+        assert_eq!(cfg.profiles[0].service_ids, vec!["redis".to_string()]);
+        // selected diproyeksikan ulang dari profil aktif.
+        assert_eq!(cfg.selected_service_ids, vec!["redis".to_string()]);
     }
 
     #[test]
