@@ -27,6 +27,13 @@ fn emit_line(window: &Window, line: &str, stream: &str) {
 /// Lines without a recognisable semver are skipped.
 #[tauri::command]
 pub async fn node_list_installed() -> Result<Vec<NodeVersion>, String> {
+    if crate::mise::provider_is_mise().await {
+        return Ok(crate::mise::list_installed("node")
+            .await?
+            .into_iter()
+            .map(|v| NodeVersion { version: v.version, active: v.active })
+            .collect());
+    }
     let output = build_fnm_command()
         .args(["list"])
         .stdout(Stdio::piped())
@@ -52,6 +59,9 @@ pub async fn node_list_installed() -> Result<Vec<NodeVersion>, String> {
 /// Prefix `v` is stripped before returning (e.g. `v20.14.0` → `"20.14.0"`).
 #[tauri::command]
 pub async fn node_get_active() -> Result<Option<String>, String> {
+    if crate::mise::provider_is_mise().await {
+        return crate::mise::get_active("node").await;
+    }
     let output = build_fnm_command()
         .args(["default"])
         .stdout(Stdio::piped())
@@ -73,7 +83,13 @@ pub async fn node_get_active() -> Result<Option<String>, String> {
 /// `fnm default` sets the default alias so new shells pick up the version —
 /// unlike `fnm use` which only affects the subprocess that runs it.
 #[tauri::command]
-pub async fn node_switch(window: Window, version: String) -> Result<(), String> {
+/// `scope` (mise saja): `None` = otomatis, `"project"` = pin di project aktif,
+/// `"global"` = ubah config global. Diabaikan oleh fnm.
+pub async fn node_switch(window: Window, version: String, scope: Option<String>) -> Result<(), String> {
+    if crate::mise::provider_is_mise().await {
+        crate::mise::validate_version(&version)?;
+        return crate::mise::use_version(window.app_handle(), "node", &version, scope.as_deref()).await;
+    }
     let mut child = build_fnm_command()
         .args(["default", &version])
         .stdout(Stdio::piped())
@@ -128,6 +144,10 @@ pub async fn node_switch(window: Window, version: String) -> Result<(), String> 
 /// Frontend should display indeterminate progress for the duration of this command.
 #[tauri::command]
 pub async fn node_install(window: Window, version: String) -> Result<(), String> {
+    if crate::mise::provider_is_mise().await {
+        crate::mise::validate_version(&version)?;
+        return crate::mise::install(window.app_handle(), "node", &version).await;
+    }
     let mut child = build_fnm_command()
         .args(["install", &version])
         .stdout(Stdio::piped())

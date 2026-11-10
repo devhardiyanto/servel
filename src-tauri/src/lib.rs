@@ -1,4 +1,5 @@
 mod commands;
+mod mise;
 mod proxy;
 mod runtime;
 mod tray;
@@ -84,6 +85,8 @@ pub fn run() {
             commands::services::services_start,
             commands::services::services_stop,
             commands::services::services_stop_all,
+            commands::services::services_restore,
+            commands::services::services_migrate_from_docker,
             commands::compose::get_compose_path,
             watcher::watch_project,
             commands::config::config_read,
@@ -99,6 +102,9 @@ pub fn run() {
             proxy::lifecycle::proxy_stop,
             proxy::lifecycle::proxy_reload,
             proxy::lifecycle::proxy_install_cert,
+            mise::mise_context,
+            mise::mise_trust,
+            mise::mise_repair,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -120,6 +126,7 @@ pub fn run() {
             }
 
             runtime::init(app.handle());
+            mise::init(app.handle());
 
             let app_handle = app.handle().clone();
             let status_daemon_ready = daemon_ready.clone();
@@ -157,6 +164,9 @@ pub fn run() {
                 let mut consecutive_failures: u32 = 0;
                 let mut last_daemon_ok: Option<bool> = None;
                 let mut is_first_tick = true;
+                // Readiness (v1.8): "running" ke UI = container running DAN service
+                // siap menerima koneksi. UI menahan "starting" sampai true.
+                let mut readiness = runtime::readiness::Tracker::default();
 
                 loop {
                     if status_shutting_down.load(Ordering::Relaxed) {
@@ -184,9 +194,34 @@ pub fn run() {
                             consecutive_failures = 0;
                             current_delay = base_delay;
 
+                            let running_ids: std::collections::HashSet<String> = statuses
+                                .iter()
+                                .filter(|s| s.running)
+                                .map(|s| s.id.clone())
+                                .collect();
+                            readiness.retain_running(&running_ids);
+                            for s in statuses.iter().filter(|s| s.running) {
+                                use runtime::readiness::Decision;
+                                match readiness.decide(&s.id, std::time::Instant::now()) {
+                                    Decision::Ready => {}
+                                    Decision::TimedOut => emit_log_line(
+                                        &app_handle,
+                                        &s.id.to_uppercase(),
+                                        "readiness check belum lolos setelah 120 dtk \u{2014} dianggap siap (cek kredensial / logs service)",
+                                    ),
+                                    Decision::Probe => {
+                                        let outcome = runtime::probe(&s.id, &s.container_name).await;
+                                        readiness.record(&s.id, outcome);
+                                    }
+                                }
+                            }
+
                             statuses
                                 .into_iter()
-                                .map(|s| (s.id, s.running))
+                                .map(|s| {
+                                    let up = s.running && readiness.is_ready(&s.id);
+                                    (s.id, up)
+                                })
                                 .collect::<HashMap<String, bool>>()
                         }
                         Err(err) => {

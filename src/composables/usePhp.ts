@@ -3,11 +3,13 @@ import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useTauri } from './useTauri'
 import { useConfig } from './useConfig'
+import { useVersionContext } from './useVersionContext'
 import type { PhpVersion } from '@/types/version'
 import type { VersionFileDetected } from '@/types/watcher'
 
 export function usePhp() {
   const { call, on } = useTauri()
+  const versionCtx = useVersionContext()
 
   const versions = ref<PhpVersion[]>([])
   const active = ref<string | null>(null)
@@ -34,12 +36,16 @@ export function usePhp() {
     if (activeVersion !== undefined) active.value = activeVersion ?? null
   }
 
-  async function switchTo(version: string): Promise<void> {
+  // `scope` hanya dipakai provider mise: 'project' (pin di project aktif) atau
+  // 'global'. Tanpa scope backend memilih otomatis, atau meminta keputusan
+  // lewat MISE_NEEDS_SCOPE (ditangani useVersionContext → dialog di Dashboard).
+  async function switchTo(version: string, scope?: 'project' | 'global'): Promise<void> {
     if (switching.value) return
     switching.value = true
     error.value = null
     try {
-      await invoke<void>('php_switch', { version })
+      await invoke<void>('php_switch', { version, scope: scope ?? null })
+      await versionCtx.refresh()
       // Konfirmasi aktif versi dari Rust (optimistic + verify)
       const confirmed = await call<string | null>('php_get_active')
       if (confirmed !== undefined) {
@@ -47,7 +53,9 @@ export function usePhp() {
         useConfig().setLastPhpVersion(active.value)
       }
     } catch (err) {
-      error.value = typeof err === 'string' ? err : String(err)
+      if (!versionCtx.handleSwitchError('php', version, err)) {
+        error.value = typeof err === 'string' ? err : String(err)
+      }
     } finally {
       switching.value = false
     }

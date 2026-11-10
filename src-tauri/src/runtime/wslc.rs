@@ -48,7 +48,7 @@ const RETRY_DELAY: Duration = Duration::from_millis(1500);
 const QUERY_TIMEOUT: Duration = Duration::from_secs(30);
 const STATS_TIMEOUT: Duration = Duration::from_secs(10);
 const STOP_TIMEOUT: Duration = Duration::from_secs(90);
-/// `run` bisa menarik image besar (SQL Server ~1.5 GB).
+/// `run` bisa menarik image besar (pull pertama kali).
 const RUN_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 
 static LOCK: Mutex<()> = Mutex::const_new(());
@@ -157,7 +157,10 @@ async fn run_streamed(
                 let mut lines = BufReader::new(stderr).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
                     if !line.trim().is_empty() {
-                        emit(&app_err, &src_err, "stderr", &line);
+                        // WSLC menulis progress (pull, "Unable to find image
+                        // locally") ke stderr. Tampilkan sebagai output biasa;
+                        // pesan error final di-emit caller bila perintah gagal.
+                        emit(&app_err, &src_err, "stdout", &line);
                         acc.push(line);
                     }
                 }
@@ -591,6 +594,84 @@ fn save_state(app: &AppHandle, state: &HashMap<String, String>) {
 // Operasi
 // ---------------------------------------------------------------------------
 
+/// Salin file host ke `dest` di container.
+///
+/// Jalur 1 (terbukti di `servel.ps1`): `container cp <leaf> <name>:/tmp/` dengan
+/// cwd = folder file, lalu rename. Path Windows utuh tidak dipakai karena `D:`
+/// bisa terbaca sebagai `<container>:<path>`, dan tujuan berupa nama file baru
+/// ditolak WSLC (ERROR_PATH_NOT_FOUND) — tujuan harus direktori.
+/// Jalur 2: stream byte mentah lewat stdin (`exec -i … cat > dest`).
+pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> Result<(), String> {
+    let leaf = host
+        .file_name()
+        .and_then(|f| f.to_str())
+        .ok_or("nama file tidak valid")?
+        .to_string();
+    let dir = host.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
+
+    let cp = {
+        let _guard = LOCK.lock().await;
+        let mut cmd = command(&owned(&["container", "cp", &leaf, &format!("{}:/tmp/", name)]));
+        cmd.current_dir(&dir).stdout(Stdio::null()).stderr(Stdio::null());
+        tokio::time::timeout(RUN_TIMEOUT, cmd.status()).await
+    };
+    if matches!(cp, Ok(Ok(s)) if s.success()) {
+        let mv = owned(&[
+            "exec", "-e", &format!("SRC={}", leaf), name, "sh", "-c",
+            &format!(r#"mv -f "/tmp/$SRC" {}"#, dest),
+        ]);
+        if capture_ok(&mv, QUERY_TIMEOUT).await.is_ok() {
+            return Ok(());
+        }
+    }
+
+    // Fallback: stdin.
+    use tokio::io::AsyncWriteExt;
+    let _guard = LOCK.lock().await;
+    let mut child = command(&owned(&["exec", "-i", name, "sh", "-c", &format!("cat > {}", dest)]))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Gagal menjalankan wslc: {}", e))?;
+    let mut stdin = child.stdin.take().ok_or("stdin wslc tidak tersedia")?;
+    let mut file = tokio::fs::File::open(host)
+        .await
+        .map_err(|e| format!("gagal membuka {}: {}", host.display(), e))?;
+    tokio::io::copy(&mut file, &mut stdin)
+        .await
+        .map_err(|e| format!("gagal mengirim file ke container: {}", e))?;
+    stdin.shutdown().await.ok();
+    drop(stdin);
+    let out = tokio::time::timeout(RUN_TIMEOUT, child.wait_with_output())
+        .await
+        .map_err(|_| "kirim file ke container timeout".to_string())?
+        .map_err(|e| format!("gagal menunggu wslc: {}", e))?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "container cp dan stdin sama-sama gagal: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ))
+    }
+}
+
+/// `exec <name> sh -c <cmd>` dengan output di-stream ke panel log.
+pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str, source: &str) -> Result<(), String> {
+    run_streamed(app, &owned(&["exec", name, "sh", "-c", cmd]), source, RUN_TIMEOUT).await
+}
+
+/// `wslc exec <name> sh -c <cmd>` → exit code (None bila gagal dijalankan/timeout).
+/// Satu percobaan saja (tanpa retry transien): dipakai probe readiness yang
+/// diulang tiap tick polling.
+pub async fn exec_status(name: &str, cmd: &str, timeout: Duration) -> Option<i32> {
+    let args = owned(&["exec", name, "sh", "-c", cmd]);
+    let _guard = LOCK.lock().await;
+    let fut = command(&args).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    tokio::time::timeout(timeout, fut).await.ok()?.ok()?.code()
+}
+
 pub async fn status() -> Result<Vec<ServiceStatus>, String> {
     let out = capture_ok(&owned(&["container", "list", "--all", "--format", "json"]), QUERY_TIMEOUT)
         .await
@@ -869,7 +950,7 @@ mod tests {
             got.join(" "),
             "mysql=7f8aaf88c96028cb postgres=f3ee80d28629a906 redis=72bb252f63b247e2 \
              rabbitmq=ff8170d88e5c25e8 mongodb=221430f9a2bd43ab minio=3a353b79fe64f289 \
-             mailpit=b0b50e663dabc812 gotenberg=0a3d299152c47ba6 sqlserver=7e0ae416c1a3fed2"
+             mailpit=b0b50e663dabc812 gotenberg=0a3d299152c47ba6"
         );
     }
 

@@ -3,6 +3,7 @@ import { onMounted, onUnmounted, computed, inject, ref, watch } from 'vue'
 import { usePhp } from '@/composables/usePhp'
 import { usePhpHookStatus } from '@/composables/usePhpHookStatus'
 import { useNode } from '@/composables/useNode'
+import { useVersionContext } from '@/composables/useVersionContext'
 import { useLogs } from '@/composables/useLogs'
 import { useServices } from '@/composables/useServices'
 import { useConfig } from '@/composables/useConfig'
@@ -21,6 +22,7 @@ const {
   switching: phpSwitching,
   switchTo: switchPhp,
   install: installPhp,
+  load: loadPhp,
   suggested: phpSuggested,
   suggestedNeedsInstall: phpSuggestedNeedsInstall,
   dismissSuggestion: dismissPhpSuggestion,
@@ -32,12 +34,56 @@ const {
   switching: nodeSwitching,
   switchTo: switchNode,
   install: installNode,
+  load: loadNode,
   suggested: nodeSuggested,
   suggestedNeedsInstall: nodeSuggestedNeedsInstall,
   dismissSuggestion: dismissNodeSuggestion,
 } = useNode()
 
 const setView = inject(SetViewKey)!
+
+// --- Konteks versi (mise): Global atau project tertentu -------------------
+const versionCtx = useVersionContext()
+const {
+  ctx: miseCtx,
+  isMise,
+  scopeRequest,
+  untrustedPath,
+  lastError: versionError,
+  busy: versionBusy,
+} = versionCtx
+const projects = computed(() => useConfig().config.value.projects)
+const activeProjectId = computed(() => useConfig().config.value.activeProjectId)
+const phpSource = computed(() => versionCtx.sourceLabel('php'))
+const nodeSource = computed(() => versionCtx.sourceLabel('node'))
+
+async function reloadVersions(): Promise<void> {
+  await versionCtx.refresh()
+  await Promise.all([loadPhp(), loadNode()])
+}
+
+// v1.9: memilih project juga menerapkan profil service-nya (bila ditautkan).
+// Hanya mengubah selection; container yang sedang jalan tidak di-stop.
+async function onContextChange(id: string): Promise<void> {
+  await useConfig().setActiveProject(id || null)
+  const project = projects.value.find((p) => p.id === id)
+  if (project?.profileId) applyProfile(project.profileId)
+  await reloadVersions()
+}
+
+async function resolveScope(scope: 'project' | 'global'): Promise<void> {
+  const req = scopeRequest.value
+  scopeRequest.value = null
+  if (!req) return
+  if (req.tool === 'php') await switchPhp(req.version, scope)
+  else await switchNode(req.version, scope)
+}
+
+async function trustConfig(): Promise<void> {
+  if (!untrustedPath.value) return
+  await versionCtx.trust(untrustedPath.value)
+  await Promise.all([loadPhp(), loadNode()])
+}
 const { status: phpHookStatus, refresh: refreshPhpHookStatus } = usePhpHookStatus()
 
 const phpHookCommand = 'phpvm hook install'
@@ -189,6 +235,7 @@ watch(phpActive, () => {
 })
 
 onMounted(async () => {
+  void versionCtx.refresh()
   await loadServices()
   void refreshPhpHookStatus()
   await useConfig().load()
@@ -269,6 +316,40 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <div v-if="untrustedPath" class="ctx-banner ctx-banner--warn">
+      <div class="ctx-banner__text">
+        <strong>mise does not trust this config yet</strong>
+        <span class="ctx-banner__path">{{ untrustedPath }}</span>
+      </div>
+      <button class="ctx-btn ctx-btn--primary" :disabled="versionBusy" @click="trustConfig">Trust</button>
+    </div>
+
+    <div v-if="versionError" class="ctx-banner ctx-banner--error">
+      <div class="ctx-banner__text">
+        <strong>Version switch failed</strong>
+        <span class="ctx-banner__path">{{ versionError }}</span>
+      </div>
+      <button class="ctx-btn" @click="versionError = null">Dismiss</button>
+    </div>
+
+    <div v-if="isMise" class="ctx-bar">
+      <span class="ctx-bar__label">Versions for</span>
+      <select
+        class="ctx-select"
+        :value="activeProjectId ?? ''"
+        @change="onContextChange(($event.target as HTMLSelectElement).value)"
+      >
+        <option value="">Global</option>
+        <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+      </select>
+      <span v-if="miseCtx?.project" class="ctx-bar__path" :title="miseCtx.project.path">
+        {{ miseCtx.project.path }}<template v-if="miseCtx.projectMissing"> — folder not found</template>
+      </span>
+      <span class="ctx-bar__spacer"></span>
+      <span class="ctx-bar__hint">mise {{ miseCtx?.miseVersion ?? '' }}</span>
+      <button class="ctx-btn" @click="setView('settings')">Manage projects</button>
+    </div>
+
     <section class="control-strip">
       <div class="control-block" :style="{ borderColor: phpAccent + '40' }">
         <div class="cb-label">
@@ -330,6 +411,7 @@ onUnmounted(() => {
           >{{ item.version }}</button>
           <span v-if="phpVersions.length === 0" class="ver-empty">no versions installed</span>
         </div>
+        <div v-if="phpSource" class="ver-source" :title="phpSource">from {{ phpSource }}</div>
       </div>
 
       <div class="control-block" :style="{ borderColor: nodeAccent + '40' }">
@@ -383,6 +465,7 @@ onUnmounted(() => {
           >{{ item.version }}</button>
           <span v-if="nodeVersions.length === 0" class="ver-empty">no versions installed</span>
         </div>
+        <div v-if="nodeSource" class="ver-source" :title="nodeSource">from {{ nodeSource }}</div>
       </div>
 
       <div class="control-block control-block--stats">
@@ -494,6 +577,26 @@ onUnmounted(() => {
       </div>
       <LogTail :lines="logLines" max-height="148px" />
     </section>
+    </div>
+  <div v-if="scopeRequest" class="scope-overlay" @click.self="scopeRequest = null">
+      <div class="scope-dialog" role="dialog" aria-modal="true">
+        <div class="scope-dialog__title">
+          Use {{ scopeRequest.tool === 'php' ? 'PHP' : 'Node' }} {{ scopeRequest.version }} for {{ miseCtx?.project?.name }}?
+        </div>
+        <p class="scope-dialog__body">
+          This project currently follows your global {{ scopeRequest.tool === 'php' ? 'PHP' : 'Node' }}
+          version<template v-if="scopeRequest.globalVersion"> ({{ scopeRequest.globalVersion }})</template>.
+        </p>
+        <button class="scope-option scope-option--primary" @click="resolveScope('project')">
+          <span>Pin in this project</span>
+          <small>writes {{ scopeRequest.projectFile }}</small>
+        </button>
+        <button class="scope-option" @click="resolveScope('global')">
+          <span>Change global version</span>
+          <small>affects every project without its own pin</small>
+        </button>
+        <button class="ctx-btn scope-cancel" @click="scopeRequest = null">Cancel</button>
+      </div>
     </div>
   </div>
 </template>
@@ -1246,4 +1349,139 @@ onUnmounted(() => {
 .log-wrap__expand-btn:hover {
   color: var(--accent);
 }
+
+/* --- Konteks versi (mise) --- */
+.ctx-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.ctx-bar__label { color: var(--muted); }
+.ctx-bar__path {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.ctx-bar__spacer { flex: 1; }
+.ctx-bar__hint { color: var(--dim); font-size: 11px; white-space: nowrap; }
+.ctx-select {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface2);
+  color: var(--text);
+}
+.ctx-btn {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ctx-btn:hover:not(:disabled) { color: var(--text); }
+.ctx-btn--primary {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+}
+.ctx-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+.ctx-banner--warn {
+  background: color-mix(in srgb, var(--amber) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 30%, transparent);
+}
+.ctx-banner--error {
+  background: color-mix(in srgb, var(--red) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+}
+.ctx-banner__text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; font-size: 12px; }
+.ctx-banner--warn strong { color: var(--amber); }
+.ctx-banner--error strong { color: var(--red); }
+.ctx-banner__path {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ver-source {
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scope-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 50;
+}
+.scope-dialog {
+  width: min(460px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+.scope-dialog__title { font-size: 14px; font-weight: 600; color: var(--text); }
+.scope-dialog__body { font-size: 12.5px; color: var(--muted); line-height: 1.55; }
+.scope-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.scope-option small {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--dim);
+  word-break: break-all;
+}
+.scope-option--primary {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface2));
+}
+.scope-cancel { align-self: flex-end; }
 </style>

@@ -28,7 +28,6 @@ const SERVICE_ICONS: Record<string, string> = {
   minio: '🗄️',
   mailpit: '✉️',
   gotenberg: '📄',
-  sqlserver: '🏢',
 }
 
 function icon(id: string): string {

@@ -10,10 +10,14 @@ Servel is a desktop app (Tauri 2 + Vue 3) that orchestrates your local developme
 
 ## Features
 
+- **Projects (v1.9)** — link a project folder to a service profile: selecting the project switches its PHP/Node versions (via mise) and its service selection together.
+- **Database restore & Docker import (v1.8)** — restore a `.sql` dump into MySQL/PostgreSQL from Settings, or copy your databases from an old Docker container into WSL containers.
+- **Readiness checks (v1.8)** — a service shows "up" only once it accepts connections, not just when its container starts.
+- **mise integration (new in v1.7)** — when [mise](https://mise.jdx.dev) is installed, Servel shows and switches PHP/Node versions per project folder. It writes to the `mise.toml` that actually applies, and asks before pinning a version that currently comes from your global config.
 - **PHP version switching** via [phpvm](https://github.com/devhardiyanto/phpvm) — list installed versions, switch active, install new.
 - **Node version switching** via [fnm](https://github.com/Schniz/fnm) — same workflow as PHP.
 - **WSL containers on Windows (new in v1.6)** — run every service on the container engine built into WSL (`wslc`). No Docker Desktop, no extra Linux distro. Docker stays available as an alternative.
-- **Docker services orchestration** — MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg, SQL Server. Toggle what you need, click Start.
+- **Docker services orchestration** — MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg. Toggle what you need, click Start.
 - **Auto-detect `.phpvmrc` / `.nvmrc`** — point Servel at a project folder, it picks the right versions.
 - **Persistent state + system tray** — Servel remembers your last selection; runs from the tray so it does not crowd your taskbar.
 - **Dynamic `docker-compose.yml` generator** — only the services you toggled on are written to the compose file. Saves RAM, keeps the runtime clean.
@@ -22,23 +26,22 @@ Servel is a desktop app (Tauri 2 + Vue 3) that orchestrates your local developme
 
 ## Install
 
-Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases).
+Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `1.7.0`).
 
-> Servel v1.0 ships **unsigned** for Windows and macOS. Workarounds are documented below; see the FAQ for the long-term plan.
+> Servel ships **unsigned** for Windows and macOS. Workarounds are documented below; see the FAQ for the long-term plan.
 
 ### Windows
 
-1. Download `Servel_1.0.0-beta.1_x64-setup.exe` from Releases.
-2. Run the installer.
-3. Windows SmartScreen will warn: *"Windows protected your PC"*. Click **More info** → **Run anyway**.
-4. Follow the NSIS installer wizard.
-5. When prompted about `.wslconfig`, choose:
-   - **Yes (Overwrite)** — replace your existing `%USERPROFILE%\.wslconfig` with the Servel-recommended one.
-   - **No (Append)** — append Servel's WSL2 settings to the bottom of your existing file.
-   - **Cancel (Skip)** — leave `.wslconfig` untouched; you can edit it manually later.
-6. Launch Servel from the Start Menu.
+1. Download `Servel_<version>_x64-setup.exe` from Releases.
+2. Run the installer. Windows SmartScreen will warn: *"Windows protected your PC"*. Click **More info** → **Run anyway**.
+3. When prompted about `.wslconfig`, choose:
+   - **Yes (Overwrite)**: replace your existing `%USERPROFILE%\.wslconfig` with the Servel-recommended one (the old file is backed up to `.wslconfig.bak`).
+   - **No (Append)**: append Servel's WSL2 settings to the bottom of your existing file.
+   - **Cancel (Skip)**: leave `.wslconfig` untouched. Recommended if you use WSL containers and already tuned WSL yourself.
+4. The installer also adds the `servel` terminal command to your user PATH (see [`servel` terminal command](#servel-terminal-command-windows)).
+5. Launch Servel from the Start Menu. With WSL 3.0.1+ and no Docker installed, Servel uses the built-in WSL containers automatically.
 
-After install, restart WSL once so the new `.wslconfig` takes effect:
+If you changed `.wslconfig`, restart WSL once so it takes effect:
 
 ```powershell
 wsl --shutdown
@@ -46,7 +49,7 @@ wsl --shutdown
 
 ### macOS
 
-1. Download `Servel_1.0.0-beta.1_aarch64.dmg` (Apple Silicon) or `Servel_1.0.0-beta.1_x64.dmg` (Intel) from Releases.
+1. Download `Servel_<version>_aarch64.dmg` (Apple Silicon) or `Servel_<version>_x64.dmg` (Intel) from Releases.
 2. Open the DMG, drag **Servel.app** into your **Applications** folder.
 3. On first launch macOS Gatekeeper blocks the app because it is unsigned. Open Terminal and run:
    ```bash
@@ -56,11 +59,11 @@ wsl --shutdown
 
 ### Linux
 
-1. Download `Servel_1.0.0-beta.1_amd64.AppImage` from Releases.
+1. Download `Servel_<version>_amd64.AppImage` from Releases.
 2. Make it executable and run:
    ```bash
-   chmod +x Servel_1.0.0-beta.1_amd64.AppImage
-   ./Servel_1.0.0-beta.1_amd64.AppImage
+   chmod +x Servel_<version>_amd64.AppImage
+   ./Servel_<version>_amd64.AppImage
    ```
 
 ---
@@ -80,7 +83,7 @@ wsl --update
 wsl --version   # WSL version must be 3.0.1 or newer
 ```
 
-Servel picks the engine automatically (**Settings → Container engine → Auto**): WSL containers when `wslc` is available and Docker is not installed, otherwise Docker. You can force either one in Settings.
+Servel picks the engine automatically (**Settings → Container engine → Auto**). Since v2.0, WSL containers are the default on Windows; Servel stays on Docker only when `wslc` is missing or Docker still holds your `servel_*` containers. You can force either one in Settings.
 
 Notes:
 
@@ -102,6 +105,9 @@ servel status
 servel logs mysql -f
 servel shell postgres            # shell inside the container
 servel restore mysql D:\backup\dump.sql   # or a folder of .sql files
+servel use php 8.3               # via mise, in the current project folder
+servel use node 22 --global      # change the global version
+servel projects                  # list the projects configured in the app
 ```
 
 The app and the CLI share state, so you can use them interchangeably. Open a **new** terminal after installing so it picks up the new PATH. If you previously aliased `servel` in your shell profile, remove that alias; otherwise it shadows the bundled command.

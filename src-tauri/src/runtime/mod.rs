@@ -13,6 +13,9 @@
 //! [`resolve`]. Resolusi ulang terjadi saat config dibaca/ditulis.
 
 pub mod docker;
+pub mod migrate;
+pub mod readiness;
+pub mod restore;
 pub mod wslc;
 
 use serde::{Deserialize, Serialize};
@@ -72,15 +75,19 @@ impl RuntimePreference {
 /// - Di luar Windows selalu Docker (WSLC hanya ada di Windows).
 /// - Preferensi eksplisit dihormati, walau tool-nya belum terpasang — UI yang
 ///   menampilkan "not installed", bukan diam-diam pindah engine.
-/// - `Auto`: WSLC bila `wslc` ada **dan** `docker` tidak ada. Bila keduanya
-///   ada, tetap Docker: storage WSLC terpisah dari Docker Desktop, jadi pindah
-///   diam-diam akan membuat database user tampak kosong. User pindah lewat
-///   Settings secara sadar.
+/// - `Auto` (v2.0): WSL containers adalah default Windows. Docker hanya dipilih
+///   bila `wslc` tidak ada, atau Docker **masih menyimpan container Servel**
+///   (`docker_has_data == Some(true)`) — storage WSLC terpisah, jadi pindah
+///   diam-diam akan membuat database user tampak kosong.
+///   `docker_has_data == None` (daemon mati / tak bisa ditanya, mis. sisa
+///   `docker.exe` tanpa Docker Desktop) → WSLC; data yang mungkin masih ada di
+///   Docker tetap utuh dan bisa diambil lewat "Import from Docker".
 pub fn resolve(
     pref: RuntimePreference,
     is_windows: bool,
     wslc_available: bool,
     docker_available: bool,
+    docker_has_data: Option<bool>,
 ) -> RuntimeKind {
     if !is_windows {
         return RuntimeKind::Docker;
@@ -89,7 +96,8 @@ pub fn resolve(
         RuntimePreference::Docker => RuntimeKind::Docker,
         RuntimePreference::Wslc => RuntimeKind::Wslc,
         RuntimePreference::Auto => {
-            if wslc_available && !docker_available {
+            let docker_holds_data = docker_available && docker_has_data == Some(true);
+            if wslc_available && !docker_holds_data {
                 RuntimeKind::Wslc
             } else {
                 RuntimeKind::Docker
@@ -104,6 +112,10 @@ static ACTIVE: RwLock<RuntimeKind> = RwLock::new(RuntimeKind::Docker);
 static RESOLVED: AtomicBool = AtomicBool::new(false);
 static RESOLVE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static APP: OnceLock<AppHandle> = OnceLock::new();
+/// Preferensi terakhir yang sudah di-resolve. `config_write` memanggil
+/// `apply_preference` di setiap simpan (mis. toggle service); probe ulang
+/// (yang bisa menjalankan `docker ps`) hanya saat preferensinya berubah.
+static LAST_PREF: RwLock<Option<String>> = RwLock::new(None);
 
 /// Simpan AppHandle (untuk membaca config saat resolusi lazy). Panggil di setup.
 pub fn init(app: &AppHandle) {
@@ -147,6 +159,12 @@ fn set_active(kind: RuntimeKind) {
 /// Probe ketersediaan tool lalu set engine aktif dari `pref_raw`.
 /// Dipanggil saat boot dan setiap config ditulis. Return engine terpilih.
 pub async fn apply_preference(pref_raw: &str) -> RuntimeKind {
+    let normalized = pref_raw.trim().to_ascii_lowercase();
+    if RESOLVED.load(Ordering::Acquire)
+        && LAST_PREF.read().ok().and_then(|g| g.clone()).as_deref() == Some(normalized.as_str())
+    {
+        return active();
+    }
     let pref = RuntimePreference::parse(pref_raw);
     let is_windows = cfg!(target_os = "windows");
 
@@ -160,12 +178,17 @@ pub async fn apply_preference(pref_raw: &str) -> RuntimeKind {
             RuntimePreference::Auto => {
                 let (wslc_ok, docker_ok) =
                     tokio::join!(wslc::is_installed(), docker::is_installed());
-                resolve(pref, is_windows, wslc_ok, docker_ok)
+                // Hanya tanya Docker bila keputusan bergantung padanya.
+                let has_data = if wslc_ok && docker_ok { docker::has_servel_containers().await } else { None };
+                resolve(pref, is_windows, wslc_ok, docker_ok, has_data)
             }
         }
     };
 
     set_active(kind);
+    if let Ok(mut g) = LAST_PREF.write() {
+        *g = Some(normalized);
+    }
     RESOLVED.store(true, Ordering::Release);
     kind
 }
@@ -179,6 +202,19 @@ pub async fn status() -> Result<Vec<ServiceStatus>, String> {
         RuntimeKind::Docker => docker::status().await,
         RuntimeKind::Wslc => wslc::status().await,
     }
+}
+
+/// Jalankan probe readiness `service_id` di dalam `container_name`.
+pub async fn probe(service_id: &str, container_name: &str) -> readiness::ProbeOutcome {
+    let Some(cmd) = readiness::probe_command(service_id) else {
+        return readiness::ProbeOutcome::Ready;
+    };
+    let timeout = std::time::Duration::from_secs(10);
+    let code = match ensure_resolved().await {
+        RuntimeKind::Docker => docker::exec_status(container_name, cmd, timeout).await,
+        RuntimeKind::Wslc => wslc::exec_status(container_name, cmd, timeout).await,
+    };
+    readiness::classify_exit(code)
 }
 
 pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
@@ -217,24 +253,29 @@ mod tests {
     #[test]
     fn non_windows_always_docker() {
         for pref in [RuntimePreference::Auto, RuntimePreference::Docker, RuntimePreference::Wslc] {
-            assert_eq!(resolve(pref, false, true, false), RuntimeKind::Docker);
+            assert_eq!(resolve(pref, false, true, false, None), RuntimeKind::Docker);
         }
     }
 
     #[test]
     fn explicit_preference_wins_on_windows() {
-        assert_eq!(resolve(RuntimePreference::Wslc, true, false, true), RuntimeKind::Wslc);
-        assert_eq!(resolve(RuntimePreference::Docker, true, true, false), RuntimeKind::Docker);
+        assert_eq!(resolve(RuntimePreference::Wslc, true, false, true, Some(true)), RuntimeKind::Wslc);
+        assert_eq!(resolve(RuntimePreference::Docker, true, true, false, None), RuntimeKind::Docker);
     }
 
     #[test]
-    fn auto_picks_wslc_only_without_docker() {
-        assert_eq!(resolve(RuntimePreference::Auto, true, true, false), RuntimeKind::Wslc);
-        // Keduanya ada → tetap Docker (hindari data "hilang" diam-diam).
-        assert_eq!(resolve(RuntimePreference::Auto, true, true, true), RuntimeKind::Docker);
-        assert_eq!(resolve(RuntimePreference::Auto, true, false, true), RuntimeKind::Docker);
-        // Tidak ada keduanya → Docker (onboarding menampilkan cara install).
-        assert_eq!(resolve(RuntimePreference::Auto, true, false, false), RuntimeKind::Docker);
+    fn auto_v2_prefers_wslc_but_protects_docker_data() {
+        use RuntimePreference::Auto;
+        // Hanya wslc → WSLC.
+        assert_eq!(resolve(Auto, true, true, false, None), RuntimeKind::Wslc);
+        // Keduanya ada, Docker kosong / daemon mati (sisa docker.exe) → WSLC (baru di v2.0).
+        assert_eq!(resolve(Auto, true, true, true, Some(false)), RuntimeKind::Wslc);
+        assert_eq!(resolve(Auto, true, true, true, None), RuntimeKind::Wslc);
+        // Docker masih menyimpan container Servel → tetap Docker.
+        assert_eq!(resolve(Auto, true, true, true, Some(true)), RuntimeKind::Docker);
+        // Tanpa wslc → Docker (onboarding menampilkan cara install).
+        assert_eq!(resolve(Auto, true, false, true, Some(false)), RuntimeKind::Docker);
+        assert_eq!(resolve(Auto, true, false, false, None), RuntimeKind::Docker);
     }
 
     #[test]

@@ -43,40 +43,103 @@ Hal-hal berikut tidak bisa diuji tanpa `wslc` sungguhan. Parser sudah dibuat tol
 - Tidak ada restart policy, jadi service hidup kembali saat Servel auto-start, bukan saat Windows boot.
 - Data Docker Desktop tidak dimigrasikan otomatis.
 
-## v1.7.0 — mise sebagai version manager (direncanakan)
+## v1.7.0 — mise sebagai version manager
 
 Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project lewat UI.
 
-### Temuan dari mesin pengguna (Windows, 2026-11-10)
+### Temuan dari mesin pengguna (Windows, mise 2026.11.2)
 
-- mise mengelola **PHP dan Node** di Windows: `php` 8.3.33 / 8.3.35 / 8.5.11, `node` 20 / 22 / 24. Kekhawatiran awal bahwa PHP lewat mise tidak jalan di Windows terbantah.
-- Sumber versi bisa **berbeda per tool dalam satu project**. Contoh di `D:\dev\event`: `node` dari `D:\dev\event\mise.toml`, sedangkan `php` dari global `~\.config\mise\config.toml`.
-- Config berlaku **ke subfolder**: `D:\dev\event\mise.toml` juga berlaku di `event\source-code\event-backend`. Root project ≠ lokasi config.
-- Project yang dipakai: `D:\dev\astra` (node 22, php 8.3), `D:\dev\event` (node 24, php global 8.5), `D:\dev\tandemly\yhpa` (node 20, php global 8.5).
+- mise mengelola **PHP dan Node** di Windows (php 8.3.33 / 8.3.35 / 8.5.11, node 20 / 22 / 24).
+- Sumber versi bisa **berbeda per tool dalam satu project**. Contoh di `event-backend`: node dari `D:\dev\event\mise.toml`, php dari global `~\.config\mise\config.toml`.
+- Config berlaku **ke subfolder**: root project ≠ lokasi config.
 
-### Desain
+### Selesai
 
-- **Provider per tool**: PHP = mise | phpvm, Node = mise | fnm. Auto memilih mise bila terpasang, selain itu phpvm/fnm. Implementasinya meniru pola `runtime/` (satu modul dispatch).
-- **Daftar project**: folder yang ditambahkan lewat dialog. `watched_path` lama ikut dimigrasikan; sebuah site bisa dikaitkan ke project.
-- **Resolusi selalu oleh mise, bukan oleh Servel.** Servel menjalankan `mise ls --current --json` dengan cwd = folder project, lalu menampilkan versi, `requested`, dan file sumbernya. Dengan begitu config di folder induk dan campuran global/project otomatis benar.
-- **Mengganti versi**:
-  - Global: `mise use -g <tool>@<versi>`.
-  - Project: `mise use --path <file sumber saat ini> <tool>@<versi>`, supaya yang diperbarui adalah `mise.toml` yang memang berlaku (mis. `D:\dev\event\mise.toml`). Tanpa `--path`, `mise use` di subfolder akan membuat `mise.toml` baru di sana.
-  - Bila tool-nya bersumber dari global, UI menawarkan dua pilihan: "pin di project ini" (membuat `mise.toml` di root project) atau "ubah global".
-  - Perubahan pada file project selalu meminta konfirmasi dan menampilkan path file yang akan ditulis.
-- **Ketahanan terhadap masalah mise**:
-  - Hanya output `--json` yang dibaca, dan versi minimum mise dicek; output asli dijadikan fixture test.
-  - Error "not trusted" dideteksi dan ditawarkan tombol `mise trust <file>`.
-  - Tersedia aksi pemulihan `mise reshim` / `mise cache clear`, dan error mise ditampilkan apa adanya di panel log.
-  - Fallback ke phpvm/fnm lewat pilihan provider.
+- **`src-tauri/src/mise.rs`**:
+  - mise dijalankan dengan cwd = project aktif (atau home untuk konteks Global); hanya output `--json` yang di-parse.
+  - Fixture output asli: `ls --current`, `ls --installed php`, `--version` dengan banner.
+- **Dispatch**: `php_*` / `node_*` (list, active, switch, install, hook) memakai mise bila provider = mise. Kartu Dashboard dan menu tray otomatis ikut.
+- **Mengganti versi** (`plan_use`, diuji unit):
+  - Global → `mise use -g`.
+  - Project → `mise use --path <file yang sedang berlaku>`.
+  - Tool yang masih dari global memicu dialog "Pin in this project / Change global". Pin ditulis ke config project yang **sudah** dipakai tool lain (mis. `D:\dev\event\mise.toml`), bukan file baru di subfolder; `mise.toml` di root project hanya dibuat bila belum ada config project sama sekali.
+- **Ketahanan**:
+  - Error "not trusted" memunculkan banner dengan tombol Trust (`mise trust <file>`).
+  - Settings menyediakan Reshim / Clear cache / Doctor.
+  - Error mise tampil apa adanya; baris WARN (mis. notifikasi update) diabaikan.
+  - Validasi versi menolak apa pun selain angka bertitik.
+- **Config v6**: `projects`, `activeProjectId`, `versionProvider` (`auto` | `mise` | `legacy`). `watchedPath` lama dimigrasikan menjadi project pertama.
+- **UI**:
+  - Dashboard: bar "Versions for" (Global / project) dan label sumber versi di kartu PHP/Node.
+  - Settings → PHP & Node: pemilih provider, info mise, aksi pemulihan, daftar project (tambah lewat dialog folder).
+  - Onboarding: satu kartu mise menggantikan phpvm + fnm.
 
-### Data yang dibutuhkan sebelum implementasi
+- **SQL Server dihapus** dari daftar service (image ~1.5 GB, jarang dipakai); id `sqlserver` dibuang dari profil tersimpan saat migrasi config.
+- **Log tidak lagi menandai progress sebagai error**: `wslc`, `mise`, dan `docker compose` menulis progress (pull, install) ke stderr. Baris itu kini tampil sebagai output biasa; hanya pesan kegagalan final yang ditandai error.
+- Tab Logs: PHP / Node / mise (menggantikan phpvm / fnm).
 
-Output asli (untuk fixture): `mise --version`, `mise ls --current --json` di sebuah subfolder project, `mise ls --installed --json php`, dan contoh error "not trusted".
+### Terverifikasi di Windows (2026-11-10)
 
-## Berikutnya (kandidat)
+- Onboarding: WSL containers + mise terdeteksi (2/2 ready).
+- Container buatan `servel.ps1` diadopsi apa adanya dan di-start lewat `wslc start`; service baru dibuat dengan `volume create` + `run` (pull image berjalan).
 
-- **v1.8** — Wizard migrasi data Docker → WSLC: dump dari volume Docker lalu restore ke container WSLC, dengan pola `servel.ps1 restore`.
-- **v1.8** — Readiness check per service (mis. `mysqladmin ping`, `pg_isready`) sebelum status dianggap "up".
-- **v2.0** — WSLC menjadi default di Windows setelah `wslc compose` resmi tersedia ([microsoft/WSL#40948](https://github.com/microsoft/WSL/issues/40948)) atau endpoint Docker API ([microsoft/WSL#40976](https://github.com/microsoft/WSL/issues/40976)).
-- Code signing Windows dan notarization macOS (tertunda sejak v1.0).
+### Perlu verifikasi di Windows
+
+- `mise use --path <file>` benar-benar memperbarui file yang ditunjuk (bukan membuat baru) di mise 2026.11.x.
+- Format pesan error "not trusted" (pola yang dikenali: `Config files in <path> are not trusted`).
+- `mise install` dari Servel untuk versi yang belum terpasang.
+
+## v1.8.0 — data & kesehatan service
+
+### Selesai
+
+- **Readiness check** (`runtime/readiness.rs`):
+  - Probe di dalam container: `mysqladmin ping`, `pg_isready`, `redis-cli ping`, `mongosh` ping, `rabbitmq-diagnostics ping`, health MinIO.
+  - Status "up" baru dikirim setelah probe lolos; hasilnya di-cache sampai container berhenti.
+  - Exit 126/127 (tool tidak ada di image) dan batas 120 dtk dianggap siap.
+- **Restore database** (`runtime/restore.rs`, Settings → Services):
+  - Start service, tunggu readiness, salin dump, lalu jalankan `mysql` / `psql -v ON_ERROR_STOP=1`.
+  - WSLC: `container cp` ke `/tmp/` dengan cwd folder file, fallback stdin. Docker: `docker cp`.
+- **Import from Docker** (`runtime/migrate.rs`):
+  - MySQL: dump semua database kecuali database sistem.
+  - PostgreSQL: `pg_dump -C` per database (bukan `pg_dumpall`, yang memuat `CREATE ROLE postgres`).
+  - Hasil dump di-restore ke WSLC; file dump sementara dihapus.
+
+### Perlu verifikasi di Windows
+
+- Restore `.sql` nyata ke MySQL dan PostgreSQL di WSLC.
+- Import from Docker (butuh mesin yang masih punya Docker Desktop + data Servel).
+
+## v1.9.0 — project sebagai pusat
+
+### Selesai
+
+- `Project.profileId`: memilih project di Dashboard juga menerapkan profil service-nya. Hanya selection yang berubah; container yang jalan tidak di-stop.
+- CLI `servel use <tool> <versi> [--global]` (target sama dengan `plan_use`), `servel projects` (read-only).
+
+### Ditunda
+
+- Menautkan Sites ke project. Sites sudah punya target port per domain; tautan ke project baru berguna bila nanti ada aksi per project (mis. "start project" yang juga menyalakan proxy).
+
+## v2.0.0 — default baru
+
+### Selesai
+
+- **WSL containers default di Windows** (`runtime::resolve`): Auto memilih WSLC kecuali Docker masih menyimpan container `servel_*`. Daemon Docker yang mati / sisa `docker.exe` tidak lagi menahan pengguna di Docker; data yang mungkin masih ada di sana bisa diambil lewat Import from Docker. Resolusi ulang hanya saat preferensi berubah, supaya simpan config tidak menunggu `docker ps`.
+- **mise di macOS/Linux**: modul `mise` sudah lintas platform (HOME, PATH login shell); ditambah test path Unix.
+- Clippy bersih tanpa warning.
+
+### Tidak bisa dikerjakan dari sisi kode
+
+- **Code signing Windows / notarization macOS**: butuh sertifikat Authenticode dan akun Apple Developer milik maintainer. Setelah tersedia, rahasianya cukup ditambahkan ke workflow `release`.
+- **`wslc compose` / endpoint Docker API**: menunggu Microsoft ([microsoft/WSL#40948](https://github.com/microsoft/WSL/issues/40948), [#40976](https://github.com/microsoft/WSL/issues/40976)). Servel tidak bergantung pada keduanya.
+
+## Rilis
+
+v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang mencakup semuanya; changelog otomatis disusun dari `v1.5.0..v2.0.0`. Catatan rilis: `docs/releases/v2.0.0.md`.
+
+## Setelah v2.0 (kandidat)
+
+- Patch dari pemakaian lapangan (item "Perlu verifikasi" di atas).
+- Tautan Sites ↔ project dan aksi "start project" (service + proxy sekaligus).
+- Code signing begitu sertifikat tersedia.

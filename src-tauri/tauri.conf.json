@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Servel",
-  "version": "1.6.0",
+  "version": "2.0.0",
   "identifier": "com.devhardiyanto.servel",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -32,7 +32,7 @@
     "targets": ["nsis", "dmg", "appimage"],
     "category": "DeveloperTool",
     "shortDescription": "One app. All your local dev environment.",
-    "longDescription": "Servel orchestrates your local dev environment — switch PHP/Node versions and start/stop containerized services (WSL containers on Windows, or Docker) (MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg, SQL Server) from a single desktop UI.",
+    "longDescription": "Servel orchestrates your local dev environment — switch PHP/Node versions and start/stop containerized services (WSL containers on Windows, or Docker) (MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg) from a single desktop UI.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -1,0 +1,25 @@
+[
+  {
+    "version": "8.3.33",
+    "install_path": "C:\\Users\\devha\\AppData\\Local\\mise\\installs\\php\\8.3.33",
+    "installed": true,
+    "active": false
+  },
+  {
+    "version": "8.3.35",
+    "install_path": "C:\\Users\\devha\\AppData\\Local\\mise\\installs\\php\\8.3.35",
+    "installed": true,
+    "active": false
+  },
+  {
+    "version": "8.5.11",
+    "requested_version": "8.5",
+    "install_path": "C:\\Users\\devha\\AppData\\Local\\mise\\installs\\php\\8.5.11",
+    "source": {
+      "type": "mise.toml",
+      "path": "C:\\Users\\devha\\.config\\mise\\config.toml"
+    },
+    "installed": true,
+    "active": true
+  }
+]

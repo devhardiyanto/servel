@@ -62,7 +62,7 @@ const SOURCE_COLORS: Record<string, string> = {
   MONGODB: '#6cc9a1',
   MINIO: '#e8b45e',
   GOTENBERG: '#b9a4f2',
-  SQLSERVER: '#e98585',
+  MISE: '#a3a8f0',
   UP: '#7fd6a4',
   DOWN: '#f0c674',
 }

@@ -227,6 +227,20 @@ pub async fn services_stop(app: AppHandle, services: Vec<String>) -> Result<(), 
     crate::runtime::stop(&app, &defs, &services).await
 }
 
+/// Restore dump `.sql` ke `service` (mysql | postgres). Lihat `runtime::restore`.
+#[tauri::command]
+pub async fn services_restore(app: AppHandle, service: String, file: String) -> Result<(), String> {
+    let defs = load_services_internal(&app).await?;
+    crate::runtime::restore::restore(&app, &defs, &service, &file).await
+}
+
+/// Salin data `service` dari container Docker lama ke WSL containers.
+#[tauri::command]
+pub async fn services_migrate_from_docker(app: AppHandle, service: String) -> Result<(), String> {
+    let defs = load_services_internal(&app).await?;
+    crate::runtime::migrate::migrate_from_docker(&app, &defs, &service).await
+}
+
 #[tauri::command]
 pub async fn services_stop_all(app: AppHandle) -> Result<(), String> {
     let defs = load_services_internal(&app).await?;
@@ -291,8 +305,8 @@ mod tests {
 
     #[test]
     fn test_union_preserves_running_not_requested() {
-        // Toggle sqlserver saja, tapi 4 lain sedang running → semua ikut compose.
-        let requested = vec!["sqlserver".to_string()];
+        // Toggle mongodb saja, tapi 4 lain sedang running → semua ikut compose.
+        let requested = vec!["mongodb".to_string()];
         let running = vec![
             status("mysql", true),
             status("postgres", true),
@@ -301,7 +315,7 @@ mod tests {
         ];
         let effective = union_with_running(&requested, &running);
         assert_eq!(effective.len(), 5);
-        assert_eq!(effective[0], "sqlserver", "requested harus tetap di depan");
+        assert_eq!(effective[0], "mongodb", "requested harus tetap di depan");
         for id in ["mysql", "postgres", "minio", "redis"] {
             assert!(effective.contains(&id.to_string()), "{} harus terlindungi", id);
         }
@@ -339,12 +353,12 @@ mod tests {
         let json = include_str!("../../../assets/services/services.json");
         let defs: Vec<ServiceDef> = serde_json::from_str(json).expect("services.json harus valid");
 
-        assert_eq!(defs.len(), 9, "harus ada 9 service");
+        assert_eq!(defs.len(), 8, "harus ada 8 service (SQL Server dihapus di v1.7)");
 
         let core_count = defs.iter().filter(|d| d.category == "core").count();
         let additional_count = defs.iter().filter(|d| d.category == "additional").count();
         assert_eq!(core_count, 4, "harus ada 4 core service");
-        assert_eq!(additional_count, 5, "harus ada 5 additional service");
+        assert_eq!(additional_count, 4, "harus ada 4 additional service");
 
         for def in &defs {
             assert!(

@@ -2,7 +2,8 @@
 import { ref, computed, inject, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
-import { ask } from '@tauri-apps/plugin-dialog'
+import { ask, open as openDialog } from '@tauri-apps/plugin-dialog'
+import { useVersionContext } from '@/composables/useVersionContext'
 import { SetViewKey } from '@/types/navigation'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
@@ -33,6 +34,10 @@ const {
   setRememberSession,
   setMinimizeToTray,
   setContainerRuntime,
+  addProject,
+  removeProject,
+  setVersionProvider,
+  setProjectProfile,
   createProfile,
   renameProfile,
   deleteProfile,
@@ -339,6 +344,129 @@ const ENGINE_OPTIONS: { value: EnginePreference; label: string }[] = [
 
 const { refresh: refreshEngineBanner } = useEngineStatus()
 
+// --- Version manager (mise) & projects -------------------------------------
+const versionCtx = useVersionContext()
+const { ctx: miseCtx, busy: miseBusy, lastError: miseError } = versionCtx
+const PROVIDER_OPTIONS: { value: 'auto' | 'mise' | 'legacy'; label: string }[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'mise', label: 'mise' },
+  { value: 'legacy', label: 'phpvm + fnm' },
+]
+
+async function chooseProvider(value: 'auto' | 'mise' | 'legacy'): Promise<void> {
+  if (config.value.versionProvider === value) return
+  await setVersionProvider(value)
+  await versionCtx.refresh()
+}
+
+async function pickProject(): Promise<void> {
+  let selected: string | string[] | null = null
+  try {
+    selected = await openDialog({ directory: true, multiple: false, title: 'Add project folder' })
+  } catch (err) {
+    miseError.value = String(err)
+    return
+  }
+  if (typeof selected === 'string') {
+    await addProject(selected)
+    await versionCtx.refresh()
+  }
+}
+
+// --- Restore database (v1.8) ---------------------------------------------
+const restoreService = ref<'mysql' | 'postgres'>('mysql')
+const restoreFile = ref<string | null>(null)
+const restoring = ref(false)
+const restoreResult = ref<{ ok: boolean; text: string } | null>(null)
+
+async function pickRestoreFile(): Promise<void> {
+  try {
+    const selected = await openDialog({
+      multiple: false,
+      title: 'Choose a .sql dump',
+      filters: [{ name: 'SQL dump', extensions: ['sql'] }],
+    })
+    if (typeof selected === 'string') {
+      restoreFile.value = selected
+      restoreResult.value = null
+    }
+  } catch (err) {
+    restoreResult.value = { ok: false, text: String(err) }
+  }
+}
+
+async function runRestore(): Promise<void> {
+  if (!restoreFile.value || restoring.value) return
+  let ok = false
+  try {
+    ok = await ask(
+      `Restore ${restoreFile.value} into ${restoreService.value === 'mysql' ? 'MySQL' : 'PostgreSQL'}? ` +
+        'Statements in the dump run as-is (it may drop or overwrite tables).',
+      { title: 'Restore database', kind: 'warning' },
+    )
+  } catch {
+    ok = window.confirm('Restore this dump?')
+  }
+  if (!ok) return
+  restoring.value = true
+  restoreResult.value = null
+  try {
+    await invoke<void>('services_restore', { service: restoreService.value, file: restoreFile.value })
+    restoreResult.value = { ok: true, text: 'Restore finished. Details are in the Logs.' }
+  } catch (err) {
+    restoreResult.value = { ok: false, text: String(err) }
+  } finally {
+    restoring.value = false
+  }
+}
+
+// Migrasi Docker → WSL containers: hanya relevan bila engine aktif WSLC dan
+// Docker masih terpasang (sumber data lama).
+const canMigrateFromDocker = computed(
+  () => engineInfo.value?.engine === 'wslc' && !!engineInfo.value?.docker_available,
+)
+
+async function runMigrateFromDocker(): Promise<void> {
+  if (restoring.value) return
+  const label = restoreService.value === 'mysql' ? 'MySQL' : 'PostgreSQL'
+  let ok = false
+  try {
+    ok = await ask(
+      `Copy ${label} databases from the Docker container into WSL containers? ` +
+        'Docker must be running. The old Docker container is left untouched.',
+      { title: 'Import from Docker', kind: 'info' },
+    )
+  } catch {
+    ok = window.confirm(`Import ${label} from Docker?`)
+  }
+  if (!ok) return
+  restoring.value = true
+  restoreResult.value = null
+  try {
+    await invoke<void>('services_migrate_from_docker', { service: restoreService.value })
+    restoreResult.value = { ok: true, text: `${label} imported from Docker. Details are in the Logs.` }
+  } catch (err) {
+    restoreResult.value = { ok: false, text: String(err) }
+  } finally {
+    restoring.value = false
+  }
+}
+
+async function handleRemoveProject(id: string, name: string): Promise<void> {
+  let ok = false
+  try {
+    ok = await ask(`Remove project "${name}" from Servel? Files and mise.toml are not touched.`, {
+      title: 'Remove project',
+      kind: 'warning',
+    })
+  } catch {
+    ok = window.confirm(`Remove project "${name}"?`)
+  }
+  if (!ok) return
+  await removeProject(id)
+  await versionCtx.refresh()
+}
+
 async function fetchComposePath(): Promise<void> {
   try {
     composePath.value = await invoke<string>('get_compose_path')
@@ -395,6 +523,7 @@ onMounted(async () => {
   }
   await fetchComposePath()
   await checkEngine()
+  void versionCtx.refresh()
   await refreshSitesStatus()
   await refreshProxy()
   try {
@@ -499,7 +628,7 @@ onMounted(async () => {
             <SettingRow
               v-if="platform === 'windows'"
               label="Engine"
-              desc="Auto uses WSL containers when Docker is not installed"
+              desc="Auto uses WSL containers, unless Docker still holds your Servel containers"
             >
               <div class="segmented" role="radiogroup" aria-label="Container engine">
                 <button
@@ -635,6 +764,52 @@ onMounted(async () => {
                 @click="handleCreateProfile"
               >Buat dari selection</button>
             </div>
+          </div>
+
+          <div class="section-block">
+            <div class="section-title">RESTORE DATABASE</div>
+            <p class="section-hint">
+              Import a .sql dump into MySQL or PostgreSQL. Servel starts the service, waits until it
+              accepts connections, then runs the dump. Useful after switching engines.
+            </p>
+
+            <SettingRow label="Service">
+              <div class="segmented" role="radiogroup" aria-label="Restore target">
+                <button
+                  v-for="opt in [{ v: 'mysql', l: 'MySQL' }, { v: 'postgres', l: 'PostgreSQL' }]"
+                  :key="opt.v"
+                  class="segmented__item"
+                  :class="{ 'segmented__item--on': restoreService === opt.v }"
+                  role="radio"
+                  :aria-checked="restoreService === opt.v"
+                  :disabled="restoring"
+                  @click="restoreService = opt.v as 'mysql' | 'postgres'"
+                >{{ opt.l }}</button>
+              </div>
+            </SettingRow>
+
+            <SettingRow label="Dump file" :desc="restoreFile ?? 'No file chosen'">
+              <button class="action-btn" :disabled="restoring" @click="pickRestoreFile">Choose…</button>
+              <button
+                class="action-btn"
+                :disabled="!restoreFile || restoring"
+                @click="runRestore"
+              >{{ restoring ? 'Restoring…' : 'Restore' }}</button>
+            </SettingRow>
+
+            <SettingRow
+              v-if="canMigrateFromDocker"
+              label="Import from Docker"
+              desc="Copy databases from your old Docker container (Docker Desktop must be running)"
+            >
+              <button class="action-btn" :disabled="restoring" @click="runMigrateFromDocker">Import…</button>
+            </SettingRow>
+
+            <p
+              v-if="restoreResult"
+              class="section-hint section-hint--note"
+              :class="{ 'restore-error': !restoreResult.ok }"
+            >{{ restoreResult.text }}</p>
           </div>
         </template>
 
@@ -873,8 +1048,79 @@ onMounted(async () => {
 
         <template v-else-if="activeNav === 'php_node'">
           <div class="section-block">
-            <div class="section-title">PHP &amp; NODE</div>
-            <p class="placeholder-text">PHP &amp; Node configuration — coming soon.</p>
+            <div class="section-title">VERSION MANAGER</div>
+
+            <SettingRow
+              label="Manage PHP & Node with"
+              desc="Auto uses mise when it is installed, otherwise phpvm and fnm"
+            >
+              <div class="segmented" role="radiogroup" aria-label="Version manager">
+                <button
+                  v-for="opt in PROVIDER_OPTIONS"
+                  :key="opt.value"
+                  class="segmented__item"
+                  :class="{ 'segmented__item--on': config.versionProvider === opt.value }"
+                  role="radio"
+                  :aria-checked="config.versionProvider === opt.value"
+                  @click="chooseProvider(opt.value)"
+                >{{ opt.label }}</button>
+              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="mise"
+              :desc="miseCtx?.provider === 'mise' ? 'Active — versions resolve per project folder' : 'Not in use'"
+            >
+              <span class="setting-value-mono">{{ miseCtx?.miseVersion ? `v${miseCtx.miseVersion}` : 'not installed' }}</span>
+            </SettingRow>
+
+            <SettingRow
+              v-if="miseCtx?.miseVersion"
+              label="Repair"
+              desc="Reshim fixes missing commands; Clear cache refreshes version lists; Doctor writes a report to the log"
+            >
+              <button class="action-btn" :disabled="miseBusy" @click="versionCtx.repair('reshim')">Reshim</button>
+              <button class="action-btn" :disabled="miseBusy" @click="versionCtx.repair('cache-clear')">Clear cache</button>
+              <button class="action-btn" :disabled="miseBusy" @click="versionCtx.repair('doctor')">Doctor</button>
+            </SettingRow>
+
+            <p v-if="miseError" class="section-hint section-hint--note">{{ miseError }}</p>
+          </div>
+
+          <div class="section-block">
+            <div class="section-title">PROJECTS</div>
+            <p class="section-hint">
+              Folders whose PHP/Node versions you want to see and switch from the Dashboard.
+              mise resolves each folder on its own, including a mise.toml in a parent folder.
+              Link a service profile to a project to switch its services along with it.
+            </p>
+
+            <div class="profile-list">
+              <div v-for="p in config.projects" :key="p.id" class="profile-item">
+                <div class="profile-info">
+                  <span class="profile-name">{{ p.name }}</span>
+                  <span v-if="p.id === config.activeProjectId" class="profile-badge">active</span>
+                  <span class="site-domain project-path" :title="p.path">{{ p.path }}</span>
+                </div>
+                <div class="profile-actions">
+                  <select
+                    class="profile-create-input project-profile-select"
+                    :value="p.profileId ?? ''"
+                    title="Service profile applied when this project is selected"
+                    @change="setProjectProfile(p.id, ($event.target as HTMLSelectElement).value || null)"
+                  >
+                    <option value="">No service profile</option>
+                    <option v-for="pr in config.profiles" :key="pr.id" :value="pr.id">Profile: {{ pr.name }}</option>
+                  </select>
+                  <button class="action-btn action-btn--red" @click="handleRemoveProject(p.id, p.name)">Remove</button>
+                </div>
+              </div>
+              <p v-if="config.projects.length === 0" class="section-hint">No projects yet.</p>
+            </div>
+
+            <div class="profile-create">
+              <button class="action-btn" @click="pickProject">+ Add project folder</button>
+            </div>
           </div>
         </template>
 
@@ -1621,5 +1867,23 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+.project-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dim);
+}
+
+.restore-error {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 8%, var(--surface));
+}
+
+.project-profile-select {
+  width: auto;
+  max-width: 220px;
 }
 </style>

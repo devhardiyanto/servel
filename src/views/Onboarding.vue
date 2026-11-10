@@ -50,19 +50,26 @@ async function useEngine(kind: 'wslc' | 'docker'): Promise<void> {
   }
 }
 
+// Dengan mise terpasang (v1.7), satu kartu mise menggantikan phpvm + fnm.
+const usesMise = computed<boolean>(() => !!status.value?.mise_installed)
+
 const readyCount = computed<number>(() => {
   if (!status.value) return 0
   const s = status.value
-  return [
-    engineReady.value,
-    s.phpvm_installed,
-    s.fnm_installed,
-  ].filter(Boolean).length
+  const items = usesMise.value
+    ? [engineReady.value, s.mise_installed]
+    : [engineReady.value, s.phpvm_installed, s.fnm_installed]
+  return items.filter(Boolean).length
 })
 
-const totalCount = 3
+const totalCount = computed<number>(() => (usesMise.value ? 2 : 3))
 
-const progressPct = computed<number>(() => (readyCount.value / totalCount) * 100)
+const miseOkDesc = computed<string>(() => {
+  const v = status.value?.mise_version
+  return `Manages PHP and Node per project${v ? ` — v${v} detected` : ''}`
+})
+
+const progressPct = computed<number>(() => (readyCount.value / totalCount.value) * 100)
 
 function openUrl(url: string): void {
   window.open(url, '_blank', 'noopener')
@@ -183,8 +190,8 @@ const fnmActions = computed<PrereqAction[]>(() => [
 const optionalHint = computed<string>(() => {
   const m = status.value?.mise_version
   return status.value?.mise_installed
-    ? ` Optional — mise${m ? ` v${m}` : ''} detected; Servel integration arrives in v1.7.`
-    : ' Optional.'
+    ? ` Optional — mise${m ? ` v${m}` : ''} detected.`
+    : ' Optional — or install mise to manage PHP and Node per project.'
 })
 
 const phpvmOkDesc = computed<string>(() => {
@@ -255,20 +262,30 @@ const fnmOkDesc = computed<string>(() => {
           </PrereqCard>
 
           <PrereqCard
+            v-if="usesMise"
+            name="mise"
+            :installed="true"
+            icon="&#x1F9F0;"
+            :ok-desc="miseOkDesc"
+          />
+
+          <PrereqCard
+            v-if="!usesMise"
             name="phpvm"
             :installed="status?.phpvm_installed ?? false"
             icon="&#x1F418;"
             :ok-desc="phpvmOkDesc"
-:not-found-desc="'PHP version manager.' + optionalHint"
+            :not-found-desc="'PHP version manager.' + optionalHint"
             :actions="phpvmActions"
           />
 
           <PrereqCard
+            v-if="!usesMise"
             name="fnm"
             :installed="status?.fnm_installed ?? false"
             icon="&#x26A1;"
             :ok-desc="fnmOkDesc"
-:not-found-desc="'Fast Node version manager.' + optionalHint"
+            :not-found-desc="'Fast Node version manager.' + optionalHint"
             :actions="fnmActions"
             :code="fnmInstallCmd"
           />

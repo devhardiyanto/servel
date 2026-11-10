@@ -8,7 +8,7 @@ import { SetViewKey } from '@/types/navigation'
 const setView = inject(SetViewKey)!
 const { lines, clear } = useLogs()
 
-const TABS = ['All', 'MySQL', 'PostgreSQL', 'Redis', 'phpvm', 'fnm'] as const
+const TABS = ['All', 'MySQL', 'PostgreSQL', 'Redis', 'PHP', 'Node', 'mise'] as const
 type Tab = (typeof TABS)[number]
 
 const activeTab = ref<Tab>('All')
@@ -19,16 +19,18 @@ const TAB_SRC: Record<string, string[]> = {
   MySQL: ['MYSQL'],
   PostgreSQL: ['POSTGRES', 'PGSQL'],
   Redis: ['REDIS'],
-  phpvm: ['PHP', 'PHPVM'],
-  fnm: ['NODE', 'FNM'],
+  PHP: ['PHP', 'PHPVM'],
+  Node: ['NODE', 'FNM'],
+  mise: ['MISE'],
 }
 
 const TAB_KEYWORDS: Record<string, string[]> = {
   MySQL: ['mysql', 'servel_mysql'],
   PostgreSQL: ['postgres', 'servel_postgres'],
   Redis: ['redis', 'servel_redis'],
-  phpvm: ['phpvm', 'php '],
-  fnm: ['fnm', 'node '],
+  PHP: ['phpvm', 'php '],
+  Node: ['fnm', 'node '],
+  mise: ['mise '],
 }
 
 const filteredLines = computed(() => {
@@ -100,7 +102,7 @@ const SOURCE_COLORS: Record<string, string> = {
   MONGODB: '#6cc9a1',
   MINIO: '#e8b45e',
   GOTENBERG: '#b9a4f2',
-  SQLSERVER: '#e98585',
+  MISE: '#a3a8f0',
   UP: '#7fd6a4',
   DOWN: '#f0c674',
 }
