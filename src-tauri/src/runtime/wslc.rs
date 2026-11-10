@@ -955,6 +955,16 @@ mod tests {
         assert!(parse_stats_json(foreign).is_empty());
     }
 
+    /// Output asli `wslc stats --format json` dari WSL 3.0.5: NDJSON bergaya
+    /// `docker stats` (`Name`, `MemUsage` "used / limit" dalam unit biner).
+    #[test]
+    fn parse_stats_real_wslc_3_0_5_output() {
+        let s = parse_stats_json(include_str!("fixtures/wslc-3.0.5-stats.ndjson"));
+        assert_eq!(s.len(), 1);
+        // 10.77 MiB = 11.29 MB → dibulatkan 11 (konvensi sama dengan backend Docker).
+        assert_eq!((s[0].id.as_str(), s[0].mem_mb), ("redis", 11));
+    }
+
     #[test]
     fn parse_volume_names() {
         let v = parse_names_json(r#"[{"Name":"servel_mysql_data","Driver":"local"},{"name":"x"}]"#);
