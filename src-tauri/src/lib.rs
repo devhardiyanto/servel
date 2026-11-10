@@ -162,6 +162,9 @@ pub fn run() {
                 let mut consecutive_failures: u32 = 0;
                 let mut last_daemon_ok: Option<bool> = None;
                 let mut is_first_tick = true;
+                // Readiness (v1.8): "running" ke UI = container running DAN service
+                // siap menerima koneksi. UI menahan "starting" sampai true.
+                let mut readiness = runtime::readiness::Tracker::default();
 
                 loop {
                     if status_shutting_down.load(Ordering::Relaxed) {
@@ -189,9 +192,34 @@ pub fn run() {
                             consecutive_failures = 0;
                             current_delay = base_delay;
 
+                            let running_ids: std::collections::HashSet<String> = statuses
+                                .iter()
+                                .filter(|s| s.running)
+                                .map(|s| s.id.clone())
+                                .collect();
+                            readiness.retain_running(&running_ids);
+                            for s in statuses.iter().filter(|s| s.running) {
+                                use runtime::readiness::Decision;
+                                match readiness.decide(&s.id, std::time::Instant::now()) {
+                                    Decision::Ready => {}
+                                    Decision::TimedOut => emit_log_line(
+                                        &app_handle,
+                                        &s.id.to_uppercase(),
+                                        "readiness check belum lolos setelah 120 dtk \u{2014} dianggap siap (cek kredensial / logs service)",
+                                    ),
+                                    Decision::Probe => {
+                                        let outcome = runtime::probe(&s.id, &s.container_name).await;
+                                        readiness.record(&s.id, outcome);
+                                    }
+                                }
+                            }
+
                             statuses
                                 .into_iter()
-                                .map(|s| (s.id, s.running))
+                                .map(|s| {
+                                    let up = s.running && readiness.is_ready(&s.id);
+                                    (s.id, up)
+                                })
                                 .collect::<HashMap<String, bool>>()
                         }
                         Err(err) => {

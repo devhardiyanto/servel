@@ -594,6 +594,16 @@ fn save_state(app: &AppHandle, state: &HashMap<String, String>) {
 // Operasi
 // ---------------------------------------------------------------------------
 
+/// `wslc exec <name> sh -c <cmd>` → exit code (None bila gagal dijalankan/timeout).
+/// Satu percobaan saja (tanpa retry transien): dipakai probe readiness yang
+/// diulang tiap tick polling.
+pub async fn exec_status(name: &str, cmd: &str, timeout: Duration) -> Option<i32> {
+    let args = owned(&["exec", name, "sh", "-c", cmd]);
+    let _guard = LOCK.lock().await;
+    let fut = command(&args).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    tokio::time::timeout(timeout, fut).await.ok()?.ok()?.code()
+}
+
 pub async fn status() -> Result<Vec<ServiceStatus>, String> {
     let out = capture_ok(&owned(&["container", "list", "--all", "--format", "json"]), QUERY_TIMEOUT)
         .await

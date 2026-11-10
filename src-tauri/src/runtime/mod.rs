@@ -13,6 +13,7 @@
 //! [`resolve`]. Resolusi ulang terjadi saat config dibaca/ditulis.
 
 pub mod docker;
+pub mod readiness;
 pub mod wslc;
 
 use serde::{Deserialize, Serialize};
@@ -179,6 +180,19 @@ pub async fn status() -> Result<Vec<ServiceStatus>, String> {
         RuntimeKind::Docker => docker::status().await,
         RuntimeKind::Wslc => wslc::status().await,
     }
+}
+
+/// Jalankan probe readiness `service_id` di dalam `container_name`.
+pub async fn probe(service_id: &str, container_name: &str) -> readiness::ProbeOutcome {
+    let Some(cmd) = readiness::probe_command(service_id) else {
+        return readiness::ProbeOutcome::Ready;
+    };
+    let timeout = std::time::Duration::from_secs(10);
+    let code = match ensure_resolved().await {
+        RuntimeKind::Docker => docker::exec_status(container_name, cmd, timeout).await,
+        RuntimeKind::Wslc => wslc::exec_status(container_name, cmd, timeout).await,
+    };
+    readiness::classify_exit(code)
 }
 
 pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {

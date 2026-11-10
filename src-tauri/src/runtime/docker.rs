@@ -42,6 +42,12 @@ pub async fn version() -> Option<String> {
     crate::commands::util::extract_semver(&String::from_utf8_lossy(&out.stdout))
 }
 
+/// `docker exec <name> sh -c <cmd>` → exit code.
+pub async fn exec_status(name: &str, cmd: &str, timeout: std::time::Duration) -> Option<i32> {
+    let fut = silent_command("docker").args(["exec", name, "sh", "-c", cmd]).status();
+    tokio::time::timeout(timeout, fut).await.ok()?.ok()?.code()
+}
+
 pub async fn status() -> Result<Vec<ServiceStatus>, String> {
     let output = silent_command("docker")
         .args(["ps", "-a", "--filter", "name=servel_", "--format", "json"])
