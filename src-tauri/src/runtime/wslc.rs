@@ -28,7 +28,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::{Output, Stdio};
-use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -598,44 +598,28 @@ pub async fn status() -> Result<Vec<ServiceStatus>, String> {
     Ok(parse_list_json(&out))
 }
 
-/// Varian argumen `stats` yang berhasil: 0 = belum dicoba, 1 = `--no-stream`,
-/// 2 = tanpa flag. WSLC stats berupa snapshot; `--no-stream` mungkin tak dikenal.
-static STATS_VARIANT: AtomicU8 = AtomicU8::new(0);
 static STATS_FAILURES: AtomicU32 = AtomicU32::new(0);
 /// Setelah gagal beruntun sebanyak ini, stats dimatikan untuk sesi app ini
 /// supaya tidak terus memegang lock WSLC.
 const STATS_MAX_FAILURES: u32 = 3;
 
+/// `wslc stats --format json` — snapshot (WSLC 3.0.5 tidak mengenal
+/// `--no-stream`; terverifikasi: "Option name was not recognized").
+/// Output kosong saat tidak ada container running → `Ok(vec![])`.
 pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
     if STATS_FAILURES.load(Ordering::Relaxed) >= STATS_MAX_FAILURES {
         return Err("wslc stats dinonaktifkan untuk sesi ini".to_string());
     }
-
-    let variants: &[u8] = match STATS_VARIANT.load(Ordering::Relaxed) {
-        1 => &[1],
-        2 => &[2],
-        _ => &[1, 2],
-    };
-
-    let mut last_err = String::new();
-    for &v in variants {
-        let args = if v == 1 {
-            owned(&["stats", "--no-stream", "--format", "json"])
-        } else {
-            owned(&["stats", "--format", "json"])
-        };
-        match capture_ok(&args, STATS_TIMEOUT).await {
-            Ok(out) => {
-                STATS_VARIANT.store(v, Ordering::Relaxed);
-                STATS_FAILURES.store(0, Ordering::Relaxed);
-                return Ok(parse_stats_json(&out));
-            }
-            Err(e) => last_err = e,
+    match capture_ok(&owned(&["stats", "--format", "json"]), STATS_TIMEOUT).await {
+        Ok(out) => {
+            STATS_FAILURES.store(0, Ordering::Relaxed);
+            Ok(parse_stats_json(&out))
+        }
+        Err(e) => {
+            STATS_FAILURES.fetch_add(1, Ordering::Relaxed);
+            Err(format!("wslc stats gagal: {}", e))
         }
     }
-
-    STATS_FAILURES.fetch_add(1, Ordering::Relaxed);
-    Err(format!("wslc stats gagal: {}", last_err))
 }
 
 async fn existing_volumes() -> Option<HashSet<String>> {

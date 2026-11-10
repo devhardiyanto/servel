@@ -27,7 +27,7 @@ Tujuan: di Windows, Servel menjalankan service tanpa Docker Desktop dan tanpa di
 Hal-hal berikut tidak bisa diuji tanpa `wslc` sungguhan. Parser sudah dibuat toleran terhadap beberapa bentuk output.
 
 - ~~Bentuk JSON `wslc container list --all --format json`~~ — **terverifikasi di WSL 3.0.5**: NDJSON bergaya Docker (`Names` string, `State` teks, exit code hanya di `Status`). Fixture: `src-tauri/src/runtime/fixtures/`.
-- Bentuk JSON `wslc stats` (output kosong saat tidak ada container running — perlu dicek saat ada yang running). Bila tidak dikenali atau gagal tiga kali berturut-turut, kolom RAM jatuh ke estimasi dan stats dimatikan untuk sesi itu.
+- Bentuk JSON `wslc stats --format json` saat ada container running. Terverifikasi: output kosong bila tidak ada yang running; `--no-stream` tidak dikenali di 3.0.5 (Servel tidak memakainya). Bila tidak dikenali atau gagal tiga kali berturut-turut, kolom RAM jatuh ke estimasi dan stats dimatikan untuk sesi itu.
 - `wslc stop -t 30` dan `wslc remove -f`.
 - Apakah `.wslconfig` memengaruhi VM WSLC.
 
