@@ -73,10 +73,18 @@ pub struct ConfigState {
     pub remember_session: bool,
     #[serde(default = "default_true")]
     pub minimize_to_tray: bool,
+    /// Engine container: `auto` | `docker` | `wslc`. Lihat `crate::runtime::resolve`.
+    /// Config lama tanpa field ini → `auto` (migrasi v4→v5).
+    #[serde(default = "default_runtime")]
+    pub container_runtime: String,
 }
 
 fn default_true() -> bool {
     true
+}
+
+fn default_runtime() -> String {
+    "auto".to_string()
 }
 
 /// Migrasikan config lama ke skema terkini (`CURRENT_VERSION`).
@@ -89,6 +97,9 @@ fn default_true() -> bool {
 /// - v3 → v4: perkenalkan `Site.target` (reverse proxy M12). Site lama tak
 ///   punya makna proxy, jadi sengaja **tidak** diberi target default — serde
 ///   mengisinya `None` dan site tetap hosts-only. Cukup bump versi.
+/// - v4 → v5: perkenalkan `container_runtime` (WSL containers, v1.6). Serde
+///   default `auto` → install lama di Windows yang masih punya Docker tetap di
+///   Docker; pindah ke WSLC dilakukan user lewat Settings.
 ///
 /// Idempotent: config yang sudah v4 & punya profil valid dibiarkan apa adanya.
 fn migrate(mut cfg: ConfigState) -> ConfigState {
@@ -134,7 +145,7 @@ fn project_active_selection(cfg: &mut ConfigState) {
 const DEFAULT_PROFILE_ID: &str = "default";
 
 /// Skema config terkini. Naikkan saat ada perubahan struktur yang butuh migrasi.
-const CURRENT_VERSION: u32 = 4;
+const CURRENT_VERSION: u32 = 5;
 
 impl Default for ConfigState {
     fn default() -> Self {
@@ -154,6 +165,7 @@ impl Default for ConfigState {
             auto_start: false,
             remember_session: true,
             minimize_to_tray: true,
+            container_runtime: default_runtime(),
         }
     }
 }
@@ -255,6 +267,8 @@ pub async fn config_read(app: AppHandle) -> Result<ConfigState, String> {
     // default lalu dinaikkan; selection lama masuk ke profil "Default".
     let cfg = migrate(cfg);
 
+    crate::runtime::apply_preference(&cfg.container_runtime).await;
+
     // Sync ke in-memory Mutex agar tray (yang baca Mutex) lihat selection tersimpan
     // tanpa harus menunggu user toggle ulang setelah app boot.
     if let Some(state) = app.try_state::<Mutex<ConfigState>>() {
@@ -279,6 +293,10 @@ pub async fn config_write(app: AppHandle, mut config: ConfigState) -> Result<(),
 
     // Atomic + durable write: tulis ke .tmp, fsync, lalu rename.
     write_config_atomic(&path, &json)?;
+
+    // Preferensi engine bisa berubah dari Settings → resolve ulang sekarang,
+    // supaya polling berikutnya langsung memakai engine baru.
+    crate::runtime::apply_preference(&config.container_runtime).await;
 
     // Sync ke in-memory Mutex<ConfigState> — tray membaca dari Mutex ini
     // saat user klik "Start all selected". Tanpa sync, Mutex stale = default kosong.
@@ -338,6 +356,7 @@ mod tests {
             auto_start: true,
             remember_session: false,
             minimize_to_tray: true,
+            container_runtime: "auto".to_string(),
         };
 
         let json = serde_json::to_string(&original).expect("serialize gagal");
@@ -421,6 +440,7 @@ mod tests {
             auto_start: true,
             remember_session: true,
             minimize_to_tray: false,
+            container_runtime: "wslc".to_string(),
         };
         let json = serde_json::to_string_pretty(&cfg).expect("serialize");
 
@@ -495,7 +515,7 @@ mod tests {
         let cfg: ConfigState = serde_json::from_str(json).expect("parse gagal");
         let cfg = migrate(cfg);
 
-        assert_eq!(cfg.version, 4);
+        assert_eq!(cfg.version, CURRENT_VERSION);
         assert_eq!(cfg.sites.len(), 2);
         assert!(cfg.sites.iter().all(|s| s.target.is_none()));
         // Sisa isi site tak boleh berubah.
@@ -520,8 +540,36 @@ mod tests {
         let cfg: ConfigState = serde_json::from_str(json).expect("parse gagal");
         let cfg = migrate(cfg);
 
-        assert_eq!(cfg.version, 4);
+        assert_eq!(cfg.version, CURRENT_VERSION);
         assert_eq!(cfg.sites[0].target, Some(SiteTarget::Port { value: 5173 }));
+    }
+
+    #[test]
+    fn test_migrate_v4_to_v5_defaults_runtime_auto() {
+        // Config v1.5 belum punya `containerRuntime` → `auto`, sisanya utuh.
+        let json = r#"{
+            "version": 4,
+            "profiles": [{ "id": "default", "name": "Default", "serviceIds": ["mysql"] }],
+            "activeProfileId": "default",
+            "autoStart": true
+        }"#;
+        let cfg = migrate(serde_json::from_str::<ConfigState>(json).expect("parse gagal"));
+        assert_eq!(cfg.version, 5);
+        assert_eq!(cfg.container_runtime, "auto");
+        assert!(cfg.auto_start);
+        assert_eq!(cfg.selected_service_ids, vec!["mysql".to_string()]);
+    }
+
+    #[test]
+    fn test_container_runtime_roundtrip_camel_case() {
+        let cfg = ConfigState {
+            container_runtime: "wslc".to_string(),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert!(json.contains("\"containerRuntime\":\"wslc\""));
+        let back: ConfigState = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.container_runtime, "wslc");
     }
 
     #[test]

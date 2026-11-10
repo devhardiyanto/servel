@@ -1,5 +1,6 @@
 mod commands;
 mod proxy;
+mod runtime;
 mod tray;
 mod watcher;
 
@@ -66,7 +67,7 @@ pub fn run() {
         .manage(proxy::lifecycle::ProxyProcess::default())
         .invoke_handler(tauri::generate_handler![
             commands::prereq::check_prerequisites,
-            commands::prereq::start_docker,
+            commands::prereq::start_engine,
             commands::prereq::get_platform,
             commands::php::php_list_installed,
             commands::php::php_get_active,
@@ -122,6 +123,18 @@ pub fn run() {
             let status_daemon_ready = daemon_ready.clone();
             let status_shutting_down = shutting_down.clone();
             tauri::async_runtime::spawn(async move {
+                // Resolve engine (Docker / WSLC) dari config SEBELUM polling pertama,
+                // supaya tick awal tidak memanggil engine yang salah.
+                let pref = commands::config::load_config(&app_handle)
+                    .map(|c| c.container_runtime)
+                    .unwrap_or_else(|_| "auto".to_string());
+                let engine = runtime::apply_preference(&pref).await;
+                emit_log_line(
+                    &app_handle,
+                    "SERVEL",
+                    &format!("container engine: {}", engine.label()),
+                );
+
                 // Load service definitions sekali di awal — services.json bundled, tidak berubah runtime.
                 let service_defs: Vec<ServiceDef> =
                     match commands::services::load_services_internal(&app_handle).await {
@@ -136,7 +149,8 @@ pub fn run() {
                         }
                     };
 
-                // Backoff scheduling: 3s normal, 10s/30s saat docker daemon mati.
+                // Backoff scheduling: 3s normal, 10s/30s saat engine (daemon Docker /
+                // sesi WSLC) tidak merespons.
                 // Hindari spam log + retry agresif yang bikin CPU/IO sia-sia.
                 let base_delay = tokio::time::Duration::from_secs(3);
                 #[allow(unused_assignments)]
@@ -164,7 +178,7 @@ pub fn run() {
                                 emit_log_line(
                                     &app_handle,
                                     "SERVEL",
-                                    "[polling] docker daemon recovered",
+                                    &format!("[polling] {} recovered", runtime::active().label()),
                                 );
                             }
                             last_daemon_ok = Some(true);
@@ -198,7 +212,10 @@ pub fn run() {
                                 emit_log_line(
                                     &app_handle,
                                     "SERVEL",
-                                    "[polling] docker daemon not reachable \u{2014} backing off",
+                                    &format!(
+                                        "[polling] {} not reachable \u{2014} backing off",
+                                        runtime::active().label()
+                                    ),
                                 );
                             }
                             last_daemon_ok = Some(false);
@@ -269,8 +286,8 @@ pub fn run() {
                 }
             });
 
-            // Polling kedua: `docker stats` untuk realtime memory usage per container.
-            // Interval 5s (lebih lambat dari status 3s) karena `docker stats` lebih mahal.
+            // Polling kedua: stats engine (`docker stats` / `wslc stats`) untuk memory
+            // usage per container. Interval 5s (lebih lambat dari status 3s) karena lebih mahal.
             // Backoff lokal saat error (3s -> 10s -> 30s) — daemon-down event sudah di-handle
             // polling status, jadi di sini cukup silent backoff tanpa emit error.
             let stats_handle = app.handle().clone();

@@ -5,9 +5,8 @@ use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::commands::config::ConfigState;
-use crate::commands::compose::compose_path;
 use crate::commands::services::load_services_internal;
-use crate::commands::util::{emit_log_line, stream_and_wait_app};
+use crate::commands::util::emit_log_line;
 
 /// Bangun menu tray lengkap termasuk submenu quick-switch versi PHP/Node.
 /// `php`/`node` = daftar (versi, aktif). Kosong → submenu berisi item disabled.
@@ -240,49 +239,10 @@ pub fn update_tooltip(app: &AppHandle, running_count: usize) {
 
 async fn tray_services_start(app: &AppHandle, services: Vec<String>) -> Result<(), String> {
     let defs = load_services_internal(app).await?;
-    let yaml = crate::commands::compose::generate_compose(&defs, &services);
-
-    let compose_file = compose_path();
-    if let Some(parent) = compose_file.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Gagal buat dir compose: {}", e))?;
-    }
-    std::fs::write(&compose_file, yaml)
-        .map_err(|e| format!("Gagal tulis compose file: {}", e))?;
-
-    let path_str = compose_file
-        .to_str()
-        .ok_or("compose path tidak valid UTF-8")?
-        .to_string();
-
-    let mut cmd = new_docker_cmd();
-    cmd.args(["compose", "-f", &path_str, "up", "-d", "--remove-orphans"]);
-    stream_and_wait_app(cmd, app).await
+    crate::runtime::start(app, &defs, &services).await
 }
 
 async fn tray_services_stop_all(app: &AppHandle) -> Result<(), String> {
-    let compose_file = compose_path();
-    if !compose_file.exists() {
-        return Ok(());
-    }
-
-    let path_str = compose_file
-        .to_str()
-        .ok_or("compose path tidak valid UTF-8")?
-        .to_string();
-
-    let mut cmd = new_docker_cmd();
-    cmd.args(["compose", "-f", &path_str, "down"]);
-    stream_and_wait_app(cmd, app).await
-}
-
-fn new_docker_cmd() -> tokio::process::Command {
-    #[cfg_attr(not(target_os = "windows"), allow(unused_mut))]
-    let mut cmd = tokio::process::Command::new("docker");
-    #[cfg(target_os = "windows")]
-    {
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
-    }
-    cmd
+    let defs = load_services_internal(app).await?;
+    crate::runtime::stop_all(app, &defs).await
 }
