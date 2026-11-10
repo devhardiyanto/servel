@@ -855,6 +855,24 @@ mod tests {
         assert_eq!(spec_hash(&a).len(), 16);
     }
 
+    /// Golden hash untuk services.json bawaan. CLI (`assets/cli/servel.ps1`,
+    /// `Get-SpecHash`) harus menghasilkan nilai yang sama supaya container
+    /// buatan CLI dikenali aplikasi. Ubah services.json → perbarui golden ini.
+    #[test]
+    fn spec_hash_golden_for_bundled_services() {
+        let defs: Vec<ServiceDef> =
+            serde_json::from_str(include_str!("../../../assets/services/services.json")).unwrap();
+        let got: Vec<String> = defs.iter().map(|d| format!("{}={}", d.id, spec_hash(d))).collect();
+        // Dihitung juga oleh port algoritma PowerShell (Split-Command, sort ordinal,
+        // SHA-256 + byte 0) — kedua sisi harus sama persis.
+        assert_eq!(
+            got.join(" "),
+            "mysql=7f8aaf88c96028cb postgres=f3ee80d28629a906 redis=72bb252f63b247e2 \
+             rabbitmq=ff8170d88e5c25e8 mongodb=221430f9a2bd43ab minio=3a353b79fe64f289 \
+             mailpit=b0b50e663dabc812 gotenberg=0a3d299152c47ba6 sqlserver=7e0ae416c1a3fed2"
+        );
+    }
+
     #[test]
     fn named_volume_detection() {
         assert_eq!(named_volume("servel_mysql_data:/var/lib/mysql").as_deref(), Some("servel_mysql_data"));

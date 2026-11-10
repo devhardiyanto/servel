@@ -41,7 +41,11 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../assets/services/services.json": "services/services.json"
+      "../assets/services/services.json": "services/services.json",
+      "../assets/cli/servel.ps1": "cli/servel.ps1",
+      "../assets/cli/install-path.ps1": "cli/install-path.ps1",
+      "../assets/cli/bin/servel.cmd": "cli/bin/servel.cmd",
+      "../assets/cli/bin/servel": "cli/bin/servel"
     },
     "macOS": {
       "minimumSystemVersion": "11.0",

@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# servel CLI shim untuk Git Bash / MSYS2 / zsh di Windows. Skrip aslinya: ../servel.ps1
+dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ps1="$dir/../servel.ps1"
+if command -v cygpath >/dev/null 2>&1; then ps1=$(cygpath -w "$ps1"); fi
+if command -v pwsh >/dev/null 2>&1; then exe=pwsh; else exe=powershell.exe; fi
+exec "$exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$ps1" "$@"

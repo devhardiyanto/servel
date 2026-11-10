@@ -89,6 +89,29 @@ Notes:
 - Ports are published on `127.0.0.1` only.
 - Containers named `servel_<service>` that already exist (for example, created by a script) are **adopted as-is**: Servel starts and stops them but does not recreate them.
 
+#### `servel` terminal command (Windows)
+
+The Windows installer adds a `servel` command to your user PATH (`%LOCALAPPDATA%\Servel\cli\bin`). It works in PowerShell, cmd, and Git Bash / zsh, and manages the same services as the app through WSL containers:
+
+```bash
+servel preflight                 # check wslc, WSL version, elevation, ports
+servel up                        # start the services selected in the app (or all)
+servel up mysql postgres         # only some
+servel down                      # stop every servel_* container
+servel status
+servel logs mysql -f
+servel shell postgres            # shell inside the container
+servel restore mysql D:\backup\dump.sql   # or a folder of .sql files
+```
+
+The app and the CLI share state, so you can use them interchangeably. Open a **new** terminal after installing so it picks up the new PATH. If you previously aliased `servel` in your shell profile, remove that alias; otherwise it shadows the bundled command.
+
+MSYS2 shells started with `MSYS2_PATH_TYPE=minimal` do not inherit the Windows PATH. Add this line to `~/.bashrc` / `~/.zshrc` instead:
+
+```bash
+export PATH="$PATH:$(cygpath "$LOCALAPPDATA")/Servel/cli/bin"
+```
+
 #### Docker
 
 - **Windows / macOS:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) — make sure it is running before starting any service from Servel.

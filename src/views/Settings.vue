@@ -542,6 +542,14 @@ onMounted(async () => {
             </SettingRow>
 
             <SettingRow
+              v-if="platform === 'windows'"
+              label="Terminal command"
+              desc="Added to your PATH by the installer — servel up · down · status · logs · shell · restore"
+            >
+              <span class="setting-value-mono">servel help</span>
+            </SettingRow>
+
+            <SettingRow
               v-if="engineInfo?.engine !== 'wslc'"
               label="Docker Compose file path"
               desc="Path to generated compose file"
