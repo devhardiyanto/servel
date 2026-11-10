@@ -37,6 +37,7 @@ const {
   addProject,
   removeProject,
   setVersionProvider,
+  setProjectProfile,
   createProfile,
   renameProfile,
   deleteProfile,
@@ -1091,6 +1092,7 @@ onMounted(async () => {
             <p class="section-hint">
               Folders whose PHP/Node versions you want to see and switch from the Dashboard.
               mise resolves each folder on its own, including a mise.toml in a parent folder.
+              Link a service profile to a project to switch its services along with it.
             </p>
 
             <div class="profile-list">
@@ -1101,6 +1103,15 @@ onMounted(async () => {
                   <span class="site-domain project-path" :title="p.path">{{ p.path }}</span>
                 </div>
                 <div class="profile-actions">
+                  <select
+                    class="profile-create-input project-profile-select"
+                    :value="p.profileId ?? ''"
+                    title="Service profile applied when this project is selected"
+                    @change="setProjectProfile(p.id, ($event.target as HTMLSelectElement).value || null)"
+                  >
+                    <option value="">No service profile</option>
+                    <option v-for="pr in config.profiles" :key="pr.id" :value="pr.id">Profile: {{ pr.name }}</option>
+                  </select>
                   <button class="action-btn action-btn--red" @click="handleRemoveProject(p.id, p.name)">Remove</button>
                 </div>
               </div>
@@ -1869,5 +1880,10 @@ onMounted(async () => {
 .restore-error {
   color: var(--red);
   background: color-mix(in srgb, var(--red) 8%, var(--surface));
+}
+
+.project-profile-select {
+  width: auto;
+  max-width: 220px;
 }
 </style>

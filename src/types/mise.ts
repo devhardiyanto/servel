@@ -14,6 +14,8 @@ export interface Project {
   id: string
   name: string
   path: string
+  /** Profil service yang diterapkan saat project dipilih (v1.9). */
+  profileId?: string | null
 }
 
 export interface MiseContext {

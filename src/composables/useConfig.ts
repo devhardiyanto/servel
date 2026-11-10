@@ -158,6 +158,13 @@ export function useConfig() {
     await writeNow()
   }
 
+  async function setProjectProfile(projectId: string, profileId: string | null): Promise<void> {
+    config.value.projects = config.value.projects.map((p) =>
+      p.id === projectId ? { ...p, profileId } : p,
+    )
+    await writeNow()
+  }
+
   async function setVersionProvider(value: ConfigState['versionProvider']): Promise<void> {
     config.value.versionProvider = value
     await writeNow()
@@ -268,6 +275,7 @@ export function useConfig() {
     addProject,
     removeProject,
     setActiveProject,
+    setProjectProfile,
     setVersionProvider,
     updateSelectedServices,
     applySelection,

@@ -62,8 +62,12 @@ async function reloadVersions(): Promise<void> {
   await Promise.all([loadPhp(), loadNode()])
 }
 
+// v1.9: memilih project juga menerapkan profil service-nya (bila ditautkan).
+// Hanya mengubah selection; container yang sedang jalan tidak di-stop.
 async function onContextChange(id: string): Promise<void> {
   await useConfig().setActiveProject(id || null)
+  const project = projects.value.find((p) => p.id === id)
+  if (project?.profileId) applyProfile(project.profileId)
   await reloadVersions()
 }
 

@@ -24,6 +24,10 @@ pub struct Project {
     pub id: String,
     pub name: String,
     pub path: String,
+    /// Profil service yang diterapkan saat project ini dipilih di Dashboard
+    /// (v1.9). `None` = selection tidak diubah.
+    #[serde(default)]
+    pub profile_id: Option<String>,
 }
 
 /// Tujuan routing sebuah site di balik reverse proxy.
@@ -154,6 +158,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
                 id: "watched".to_string(),
                 name: project_name_from_path(&path),
                 path,
+                profile_id: None,
             });
         }
     }
@@ -164,6 +169,14 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
     }
     cfg.selected_service_ids
         .retain(|id| !REMOVED_SERVICE_IDS.contains(&id.as_str()));
+
+    // Invariant: profil yang ditautkan ke project harus ada.
+    let profile_ids: Vec<String> = cfg.profiles.iter().map(|p| p.id.clone()).collect();
+    for p in cfg.projects.iter_mut() {
+        if p.profile_id.as_ref().is_some_and(|id| !profile_ids.contains(id)) {
+            p.profile_id = None;
+        }
+    }
 
     // Invariant: active_project_id menunjuk project yang ada (atau None).
     if let Some(id) = cfg.active_project_id.clone() {
@@ -508,7 +521,12 @@ mod tests {
             minimize_to_tray: false,
             container_runtime: "wslc".to_string(),
             version_provider: "mise".to_string(),
-            projects: vec![Project { id: "p1".into(), name: "astra".into(), path: r"D:\dev\astra".into() }],
+            projects: vec![Project {
+                id: "p1".into(),
+                name: "astra".into(),
+                path: r"D:\dev\astra".into(),
+                profile_id: Some("default".into()),
+            }],
             active_project_id: Some("p1".into()),
         };
         let json = serde_json::to_string_pretty(&cfg).expect("serialize");
@@ -660,6 +678,22 @@ mod tests {
         assert_eq!(cfg.profiles[0].service_ids, vec!["redis".to_string()]);
         // selected diproyeksikan ulang dari profil aktif.
         assert_eq!(cfg.selected_service_ids, vec!["redis".to_string()]);
+    }
+
+    #[test]
+    fn test_migrate_drops_dangling_project_profile() {
+        let json = r#"{
+            "version": 6,
+            "profiles": [{ "id": "default", "name": "Default", "serviceIds": [] }],
+            "activeProfileId": "default",
+            "projects": [
+                { "id": "a", "name": "a", "path": "/a", "profileId": "default" },
+                { "id": "b", "name": "b", "path": "/b", "profileId": "deleted" }
+            ]
+        }"#;
+        let cfg = migrate(serde_json::from_str::<ConfigState>(json).unwrap());
+        assert_eq!(cfg.projects[0].profile_id.as_deref(), Some("default"));
+        assert_eq!(cfg.projects[1].profile_id, None);
     }
 
     #[test]

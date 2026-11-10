@@ -500,6 +500,106 @@ function Invoke-Restore([string[]]$ArgsIn) {
     }
 }
 
+# ---------------------------------------------------------------------------
+# mise (v1.9) — logika sama dengan src-tauri/src/mise.rs
+# ---------------------------------------------------------------------------
+function Get-MiseGlobalRoots {
+    $roots = @()
+    foreach ($v in @($env:MISE_GLOBAL_CONFIG_FILE, $env:MISE_CONFIG_DIR)) { if ($v) { $roots += $v } }
+    if ($env:XDG_CONFIG_HOME) { $roots += (Join-Path $env:XDG_CONFIG_HOME 'mise') }
+    $home_ = if ($env:USERPROFILE) { $env:USERPROFILE } else { $HOME }
+    if ($home_) {
+        $roots += (Join-Path (Join-Path $home_ '.config') 'mise')
+        $roots += (Join-Path $home_ '.tool-versions')
+    }
+    return @($roots | ForEach-Object { $_.Replace('\', '/').TrimEnd('/').ToLowerInvariant() })
+}
+
+function Test-MiseGlobalSource([string]$Path) {
+    if (-not $Path) { return $false }
+    $p = $Path.Replace('\', '/').TrimEnd('/').ToLowerInvariant()
+    foreach ($r in (Get-MiseGlobalRoots)) {
+        if ($p -eq $r -or $p.StartsWith("$r/")) { return $true }
+    }
+    return $false
+}
+
+function Invoke-Use([string[]]$ArgsIn) {
+    if (-not (Get-Command mise -ErrorAction SilentlyContinue)) { throw 'mise tidak ditemukan di PATH.' }
+    $global = $false
+    $pos = @()
+    foreach ($a in $ArgsIn) {
+        if ($a -in '-g', '--global') { $global = $true } else { $pos += $a }
+    }
+    if ($pos.Count -ne 2) { throw 'pakai: servel use <php|node|tool> <versi> [--global]' }
+    $tool = $pos[0]; $version = $pos[1]
+    if ($tool -notmatch '^[a-z0-9][a-z0-9_-]*$') { throw "tool '$tool' tidak valid" }
+    if ($version -notmatch '^\d+(\.\d+){0,2}$') { throw "versi '$version' tidak valid (contoh: 8.3, 22, 22.23.3)" }
+    $spec = "$tool@$version"
+
+    if ($global) {
+        Write-Step "mise use -g $spec"
+        exit (Invoke-NativeLive 'mise' @('use', '-g', $spec))
+    }
+
+    # Tulis ke config yang memang berlaku untuk folder ini (bisa di folder induk).
+    $target = $null
+    $cur = $null
+    # EAP Continue: di PowerShell 5.1 baris stderr mise (mis. WARN update) bisa
+    # menjadi error terminating walau di-redirect, lalu target jatuh diam-diam
+    # ke folder saat ini.
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $json = (& mise ls --current --json 2>$null | Out-String) } finally { $ErrorActionPreference = $prevEap }
+    if ($LASTEXITCODE -ne 0) { throw "mise ls --current gagal (exit $LASTEXITCODE). Jalankan 'mise ls --current' untuk detailnya (mis. config belum di-trust)." }
+    try { $cur = $json | ConvertFrom-Json } catch { throw "output mise tidak bisa dibaca: $($_.Exception.Message)" }
+    if ($cur) {
+        $projectSources = @()
+        foreach ($prop in $cur.PSObject.Properties) {
+            foreach ($e in @($prop.Value)) {
+                $src = $null
+                if ($e.PSObject.Properties.Name -contains 'source' -and $e.source) { $src = [string]$e.source.path }
+                if ($src -and -not (Test-MiseGlobalSource $src)) {
+                    if ($prop.Name -eq $tool) { $target = $src }
+                    $projectSources += $src
+                }
+            }
+        }
+        if (-not $target -and $projectSources.Count -gt 0) {
+            $target = $projectSources | Sort-Object Length -Descending | Select-Object -First 1
+        }
+    }
+    if (-not $target) { $target = Join-Path (Get-Location) 'mise.toml' }
+    Write-Step "mise use --path $target $spec"
+    exit (Invoke-NativeLive 'mise' @('use', '--path', $target, $spec))
+}
+
+function Invoke-NativeLive([string]$Exe, [string[]]$A) {
+    $native = ConvertTo-NativeArgs $A
+    & $Exe @native
+    return $LASTEXITCODE
+}
+
+function Invoke-Projects {
+    if (-not (Test-Path $ConfigPath)) { Write-Step 'belum ada project (config aplikasi belum dibuat).'; return }
+    $cfg = Get-Content $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $projects = @()
+    if ($cfg.PSObject.Properties.Name -contains 'projects') { $projects = @($cfg.projects) }
+    if ($projects.Count -eq 0) { Write-Step 'belum ada project. Tambahkan di Servel → Settings → PHP & Node.'; return }
+    $active = if ($cfg.PSObject.Properties.Name -contains 'activeProjectId') { $cfg.activeProjectId } else { $null }
+    $profiles = @{}
+    if ($cfg.PSObject.Properties.Name -contains 'profiles') { foreach ($p in @($cfg.profiles)) { $profiles[$p.id] = $p.name } }
+    $projects | ForEach-Object {
+        $pid_ = if ($_.PSObject.Properties.Name -contains 'profileId') { $_.profileId } else { $null }
+        [pscustomobject]@{
+            ' '     = if ($_.id -eq $active) { '*' } else { '' }
+            PROJECT = $_.name
+            PATH    = $_.path
+            PROFILE = if ($pid_ -and $profiles.ContainsKey($pid_)) { $profiles[$pid_] } else { '' }
+        }
+    } | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+}
+
 function Invoke-Preflight {
     Assert-Wslc
     Write-Step 'wsl --version:'
@@ -537,6 +637,9 @@ servel — kelola service Servel lewat WSL containers (wslc)
   servel logs <service> [-f] [-n N]
   servel shell <service> [cmd...]  shell / perintah di dalam container
   servel restore <mysql|postgres> <file.sql | folder>
+  servel use <php|node> <versi> [--global]
+                                   ganti versi lewat mise di folder ini (atau global)
+  servel projects                  daftar project dari aplikasi Servel
 
 Definisi service sama dengan aplikasi Servel; aplikasi dan CLI bisa dipakai bergantian.
 '@ | Write-Host
@@ -556,6 +659,8 @@ try {
         'logs'      { Assert-Wslc; Invoke-Logs $Rest; break }
         'shell'     { Assert-Wslc; Invoke-Shell $Rest; break }
         'restore'   { Assert-Wslc; Warn-IfElevated; Invoke-Restore $Rest; break }
+        'use'       { Invoke-Use $Rest; break }
+        'projects'  { Invoke-Projects; break }
         default     { Write-Fail "perintah tidak dikenal: $Command"; Show-Help; exit 2 }
     }
 } catch {
