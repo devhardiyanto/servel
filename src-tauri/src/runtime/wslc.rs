@@ -311,6 +311,17 @@ fn container_name(m: &serde_json::Map<String, Value>) -> Option<String> {
 /// (`{"Status":"running","Running":true,"ExitCode":0}`). Fallback ke `Status`
 /// teks ("Up 3 minutes" / "Exited (1) ...").
 fn container_state(m: &serde_json::Map<String, Value>) -> (String, Option<i32>) {
+    let status = get(m, "Status").and_then(Value::as_str).unwrap_or("").trim().to_lowercase();
+    // "Exited (137) 3 minutes ago" → 137. Dipakai bila tak ada field ExitCode
+    // (WSLC 3.0.5 `container list` hanya memberi teks Status).
+    let status_exit = || -> Option<i32> {
+        status
+            .strip_prefix("exited")?
+            .split(['(', ')'])
+            .nth(1)
+            .and_then(|s| s.trim().parse().ok())
+    };
+
     let mut exit_code = first_get(m, &["ExitCode"]).and_then(Value::as_i64).map(|v| v as i32);
 
     let state = match get(m, "State") {
@@ -336,29 +347,24 @@ fn container_state(m: &serde_json::Map<String, Value>) -> (String, Option<i32>) 
                 },
             }
         }
-        _ => String::new(),
-    };
-
-    if !state.is_empty() {
-        return (state, exit_code);
-    }
-
-    let status = get(m, "Status").and_then(Value::as_str).unwrap_or("").trim().to_lowercase();
-    let state = if status.starts_with("up") || status == "running" {
-        "running".to_string()
-    } else if status.starts_with("exited") {
-        if exit_code.is_none() {
-            exit_code = status
-                .split(['(', ')'])
-                .nth(1)
-                .and_then(|s| s.trim().parse().ok());
+        // Tanpa State: turunkan dari teks Status.
+        _ => {
+            if status.starts_with("up") || status == "running" {
+                "running"
+            } else if status.starts_with("exited") {
+                "exited"
+            } else if status.starts_with("created") {
+                "created"
+            } else {
+                "unknown"
+            }
+            .to_string()
         }
-        "exited".to_string()
-    } else if status.starts_with("created") {
-        "created".to_string()
-    } else {
-        "unknown".to_string()
     };
+
+    if exit_code.is_none() && state == "exited" {
+        exit_code = status_exit();
+    }
     (state, exit_code)
 }
 
@@ -917,6 +923,29 @@ mod tests {
         assert!(s[0].running);
         assert_eq!((s[1].id.as_str(), s[1].state.as_str(), s[1].exit_code), ("mailpit", "exited", Some(137)));
         assert_eq!((s[2].id.as_str(), s[2].exit_code), ("mongodb", Some(1)));
+    }
+
+    /// Output asli `wslc container list --all --format json` dari WSL 3.0.5
+    /// (Windows, 2026-11-10): NDJSON bergaya Docker, `Names` string, `State`
+    /// teks, exit code hanya di `Status`, `Labels` berisi koma dan JSON escape.
+    #[test]
+    fn parse_list_real_wslc_3_0_5_output() {
+        let s = parse_list_json(include_str!("fixtures/wslc-3.0.5-container-list.ndjson"));
+        let ids: Vec<&str> = s.iter().map(|x| x.id.as_str()).collect();
+        assert_eq!(ids, vec!["minio", "rabbitmq", "mailpit", "gotenberg", "postgres", "mysql", "redis"]);
+        for st in &s {
+            assert!(!st.running, "{} harus terbaca stopped", st.id);
+            assert_eq!(st.state, "exited");
+            assert_eq!(st.exit_code, Some(0), "exit code {} dari Status", st.id);
+            assert_eq!(st.container_name, format!("servel_{}", st.id));
+        }
+    }
+
+    #[test]
+    fn parse_list_running_line_in_real_format() {
+        let line = r#"{"Command":"\"docker-entrypoint.s…\"","ID":"52039129147c","Image":"mysql:8.0","Labels":"a=b,c=d","Names":"servel_mysql","State":"running","Status":"Up 5 minutes"}"#;
+        let s = parse_list_json(line);
+        assert_eq!((s[0].id.as_str(), s[0].running, s[0].exit_code), ("mysql", true, None));
     }
 
     #[test]
