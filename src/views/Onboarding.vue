@@ -3,6 +3,7 @@ import { inject, computed, ref, onMounted } from 'vue'
 import { SetViewKey } from '../types/navigation'
 import { usePrereq } from '@/composables/usePrereq'
 import { useTauri } from '@/composables/useTauri'
+import { useConfig } from '@/composables/useConfig'
 import PrereqCard from '@/components/PrereqCard.vue'
 import type { PrereqAction } from '@/components/PrereqCard.vue'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
@@ -22,19 +23,37 @@ const isLinux = computed<boolean>(() => platform.value === 'linux')
 const {
   status,
   checking,
-  startingDocker,
-  startDockerError,
+  startingEngine,
+  startEngineError,
   allReady,
-  dockerInstalledButNotRunning,
+  engineReady,
+  engineInstalledButNotRunning,
+  engineLabel,
+  canSwitchToWslc,
   check,
-  startDocker,
+  startEngine,
 } = usePrereq()
+
+const isWindows = computed<boolean>(() => platform.value === 'windows')
+const isWslc = computed<boolean>(() => status.value?.engine === 'wslc')
+
+const { setContainerRuntime } = useConfig()
+const switching = ref(false)
+async function useEngine(kind: 'wslc' | 'docker'): Promise<void> {
+  switching.value = true
+  try {
+    await setContainerRuntime(kind)
+    await check()
+  } finally {
+    switching.value = false
+  }
+}
 
 const readyCount = computed<number>(() => {
   if (!status.value) return 0
   const s = status.value
   return [
-    s.docker_installed && s.docker_running,
+    engineReady.value,
     s.phpvm_installed,
     s.fnm_installed,
   ].filter(Boolean).length
@@ -48,7 +67,27 @@ function openUrl(url: string): void {
   window.open(url, '_blank', 'noopener')
 }
 
-const dockerActions = computed<PrereqAction[]>(() => {
+const WSL_RELEASES_URL = 'https://github.com/microsoft/WSL/releases'
+
+const engineActions = computed<PrereqAction[]>(() => {
+  if (isWindows.value) {
+    if (isWslc.value) {
+      return [
+        { label: 'WSL release notes ↗', primary: true, onClick: () => openUrl(WSL_RELEASES_URL) },
+        { label: 'Use Docker Desktop instead', onClick: () => void useEngine('docker') },
+      ]
+    }
+    if (status.value?.wslc_available) {
+      return [{ label: 'Use WSL containers', primary: true, onClick: () => void useEngine('wslc') }]
+    }
+    return [
+      { label: 'Use WSL containers', primary: true, onClick: () => void useEngine('wslc') },
+      {
+        label: 'Docker Desktop ↗',
+        onClick: () => openUrl('https://www.docker.com/products/docker-desktop/'),
+      },
+    ]
+  }
   if (isLinux.value) {
     return [
       {
@@ -83,6 +122,34 @@ const dockerActions = computed<PrereqAction[]>(() => {
     },
   ]
 })
+
+const engineIcon = computed<string>(() => (isWslc.value ? '\u{1F4E6}' : '\u{1F433}'))
+
+const engineOkDesc = computed<string>(() => {
+  const v = status.value?.engine_version
+  if (isWslc.value) {
+    return `Built into WSL${v ? ` — wslc v${v}` : ''}. No Docker Desktop needed.`
+  }
+  return v ? `Docker v${v} detected and running` : 'Docker Engine detected and running'
+})
+
+const engineMissingDesc = computed<string>(() => {
+  if (isWindows.value) {
+    return isWslc.value
+      ? 'WSL containers need WSL 3.0.1 or newer. Update WSL, then refresh.'
+      : 'Needed to run services. Built-in WSL containers (WSL 3.0.1+) replace Docker Desktop.'
+  }
+  return 'Required to run infra services (MySQL, Redis, etc)'
+})
+
+// `wsl --update` cukup untuk mendapatkan wslc di Windows.
+const engineCode = computed<string | undefined>(() =>
+  isWindows.value && !status.value?.engine_installed ? 'wsl --update' : undefined,
+)
+
+const showElevatedWarning = computed<boolean>(
+  () => isWindows.value && isWslc.value && !!status.value?.elevated,
+)
 
 // Perintah install fnm per-OS untuk ditampilkan di code-block prereq card.
 const fnmInstallCmd = computed<string>(() => {
@@ -163,16 +230,17 @@ const fnmOkDesc = computed<string>(() => {
 
         <div v-else class="ob-cards">
           <PrereqCard
-            name="Docker"
-            :installed="status?.docker_installed ?? false"
-            :running="status?.docker_running"
-            icon="&#x1F433;"
-            ok-desc="Docker Engine detected and running"
-            not-found-desc="Required to run infra services (MySQL, Redis, etc)"
-            :actions="dockerActions"
+            :name="engineLabel"
+            :installed="status?.engine_installed ?? false"
+            :running="status?.engine_running"
+            :icon="engineIcon"
+            :ok-desc="engineOkDesc"
+            :not-found-desc="engineMissingDesc"
+            :actions="engineActions"
+            :code="engineCode"
           >
-            <template v-if="status?.docker_installed && !status?.docker_running">
-              Docker installed but not running
+            <template v-if="engineInstalledButNotRunning">
+              {{ isWslc ? ' WSL containers are installed but not responding.' : ' Docker is installed but not running.' }}
             </template>
           </PrereqCard>
 
@@ -196,11 +264,17 @@ const fnmOkDesc = computed<string>(() => {
           />
         </div>
 
-        <div v-if="startDockerError && !isLinux" class="ob-error">
-          {{ startDockerError }}
+        <div v-if="showElevatedWarning" class="ob-error ob-error--soft">
+          Servel is running as Administrator. WSL containers keep a separate session per
+          elevation, so containers created from a normal window will not appear here.
+          Restart Servel without "Run as administrator".
         </div>
 
-        <div v-if="isLinux && dockerInstalledButNotRunning" class="ob-instruction">
+        <div v-if="startEngineError && !isLinux" class="ob-error">
+          {{ startEngineError }}
+        </div>
+
+        <div v-if="isLinux && engineInstalledButNotRunning" class="ob-instruction">
           <p class="ob-instruction__title">Start Docker manually:</p>
           <code class="ob-instruction__cmd">sudo systemctl start docker</code>
           <p class="ob-instruction__hint">Lalu klik "Refresh checks" untuk perbarui status.</p>
@@ -210,13 +284,23 @@ const fnmOkDesc = computed<string>(() => {
 
         <div class="ob-cta-row">
           <button
-            v-if="dockerInstalledButNotRunning && !isLinux"
+            v-if="engineInstalledButNotRunning && !isLinux"
             class="ob-btn ob-btn--primary"
-            :disabled="startingDocker"
-            @click="startDocker"
+            :disabled="startingEngine"
+            @click="startEngine"
           >
-            <span v-if="startingDocker" class="ob-spinner"></span>
-            {{ startingDocker ? 'Starting Docker...' : 'Start Docker' }}
+            <span v-if="startingEngine" class="ob-spinner"></span>
+            <template v-if="isWslc">{{ startingEngine ? 'Connecting...' : 'Retry WSL containers' }}</template>
+            <template v-else>{{ startingEngine ? 'Starting Docker...' : 'Start Docker' }}</template>
+          </button>
+
+          <button
+            v-if="canSwitchToWslc && engineInstalledButNotRunning"
+            class="ob-btn ob-btn--ghost"
+            :disabled="switching"
+            @click="useEngine('wslc')"
+          >
+            Use WSL containers instead
           </button>
 
           <button
@@ -283,7 +367,7 @@ const fnmOkDesc = computed<string>(() => {
 .ob-mark-sq {
   width: 14px;
   height: 14px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
 }
 
 .ob-mark-sq--filled {
@@ -334,7 +418,7 @@ const fnmOkDesc = computed<string>(() => {
 }
 
 .ob-progress-label {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--muted);
   flex-shrink: 0;
@@ -354,7 +438,7 @@ const fnmOkDesc = computed<string>(() => {
   gap: var(--space-3);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: var(--space-4);
 }
 
@@ -377,17 +461,24 @@ const fnmOkDesc = computed<string>(() => {
   padding: var(--space-3) var(--space-4);
   background: color-mix(in srgb, var(--red) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   font-size: 13px;
   color: var(--red);
   margin-bottom: var(--space-4);
+}
+
+.ob-error--soft {
+  background: color-mix(in srgb, var(--amber) 10%, transparent);
+  border-color: color-mix(in srgb, var(--amber) 30%, transparent);
+  color: var(--amber);
+  line-height: 1.55;
 }
 
 .ob-instruction {
   padding: var(--space-4);
   background: color-mix(in srgb, var(--amber) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   margin-bottom: var(--space-4);
 }
 
@@ -405,7 +496,7 @@ const fnmOkDesc = computed<string>(() => {
   color: var(--text);
   background: var(--surface2);
   padding: var(--space-2) var(--space-3);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   margin-bottom: var(--space-2);
 }
 
@@ -433,7 +524,7 @@ const fnmOkDesc = computed<string>(() => {
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-2) var(--space-6);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-sans);
   font-size: 14px;
   font-weight: 500;

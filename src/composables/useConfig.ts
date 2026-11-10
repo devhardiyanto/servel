@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import type { EnginePreference } from '@/types/prereq'
 
 export interface Profile {
   id: string
@@ -34,10 +35,12 @@ export interface ConfigState {
   autoStart: boolean
   rememberSession: boolean
   minimizeToTray: boolean
+  // Engine container: 'auto' | 'docker' | 'wslc' (v1.6, config v5).
+  containerRuntime: EnginePreference
 }
 
 const DEFAULT_CONFIG: ConfigState = {
-  version: 3,
+  version: 5,
   selectedServiceIds: [],
   profiles: [{ id: 'default', name: 'Default', serviceIds: [] }],
   activeProfileId: 'default',
@@ -48,6 +51,7 @@ const DEFAULT_CONFIG: ConfigState = {
   autoStart: false,
   rememberSession: true,
   minimizeToTray: true,
+  containerRuntime: 'auto',
 }
 
 // Singleton state
@@ -110,6 +114,17 @@ export function useConfig() {
   function setMinimizeToTray(value: boolean): void {
     config.value.minimizeToTray = value
     scheduleSave()
+  }
+
+  // Tulis segera (bukan debounce): backend me-resolve ulang engine saat
+  // config_write, dan caller langsung re-probe status sesudahnya.
+  async function setContainerRuntime(value: EnginePreference): Promise<void> {
+    config.value.containerRuntime = value
+    if (saveTimer !== null) {
+      clearTimeout(saveTimer)
+      saveTimer = null
+    }
+    await invoke<void>('config_write', { config: config.value })
   }
 
   // Selection = proyeksi profil aktif. Set selectedServiceIds DAN serviceIds
@@ -202,6 +217,7 @@ export function useConfig() {
     setAutoStart,
     setRememberSession,
     setMinimizeToTray,
+    setContainerRuntime,
     updateSelectedServices,
     applySelection,
     createProfile,

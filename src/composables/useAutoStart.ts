@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useConfig } from './useConfig'
 import { useServices } from './useServices'
 import { useLogs } from './useLogs'
-import type { PrereqStatus } from '@/types/prereq'
+import { ENGINE_LABEL, type PrereqStatus } from '@/types/prereq'
 
 // Module-level guard — fire sekali per app lifetime (bukan per component mount).
 let didAutoStart = false
@@ -42,16 +42,18 @@ export function useAutoStart() {
       return
     }
 
-    let dockerRunning = false
+    let engineRunning = false
+    let engineLabel = 'container engine'
     try {
       const prereqResult = await invoke<PrereqStatus>('check_prerequisites')
-      dockerRunning = prereqResult.docker_running
+      engineRunning = prereqResult.engine_running
+      engineLabel = ENGINE_LABEL[prereqResult.engine]
     } catch {
-      dockerRunning = false
+      engineRunning = false
     }
 
-    if (!dockerRunning) {
-      pushLog({ ts: nowTs(), src: 'ENV', text: 'auto-start: Docker not ready — skipped' })
+    if (!engineRunning) {
+      pushLog({ ts: nowTs(), src: 'ENV', text: `auto-start: ${engineLabel} not ready — skipped` })
       return
     }
 

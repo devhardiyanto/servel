@@ -1,20 +1,50 @@
-/* Colors */
+/*
+ * Servel design tokens — "soft" theme (v1.6).
+ *
+ * Arah desain: kontras dikurangi tanpa mengorbankan keterbacaan.
+ * - Netral sedikit kebiruan (bukan zinc murni) supaya tidak terasa keras.
+ * - Border translucent: kartu dipisahkan oleh perbedaan surface + bayangan
+ *   halus, bukan garis 1px yang tegas.
+ * - Aksen pastel (sky / mint / rose / honey) — saturasi turun ~30% dari v1.5.
+ * - Radius lebih besar dan konsisten lewat skala token.
+ * - Inter untuk teks UI; Space Mono hanya untuk data (versi, port, log).
+ */
 :root {
-  --bg:       #18181b;
-  --surface:  #27272a;
-  --surface2: #3f3f46;
-  --border:   #3f3f46;
-  --text:     #fafafa;
-  --muted:    #a1a1aa;
-  --dim:      #71717a;
-  --accent:   #22d3ee;
-  --green:    #4ade80;
-  --red:      #f87171;
-  --amber:    #fbbf24;
+  /* Surfaces */
+  --bg:        #16171b;
+  --bg-sunken: #111216;
+  --surface:   #1e2025;
+  --surface2:  #2a2d34;
+  --border:        rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.12);
+
+  /* Text */
+  --text:  #e9eaee;
+  --muted: #a2a6b2;
+  --dim:   #6f7482;
+
+  /* Accents (pastel) */
+  --accent: #7cc7e8;
+  --green:  #7fd6a4;
+  --red:    #f19a9a;
+  --amber:  #f0c674;
 
   /* Typography */
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'Space Mono', monospace;
+
+  /* Radius scale */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 8px 24px -12px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 
   /* Spacing */
   --space-1: 4px;

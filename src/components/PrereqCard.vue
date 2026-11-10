@@ -98,7 +98,7 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
 .prereq-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: var(--space-4);
   transition: border-color 0.15s;
 }
@@ -119,7 +119,7 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface2);
   flex-shrink: 0;
   transition: background 0.15s;
@@ -166,12 +166,12 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
 }
 
 .prereq-badge {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 400;
   letter-spacing: 0.05em;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 
@@ -210,7 +210,7 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
   font-size: 13px;
   font-weight: 500;
   padding: 6px 14px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background 0.15s, opacity 0.15s;
   border: 1px solid;
@@ -243,8 +243,8 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
   gap: var(--space-2);
   margin-top: var(--space-3);
   padding: var(--space-2) var(--space-3);
-  background: #0a0a0c;
-  border-radius: 6px;
+  background: var(--bg-sunken);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
 }
 
@@ -271,7 +271,7 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
   border: none;
   cursor: pointer;
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
   transition: color 0.1s;
 }
