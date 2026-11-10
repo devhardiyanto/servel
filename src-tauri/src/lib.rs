@@ -85,6 +85,8 @@ pub fn run() {
             commands::services::services_start,
             commands::services::services_stop,
             commands::services::services_stop_all,
+            commands::services::services_restore,
+            commands::services::services_migrate_from_docker,
             commands::compose::get_compose_path,
             watcher::watch_project,
             commands::config::config_read,

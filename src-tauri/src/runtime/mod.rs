@@ -13,7 +13,9 @@
 //! [`resolve`]. Resolusi ulang terjadi saat config dibaca/ditulis.
 
 pub mod docker;
+pub mod migrate;
 pub mod readiness;
+pub mod restore;
 pub mod wslc;
 
 use serde::{Deserialize, Serialize};

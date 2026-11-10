@@ -42,6 +42,30 @@ pub async fn version() -> Option<String> {
     crate::commands::util::extract_semver(&String::from_utf8_lossy(&out.stdout))
 }
 
+/// `docker cp <host> <name>:<dest>` (path host absolut aman di Docker).
+pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> Result<(), String> {
+    let out = silent_command("docker")
+        .arg("cp")
+        .arg(host)
+        .arg(format!("{}:{}", name, dest))
+        .stderr(Stdio::piped())
+        .output()
+        .await
+        .map_err(|e| format!("Gagal menjalankan docker cp: {}", e))?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(format!("docker cp gagal: {}", String::from_utf8_lossy(&out.stderr).trim()))
+    }
+}
+
+/// `docker exec <name> sh -c <cmd>` dengan output di-stream ke panel log.
+pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str) -> Result<(), String> {
+    let mut c = silent_command("docker");
+    c.args(["exec", name, "sh", "-c", cmd]);
+    stream_and_wait_app(c, app).await
+}
+
 /// `docker exec <name> sh -c <cmd>` → exit code.
 pub async fn exec_status(name: &str, cmd: &str, timeout: std::time::Duration) -> Option<i32> {
     let fut = silent_command("docker").args(["exec", name, "sh", "-c", cmd]).status();

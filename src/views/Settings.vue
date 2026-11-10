@@ -372,6 +372,85 @@ async function pickProject(): Promise<void> {
   }
 }
 
+// --- Restore database (v1.8) ---------------------------------------------
+const restoreService = ref<'mysql' | 'postgres'>('mysql')
+const restoreFile = ref<string | null>(null)
+const restoring = ref(false)
+const restoreResult = ref<{ ok: boolean; text: string } | null>(null)
+
+async function pickRestoreFile(): Promise<void> {
+  try {
+    const selected = await openDialog({
+      multiple: false,
+      title: 'Choose a .sql dump',
+      filters: [{ name: 'SQL dump', extensions: ['sql'] }],
+    })
+    if (typeof selected === 'string') {
+      restoreFile.value = selected
+      restoreResult.value = null
+    }
+  } catch (err) {
+    restoreResult.value = { ok: false, text: String(err) }
+  }
+}
+
+async function runRestore(): Promise<void> {
+  if (!restoreFile.value || restoring.value) return
+  let ok = false
+  try {
+    ok = await ask(
+      `Restore ${restoreFile.value} into ${restoreService.value === 'mysql' ? 'MySQL' : 'PostgreSQL'}? ` +
+        'Statements in the dump run as-is (it may drop or overwrite tables).',
+      { title: 'Restore database', kind: 'warning' },
+    )
+  } catch {
+    ok = window.confirm('Restore this dump?')
+  }
+  if (!ok) return
+  restoring.value = true
+  restoreResult.value = null
+  try {
+    await invoke<void>('services_restore', { service: restoreService.value, file: restoreFile.value })
+    restoreResult.value = { ok: true, text: 'Restore finished. Details are in the Logs.' }
+  } catch (err) {
+    restoreResult.value = { ok: false, text: String(err) }
+  } finally {
+    restoring.value = false
+  }
+}
+
+// Migrasi Docker → WSL containers: hanya relevan bila engine aktif WSLC dan
+// Docker masih terpasang (sumber data lama).
+const canMigrateFromDocker = computed(
+  () => engineInfo.value?.engine === 'wslc' && !!engineInfo.value?.docker_available,
+)
+
+async function runMigrateFromDocker(): Promise<void> {
+  if (restoring.value) return
+  const label = restoreService.value === 'mysql' ? 'MySQL' : 'PostgreSQL'
+  let ok = false
+  try {
+    ok = await ask(
+      `Copy ${label} databases from the Docker container into WSL containers? ` +
+        'Docker must be running. The old Docker container is left untouched.',
+      { title: 'Import from Docker', kind: 'info' },
+    )
+  } catch {
+    ok = window.confirm(`Import ${label} from Docker?`)
+  }
+  if (!ok) return
+  restoring.value = true
+  restoreResult.value = null
+  try {
+    await invoke<void>('services_migrate_from_docker', { service: restoreService.value })
+    restoreResult.value = { ok: true, text: `${label} imported from Docker. Details are in the Logs.` }
+  } catch (err) {
+    restoreResult.value = { ok: false, text: String(err) }
+  } finally {
+    restoring.value = false
+  }
+}
+
 async function handleRemoveProject(id: string, name: string): Promise<void> {
   let ok = false
   try {
@@ -684,6 +763,52 @@ onMounted(async () => {
                 @click="handleCreateProfile"
               >Buat dari selection</button>
             </div>
+          </div>
+
+          <div class="section-block">
+            <div class="section-title">RESTORE DATABASE</div>
+            <p class="section-hint">
+              Import a .sql dump into MySQL or PostgreSQL. Servel starts the service, waits until it
+              accepts connections, then runs the dump. Useful after switching engines.
+            </p>
+
+            <SettingRow label="Service">
+              <div class="segmented" role="radiogroup" aria-label="Restore target">
+                <button
+                  v-for="opt in [{ v: 'mysql', l: 'MySQL' }, { v: 'postgres', l: 'PostgreSQL' }]"
+                  :key="opt.v"
+                  class="segmented__item"
+                  :class="{ 'segmented__item--on': restoreService === opt.v }"
+                  role="radio"
+                  :aria-checked="restoreService === opt.v"
+                  :disabled="restoring"
+                  @click="restoreService = opt.v as 'mysql' | 'postgres'"
+                >{{ opt.l }}</button>
+              </div>
+            </SettingRow>
+
+            <SettingRow label="Dump file" :desc="restoreFile ?? 'No file chosen'">
+              <button class="action-btn" :disabled="restoring" @click="pickRestoreFile">Choose…</button>
+              <button
+                class="action-btn"
+                :disabled="!restoreFile || restoring"
+                @click="runRestore"
+              >{{ restoring ? 'Restoring…' : 'Restore' }}</button>
+            </SettingRow>
+
+            <SettingRow
+              v-if="canMigrateFromDocker"
+              label="Import from Docker"
+              desc="Copy databases from your old Docker container (Docker Desktop must be running)"
+            >
+              <button class="action-btn" :disabled="restoring" @click="runMigrateFromDocker">Import…</button>
+            </SettingRow>
+
+            <p
+              v-if="restoreResult"
+              class="section-hint section-hint--note"
+              :class="{ 'restore-error': !restoreResult.ok }"
+            >{{ restoreResult.text }}</p>
           </div>
         </template>
 
@@ -1739,5 +1864,10 @@ onMounted(async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--dim);
+}
+
+.restore-error {
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 8%, var(--surface));
 }
 </style>

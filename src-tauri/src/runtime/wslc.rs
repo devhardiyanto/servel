@@ -594,6 +594,74 @@ fn save_state(app: &AppHandle, state: &HashMap<String, String>) {
 // Operasi
 // ---------------------------------------------------------------------------
 
+/// Salin file host ke `dest` di container.
+///
+/// Jalur 1 (terbukti di `servel.ps1`): `container cp <leaf> <name>:/tmp/` dengan
+/// cwd = folder file, lalu rename. Path Windows utuh tidak dipakai karena `D:`
+/// bisa terbaca sebagai `<container>:<path>`, dan tujuan berupa nama file baru
+/// ditolak WSLC (ERROR_PATH_NOT_FOUND) — tujuan harus direktori.
+/// Jalur 2: stream byte mentah lewat stdin (`exec -i … cat > dest`).
+pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> Result<(), String> {
+    let leaf = host
+        .file_name()
+        .and_then(|f| f.to_str())
+        .ok_or("nama file tidak valid")?
+        .to_string();
+    let dir = host.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
+
+    let cp = {
+        let _guard = LOCK.lock().await;
+        let mut cmd = command(&owned(&["container", "cp", &leaf, &format!("{}:/tmp/", name)]));
+        cmd.current_dir(&dir).stdout(Stdio::null()).stderr(Stdio::null());
+        tokio::time::timeout(RUN_TIMEOUT, cmd.status()).await
+    };
+    if matches!(cp, Ok(Ok(s)) if s.success()) {
+        let mv = owned(&[
+            "exec", "-e", &format!("SRC={}", leaf), name, "sh", "-c",
+            &format!(r#"mv -f "/tmp/$SRC" {}"#, dest),
+        ]);
+        if capture_ok(&mv, QUERY_TIMEOUT).await.is_ok() {
+            return Ok(());
+        }
+    }
+
+    // Fallback: stdin.
+    use tokio::io::AsyncWriteExt;
+    let _guard = LOCK.lock().await;
+    let mut child = command(&owned(&["exec", "-i", name, "sh", "-c", &format!("cat > {}", dest)]))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Gagal menjalankan wslc: {}", e))?;
+    let mut stdin = child.stdin.take().ok_or("stdin wslc tidak tersedia")?;
+    let mut file = tokio::fs::File::open(host)
+        .await
+        .map_err(|e| format!("gagal membuka {}: {}", host.display(), e))?;
+    tokio::io::copy(&mut file, &mut stdin)
+        .await
+        .map_err(|e| format!("gagal mengirim file ke container: {}", e))?;
+    stdin.shutdown().await.ok();
+    drop(stdin);
+    let out = tokio::time::timeout(RUN_TIMEOUT, child.wait_with_output())
+        .await
+        .map_err(|_| "kirim file ke container timeout".to_string())?
+        .map_err(|e| format!("gagal menunggu wslc: {}", e))?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(format!(
+            "container cp dan stdin sama-sama gagal: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        ))
+    }
+}
+
+/// `exec <name> sh -c <cmd>` dengan output di-stream ke panel log.
+pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str, source: &str) -> Result<(), String> {
+    run_streamed(app, &owned(&["exec", name, "sh", "-c", cmd]), source, RUN_TIMEOUT).await
+}
+
 /// `wslc exec <name> sh -c <cmd>` → exit code (None bila gagal dijalankan/timeout).
 /// Satu percobaan saja (tanpa retry transien): dipakai probe readiness yang
 /// diulang tiap tick polling.

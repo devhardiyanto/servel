@@ -227,6 +227,20 @@ pub async fn services_stop(app: AppHandle, services: Vec<String>) -> Result<(), 
     crate::runtime::stop(&app, &defs, &services).await
 }
 
+/// Restore dump `.sql` ke `service` (mysql | postgres). Lihat `runtime::restore`.
+#[tauri::command]
+pub async fn services_restore(app: AppHandle, service: String, file: String) -> Result<(), String> {
+    let defs = load_services_internal(&app).await?;
+    crate::runtime::restore::restore(&app, &defs, &service, &file).await
+}
+
+/// Salin data `service` dari container Docker lama ke WSL containers.
+#[tauri::command]
+pub async fn services_migrate_from_docker(app: AppHandle, service: String) -> Result<(), String> {
+    let defs = load_services_internal(&app).await?;
+    crate::runtime::migrate::migrate_from_docker(&app, &defs, &service).await
+}
+
 #[tauri::command]
 pub async fn services_stop_all(app: AppHandle) -> Result<(), String> {
     let defs = load_services_internal(&app).await?;
