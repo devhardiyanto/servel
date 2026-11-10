@@ -22,6 +22,10 @@ export function usePrereq() {
     return engineReady.value && s.phpvm_installed && s.fnm_installed
   })
 
+  /** Engine container cukup untuk masuk Dashboard; phpvm/fnm opsional
+   *  (bisa digantikan mise, yang integrasinya menyusul di v1.7). */
+  const canContinue = computed<boolean>(() => engineReady.value)
+
   const engineInstalledButNotRunning = computed<boolean>(() => {
     if (!status.value) return false
     return status.value.engine_installed && !status.value.engine_running
@@ -87,6 +91,7 @@ export function usePrereq() {
     startingEngine,
     startEngineError,
     allReady,
+    canContinue,
     engineReady,
     engineInstalledButNotRunning,
     engineLabel,

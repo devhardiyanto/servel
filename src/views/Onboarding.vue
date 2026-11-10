@@ -26,6 +26,7 @@ const {
   startingEngine,
   startEngineError,
   allReady,
+  canContinue,
   engineReady,
   engineInstalledButNotRunning,
   engineLabel,
@@ -177,6 +178,15 @@ const fnmActions = computed<PrereqAction[]>(() => [
   },
 ])
 
+// Tanpa phpvm/fnm user tetap bisa lanjut: mise (atau tool lain) bisa mengelola
+// versi PHP/Node. Pesan "opsional" menjelaskan kenapa kartu merah tidak memblokir.
+const optionalHint = computed<string>(() => {
+  const m = status.value?.mise_version
+  return status.value?.mise_installed
+    ? ` Optional — mise${m ? ` v${m}` : ''} detected; Servel integration arrives in v1.7.`
+    : ' Optional.'
+})
+
 const phpvmOkDesc = computed<string>(() => {
   const v = status.value?.phpvm_version
   return v
@@ -249,7 +259,7 @@ const fnmOkDesc = computed<string>(() => {
             :installed="status?.phpvm_installed ?? false"
             icon="&#x1F418;"
             :ok-desc="phpvmOkDesc"
-            not-found-desc="PHP version manager"
+:not-found-desc="'PHP version manager.' + optionalHint"
             :actions="phpvmActions"
           />
 
@@ -258,7 +268,7 @@ const fnmOkDesc = computed<string>(() => {
             :installed="status?.fnm_installed ?? false"
             icon="&#x26A1;"
             :ok-desc="fnmOkDesc"
-            not-found-desc="Fast Node version manager, built in Rust"
+:not-found-desc="'Fast Node version manager.' + optionalHint"
             :actions="fnmActions"
             :code="fnmInstallCmd"
           />
@@ -304,7 +314,7 @@ const fnmOkDesc = computed<string>(() => {
           </button>
 
           <button
-            v-if="allReady"
+            v-if="canContinue"
             class="ob-btn ob-btn--ready"
             @click="setView('dashboard')"
           >
@@ -312,7 +322,7 @@ const fnmOkDesc = computed<string>(() => {
           </button>
 
           <button
-            v-if="!allReady"
+            v-if="!canContinue"
             class="ob-btn ob-btn--disabled"
             disabled
           >

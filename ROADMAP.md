@@ -21,6 +21,7 @@ Tujuan: di Windows, Servel menjalankan service tanpa Docker Desktop dan tanpa di
   - Dipasang ke PATH user oleh installer NSIS lewat `install-path.ps1`, yang menulis registry dengan nilai yang tidak di-expand. Saat uninstall, entri PATH dihapus lagi.
   - Spec hash identik dengan aplikasi (dikunci oleh golden test), dan state `wslc-state.json` dipakai bersama, jadi CLI dan aplikasi bisa dipakai bergantian.
   - Kompatibel dengan Windows PowerShell 5.1 (escape kutip ganda untuk mode legacy) dan pwsh 7.
+- **phpvm/fnm opsional**: Onboarding hanya mewajibkan engine container; mise dideteksi dan ditampilkan (integrasi penuh di v1.7).
 - **Prasyarat**: deteksi versi WSL, versi wslc, dan peringatan bila Servel berjalan elevated (sesi WSLC terpisah per elevation).
 - **UI**:
   - Onboarding, banner Dashboard, dan Settings → Container engine menjadi engine-neutral, termasuk tombol pindah ke WSL containers satu klik.
@@ -42,9 +43,40 @@ Hal-hal berikut tidak bisa diuji tanpa `wslc` sungguhan. Parser sudah dibuat tol
 - Tidak ada restart policy, jadi service hidup kembali saat Servel auto-start, bukan saat Windows boot.
 - Data Docker Desktop tidak dimigrasikan otomatis.
 
+## v1.7.0 — mise sebagai version manager (direncanakan)
+
+Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project lewat UI.
+
+### Temuan dari mesin pengguna (Windows, 2026-11-10)
+
+- mise mengelola **PHP dan Node** di Windows: `php` 8.3.33 / 8.3.35 / 8.5.11, `node` 20 / 22 / 24. Kekhawatiran awal bahwa PHP lewat mise tidak jalan di Windows terbantah.
+- Sumber versi bisa **berbeda per tool dalam satu project**. Contoh di `D:\dev\event`: `node` dari `D:\dev\event\mise.toml`, sedangkan `php` dari global `~\.config\mise\config.toml`.
+- Config berlaku **ke subfolder**: `D:\dev\event\mise.toml` juga berlaku di `event\source-code\event-backend`. Root project ≠ lokasi config.
+- Project yang dipakai: `D:\dev\astra` (node 22, php 8.3), `D:\dev\event` (node 24, php global 8.5), `D:\dev\tandemly\yhpa` (node 20, php global 8.5).
+
+### Desain
+
+- **Provider per tool**: PHP = mise | phpvm, Node = mise | fnm. Auto memilih mise bila terpasang, selain itu phpvm/fnm. Implementasinya meniru pola `runtime/` (satu modul dispatch).
+- **Daftar project**: folder yang ditambahkan lewat dialog. `watched_path` lama ikut dimigrasikan; sebuah site bisa dikaitkan ke project.
+- **Resolusi selalu oleh mise, bukan oleh Servel.** Servel menjalankan `mise ls --current --json` dengan cwd = folder project, lalu menampilkan versi, `requested`, dan file sumbernya. Dengan begitu config di folder induk dan campuran global/project otomatis benar.
+- **Mengganti versi**:
+  - Global: `mise use -g <tool>@<versi>`.
+  - Project: `mise use --path <file sumber saat ini> <tool>@<versi>`, supaya yang diperbarui adalah `mise.toml` yang memang berlaku (mis. `D:\dev\event\mise.toml`). Tanpa `--path`, `mise use` di subfolder akan membuat `mise.toml` baru di sana.
+  - Bila tool-nya bersumber dari global, UI menawarkan dua pilihan: "pin di project ini" (membuat `mise.toml` di root project) atau "ubah global".
+  - Perubahan pada file project selalu meminta konfirmasi dan menampilkan path file yang akan ditulis.
+- **Ketahanan terhadap masalah mise**:
+  - Hanya output `--json` yang dibaca, dan versi minimum mise dicek; output asli dijadikan fixture test.
+  - Error "not trusted" dideteksi dan ditawarkan tombol `mise trust <file>`.
+  - Tersedia aksi pemulihan `mise reshim` / `mise cache clear`, dan error mise ditampilkan apa adanya di panel log.
+  - Fallback ke phpvm/fnm lewat pilihan provider.
+
+### Data yang dibutuhkan sebelum implementasi
+
+Output asli (untuk fixture): `mise --version`, `mise ls --current --json` di sebuah subfolder project, `mise ls --installed --json php`, dan contoh error "not trusted".
+
 ## Berikutnya (kandidat)
 
-- **v1.7** — Wizard migrasi data Docker → WSLC: dump dari volume Docker lalu restore ke container WSLC, dengan pola `servel.ps1 restore`.
-- **v1.7** — Readiness check per service (mis. `mysqladmin ping`, `pg_isready`) sebelum status dianggap "up".
+- **v1.8** — Wizard migrasi data Docker → WSLC: dump dari volume Docker lalu restore ke container WSLC, dengan pola `servel.ps1 restore`.
+- **v1.8** — Readiness check per service (mis. `mysqladmin ping`, `pg_isready`) sebelum status dianggap "up".
 - **v2.0** — WSLC menjadi default di Windows setelah `wslc compose` resmi tersedia ([microsoft/WSL#40948](https://github.com/microsoft/WSL/issues/40948)) atau endpoint Docker API ([microsoft/WSL#40976](https://github.com/microsoft/WSL/issues/40976)).
 - Code signing Windows dan notarization macOS (tertunda sejak v1.0).

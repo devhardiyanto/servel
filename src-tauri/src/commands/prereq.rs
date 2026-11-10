@@ -30,6 +30,10 @@ pub struct PrereqStatus {
     pub fnm_installed: bool,
     pub phpvm_version: Option<String>,
     pub fnm_version: Option<String>,
+    /// `mise` terpasang. v1.6: hanya dideteksi (phpvm/fnm jadi opsional);
+    /// integrasi penuh direncanakan v1.7.
+    pub mise_installed: bool,
+    pub mise_version: Option<String>,
 }
 
 /// Spawn a command and return true if it exits successfully.
@@ -198,6 +202,7 @@ pub async fn check_prerequisites() -> PrereqStatus {
         fnm_installed,
         phpvm_version,
         fnm_version,
+        mise_version,
     ) = tokio::join!(
         engine_probe,
         runtime::wslc::is_installed(),
@@ -208,6 +213,7 @@ pub async fn check_prerequisites() -> PrereqStatus {
         check_tool("fnm", &["--version"]),
         probe_version("phpvm", &["version"]),
         probe_version("fnm", &["--version"]),
+        probe_version("mise", &["--version"]),
     );
 
     PrereqStatus {
@@ -223,6 +229,8 @@ pub async fn check_prerequisites() -> PrereqStatus {
         fnm_installed,
         phpvm_version,
         fnm_version,
+        mise_installed: mise_version.is_some(),
+        mise_version,
     }
 }
 
