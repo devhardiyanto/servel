@@ -119,16 +119,15 @@ pub fn run() {
                 eprintln!("[tray] init gagal, skip tray: {}", e);
             }
 
+            runtime::init(app.handle());
+
             let app_handle = app.handle().clone();
             let status_daemon_ready = daemon_ready.clone();
             let status_shutting_down = shutting_down.clone();
             tauri::async_runtime::spawn(async move {
                 // Resolve engine (Docker / WSLC) dari config SEBELUM polling pertama,
                 // supaya tick awal tidak memanggil engine yang salah.
-                let pref = commands::config::load_config(&app_handle)
-                    .map(|c| c.container_runtime)
-                    .unwrap_or_else(|_| "auto".to_string());
-                let engine = runtime::apply_preference(&pref).await;
+                let engine = runtime::ensure_resolved().await;
                 emit_log_line(
                     &app_handle,
                     "SERVEL",

@@ -169,7 +169,7 @@ async fn is_elevated() -> bool {
 pub async fn check_prerequisites() -> PrereqStatus {
     use crate::runtime::{self, RuntimeKind};
 
-    let engine = runtime::active();
+    let engine = runtime::ensure_resolved().await;
 
     let engine_probe = async {
         match engine {
@@ -230,7 +230,7 @@ pub async fn check_prerequisites() -> PrereqStatus {
 /// daemon — cukup panggil `container list` yang memulai sesi WSLC.
 #[tauri::command]
 pub async fn start_engine() -> Result<(), String> {
-    if crate::runtime::active() == crate::runtime::RuntimeKind::Wslc {
+    if crate::runtime::ensure_resolved().await == crate::runtime::RuntimeKind::Wslc {
         return if crate::runtime::wslc::is_running().await {
             Ok(())
         } else {

@@ -16,7 +16,8 @@ pub mod docker;
 pub mod wslc;
 
 use serde::{Deserialize, Serialize};
-use std::sync::RwLock;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{OnceLock, RwLock};
 use tauri::AppHandle;
 
 use crate::commands::services::{ServiceDef, ServiceStatus};
@@ -98,8 +99,41 @@ pub fn resolve(
 }
 
 static ACTIVE: RwLock<RuntimeKind> = RwLock::new(RuntimeKind::Docker);
+/// True setelah preferensi pertama kali di-resolve. Sebelum itu `ACTIVE` masih
+/// nilai bawaan (Docker) — jangan dipakai mentah, lihat [`ensure_resolved`].
+static RESOLVED: AtomicBool = AtomicBool::new(false);
+static RESOLVE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+static APP: OnceLock<AppHandle> = OnceLock::new();
 
-/// Engine yang sedang aktif.
+/// Simpan AppHandle (untuk membaca config saat resolusi lazy). Panggil di setup.
+pub fn init(app: &AppHandle) {
+    let _ = APP.set(app.clone());
+}
+
+/// Pastikan engine sudah di-resolve dari config sebelum dipakai.
+///
+/// Tanpa ini ada race saat boot: frontend (Onboarding → `check_prerequisites`)
+/// bisa berjalan sebelum task setup selesai me-resolve, sehingga membaca nilai
+/// bawaan Docker dan menampilkan "Docker NOT FOUND" padahal Auto seharusnya
+/// memilih WSL containers.
+pub async fn ensure_resolved() -> RuntimeKind {
+    if RESOLVED.load(Ordering::Acquire) {
+        return active();
+    }
+    let _guard = RESOLVE_LOCK.lock().await;
+    if RESOLVED.load(Ordering::Acquire) {
+        return active();
+    }
+    let pref = APP
+        .get()
+        .and_then(|app| crate::commands::config::load_config(app).ok())
+        .map(|c| c.container_runtime)
+        .unwrap_or_else(|| "auto".to_string());
+    apply_preference(&pref).await
+}
+
+/// Engine yang sedang aktif (nilai terakhir). Caller async sebaiknya memakai
+/// [`ensure_resolved`] supaya tidak membaca nilai bawaan sebelum boot selesai.
 pub fn active() -> RuntimeKind {
     ACTIVE.read().map(|g| *g).unwrap_or(RuntimeKind::Docker)
 }
@@ -132,6 +166,7 @@ pub async fn apply_preference(pref_raw: &str) -> RuntimeKind {
     };
 
     set_active(kind);
+    RESOLVED.store(true, Ordering::Release);
     kind
 }
 
@@ -140,14 +175,14 @@ pub async fn apply_preference(pref_raw: &str) -> RuntimeKind {
 // ---------------------------------------------------------------------------
 
 pub async fn status() -> Result<Vec<ServiceStatus>, String> {
-    match active() {
+    match ensure_resolved().await {
         RuntimeKind::Docker => docker::status().await,
         RuntimeKind::Wslc => wslc::status().await,
     }
 }
 
 pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
-    match active() {
+    match ensure_resolved().await {
         RuntimeKind::Docker => docker::stats().await,
         RuntimeKind::Wslc => wslc::stats().await,
     }
@@ -155,21 +190,21 @@ pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
 
 /// Start `services` (id). Service lain yang sedang running tetap dibiarkan.
 pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) -> Result<(), String> {
-    match active() {
+    match ensure_resolved().await {
         RuntimeKind::Docker => docker::start(app, defs, services).await,
         RuntimeKind::Wslc => wslc::start(app, defs, services).await,
     }
 }
 
 pub async fn stop(app: &AppHandle, defs: &[ServiceDef], services: &[String]) -> Result<(), String> {
-    match active() {
+    match ensure_resolved().await {
         RuntimeKind::Docker => docker::stop(app, services).await,
         RuntimeKind::Wslc => wslc::stop(app, defs, services).await,
     }
 }
 
 pub async fn stop_all(app: &AppHandle, defs: &[ServiceDef]) -> Result<(), String> {
-    match active() {
+    match ensure_resolved().await {
         RuntimeKind::Docker => docker::stop_all(app).await,
         RuntimeKind::Wslc => wslc::stop_all(app, defs).await,
     }

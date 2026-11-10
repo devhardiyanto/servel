@@ -337,7 +337,10 @@ const fnmOkDesc = computed<string>(() => {
 .ob-viewport {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  /* Tinggi tetap, bukan min-height: body overflow hidden, jadi scroll harus
+     terjadi di .ob-main. Dengan min-height viewport ikut tumbuh dan konten
+     terpotong saat jendela tidak di-maximize. */
+  height: 100vh;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
@@ -345,6 +348,7 @@ const fnmOkDesc = computed<string>(() => {
 
 .ob-main {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   align-items: flex-start;
