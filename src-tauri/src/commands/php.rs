@@ -49,6 +49,13 @@ fn validate_version_string(version: &str) -> Result<(), String> {
 /// Lines that are blank or do not contain a recognisable version are skipped.
 #[tauri::command]
 pub async fn php_list_installed() -> Result<Vec<PhpVersion>, String> {
+    if crate::mise::provider_is_mise().await {
+        return Ok(crate::mise::list_installed("php")
+            .await?
+            .into_iter()
+            .map(|v| PhpVersion { version: v.version, active: v.active })
+            .collect());
+    }
     let output = build_phpvm_command("list")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -71,6 +78,9 @@ pub async fn php_list_installed() -> Result<Vec<PhpVersion>, String> {
 /// returns exactly the active version string (or empty/error if none active).
 #[tauri::command]
 pub async fn php_get_active() -> Result<Option<String>, String> {
+    if crate::mise::provider_is_mise().await {
+        return crate::mise::get_active("php").await;
+    }
     let output = build_phpvm_command("current")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -90,7 +100,14 @@ pub async fn php_get_active() -> Result<Option<String>, String> {
 /// Run `phpvm use <version>` and stream all stdout/stderr to the frontend
 /// via the `cmd-output` event.
 #[tauri::command]
-pub async fn php_switch(window: Window, version: String) -> Result<(), String> {
+/// `scope` (mise saja): `None` = otomatis, `"project"` = pin di project aktif,
+/// `"global"` = ubah config global. Diabaikan oleh phpvm.
+pub async fn php_switch(window: Window, version: String, scope: Option<String>) -> Result<(), String> {
+    if crate::mise::provider_is_mise().await {
+        crate::mise::validate_version(&version)?;
+        return crate::mise::use_version(window.app_handle(), "php", &version, scope.as_deref()).await;
+    }
+    // Wajib sebelum format! — phpvm dijalankan lewat PowerShell (shell string).
     validate_version_string(&version)?;
 
     let mut child = build_phpvm_command(&format!("use {}", version))
@@ -146,6 +163,10 @@ pub async fn php_switch(window: Window, version: String) -> Result<(), String> {
 /// Frontend should display indeterminate progress for the duration of this command.
 #[tauri::command]
 pub async fn php_install(window: Window, version: String) -> Result<(), String> {
+    if crate::mise::provider_is_mise().await {
+        crate::mise::validate_version(&version)?;
+        return crate::mise::install(window.app_handle(), "php", &version).await;
+    }
     validate_version_string(&version)?;
 
     let mut child = build_phpvm_command(&format!("install {}", version))
@@ -192,6 +213,10 @@ pub async fn php_install(window: Window, version: String) -> Result<(), String> 
 /// or output not recognisable). Never errors — the UI uses this purely as a hint.
 #[tauri::command]
 pub async fn php_hook_status() -> Result<String, String> {
+    // Hook shell phpvm tidak relevan bila versi dikelola mise.
+    if crate::mise::provider_is_mise().await {
+        return Ok("installed".to_string());
+    }
     let output = build_phpvm_command("hook status")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

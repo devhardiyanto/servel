@@ -16,6 +16,16 @@ pub struct Profile {
     pub service_ids: Vec<String>,
 }
 
+/// Folder project yang dikelola Servel (v1.7). Versi PHP/Node di project
+/// di-resolve oleh mise dengan cwd = `path`. `id` di-generate frontend.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Project {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+}
+
 /// Tujuan routing sebuah site di balik reverse proxy.
 ///
 /// Bentuknya sengaja tagged (`{ "kind": "port", "value": 5173 }`) supaya bisa
@@ -77,6 +87,15 @@ pub struct ConfigState {
     /// Config lama tanpa field ini → `auto` (migrasi v4→v5).
     #[serde(default = "default_runtime")]
     pub container_runtime: String,
+    /// Version manager PHP/Node: `auto` | `mise` | `legacy` (phpvm/fnm).
+    /// `auto` memakai mise bila terpasang (v1.7, config v6).
+    #[serde(default = "default_runtime")]
+    pub version_provider: String,
+    #[serde(default)]
+    pub projects: Vec<Project>,
+    /// Konteks versi di Dashboard. `None` = Global.
+    #[serde(default)]
+    pub active_project_id: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -100,6 +119,8 @@ fn default_runtime() -> String {
 /// - v4 → v5: perkenalkan `container_runtime` (WSL containers, v1.6). Serde
 ///   default `auto` → install lama di Windows yang masih punya Docker tetap di
 ///   Docker; pindah ke WSLC dilakukan user lewat Settings.
+/// - v5 → v6: perkenalkan `projects`, `active_project_id`, `version_provider`
+///   (mise, v1.7). `watched_path` lama (bila ada) dijadikan project pertama.
 ///
 /// Idempotent: config yang sudah v4 & punya profil valid dibiarkan apa adanya.
 fn migrate(mut cfg: ConfigState) -> ConfigState {
@@ -126,9 +147,36 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
         cfg.active_profile_id = cfg.profiles.first().map(|p| p.id.clone());
     }
 
+    // v5 → v6: folder yang dulu di-watch menjadi project pertama.
+    if cfg.version < 6 && cfg.projects.is_empty() {
+        if let Some(path) = cfg.watched_path.clone().filter(|p| !p.trim().is_empty()) {
+            cfg.projects.push(Project {
+                id: "watched".to_string(),
+                name: project_name_from_path(&path),
+                path,
+            });
+        }
+    }
+    // Invariant: active_project_id menunjuk project yang ada (atau None).
+    if let Some(id) = cfg.active_project_id.clone() {
+        if !cfg.projects.iter().any(|p| p.id == id) {
+            cfg.active_project_id = None;
+        }
+    }
+
     cfg.version = CURRENT_VERSION;
     project_active_selection(&mut cfg);
     cfg
+}
+
+/// Nama tampilan project = nama folder terakhir.
+fn project_name_from_path(path: &str) -> String {
+    path.trim_end_matches(['/', '\\'])
+        .rsplit(['/', '\\'])
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(path)
+        .to_string()
 }
 
 /// Sinkronkan `selected_service_ids` = `service_ids` profil aktif. Menjamin tray
@@ -145,7 +193,7 @@ fn project_active_selection(cfg: &mut ConfigState) {
 const DEFAULT_PROFILE_ID: &str = "default";
 
 /// Skema config terkini. Naikkan saat ada perubahan struktur yang butuh migrasi.
-const CURRENT_VERSION: u32 = 5;
+const CURRENT_VERSION: u32 = 6;
 
 impl Default for ConfigState {
     fn default() -> Self {
@@ -166,6 +214,9 @@ impl Default for ConfigState {
             remember_session: true,
             minimize_to_tray: true,
             container_runtime: default_runtime(),
+            version_provider: default_runtime(),
+            projects: Vec::new(),
+            active_project_id: None,
         }
     }
 }
@@ -357,6 +408,9 @@ mod tests {
             remember_session: false,
             minimize_to_tray: true,
             container_runtime: "auto".to_string(),
+            version_provider: "auto".to_string(),
+            projects: Vec::new(),
+            active_project_id: None,
         };
 
         let json = serde_json::to_string(&original).expect("serialize gagal");
@@ -441,6 +495,9 @@ mod tests {
             remember_session: true,
             minimize_to_tray: false,
             container_runtime: "wslc".to_string(),
+            version_provider: "mise".to_string(),
+            projects: vec![Project { id: "p1".into(), name: "astra".into(), path: r"D:\dev\astra".into() }],
+            active_project_id: Some("p1".into()),
         };
         let json = serde_json::to_string_pretty(&cfg).expect("serialize");
 
@@ -554,10 +611,42 @@ mod tests {
             "autoStart": true
         }"#;
         let cfg = migrate(serde_json::from_str::<ConfigState>(json).expect("parse gagal"));
-        assert_eq!(cfg.version, 5);
+        assert_eq!(cfg.version, CURRENT_VERSION);
         assert_eq!(cfg.container_runtime, "auto");
         assert!(cfg.auto_start);
         assert_eq!(cfg.selected_service_ids, vec!["mysql".to_string()]);
+    }
+
+    #[test]
+    fn test_migrate_v5_to_v6_watched_path_becomes_project() {
+        let json = r#"{
+            "version": 5,
+            "profiles": [{ "id": "default", "name": "Default", "serviceIds": [] }],
+            "activeProfileId": "default",
+            "watchedPath": "D:\\dev\\astra\\",
+            "containerRuntime": "wslc"
+        }"#;
+        let cfg = migrate(serde_json::from_str::<ConfigState>(json).expect("parse gagal"));
+        assert_eq!(cfg.version, 6);
+        assert_eq!(cfg.version_provider, "auto");
+        assert_eq!(cfg.projects.len(), 1);
+        assert_eq!(cfg.projects[0].name, "astra");
+        assert_eq!(cfg.projects[0].path, r"D:\dev\astra\");
+        assert!(cfg.active_project_id.is_none());
+        assert_eq!(cfg.container_runtime, "wslc");
+    }
+
+    #[test]
+    fn test_migrate_drops_dangling_active_project() {
+        let json = r#"{ "version": 6, "projects": [], "activeProjectId": "gone" }"#;
+        let cfg = migrate(serde_json::from_str::<ConfigState>(json).unwrap());
+        assert!(cfg.active_project_id.is_none());
+    }
+
+    #[test]
+    fn test_project_name_from_path() {
+        assert_eq!(project_name_from_path(r"D:\dev\tandemly\yhpa"), "yhpa");
+        assert_eq!(project_name_from_path("/home/u/event/"), "event");
     }
 
     #[test]

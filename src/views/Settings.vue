@@ -2,7 +2,8 @@
 import { ref, computed, inject, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
-import { ask } from '@tauri-apps/plugin-dialog'
+import { ask, open as openDialog } from '@tauri-apps/plugin-dialog'
+import { useVersionContext } from '@/composables/useVersionContext'
 import { SetViewKey } from '@/types/navigation'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
@@ -33,6 +34,9 @@ const {
   setRememberSession,
   setMinimizeToTray,
   setContainerRuntime,
+  addProject,
+  removeProject,
+  setVersionProvider,
   createProfile,
   renameProfile,
   deleteProfile,
@@ -339,6 +343,50 @@ const ENGINE_OPTIONS: { value: EnginePreference; label: string }[] = [
 
 const { refresh: refreshEngineBanner } = useEngineStatus()
 
+// --- Version manager (mise) & projects -------------------------------------
+const versionCtx = useVersionContext()
+const { ctx: miseCtx, busy: miseBusy, lastError: miseError } = versionCtx
+const PROVIDER_OPTIONS: { value: 'auto' | 'mise' | 'legacy'; label: string }[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'mise', label: 'mise' },
+  { value: 'legacy', label: 'phpvm + fnm' },
+]
+
+async function chooseProvider(value: 'auto' | 'mise' | 'legacy'): Promise<void> {
+  if (config.value.versionProvider === value) return
+  await setVersionProvider(value)
+  await versionCtx.refresh()
+}
+
+async function pickProject(): Promise<void> {
+  let selected: string | string[] | null = null
+  try {
+    selected = await openDialog({ directory: true, multiple: false, title: 'Add project folder' })
+  } catch (err) {
+    miseError.value = String(err)
+    return
+  }
+  if (typeof selected === 'string') {
+    await addProject(selected)
+    await versionCtx.refresh()
+  }
+}
+
+async function handleRemoveProject(id: string, name: string): Promise<void> {
+  let ok = false
+  try {
+    ok = await ask(`Remove project "${name}" from Servel? Files and mise.toml are not touched.`, {
+      title: 'Remove project',
+      kind: 'warning',
+    })
+  } catch {
+    ok = window.confirm(`Remove project "${name}"?`)
+  }
+  if (!ok) return
+  await removeProject(id)
+  await versionCtx.refresh()
+}
+
 async function fetchComposePath(): Promise<void> {
   try {
     composePath.value = await invoke<string>('get_compose_path')
@@ -395,6 +443,7 @@ onMounted(async () => {
   }
   await fetchComposePath()
   await checkEngine()
+  void versionCtx.refresh()
   await refreshSitesStatus()
   await refreshProxy()
   try {
@@ -873,8 +922,69 @@ onMounted(async () => {
 
         <template v-else-if="activeNav === 'php_node'">
           <div class="section-block">
-            <div class="section-title">PHP &amp; NODE</div>
-            <p class="placeholder-text">PHP &amp; Node configuration — coming soon.</p>
+            <div class="section-title">VERSION MANAGER</div>
+
+            <SettingRow
+              label="Manage PHP & Node with"
+              desc="Auto uses mise when it is installed, otherwise phpvm and fnm"
+            >
+              <div class="segmented" role="radiogroup" aria-label="Version manager">
+                <button
+                  v-for="opt in PROVIDER_OPTIONS"
+                  :key="opt.value"
+                  class="segmented__item"
+                  :class="{ 'segmented__item--on': config.versionProvider === opt.value }"
+                  role="radio"
+                  :aria-checked="config.versionProvider === opt.value"
+                  @click="chooseProvider(opt.value)"
+                >{{ opt.label }}</button>
+              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="mise"
+              :desc="miseCtx?.provider === 'mise' ? 'Active — versions resolve per project folder' : 'Not in use'"
+            >
+              <span class="setting-value-mono">{{ miseCtx?.miseVersion ? `v${miseCtx.miseVersion}` : 'not installed' }}</span>
+            </SettingRow>
+
+            <SettingRow
+              v-if="miseCtx?.miseVersion"
+              label="Repair"
+              desc="Reshim fixes missing commands; Clear cache refreshes version lists; Doctor writes a report to the log"
+            >
+              <button class="action-btn" :disabled="miseBusy" @click="versionCtx.repair('reshim')">Reshim</button>
+              <button class="action-btn" :disabled="miseBusy" @click="versionCtx.repair('cache-clear')">Clear cache</button>
+              <button class="action-btn" :disabled="miseBusy" @click="versionCtx.repair('doctor')">Doctor</button>
+            </SettingRow>
+
+            <p v-if="miseError" class="section-hint section-hint--note">{{ miseError }}</p>
+          </div>
+
+          <div class="section-block">
+            <div class="section-title">PROJECTS</div>
+            <p class="section-hint">
+              Folders whose PHP/Node versions you want to see and switch from the Dashboard.
+              mise resolves each folder on its own, including a mise.toml in a parent folder.
+            </p>
+
+            <div class="profile-list">
+              <div v-for="p in config.projects" :key="p.id" class="profile-item">
+                <div class="profile-info">
+                  <span class="profile-name">{{ p.name }}</span>
+                  <span v-if="p.id === config.activeProjectId" class="profile-badge">active</span>
+                  <span class="site-domain project-path" :title="p.path">{{ p.path }}</span>
+                </div>
+                <div class="profile-actions">
+                  <button class="action-btn action-btn--red" @click="handleRemoveProject(p.id, p.name)">Remove</button>
+                </div>
+              </div>
+              <p v-if="config.projects.length === 0" class="section-hint">No projects yet.</p>
+            </div>
+
+            <div class="profile-create">
+              <button class="action-btn" @click="pickProject">+ Add project folder</button>
+            </div>
           </div>
         </template>
 
@@ -1621,5 +1731,13 @@ onMounted(async () => {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+.project-path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dim);
 }
 </style>

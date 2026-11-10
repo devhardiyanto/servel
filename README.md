@@ -10,6 +10,7 @@ Servel is a desktop app (Tauri 2 + Vue 3) that orchestrates your local developme
 
 ## Features
 
+- **mise integration (new in v1.7)** — when [mise](https://mise.jdx.dev) is installed, Servel shows and switches PHP/Node versions per project folder. It writes to the `mise.toml` that actually applies, and asks before pinning a version that currently comes from your global config.
 - **PHP version switching** via [phpvm](https://github.com/devhardiyanto/phpvm) — list installed versions, switch active, install new.
 - **Node version switching** via [fnm](https://github.com/Schniz/fnm) — same workflow as PHP.
 - **WSL containers on Windows (new in v1.6)** — run every service on the container engine built into WSL (`wslc`). No Docker Desktop, no extra Linux distro. Docker stays available as an alternative.

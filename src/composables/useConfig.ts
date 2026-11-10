@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { EnginePreference } from '@/types/prereq'
+import type { Project } from '@/types/mise'
 
 export interface Profile {
   id: string
@@ -37,10 +38,15 @@ export interface ConfigState {
   minimizeToTray: boolean
   // Engine container: 'auto' | 'docker' | 'wslc' (v1.6, config v5).
   containerRuntime: EnginePreference
+  // Version manager PHP/Node: 'auto' (mise bila terpasang) | 'mise' | 'legacy' (phpvm/fnm). v1.7, config v6.
+  versionProvider: 'auto' | 'mise' | 'legacy'
+  projects: Project[]
+  // Konteks versi Dashboard; null = Global.
+  activeProjectId: string | null
 }
 
 const DEFAULT_CONFIG: ConfigState = {
-  version: 5,
+  version: 6,
   selectedServiceIds: [],
   profiles: [{ id: 'default', name: 'Default', serviceIds: [] }],
   activeProfileId: 'default',
@@ -52,6 +58,9 @@ const DEFAULT_CONFIG: ConfigState = {
   rememberSession: true,
   minimizeToTray: true,
   containerRuntime: 'auto',
+  versionProvider: 'auto',
+  projects: [],
+  activeProjectId: null,
 }
 
 // Singleton state
@@ -114,6 +123,44 @@ export function useConfig() {
   function setMinimizeToTray(value: boolean): void {
     config.value.minimizeToTray = value
     scheduleSave()
+  }
+
+  async function writeNow(): Promise<void> {
+    if (saveTimer !== null) {
+      clearTimeout(saveTimer)
+      saveTimer = null
+    }
+    await invoke<void>('config_write', { config: config.value })
+  }
+
+  // Project & konteks versi ditulis segera: backend mise membaca config dari
+  // disk untuk menentukan cwd, jadi debounce akan membuat konteks tertinggal.
+  async function addProject(path: string): Promise<Project | null> {
+    const clean = path.replace(/[\\/]+$/, '')
+    if (!clean) return null
+    const exists = config.value.projects.find((p) => p.path.toLowerCase() === clean.toLowerCase())
+    if (exists) return exists
+    const name = clean.split(/[\\/]/).pop() || clean
+    const project: Project = { id: crypto.randomUUID(), name, path: clean }
+    config.value.projects = [...config.value.projects, project]
+    await writeNow()
+    return project
+  }
+
+  async function removeProject(id: string): Promise<void> {
+    config.value.projects = config.value.projects.filter((p) => p.id !== id)
+    if (config.value.activeProjectId === id) config.value.activeProjectId = null
+    await writeNow()
+  }
+
+  async function setActiveProject(id: string | null): Promise<void> {
+    config.value.activeProjectId = id
+    await writeNow()
+  }
+
+  async function setVersionProvider(value: ConfigState['versionProvider']): Promise<void> {
+    config.value.versionProvider = value
+    await writeNow()
   }
 
   // Tulis segera (bukan debounce): backend me-resolve ulang engine saat
@@ -218,6 +265,10 @@ export function useConfig() {
     setRememberSession,
     setMinimizeToTray,
     setContainerRuntime,
+    addProject,
+    removeProject,
+    setActiveProject,
+    setVersionProvider,
     updateSelectedServices,
     applySelection,
     createProfile,

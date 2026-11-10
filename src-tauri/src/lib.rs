@@ -1,4 +1,5 @@
 mod commands;
+mod mise;
 mod proxy;
 mod runtime;
 mod tray;
@@ -99,6 +100,9 @@ pub fn run() {
             proxy::lifecycle::proxy_stop,
             proxy::lifecycle::proxy_reload,
             proxy::lifecycle::proxy_install_cert,
+            mise::mise_context,
+            mise::mise_trust,
+            mise::mise_repair,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -120,6 +124,7 @@ pub fn run() {
             }
 
             runtime::init(app.handle());
+            mise::init(app.handle());
 
             let app_handle = app.handle().clone();
             let status_daemon_ready = daemon_ready.clone();
