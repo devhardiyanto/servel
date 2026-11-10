@@ -46,30 +46,30 @@ interface BadgeStyle {
 
 // Source palette per discussion/servel-logs.jsx SOURCES map.
 const SOURCE_COLORS: Record<string, string> = {
-  SERVEL: '#22d3ee',
-  ENV: '#22d3ee',
-  DOCKER: '#60a5fa',
-  MYSQL: '#fb923c',
-  POSTGRES: '#60a5fa',
-  PGSQL: '#60a5fa',
-  REDIS: '#f87171',
-  MAILPIT: '#c084fc',
-  PHPVM: '#818cf8',
-  PHP: '#818cf8',
-  FNM: '#4ade80',
-  NODE: '#4ade80',
-  RABBITMQ: '#fb923c',
-  MONGODB: '#10b981',
-  MINIO: '#f59e0b',
-  GOTENBERG: '#a78bfa',
-  SQLSERVER: '#ef4444',
-  UP: '#4ade80',
-  DOWN: '#fbbf24',
+  SERVEL: '#7cc7e8',
+  ENV: '#7cc7e8',
+  DOCKER: '#8fb4f0',
+  MYSQL: '#f2a97a',
+  POSTGRES: '#8fb4f0',
+  PGSQL: '#8fb4f0',
+  REDIS: '#f19a9a',
+  MAILPIT: '#c9a3f5',
+  PHPVM: '#a3a8f0',
+  PHP: '#a3a8f0',
+  FNM: '#7fd6a4',
+  NODE: '#7fd6a4',
+  RABBITMQ: '#f2a97a',
+  MONGODB: '#6cc9a1',
+  MINIO: '#e8b45e',
+  GOTENBERG: '#b9a4f2',
+  SQLSERVER: '#e98585',
+  UP: '#7fd6a4',
+  DOWN: '#f0c674',
 }
 
 function badgeStyle(src?: string, level?: 'warn' | 'error'): BadgeStyle {
-  const errColor = '#f87171'
-  const warnColor = '#fbbf24'
+  const errColor = '#f19a9a'
+  const warnColor = '#f0c674'
   if (level === 'error') {
     return { color: errColor, border: errColor + '33', background: errColor + '0d' }
   }
@@ -115,9 +115,9 @@ function badgeStyle(src?: string, level?: 'warn' | 'error'): BadgeStyle {
 
 <style scoped>
 .log-tail-body {
-  background: #09090b;
+  background: var(--bg-sunken);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow-y: auto;
   padding: var(--space-2) var(--space-3);
   height: 100%;
@@ -162,7 +162,7 @@ function badgeStyle(src?: string, level?: 'warn' | 'error'): BadgeStyle {
   align-items: center;
   padding: 1px 6px;
   border: 1px solid;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.02em;

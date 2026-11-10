@@ -1,0 +1,4 @@
+# Shim CLI: .cmd wajib CRLF, shim sh wajib LF.
+assets/cli/bin/servel.cmd text eol=crlf
+assets/cli/bin/servel text eol=lf
+assets/cli/*.ps1 text eol=crlf

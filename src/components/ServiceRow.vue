@@ -96,11 +96,11 @@ function imageTag(def: ServiceDef): string {
   grid-template-columns: 36px 24px 1fr 100px 68px 80px;
   align-items: center;
   gap: var(--space-3);
-  padding: 5px var(--space-4);
-  font-family: var(--font-mono);
-  font-size: 12px;
+  padding: 7px var(--space-4);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background 0.18s var(--ease);
 }
 
 .svc-row:hover {
@@ -108,7 +108,7 @@ function imageTag(def: ServiceDef): string {
 }
 
 .svc-row--enabled {
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
 .svc-icon {
@@ -133,16 +133,19 @@ function imageTag(def: ServiceDef): string {
 }
 
 .svc-version {
+  font-family: var(--font-mono);
   color: var(--dim);
   font-size: 10px;
 }
 
 .svc-port {
+  font-family: var(--font-mono);
   color: var(--muted);
   font-size: 11px;
 }
 
 .svc-ram {
+  font-family: var(--font-mono);
   color: var(--amber);
   text-align: right;
   font-size: 11px;
@@ -151,7 +154,7 @@ function imageTag(def: ServiceDef): string {
 .svc-toggle {
   width: 28px;
   height: 15px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--surface2);
   border: 1px solid var(--border);
   position: relative;
@@ -190,8 +193,8 @@ function imageTag(def: ServiceDef): string {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 10px;
-  letter-spacing: 0.04em;
+  font-size: 11px;
+  letter-spacing: 0.01em;
 }
 
 .sdot {

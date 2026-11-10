@@ -12,6 +12,7 @@ Servel is a desktop app (Tauri 2 + Vue 3) that orchestrates your local developme
 
 - **PHP version switching** via [phpvm](https://github.com/devhardiyanto/phpvm) — list installed versions, switch active, install new.
 - **Node version switching** via [fnm](https://github.com/Schniz/fnm) — same workflow as PHP.
+- **WSL containers on Windows (new in v1.6)** — run every service on the container engine built into WSL (`wslc`). No Docker Desktop, no extra Linux distro. Docker stays available as an alternative.
 - **Docker services orchestration** — MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg, SQL Server. Toggle what you need, click Start.
 - **Auto-detect `.phpvmrc` / `.nvmrc`** — point Servel at a project folder, it picks the right versions.
 - **Persistent state + system tray** — Servel remembers your last selection; runs from the tray so it does not crowd your taskbar.
@@ -68,7 +69,50 @@ wsl --shutdown
 
 Servel orchestrates external tools — it does not install them for you. Make sure these are available on your PATH before first run.
 
-### Docker
+### Container engine
+
+#### Windows — WSL containers (recommended)
+
+Since v1.6 Servel can run services on **WSL containers** (`wslc.exe`), the container engine that ships with WSL 3.0.1 and newer. You do not need Docker Desktop or a dedicated Linux distro.
+
+```powershell
+wsl --update
+wsl --version   # WSL version must be 3.0.1 or newer
+```
+
+Servel picks the engine automatically (**Settings → Container engine → Auto**): WSL containers when `wslc` is available and Docker is not installed, otherwise Docker. You can force either one in Settings.
+
+Notes:
+
+- WSL containers keep their **own images and volumes**, separate from Docker Desktop. Data in Docker volumes does not move over automatically; restore your database dumps after switching.
+- Run Servel **without** "Run as administrator". WSL containers keep one session per elevation, so containers created from an elevated window are invisible to a normal one, and the reverse.
+- Ports are published on `127.0.0.1` only.
+- Containers named `servel_<service>` that already exist (for example, created by a script) are **adopted as-is**: Servel starts and stops them but does not recreate them.
+
+#### `servel` terminal command (Windows)
+
+The Windows installer adds a `servel` command to your user PATH (`%LOCALAPPDATA%\Servel\cli\bin`). It works in PowerShell, cmd, and Git Bash / zsh, and manages the same services as the app through WSL containers:
+
+```bash
+servel preflight                 # check wslc, WSL version, elevation, ports
+servel up                        # start the services selected in the app (or all)
+servel up mysql postgres         # only some
+servel down                      # stop every servel_* container
+servel status
+servel logs mysql -f
+servel shell postgres            # shell inside the container
+servel restore mysql D:\backup\dump.sql   # or a folder of .sql files
+```
+
+The app and the CLI share state, so you can use them interchangeably. Open a **new** terminal after installing so it picks up the new PATH. If you previously aliased `servel` in your shell profile, remove that alias; otherwise it shadows the bundled command.
+
+MSYS2 shells started with `MSYS2_PATH_TYPE=minimal` do not inherit the Windows PATH. Add this line to `~/.bashrc` / `~/.zshrc` instead:
+
+```bash
+export PATH="$PATH:$(cygpath "$LOCALAPPDATA")/Servel/cli/bin"
+```
+
+#### Docker
 
 - **Windows / macOS:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) — make sure it is running before starting any service from Servel.
 - **Linux:** [Docker Engine](https://docs.docker.com/engine/install/) + the Compose v2 plugin. Add your user to the `docker` group so you do not need `sudo`.
@@ -138,6 +182,17 @@ lsof -i :3306
 ```
 
 Stop the offending process, or change the service port mapping in Servel Settings.
+
+### "WSL containers is not responding" (Windows)
+
+1. Make sure WSL is up to date: `wsl --update`, then `wsl --version` (3.0.1 or newer).
+2. Restart the WSL service: `wsl --shutdown`, then click **Retry** in Servel.
+3. `ERROR_SHARING_VIOLATION` on every command means the WSL container session is locked. `wsl --shutdown` clears it; if it persists, run `Restart-Service WslService -Force` from an elevated PowerShell.
+4. `Too many volumes have been mounted` means the per-session mount limit was hit. `wsl --shutdown` resets it.
+
+### Databases are empty after switching to WSL containers
+
+Expected: WSL containers and Docker Desktop have separate storage. Restore your dumps into the new containers (for example with `mysql < dump.sql` via `wslc exec -i servel_mysql ...`), or switch back to Docker in **Settings → Container engine**.
 
 ### "Docker not running" / containers fail to start
 

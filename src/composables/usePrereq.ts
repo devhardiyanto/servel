@@ -1,27 +1,42 @@
 import { ref, computed, onMounted } from 'vue'
-// start_docker di-invoke langsung (bukan via call()) agar string error dari Rust bisa di-catch
+// start_engine di-invoke langsung (bukan via call()) agar string error dari Rust bisa di-catch
 import { invoke } from '@tauri-apps/api/core'
 import { useTauri } from './useTauri'
-import type { PrereqStatus } from '@/types/prereq'
+import { ENGINE_LABEL, type PrereqStatus } from '@/types/prereq'
 
 export function usePrereq() {
   const { call } = useTauri()
 
   const status = ref<PrereqStatus | null>(null)
   const checking = ref(false)
-  const startingDocker = ref(false)
-  const startDockerError = ref<string | null>(null)
+  const startingEngine = ref(false)
+  const startEngineError = ref<string | null>(null)
+
+  const engineReady = computed<boolean>(
+    () => !!status.value && status.value.engine_installed && status.value.engine_running,
+  )
 
   const allReady = computed<boolean>(() => {
     if (!status.value) return false
     const s = status.value
-    return s.docker_installed && s.docker_running && s.phpvm_installed && s.fnm_installed
+    return engineReady.value && s.phpvm_installed && s.fnm_installed
   })
 
-  const dockerInstalledButNotRunning = computed<boolean>(() => {
+  /** Engine container cukup untuk masuk Dashboard; phpvm/fnm opsional
+   *  (bisa digantikan mise, yang integrasinya menyusul di v1.7). */
+  const canContinue = computed<boolean>(() => engineReady.value)
+
+  const engineInstalledButNotRunning = computed<boolean>(() => {
     if (!status.value) return false
-    return status.value.docker_installed && !status.value.docker_running
+    return status.value.engine_installed && !status.value.engine_running
   })
+
+  const engineLabel = computed<string>(() => ENGINE_LABEL[status.value?.engine ?? 'docker'])
+
+  /** Engine aktif Docker, tapi WSLC tersedia → tawarkan pindah. */
+  const canSwitchToWslc = computed<boolean>(
+    () => !!status.value && status.value.engine === 'docker' && status.value.wslc_available,
+  )
 
   async function check(): Promise<void> {
     checking.value = true
@@ -32,19 +47,19 @@ export function usePrereq() {
     checking.value = false
   }
 
-  async function startDocker(): Promise<void> {
-    startingDocker.value = true
-    startDockerError.value = null
+  async function startEngine(): Promise<void> {
+    startingEngine.value = true
+    startEngineError.value = null
 
     try {
-      await invoke<void>('start_docker')
+      await invoke<void>('start_engine')
     } catch (err) {
-      startDockerError.value = typeof err === 'string' ? err : String(err)
-      startingDocker.value = false
+      startEngineError.value = typeof err === 'string' ? err : String(err)
+      startingEngine.value = false
       return
     }
 
-    // Poll check_prerequisites setiap 3 detik sampai docker_running atau timeout 60s
+    // Poll check_prerequisites setiap 3 detik sampai engine running atau timeout 60s
     const pollInterval = 3000
     const timeoutMs = 60000
     const started = Date.now()
@@ -52,7 +67,7 @@ export function usePrereq() {
     await new Promise<void>((resolve) => {
       const poll = async () => {
         await check()
-        if (status.value?.docker_running === true) {
+        if (status.value?.engine_running === true) {
           resolve()
           return
         }
@@ -65,7 +80,7 @@ export function usePrereq() {
       setTimeout(poll, pollInterval)
     })
 
-    startingDocker.value = false
+    startingEngine.value = false
   }
 
   onMounted(check)
@@ -73,11 +88,15 @@ export function usePrereq() {
   return {
     status,
     checking,
-    startingDocker,
-    startDockerError,
+    startingEngine,
+    startEngineError,
     allReady,
-    dockerInstalledButNotRunning,
+    canContinue,
+    engineReady,
+    engineInstalledButNotRunning,
+    engineLabel,
+    canSwitchToWslc,
     check,
-    startDocker,
+    startEngine,
   }
 }

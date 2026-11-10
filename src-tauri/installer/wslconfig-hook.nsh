@@ -1,5 +1,6 @@
 ; Servel NSIS installer hook
-; Injects %USERPROFILE%\.wslconfig template required for Docker Desktop WSL2 backend.
+; Injects %USERPROFILE%\.wslconfig (WSL2 VM limits). Dipakai backend WSL2 Docker Desktop;
+; untuk WSL containers (v1.6) efeknya ke VM wslc belum terverifikasi — template tetap aman.
 ;
 ; Behaviour:
 ;   File tidak ada  -> tulis template langsung
@@ -15,6 +16,13 @@
 !include "WordFunc.nsh"
 
 !macro NSIS_HOOK_POSTINSTALL
+  ; CLI `servel` (v1.6): tambahkan $INSTDIR\cli\bin ke PATH user. Logika PATH
+  ; ada di install-path.ps1 (aman untuk PATH panjang & entri %VAR%, tidak
+  ; terkena batas string 1024 karakter NSIS). Gagal = tidak fatal.
+  DetailPrint "Servel: menambahkan perintah 'servel' ke PATH user..."
+  nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\cli\install-path.ps1" -Action add -Dir "$INSTDIR\cli\bin"'
+  Pop $0
+
   DetailPrint "Servel: configuring WSL2 (.wslconfig)..."
   Push $0   ; target path
   Push $1   ; file handle / aux
@@ -100,6 +108,9 @@ File sudah ada.$\r$\n$\r$\n\
 ; Uninstall: JANGAN hapus .wslconfig — preserve user data.
 ; ---------------------------------------------------------------------------
 !macro NSIS_HOOK_PREUNINSTALL
+  DetailPrint "Servel: menghapus perintah 'servel' dari PATH user..."
+  nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\cli\install-path.ps1" -Action remove -Dir "$INSTDIR\cli\bin"'
+  Pop $0
   DetailPrint "Servel: uninstall — .wslconfig dipertahankan (user data)."
 !macroend
 

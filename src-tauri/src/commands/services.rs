@@ -1,12 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::process::Stdio;
 use tauri::{AppHandle, Manager};
-use tokio::process::Command;
-
-use crate::commands::util::{silent_command, stream_and_wait_app};
-
-
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -129,7 +123,8 @@ pub fn union_with_running(requested: &[String], statuses: &[ServiceStatus]) -> V
 
 /// True bila host `port` sudah dipakai proses lain (bind gagal = terpakai).
 /// Bind ke `127.0.0.1` — portable lintas-OS (std::net), tak perlu parse `netstat`.
-/// Cukup untuk mapping default docker (host port ter-expose di loopback).
+/// Cukup untuk Docker (port ter-expose di loopback) maupun WSLC (Servel bind
+/// eksplisit ke `127.0.0.1`, dan WSLC mem-publish di loopback Windows).
 pub fn probe_host_port(port: u16) -> bool {
     std::net::TcpListener::bind(("127.0.0.1", port)).is_err()
 }
@@ -161,30 +156,10 @@ pub(crate) async fn load_services_internal(app: &AppHandle) -> Result<Vec<Servic
 }
 
 /// Inti services_status tanpa #[tauri::command], bisa dipanggil dari polling.
+/// Dispatch ke engine aktif (Docker / WSLC) — lihat `crate::runtime`.
 pub(crate) async fn services_status_internal() -> Result<Vec<ServiceStatus>, String> {
-    let mut cmd = silent_command("docker");
-    cmd.args(["ps", "-a", "--filter", "name=servel_", "--format", "json"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let output = cmd
-        .output()
-        .await
-        .map_err(|e| format!("Gagal jalankan docker ps: {}", e))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("docker ps gagal: {}", stderr));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    Ok(parse_docker_ps_json(&stdout))
+    crate::runtime::status().await
 }
-
-fn new_docker_cmd() -> Command {
-    silent_command("docker")
-}
-
 
 #[tauri::command]
 pub async fn load_services(app: AppHandle) -> Result<Vec<ServiceDef>, String> {
@@ -243,75 +218,19 @@ pub async fn check_port_conflicts(
 #[tauri::command]
 pub async fn services_start(app: AppHandle, services: Vec<String>) -> Result<(), String> {
     let defs = load_services_internal(&app).await?;
-
-    // Safety net: gabungkan container servel_ yang SEDANG running ke compose.
-    // Tanpa ini, `up --remove-orphans` (di bawah) menghancurkan service yang
-    // tidak ada di `services` — mis. saat frontend mengirim subset karena race
-    // state setelah boot. Union hanya melindungi yang running; yang sudah exited
-    // (di-deselect) tetap boleh dibersihkan orphan. Jika docker belum ready,
-    // status gagal → pakai `services` apa adanya (tak ada yang running dilindungi).
-    let running = services_status_internal().await.unwrap_or_default();
-    let effective = union_with_running(&services, &running);
-
-    let yaml = crate::commands::compose::generate_compose(&defs, &effective);
-
-    let compose_file = crate::commands::compose::compose_path();
-    if let Some(parent) = compose_file.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("Gagal buat dir compose: {}", e))?;
-    }
-    std::fs::write(&compose_file, yaml)
-        .map_err(|e| format!("Gagal tulis compose file: {}", e))?;
-
-    let path_str = compose_file
-        .to_str()
-        .ok_or("compose path tidak valid UTF-8")?
-        .to_string();
-
-    let mut cmd = new_docker_cmd();
-    cmd.args(["compose", "-f", &path_str, "up", "-d", "--remove-orphans"]);
-    stream_and_wait_app(cmd, &app).await?;
-
-    Ok(())
+    crate::runtime::start(&app, &defs, &services).await
 }
 
 #[tauri::command]
 pub async fn services_stop(app: AppHandle, services: Vec<String>) -> Result<(), String> {
-    let compose_file = crate::commands::compose::compose_path();
-    if !compose_file.exists() {
-        return Err("compose file tidak ditemukan, jalankan Start terlebih dahulu".to_string());
-    }
-
-    let path_str = compose_file
-        .to_str()
-        .ok_or("compose path tidak valid UTF-8")?
-        .to_string();
-
-    let mut cmd = new_docker_cmd();
-    cmd.args(["compose", "-f", &path_str, "stop"]);
-    cmd.args(&services);
-    stream_and_wait_app(cmd, &app).await?;
-
-    Ok(())
+    let defs = load_services_internal(&app).await?;
+    crate::runtime::stop(&app, &defs, &services).await
 }
 
 #[tauri::command]
 pub async fn services_stop_all(app: AppHandle) -> Result<(), String> {
-    let compose_file = crate::commands::compose::compose_path();
-    if !compose_file.exists() {
-        return Ok(());
-    }
-
-    let path_str = compose_file
-        .to_str()
-        .ok_or("compose path tidak valid UTF-8")?
-        .to_string();
-
-    let mut cmd = new_docker_cmd();
-    cmd.args(["compose", "-f", &path_str, "down"]);
-    stream_and_wait_app(cmd, &app).await?;
-
-    Ok(())
+    let defs = load_services_internal(&app).await?;
+    crate::runtime::stop_all(&app, &defs).await
 }
 
 #[cfg(test)]

@@ -7,7 +7,7 @@ import { useLogs } from '@/composables/useLogs'
 import { useServices } from '@/composables/useServices'
 import { useConfig } from '@/composables/useConfig'
 import { useUptime } from '@/composables/useUptime'
-import { useDockerStatus } from '@/composables/useDockerStatus'
+import { useEngineStatus } from '@/composables/useEngineStatus'
 import { SetViewKey } from '@/types/navigation'
 import LogTail from '@/components/LogTail.vue'
 import ServiceRow from '@/components/ServiceRow.vue'
@@ -54,21 +54,41 @@ async function copyPhpHookCommand(): Promise<void> {
 
 const { lines: logLines } = useLogs()
 const { formatted: uptimeFormatted } = useUptime()
-const { dockerStatus, lastError: dockerLastError, refresh: refreshDocker } = useDockerStatus()
+const {
+  engineStatus,
+  engine,
+  engineLabel,
+  wslcAvailable,
+  lastError: engineLastError,
+  refresh: refreshEngine,
+} = useEngineStatus()
 
-const refreshingDocker = ref(false)
-async function handleDockerRefresh(): Promise<void> {
-  if (refreshingDocker.value) return
-  refreshingDocker.value = true
+const refreshingEngine = ref(false)
+async function handleEngineRefresh(): Promise<void> {
+  if (refreshingEngine.value) return
+  refreshingEngine.value = true
   try {
-    await refreshDocker()
+    await refreshEngine()
   } finally {
-    refreshingDocker.value = false
+    refreshingEngine.value = false
   }
 }
 
-const phpAccent = '#22d3ee'
-const nodeAccent = '#4ade80'
+// Docker mati tapi WSLC tersedia → tawarkan pindah engine satu klik.
+const canSwitchToWslc = computed(() => engine.value === 'docker' && wslcAvailable.value)
+async function switchToWslc(): Promise<void> {
+  if (refreshingEngine.value) return
+  refreshingEngine.value = true
+  try {
+    await useConfig().setContainerRuntime('wslc')
+    await refreshEngine()
+  } finally {
+    refreshingEngine.value = false
+  }
+}
+
+const phpAccent = '#7cc7e8'
+const nodeAccent = '#7fd6a4'
 const RUNTIME_RAM_BASELINE = 154
 
 const {
@@ -208,16 +228,27 @@ onUnmounted(() => {
     </header>
 
     <div class="dashboard-content">
-    <div v-if="dockerStatus === 'down'" class="docker-down-banner">
+    <div v-if="engineStatus === 'down'" class="docker-down-banner">
       <span class="ddb-icon">&#9888;</span>
       <div class="ddb-text">
-        <strong>Docker daemon not running</strong>
+        <strong>{{ engineLabel }} is not responding</strong>
         <span class="ddb-sub">
-          Start Docker Desktop to use services.<span v-if="dockerLastError"> ({{ dockerLastError }})</span>
+          <template v-if="engine === 'wslc'">Run <code>wsl --update</code>, then Retry.</template>
+          <template v-else-if="canSwitchToWslc">Start Docker Desktop, or switch to the built-in WSL containers.</template>
+          <template v-else>Start Docker Desktop to use services.</template>
+          <span v-if="engineLastError"> ({{ engineLastError }})</span>
         </span>
       </div>
-      <button class="ddb-retry" :disabled="refreshingDocker" @click="handleDockerRefresh">
-        {{ refreshingDocker ? '...' : 'Retry' }}
+      <button
+        v-if="canSwitchToWslc"
+        class="ddb-retry ddb-retry--primary"
+        :disabled="refreshingEngine"
+        @click="switchToWslc"
+      >
+        Use WSL containers
+      </button>
+      <button class="ddb-retry" :disabled="refreshingEngine" @click="handleEngineRefresh">
+        {{ refreshingEngine ? '...' : 'Retry' }}
       </button>
     </div>
 
@@ -482,9 +513,9 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 0 var(--space-6);
-  height: 28px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  background: var(--surface);
+  height: 34px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
   flex-shrink: 0;
 }
 
@@ -528,7 +559,7 @@ onUnmounted(() => {
   font-size: 13px;
   cursor: pointer;
   padding: 2px 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   line-height: 1;
   transition: color 0.1s, background 0.1s;
 }
@@ -558,9 +589,10 @@ onUnmounted(() => {
 .control-block {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: var(--space-4);
-  transition: border-color 0.15s;
+  border-radius: var(--radius-lg);
+  padding: var(--space-4) var(--space-5);
+  box-shadow: var(--shadow-md);
+  transition: border-color 0.2s var(--ease);
 }
 
 .control-block--stats {
@@ -633,7 +665,7 @@ onUnmounted(() => {
   justify-content: center;
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: var(--text);
   font-size: 16px;
   cursor: pointer;
@@ -661,7 +693,7 @@ onUnmounted(() => {
   font-family: var(--font-mono);
   font-size: 12px;
   padding: 3px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--border);
   background: var(--surface2);
   color: var(--muted);
@@ -683,7 +715,7 @@ onUnmounted(() => {
 }
 
 .ver-empty {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--dim);
 }
@@ -697,7 +729,7 @@ onUnmounted(() => {
   padding: var(--space-2) var(--space-3);
   background: color-mix(in srgb, var(--amber) 10%, transparent);
   border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .vp-hook-banner {
@@ -709,7 +741,7 @@ onUnmounted(() => {
   padding: var(--space-2) var(--space-3);
   background: color-mix(in srgb, var(--muted) 8%, transparent);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 
 .vp-hook-text {
@@ -725,7 +757,7 @@ onUnmounted(() => {
   font-size: 11px;
   padding: 1px 5px;
   background: var(--surface2);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   color: var(--text);
 }
 
@@ -735,7 +767,7 @@ onUnmounted(() => {
   padding: 3px 8px;
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   color: var(--muted);
   cursor: pointer;
   flex-shrink: 0;
@@ -773,7 +805,7 @@ onUnmounted(() => {
   padding: 3px 8px;
   background: color-mix(in srgb, var(--amber) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   color: var(--amber);
   cursor: pointer;
   transition: background 0.1s;
@@ -801,7 +833,7 @@ onUnmounted(() => {
   cursor: pointer;
   line-height: 1;
   padding: 0;
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   transition: color 0.1s;
 }
 
@@ -822,10 +854,11 @@ onUnmounted(() => {
 }
 
 .stat-val {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 18px;
   font-weight: 400;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-val--green { color: var(--green); }
@@ -851,7 +884,7 @@ onUnmounted(() => {
   padding: var(--space-3) var(--space-4);
   background: color-mix(in srgb, var(--red) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 
@@ -887,16 +920,31 @@ onUnmounted(() => {
 }
 
 .ddb-retry {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   padding: 4px 12px;
   background: color-mix(in srgb, var(--red) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: var(--red);
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.1s, border-color 0.1s;
+}
+
+.ddb-retry--primary {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: var(--accent);
+}
+
+.ddb-sub code {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: var(--radius-xs);
+  background: var(--surface2);
+  color: var(--text);
 }
 
 .ddb-retry:hover:not(:disabled) {
@@ -916,7 +964,7 @@ onUnmounted(() => {
   padding: var(--space-3) var(--space-4);
   background: color-mix(in srgb, var(--amber) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   flex-shrink: 0;
 }
 
@@ -961,10 +1009,10 @@ onUnmounted(() => {
 
 .pcb-force,
 .pcb-dismiss {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   padding: 4px 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   transition: background 0.1s, border-color 0.1s;
 }
@@ -996,7 +1044,7 @@ onUnmounted(() => {
   padding: var(--space-2) var(--space-3);
   background: color-mix(in srgb, var(--red) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: var(--red);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -1007,7 +1055,8 @@ onUnmounted(() => {
   margin: 0;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1019,8 +1068,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: #0d0d11;
+  padding: var(--space-3) var(--space-5);
+  background: transparent;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -1035,7 +1084,7 @@ onUnmounted(() => {
 }
 
 .sw-counter {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   color: var(--dim);
   margin-right: auto;
@@ -1058,10 +1107,10 @@ onUnmounted(() => {
 }
 
 .sw-profile__select {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--border);
   background: var(--surface2);
   color: var(--text);
@@ -1080,10 +1129,10 @@ onUnmounted(() => {
 }
 
 .sw-btn {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   padding: 3px 10px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   transition: background 0.1s, border-color 0.1s, opacity 0.1s;
   border: 1px solid;
@@ -1125,9 +1174,9 @@ onUnmounted(() => {
 
 .svc-group-label {
   font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--dim);
   padding: var(--space-2) var(--space-4) var(--space-1);
@@ -1139,7 +1188,7 @@ onUnmounted(() => {
   justify-content: center;
   height: 100%;
   min-height: 60px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--dim);
 }
@@ -1175,7 +1224,7 @@ onUnmounted(() => {
 }
 
 .log-wrap__label {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -1184,7 +1233,7 @@ onUnmounted(() => {
 }
 
 .log-wrap__expand-btn {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   background: transparent;
   border: none;

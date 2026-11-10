@@ -8,7 +8,7 @@ import Dashboard from './views/Dashboard.vue'
 import Settings from './views/Settings.vue'
 import Logs from './views/Logs.vue'
 import { useAutoStart } from './composables/useAutoStart'
-import { useDockerStatus } from './composables/useDockerStatus'
+import { useEngineStatus } from './composables/useEngineStatus'
 import { useUpdateCheck } from './composables/useUpdateCheck'
 
 const currentView = ref<ViewName>('onboarding')
@@ -29,11 +29,11 @@ function setView(view: ViewName): void {
 provide(SetViewKey, setView)
 
 const { runAutoStartOnce } = useAutoStart()
-const { refresh: refreshDockerStatus } = useDockerStatus()
+const { refresh: refreshEngineStatus } = useEngineStatus()
 const { check: checkUpdate } = useUpdateCheck()
 onMounted(() => {
   void runAutoStartOnce()
-  void refreshDockerStatus()
+  void refreshEngineStatus()
   void checkUpdate()
 })
 </script>

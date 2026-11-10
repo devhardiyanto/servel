@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use tokio::process::Command;
 use std::process::Stdio;
 
@@ -9,12 +10,30 @@ use super::util::silent_command;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct PrereqStatus {
-    pub docker_installed: bool,
-    pub docker_running: bool,
+    /// Engine container aktif: `docker` | `wslc`.
+    pub engine: String,
+    /// Tool engine aktif terpasang (`docker` / `wslc` ada di PATH).
+    pub engine_installed: bool,
+    /// Engine bisa dipakai (daemon Docker hidup / sesi WSLC merespons).
+    pub engine_running: bool,
+    pub engine_version: Option<String>,
+    /// Windows: `wslc` tersedia (WSL >= 3.0.1). Selalu false di OS lain.
+    pub wslc_available: bool,
+    /// `docker` CLI tersedia (terlepas dari engine aktif).
+    pub docker_available: bool,
+    /// Windows: versi WSL dari `wsl --version`.
+    pub wsl_version: Option<String>,
+    /// Windows: Servel berjalan elevated. Sesi WSLC terpisah per elevation,
+    /// jadi container dari sesi biasa tidak terlihat — UI memberi peringatan.
+    pub elevated: bool,
     pub phpvm_installed: bool,
     pub fnm_installed: bool,
     pub phpvm_version: Option<String>,
     pub fnm_version: Option<String>,
+    /// `mise` terpasang. v1.6: hanya dideteksi (phpvm/fnm jadi opsional);
+    /// integrasi penuh direncanakan v1.7.
+    pub mise_installed: bool,
+    pub mise_version: Option<String>,
 }
 
 /// Spawn a command and return true if it exits successfully.
@@ -103,29 +122,133 @@ async fn probe_version(cmd: &str, args: &[&str]) -> Option<String> {
     extract_semver(&stdout)
 }
 
+/// Decode output `wsl.exe`: UTF-8 bila `WSL_UTF8=1` dihormati, selain itu UTF-16LE.
+pub fn decode_wsl_output(bytes: &[u8]) -> String {
+    let looks_utf16 = bytes.len() >= 2 && bytes.iter().skip(1).step_by(2).take(16).all(|&b| b == 0);
+    if looks_utf16 {
+        let units: Vec<u16> = bytes
+            .chunks_exact(2)
+            .map(|c| u16::from_le_bytes([c[0], c[1]]))
+            .collect();
+        String::from_utf16_lossy(&units).trim_start_matches('\u{feff}').to_string()
+    } else {
+        String::from_utf8_lossy(bytes).into_owned()
+    }
+}
+
+/// Versi WSL dari baris pertama `wsl --version` (label baris bisa terlokalisasi,
+/// jadi ambil token semver pertama saja).
+async fn wsl_version() -> Option<String> {
+    if !cfg!(target_os = "windows") {
+        return None;
+    }
+    let out = super::util::silent_command("wsl")
+        .arg("--version")
+        .env("WSL_UTF8", "1")
+        .stdout(Stdio::piped())
+        .output()
+        .await
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let text = decode_wsl_output(&out.stdout);
+    text.lines().find_map(extract_semver)
+}
+
+/// Windows: true bila proses ini elevated (`net session` hanya sukses untuk admin).
+async fn is_elevated() -> bool {
+    if !cfg!(target_os = "windows") {
+        return false;
+    }
+    super::util::silent_command("net")
+        .arg("session")
+        .status()
+        .await
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
 #[tauri::command]
 pub async fn check_prerequisites() -> PrereqStatus {
-    let (docker_installed, docker_running, phpvm_installed, fnm_installed, phpvm_version, fnm_version) = tokio::join!(
-        check_tool("docker", &["--version"]),
-        check_tool("docker", &["info"]),
-        check_tool("phpvm", &["version"]),
-        check_tool("fnm", &["--version"]),
-        probe_version("phpvm", &["version"]),
-        probe_version("fnm", &["--version"]),
-    );
+    use crate::runtime::{self, RuntimeKind};
 
-    PrereqStatus {
-        docker_installed,
-        docker_running,
+    let engine = runtime::ensure_resolved().await;
+
+    let engine_probe = async {
+        match engine {
+            RuntimeKind::Docker => {
+                let installed = runtime::docker::is_installed().await;
+                let running = installed && runtime::docker::is_running().await;
+                let version = if installed { runtime::docker::version().await } else { None };
+                (installed, running, version)
+            }
+            RuntimeKind::Wslc => {
+                let version = runtime::wslc::version().await;
+                let installed = version.is_some();
+                let running = installed && runtime::wslc::is_running().await;
+                (installed, running, version)
+            }
+        }
+    };
+
+    let (
+        (engine_installed, engine_running, engine_version),
+        wslc_available,
+        docker_available,
+        wsl_version,
+        elevated,
         phpvm_installed,
         fnm_installed,
         phpvm_version,
         fnm_version,
+        mise_version,
+    ) = tokio::join!(
+        engine_probe,
+        runtime::wslc::is_installed(),
+        runtime::docker::is_installed(),
+        wsl_version(),
+        is_elevated(),
+        check_tool("phpvm", &["version"]),
+        check_tool("fnm", &["--version"]),
+        probe_version("phpvm", &["version"]),
+        probe_version("fnm", &["--version"]),
+        probe_version("mise", &["--version"]),
+    );
+
+    PrereqStatus {
+        engine: engine.as_str().to_string(),
+        engine_installed,
+        engine_running,
+        engine_version,
+        wslc_available,
+        docker_available,
+        wsl_version,
+        elevated,
+        phpvm_installed,
+        fnm_installed,
+        phpvm_version,
+        fnm_version,
+        mise_installed: mise_version.is_some(),
+        mise_version,
     }
 }
 
+/// "Nyalakan" engine aktif. Docker: buka Docker Desktop. WSLC: tidak ada
+/// daemon — cukup panggil `container list` yang memulai sesi WSLC.
 #[tauri::command]
-pub async fn start_docker() -> Result<(), String> {
+pub async fn start_engine() -> Result<(), String> {
+    if crate::runtime::ensure_resolved().await == crate::runtime::RuntimeKind::Wslc {
+        return if crate::runtime::wslc::is_running().await {
+            Ok(())
+        } else {
+            Err("Sesi WSL containers tidak merespons. Jalankan `wsl --update`, lalu `wsl --shutdown`, dan coba lagi.".to_string())
+        };
+    }
+    start_docker().await
+}
+
+async fn start_docker() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -168,6 +291,21 @@ pub async fn start_docker() -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         Err("Docker daemon harus distart manual via systemctl start docker.".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decode_wsl_utf16_and_utf8() {
+        let text = "WSL version: 3.0.5.0\r\nKernel version: 6.18.54.1-1";
+        let utf16: Vec<u8> = text.encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
+        assert_eq!(decode_wsl_output(&utf16), text);
+        assert_eq!(decode_wsl_output(text.as_bytes()), text);
+        let first = decode_wsl_output(&utf16).lines().find_map(extract_semver);
+        assert_eq!(first.as_deref(), Some("3.0.5"));
     }
 }
 

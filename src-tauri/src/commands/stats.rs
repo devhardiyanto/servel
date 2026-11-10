@@ -1,7 +1,4 @@
 use serde::Serialize;
-use std::process::Stdio;
-
-use super::util::silent_command;
 
 /// Single container memory snapshot — payload entry untuk event `container-stats-changed`.
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -82,26 +79,9 @@ pub fn parse_docker_stats_json(stdout: &str) -> Vec<ContainerMemStat> {
     result
 }
 
-/// Panggil `docker stats --no-stream --format json` (tanpa `--filter` agar kompatibel
-/// di Docker lama). Filter prefix `servel_` dilakukan di Rust saat parse.
+/// Snapshot memori container dari engine aktif (Docker / WSLC).
 pub async fn fetch_container_stats() -> Result<Vec<ContainerMemStat>, String> {
-    let mut cmd = silent_command("docker");
-    cmd.args(["stats", "--no-stream", "--format", "json"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    let output = cmd
-        .output()
-        .await
-        .map_err(|e| format!("Gagal jalankan docker stats: {}", e))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("docker stats gagal: {}", stderr));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    Ok(parse_docker_stats_json(&stdout))
+    crate::runtime::stats().await
 }
 
 #[cfg(test)]

@@ -17,7 +17,8 @@ import {
 } from '@/composables/useSites'
 import { useProxy } from '@/composables/useProxy'
 import SettingRow from '@/components/SettingRow.vue'
-import type { PrereqStatus } from '@/types/prereq'
+import { ENGINE_LABEL, type EnginePreference, type PrereqStatus } from '@/types/prereq'
+import { useEngineStatus } from '@/composables/useEngineStatus'
 
 type SettingsNav = 'general' | 'services' | 'sites' | 'php_node' | 'about'
 
@@ -31,6 +32,7 @@ const {
   setAutoStart,
   setRememberSession,
   setMinimizeToTray,
+  setContainerRuntime,
   createProfile,
   renameProfile,
   deleteProfile,
@@ -318,9 +320,24 @@ const {
 } = useUpdateCheck()
 
 const composePath = ref<string>('')
-const dockerRunning = ref<boolean | null>(null)
-const checkingDocker = ref(false)
+const engineInfo = ref<PrereqStatus | null>(null)
+const checkingEngine = ref(false)
+const switchingEngine = ref(false)
+const platform = ref<string>('windows')
 const version = ref<string>('')
+
+const engineRunning = computed<boolean | null>(() => engineInfo.value?.engine_running ?? null)
+const activeEngineLabel = computed<string>(() =>
+  engineInfo.value ? ENGINE_LABEL[engineInfo.value.engine] : '—',
+)
+
+const ENGINE_OPTIONS: { value: EnginePreference; label: string }[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'wslc', label: 'WSL containers' },
+  { value: 'docker', label: 'Docker' },
+]
+
+const { refresh: refreshEngineBanner } = useEngineStatus()
 
 async function fetchComposePath(): Promise<void> {
   try {
@@ -330,15 +347,26 @@ async function fetchComposePath(): Promise<void> {
   }
 }
 
-async function checkDocker(): Promise<void> {
-  checkingDocker.value = true
+async function checkEngine(): Promise<void> {
+  checkingEngine.value = true
   try {
-    const result = await invoke<PrereqStatus>('check_prerequisites')
-    dockerRunning.value = result.docker_running
+    engineInfo.value = await invoke<PrereqStatus>('check_prerequisites')
   } catch {
-    dockerRunning.value = false
+    engineInfo.value = null
   } finally {
-    checkingDocker.value = false
+    checkingEngine.value = false
+  }
+}
+
+async function chooseEngine(value: EnginePreference): Promise<void> {
+  if (switchingEngine.value || config.value.containerRuntime === value) return
+  switchingEngine.value = true
+  try {
+    await setContainerRuntime(value)
+    await checkEngine()
+    await refreshEngineBanner()
+  } finally {
+    switchingEngine.value = false
   }
 }
 
@@ -360,8 +388,13 @@ async function handleReset(): Promise<void> {
 
 onMounted(async () => {
   if (!loaded.value) await load()
+  try {
+    platform.value = await invoke<string>('get_platform')
+  } catch {
+    /* default windows */
+  }
   await fetchComposePath()
-  await checkDocker()
+  await checkEngine()
   await refreshSitesStatus()
   await refreshProxy()
   try {
@@ -461,31 +494,76 @@ onMounted(async () => {
           </div>
 
           <div class="section-block">
-            <div class="section-title">DOCKER</div>
+            <div class="section-title">CONTAINER ENGINE</div>
 
             <SettingRow
+              v-if="platform === 'windows'"
+              label="Engine"
+              desc="Auto uses WSL containers when Docker is not installed"
+            >
+              <div class="segmented" role="radiogroup" aria-label="Container engine">
+                <button
+                  v-for="opt in ENGINE_OPTIONS"
+                  :key="opt.value"
+                  class="segmented__item"
+                  :class="{ 'segmented__item--on': config.containerRuntime === opt.value }"
+                  role="radio"
+                  :aria-checked="config.containerRuntime === opt.value"
+                  :disabled="switchingEngine"
+                  @click="chooseEngine(opt.value)"
+                >{{ opt.label }}</button>
+              </div>
+            </SettingRow>
+
+            <SettingRow
+              label="Status"
+              :desc="engineInfo?.engine_version ? `${activeEngineLabel} v${engineInfo.engine_version}` : activeEngineLabel"
+            >
+              <span
+                class="status-pill"
+                :class="engineRunning === true ? 'status-pill--green' : 'status-pill--red'"
+              >
+                <span class="status-dot"></span>
+                <span v-if="engineRunning === true">Running</span>
+                <span v-else-if="engineRunning === false">
+                  {{ engineInfo?.engine_installed ? 'Stopped' : 'Not installed' }}
+                </span>
+                <span v-else>—</span>
+              </span>
+              <button
+                class="action-btn"
+                :disabled="checkingEngine"
+                @click="checkEngine"
+              >{{ checkingEngine ? '...' : 'Refresh' }}</button>
+            </SettingRow>
+
+            <SettingRow v-if="platform === 'windows'" label="WSL version" desc="Built-in containers need WSL 3.0.1 or newer">
+              <span class="setting-value-mono">{{ engineInfo?.wsl_version ?? '—' }}</span>
+            </SettingRow>
+
+            <SettingRow
+              v-if="platform === 'windows'"
+              label="Terminal command"
+              desc="Added to your PATH by the installer — servel up · down · status · logs · shell · restore"
+            >
+              <span class="setting-value-mono">servel help</span>
+            </SettingRow>
+
+            <SettingRow
+              v-if="engineInfo?.engine !== 'wslc'"
               label="Docker Compose file path"
               desc="Path to generated compose file"
             >
               <span class="setting-value-mono">{{ composePath || '—' }}</span>
             </SettingRow>
 
-            <SettingRow label="Docker status">
-              <span
-                class="status-pill"
-                :class="dockerRunning === true ? 'status-pill--green' : 'status-pill--red'"
-              >
-                <span class="status-dot"></span>
-                <span v-if="dockerRunning === true">Running</span>
-                <span v-else-if="dockerRunning === false">Stopped</span>
-                <span v-else>—</span>
-              </span>
-              <button
-                class="action-btn"
-                :disabled="checkingDocker"
-                @click="checkDocker"
-              >{{ checkingDocker ? '...' : 'Refresh' }}</button>
-            </SettingRow>
+            <p v-if="engineInfo?.engine === 'wslc'" class="section-hint section-hint--note">
+              WSL containers keep their own images and volumes, separate from Docker Desktop.
+              Databases created under Docker will not appear here until you restore them.
+              <template v-if="engineInfo?.elevated">
+                Servel is running as Administrator, which uses a separate WSL container session.
+              </template>
+            </p>
           </div>
 
           <div class="section-block section-block--danger">
@@ -887,7 +965,7 @@ onMounted(async () => {
   cursor: pointer;
   padding: 0 var(--space-2);
   line-height: 1;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   transition: color 0.1s, background 0.1s;
 }
 
@@ -897,7 +975,7 @@ onMounted(async () => {
 }
 
 .app-strip__title {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -936,7 +1014,7 @@ onMounted(async () => {
   border: none;
   border-left: 2px solid transparent;
   padding: var(--space-2) var(--space-4);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   letter-spacing: 0.06em;
   color: var(--muted);
@@ -974,10 +1052,10 @@ onMounted(async () => {
 }
 
 .section-title {
-  font-family: var(--font-mono);
-  font-size: 10px;
+  font-family: var(--font-sans);
+  font-size: 10.5px;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.07em;
   color: var(--dim);
   margin-bottom: var(--space-3);
 }
@@ -991,7 +1069,7 @@ onMounted(async () => {
   position: relative;
   width: 36px;
   height: 20px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface2);
   border: 1px solid var(--border);
   cursor: pointer;
@@ -1027,7 +1105,7 @@ onMounted(async () => {
   gap: 5px;
   padding: 3px 10px;
   border-radius: 20px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   border: 1px solid;
 }
@@ -1064,10 +1142,10 @@ onMounted(async () => {
 
 /* Action buttons */
 .action-btn {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   padding: 4px 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -1104,7 +1182,7 @@ onMounted(async () => {
   padding: var(--space-4);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .about-name {
@@ -1135,7 +1213,7 @@ onMounted(async () => {
   padding: var(--space-3) var(--space-4);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .ub-text {
@@ -1145,12 +1223,12 @@ onMounted(async () => {
 }
 
 .ub-download {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   padding: 4px 12px;
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: var(--accent);
   cursor: pointer;
   flex-shrink: 0;
@@ -1170,12 +1248,12 @@ onMounted(async () => {
 }
 
 .update-check-btn {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   padding: 4px 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: var(--text);
   cursor: pointer;
   transition: border-color 0.1s;
@@ -1213,6 +1291,49 @@ onMounted(async () => {
   margin: 0 0 var(--space-3);
 }
 
+.section-hint--note {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: var(--radius-md);
+  background: var(--surface2);
+}
+
+.segmented__item {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.segmented__item:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.segmented__item--on {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.segmented__item:disabled {
+  cursor: progress;
+}
+
 .profile-list {
   display: flex;
   flex-direction: column;
@@ -1227,7 +1348,7 @@ onMounted(async () => {
   padding: var(--space-2) var(--space-3);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .profile-info {
@@ -1238,7 +1359,7 @@ onMounted(async () => {
 }
 
 .profile-name {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   color: var(--text);
   overflow: hidden;
@@ -1247,12 +1368,12 @@ onMounted(async () => {
 }
 
 .profile-badge {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 1px 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--accent) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   color: var(--accent);
@@ -1260,7 +1381,7 @@ onMounted(async () => {
 }
 
 .profile-count {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 10px;
   color: var(--dim);
   flex-shrink: 0;
@@ -1276,10 +1397,10 @@ onMounted(async () => {
 .profile-create-input {
   flex: 1;
   min-width: 0;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   padding: 5px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   border: 1px solid var(--border);
   background: var(--surface2);
   color: var(--text);
@@ -1339,7 +1460,7 @@ onMounted(async () => {
   padding: var(--space-2) var(--space-3);
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 
 .site-info {
@@ -1444,7 +1565,7 @@ onMounted(async () => {
   max-width: 440px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: var(--space-6);
   display: flex;
   flex-direction: column;
@@ -1452,7 +1573,7 @@ onMounted(async () => {
 }
 
 .modal-title {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 13px;
   letter-spacing: 0.04em;
   color: var(--text);
@@ -1470,7 +1591,7 @@ onMounted(async () => {
   font-size: 11px;
   background: var(--surface2);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: var(--space-3);
   max-height: 200px;
   overflow-y: auto;
