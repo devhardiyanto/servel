@@ -29,7 +29,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "GANTI_DENGAN_ISI_SERVEL_KEY_PUB",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkyNEI4QzExMjEwNUM5REMKUldUY3lRVWhFWXhMa3NrTHpjaWpWcDFMOHlaRURDd1UwUm5ZSjAwelU4dVlNU0l0djgwSFlDUUwK",
       "endpoints": ["https://github.com/devhardiyanto/servel/releases/latest/download/latest.json"]
     }
   },
