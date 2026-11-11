@@ -44,6 +44,21 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      # Gagal lebih awal dengan pesan jelas, sebelum 4 build berjalan.
+      - name: Check updater signing setup
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if grep -q 'GANTI_DENGAN_ISI_SERVEL_KEY_PUB' src-tauri/tauri.conf.json; then
+            echo "::error::plugins.updater.pubkey di src-tauri/tauri.conf.json masih penanda. Isi dengan isi file servel.key.pub."
+            exit 1
+          fi
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::Secret TAURI_SIGNING_PRIVATE_KEY belum dipasang."
+            exit 1
+          fi
+
       - name: Detect prerelease
         id: flag
         shell: bash
@@ -119,6 +134,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Servel ${{ github.ref_name }}'

@@ -2,6 +2,7 @@ mod commands;
 mod mise;
 mod proxy;
 mod runtime;
+mod updater;
 mod tray;
 mod watcher;
 
@@ -62,11 +63,14 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(watcher::default_watcher_state())
         .manage(Mutex::new(HashMap::<String, bool>::new()))
         .manage(Mutex::new(ConfigState::default()))
         .manage(proxy::lifecycle::ProxyProcess::default())
         .invoke_handler(tauri::generate_handler![
+            updater::update_check,
+            updater::update_install,
             commands::prereq::check_prerequisites,
             commands::prereq::start_engine,
             commands::prereq::get_platform,

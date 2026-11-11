@@ -10,6 +10,7 @@ Servel is a desktop app (Tauri 2 + Vue 3) that orchestrates your local developme
 
 ## Features
 
+- **In-app updates (new in v2.1)** — Settings → About downloads, verifies and installs a new version, then restarts Servel.
 - **Projects (v1.9)** — link a project folder to a service profile: selecting the project switches its PHP/Node versions (via mise) and its service selection together.
 - **Database restore & Docker import (v1.8)** — restore a `.sql` dump into MySQL/PostgreSQL from Settings, or copy your databases from an old Docker container into WSL containers.
 - **Readiness checks (v1.8)** — a service shows "up" only once it accepts connections, not just when its container starts.
@@ -262,7 +263,7 @@ Requirements: Node.js 20 LTS, Rust stable (via [rustup](https://rustup.rs/)), an
 
 ## Privacy policy
 
-Servel does not collect, transmit, or store any personal data. All configuration is saved locally on your machine only. There is no telemetry, no analytics, and no network calls except those explicitly initiated by the user (Docker image pulls, `phpvm` / `fnm` version installs, etc).
+Servel does not collect, transmit, or store any personal data. All configuration is saved locally on your machine only. There is no telemetry and no analytics. On launch Servel asks GitHub whether a newer release exists; no data about you or your machine is sent beyond that request. All other network calls are initiated by you (image pulls, version installs, downloading an update).
 
 ---
 

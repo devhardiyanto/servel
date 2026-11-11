@@ -78,8 +78,11 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      # Build PR tidak menandatangani file update: secret signing hanya dipakai
+      # workflow release (dan tidak tersedia untuk PR dari fork).
       - name: Build Tauri app
-        run: npm run tauri build -- --target ${{ matrix.rust-target }}
+        shell: bash
+        run: npm run tauri build -- --target ${{ matrix.rust-target }} --config '{"bundle":{"createUpdaterArtifacts":false}}'
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v7

@@ -138,8 +138,35 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
 
 v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang mencakup semuanya; changelog otomatis disusun dari `v1.5.0..v2.0.0`. Catatan rilis: `docs/releases/v2.0.0.md`.
 
-## Setelah v2.0 (kandidat)
+## v2.1.0 — update dari dalam aplikasi
+
+**Selesai**
+
+- `tauri-plugin-updater`: command `update_check` / `update_install`, progress lewat event `update-progress`, restart setelah pasang.
+- Settings → About: tombol **Update sekarang** dengan progress. Pengecekan GitHub API lama dipertahankan sebagai cadangan (banner "Buka halaman rilis") bila updater gagal.
+- `release.yml`: tanda tangan file update + `latest.json` diunggah ke release; gagal lebih awal bila pubkey masih penanda atau secret belum ada.
+- `build.yml`: build PR tidak menandatangani (`createUpdaterArtifacts: false`).
+- Target bundle `app` ditambahkan supaya macOS menghasilkan `.app.tar.gz` untuk updater.
+
+**Perlu verifikasi (hanya bisa lewat rilis nyata)**
+
+- Alur ujung ke ujung: v2.1.0 terpasang → rilis berikutnya dipublish → Update sekarang → restart ke versi baru (Windows, macOS, AppImage).
+- `latest.json` memuat keempat target (Windows, macOS arm64/x64, Linux) setelah matrix release selesai.
+- Hook NSIS (PATH `servel`) tetap berjalan saat installer dipanggil oleh updater.
+
+**Batasan**
+
+- v2.0.0 → v2.1.0 tetap install manual; updater berlaku mulai v2.1.
+- Private key updater hilang = pengguna terpasang tidak bisa auto-update lagi.
+- Bukan code signing: SmartScreen/Gatekeeper tetap muncul.
+
+## v2.2.0 — Sites menjalankan project (rencana)
+
+- Site = folder project + jenis terdeteksi + perintah + port tetap; diakses lewat `localhost:port`.
+- Start/Stop/Buka/Log per site, dijalankan lewat `mise exec` agar versi mengikuti project.
+- Domain `.test`, proxy, dan sertifikat menjadi bagian opsional.
+
+## Setelah v2.2 (kandidat)
 
 - Patch dari pemakaian lapangan (item "Perlu verifikasi" di atas).
-- Tautan Sites ↔ project dan aksi "start project" (service + proxy sekaligus).
 - Code signing begitu sertifikat tersedia.
