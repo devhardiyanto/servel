@@ -340,7 +340,7 @@ onUnmounted(() => {
         @change="onContextChange(($event.target as HTMLSelectElement).value)"
       >
         <option value="">Global</option>
-        <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+        <option v-for="p in projects.filter((x) => x.path)" :key="p.id" :value="p.id">{{ p.name }}</option>
       </select>
       <span v-if="miseCtx?.project" class="ctx-bar__path" :title="miseCtx.project.path">
         {{ miseCtx.project.path }}<template v-if="miseCtx.projectMissing"> — folder not found</template>

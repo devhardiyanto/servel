@@ -8,15 +8,7 @@ import { SetViewKey } from '@/types/navigation'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
-import {
-  useSites,
-  isValidIpv4,
-  isValidDomain,
-  parsePort,
-  type SitesStatus,
-  type DiffResult,
-} from '@/composables/useSites'
-import { useProxy } from '@/composables/useProxy'
+import ProjectsPanel from '@/components/ProjectsPanel.vue'
 import SettingRow from '@/components/SettingRow.vue'
 import { ENGINE_LABEL, type EnginePreference, type PrereqStatus } from '@/types/prereq'
 import { useEngineStatus } from '@/composables/useEngineStatus'
@@ -29,15 +21,11 @@ const {
   config,
   loaded,
   load,
-  saveImmediate,
   setAutoStart,
   setRememberSession,
   setMinimizeToTray,
   setContainerRuntime,
-  addProject,
-  removeProject,
   setVersionProvider,
-  setProjectProfile,
   createProfile,
   renameProfile,
   deleteProfile,
@@ -88,233 +76,6 @@ async function handleDeleteProfile(id: string, name: string): Promise<void> {
   deleteProfile(id)
 }
 
-// --- Sites (hosts) ---
-const {
-  sites,
-  addSite,
-  updateSite,
-  deleteSite,
-  toggleSite,
-  status: fetchSitesStatus,
-  apply: applySites,
-  restore: restoreSites,
-} = useSites()
-
-const newDomain = ref('')
-const newIp = ref('127.0.0.1')
-const newPort = ref('')
-const siteError = ref('')
-const editingSiteId = ref<string | null>(null)
-const editDomain = ref('')
-const editIp = ref('')
-const editPort = ref('')
-
-const sitesStatus = ref<SitesStatus | null>(null)
-const sitesBusy = ref(false) // apply/restore sedang jalan (UAC)
-const applyError = ref('')
-const showDiffModal = ref(false)
-const pendingDiff = ref<DiffResult | null>(null)
-const selectedBackup = ref('')
-
-async function refreshSitesStatus(): Promise<void> {
-  // Flush debounce config dulu: sites_status baca config dari disk, jadi mutasi
-  // (add/edit/delete/toggle) harus ter-tulis sebelum status dibaca (hindari race).
-  await saveImmediate()
-  sitesStatus.value = await fetchSitesStatus()
-}
-
-function handleAddSite(): void {
-  const d = newDomain.value.trim()
-  const ip = newIp.value.trim() || '127.0.0.1'
-  siteError.value = ''
-  if (!isValidDomain(d)) {
-    siteError.value = 'Domain tidak valid'
-    return
-  }
-  if (!isValidIpv4(ip)) {
-    siteError.value = 'IP tidak valid'
-    return
-  }
-  if (sites.value.some((s) => s.domain === d)) {
-    siteError.value = 'Domain sudah terdaftar'
-    return
-  }
-  const target = parsePort(newPort.value)
-  if (newPort.value.trim() !== '' && target === null) {
-    siteError.value = 'Port tujuan harus angka 1–65535'
-    return
-  }
-  addSite(d, ip, target)
-  newDomain.value = ''
-  newIp.value = '127.0.0.1'
-  newPort.value = ''
-  void refreshSitesStatus()
-  void applyProxyChanges()
-}
-
-function startEditSite(id: string, domain: string, ip: string, port: number | null): void {
-  editingSiteId.value = id
-  editDomain.value = domain
-  editIp.value = ip
-  editPort.value = port === null ? '' : String(port)
-  siteError.value = ''
-}
-
-function commitEditSite(): void {
-  const d = editDomain.value.trim()
-  const ip = editIp.value.trim() || '127.0.0.1'
-  siteError.value = ''
-  if (!isValidDomain(d) || !isValidIpv4(ip)) {
-    siteError.value = 'Domain atau IP tidak valid'
-    return
-  }
-  const target = parsePort(editPort.value)
-  if (editPort.value.trim() !== '' && target === null) {
-    siteError.value = 'Port tujuan harus angka 1–65535'
-    return
-  }
-  if (editingSiteId.value) updateSite(editingSiteId.value, { domain: d, ip, target })
-  editingSiteId.value = null
-  void refreshSitesStatus()
-  void applyProxyChanges()
-}
-
-function cancelEditSite(): void {
-  editingSiteId.value = null
-  siteError.value = ''
-}
-
-async function handleDeleteSite(id: string, domain: string): Promise<void> {
-  let ok = false
-  try {
-    ok = await ask(`Hapus domain "${domain}"?`, { title: 'Hapus Site', kind: 'warning' })
-  } catch {
-    ok = window.confirm(`Hapus domain "${domain}"?`)
-  }
-  if (!ok) return
-  deleteSite(id)
-  void refreshSitesStatus()
-  void applyProxyChanges()
-}
-
-function handleToggleSite(id: string): void {
-  toggleSite(id)
-  void refreshSitesStatus()
-  void applyProxyChanges()
-}
-
-// --- Sites (reverse proxy) ---
-const {
-  status: proxyStatus,
-  binary: proxyBinary,
-  progress: proxyProgress,
-  refresh: refreshProxy,
-  installBinary: installProxyBinary,
-  start: startProxy,
-  stop: stopProxy,
-  reload: reloadProxy,
-  installCert: installProxyCert,
-} = useProxy()
-
-const proxyBusy = ref(false)
-const proxyError = ref('')
-
-// Jumlah site yang layak di-proxy: aktif + punya port tujuan. Dipakai untuk
-// menonaktifkan tombol start sebelum backend menolaknya.
-const proxyableCount = computed(
-  () => sites.value.filter((s) => s.enabled && s.target != null).length,
-)
-
-// Perubahan site harus sampai ke proxy yang sedang jalan. Config disimpan
-// debounce, jadi flush dulu supaya backend membaca versi terbaru dari disk.
-async function applyProxyChanges(): Promise<void> {
-  if (!proxyStatus.value?.running) return
-  try {
-    await saveImmediate()
-    await reloadProxy()
-  } catch (err) {
-    proxyError.value = String(err)
-  }
-}
-
-async function runProxyAction(action: () => Promise<void>): Promise<void> {
-  proxyBusy.value = true
-  proxyError.value = ''
-  try {
-    await saveImmediate()
-    await action()
-  } catch (err) {
-    proxyError.value = String(err)
-  } finally {
-    proxyBusy.value = false
-  }
-}
-
-function handleInstallProxyBinary(): void {
-  void runProxyAction(installProxyBinary)
-}
-
-function handleToggleProxy(): void {
-  void runProxyAction(proxyStatus.value?.running ? stopProxy : startProxy)
-}
-
-function handleInstallCert(): void {
-  void runProxyAction(installProxyCert)
-}
-
-// Buka modal diff sebelum menulis hosts (konfirmasi + UAC manual).
-async function openApply(): Promise<void> {
-  applyError.value = ''
-  await refreshSitesStatus()
-  if (!sitesStatus.value || sitesStatus.value.inSync) return
-  pendingDiff.value = sitesStatus.value.diff
-  showDiffModal.value = true
-}
-
-async function confirmApply(): Promise<void> {
-  applyError.value = ''
-  sitesBusy.value = true
-  try {
-    await applySites()
-    showDiffModal.value = false
-    await refreshSitesStatus()
-  } catch (err) {
-    applyError.value = String(err)
-  } finally {
-    sitesBusy.value = false
-  }
-}
-
-function cancelApply(): void {
-  showDiffModal.value = false
-  applyError.value = ''
-}
-
-async function handleRestore(): Promise<void> {
-  const backup = selectedBackup.value
-  if (!backup) return
-  let ok = false
-  try {
-    ok = await ask(`Pulihkan hosts dari backup ini?\n${backup}`, {
-      title: 'Restore Hosts',
-      kind: 'warning',
-    })
-  } catch {
-    ok = window.confirm(`Pulihkan hosts dari backup "${backup}"?`)
-  }
-  if (!ok) return
-  applyError.value = ''
-  sitesBusy.value = true
-  try {
-    await restoreSites(backup)
-    await refreshSitesStatus()
-  } catch (err) {
-    applyError.value = String(err)
-  } finally {
-    sitesBusy.value = false
-  }
-}
-
 const {
   latestVersion,
   updateAvailable,
@@ -362,20 +123,6 @@ async function chooseProvider(value: 'auto' | 'mise' | 'legacy'): Promise<void> 
   if (config.value.versionProvider === value) return
   await setVersionProvider(value)
   await versionCtx.refresh()
-}
-
-async function pickProject(): Promise<void> {
-  let selected: string | string[] | null = null
-  try {
-    selected = await openDialog({ directory: true, multiple: false, title: 'Add project folder' })
-  } catch (err) {
-    miseError.value = String(err)
-    return
-  }
-  if (typeof selected === 'string') {
-    await addProject(selected)
-    await versionCtx.refresh()
-  }
 }
 
 // --- Restore database (v1.8) ---------------------------------------------
@@ -457,21 +204,6 @@ async function runMigrateFromDocker(): Promise<void> {
   }
 }
 
-async function handleRemoveProject(id: string, name: string): Promise<void> {
-  let ok = false
-  try {
-    ok = await ask(`Remove project "${name}" from Servel? Files and mise.toml are not touched.`, {
-      title: 'Remove project',
-      kind: 'warning',
-    })
-  } catch {
-    ok = window.confirm(`Remove project "${name}"?`)
-  }
-  if (!ok) return
-  await removeProject(id)
-  await versionCtx.refresh()
-}
-
 async function fetchComposePath(): Promise<void> {
   try {
     composePath.value = await invoke<string>('get_compose_path')
@@ -529,8 +261,6 @@ onMounted(async () => {
   await fetchComposePath()
   await checkEngine()
   void versionCtx.refresh()
-  await refreshSitesStatus()
-  await refreshProxy()
   try {
     version.value = await getVersion()
   } catch {
@@ -563,7 +293,7 @@ onMounted(async () => {
           class="snav-item"
           :class="{ 'snav-item--active': activeNav === 'sites' }"
           @click="activeNav = 'sites'"
-        >Sites</button>
+        >Projects</button>
         <button
           class="snav-item"
           :class="{ 'snav-item--active': activeNav === 'php_node' }"
@@ -819,236 +549,7 @@ onMounted(async () => {
         </template>
 
         <template v-else-if="activeNav === 'sites'">
-          <div class="section-block">
-            <div class="section-title">SITES</div>
-            <p class="section-hint">
-              Domain lokal → IP lewat file hosts. Perubahan ditulis ke hosts hanya saat
-              kamu klik <strong>Terapkan ke hosts</strong> (butuh izin admin/UAC).
-            </p>
-
-            <div class="sites-statusbar">
-              <span
-                v-if="sitesStatus"
-                class="status-pill"
-                :class="sitesStatus.inSync ? 'status-pill--green' : 'status-pill--amber'"
-              >
-                <span class="status-dot"></span>
-                {{ sitesStatus.inSync ? 'Sinkron dengan hosts' : 'Ada perubahan belum diterapkan' }}
-              </span>
-              <button
-                class="action-btn action-btn--accent"
-                :disabled="sitesBusy || (sitesStatus?.inSync ?? false)"
-                @click="openApply"
-              >{{ sitesBusy ? 'Menerapkan…' : 'Terapkan ke hosts' }}</button>
-            </div>
-
-            <div class="site-list">
-              <div v-for="s in sites" :key="s.id" class="site-item">
-                <template v-if="editingSiteId === s.id">
-                  <input
-                    v-model="editDomain"
-                    class="profile-edit-input"
-                    type="text"
-                    maxlength="253"
-                    placeholder="domain.test"
-                    @keyup.enter="commitEditSite"
-                    @keyup.esc="cancelEditSite"
-                  />
-                  <input
-                    v-model="editIp"
-                    class="profile-edit-input site-ip-input"
-                    type="text"
-                    maxlength="15"
-                    placeholder="127.0.0.1"
-                    @keyup.enter="commitEditSite"
-                    @keyup.esc="cancelEditSite"
-                  />
-                  <input
-                    v-model="editPort"
-                    class="profile-edit-input site-port-input"
-                    type="text"
-                    maxlength="5"
-                    placeholder="port"
-                    title="Port dev server tujuan. Kosongkan bila domain ini hanya perlu resolve nama."
-                    @keyup.enter="commitEditSite"
-                    @keyup.esc="cancelEditSite"
-                  />
-                  <div class="profile-actions">
-                    <button class="action-btn" @click="commitEditSite">Simpan</button>
-                    <button class="action-btn" @click="cancelEditSite">Batal</button>
-                  </div>
-                </template>
-                <template v-else>
-                  <div class="site-info">
-                    <button
-                      class="toggle toggle--sm"
-                      :class="{ 'toggle--on': s.enabled }"
-                      role="switch"
-                      :aria-checked="s.enabled"
-                      :title="s.enabled ? 'Nonaktifkan' : 'Aktifkan'"
-                      @click="handleToggleSite(s.id)"
-                    >
-                      <span class="toggle-knob"></span>
-                    </button>
-                    <span class="site-domain" :class="{ 'site-domain--off': !s.enabled }">{{ s.domain }}</span>
-                    <span class="site-arrow">→</span>
-                    <span class="site-ip">{{ s.ip }}</span>
-                    <span v-if="s.target" class="site-port">:{{ s.target.value }}</span>
-                    <span v-else class="site-port site-port--none" title="Nama resolve, tapi tak ada yang mem-proxy-kan">
-                      tanpa proxy
-                    </span>
-                  </div>
-                  <div class="profile-actions">
-                    <button
-                      class="action-btn"
-                      @click="startEditSite(s.id, s.domain, s.ip, s.target?.value ?? null)"
-                    >Edit</button>
-                    <button
-                      class="action-btn action-btn--red"
-                      @click="handleDeleteSite(s.id, s.domain)"
-                    >Hapus</button>
-                  </div>
-                </template>
-              </div>
-              <p v-if="sites.length === 0" class="placeholder-text">
-                Belum ada domain. Tambahkan di bawah.
-              </p>
-            </div>
-
-            <div class="site-create">
-              <input
-                v-model="newDomain"
-                class="profile-create-input"
-                type="text"
-                maxlength="253"
-                placeholder="myapp.test"
-                @keyup.enter="handleAddSite"
-              />
-              <input
-                v-model="newIp"
-                class="profile-create-input site-ip-input"
-                type="text"
-                maxlength="15"
-                placeholder="127.0.0.1"
-                @keyup.enter="handleAddSite"
-              />
-              <input
-                v-model="newPort"
-                class="profile-create-input site-port-input"
-                type="text"
-                maxlength="5"
-                placeholder="port"
-                title="Port dev server tujuan, mis. 5173. Kosongkan bila domain ini hanya perlu resolve nama."
-                @keyup.enter="handleAddSite"
-              />
-              <button
-                class="action-btn action-btn--accent"
-                :disabled="!newDomain.trim()"
-                @click="handleAddSite"
-              >Tambah</button>
-            </div>
-            <p v-if="siteError" class="site-error">{{ siteError }}</p>
-            <p v-if="applyError && !showDiffModal" class="site-error">{{ applyError }}</p>
-          </div>
-
-          <div class="section-block">
-            <div class="section-title">REVERSE PROXY</div>
-            <p class="section-hint">
-              Hosts hanya membuat nama domain resolve ke IP. Proxy yang meneruskannya ke dev server
-              kamu — jalankan dev server sendiri, isi port tujuannya di daftar domain di atas.
-            </p>
-
-            <div v-if="!proxyBinary?.installed" class="sites-statusbar">
-              <span class="status-pill status-pill--amber">
-                <span class="status-dot"></span>
-                Engine proxy belum terpasang
-              </span>
-              <button
-                class="action-btn action-btn--accent"
-                :disabled="proxyBusy"
-                @click="handleInstallProxyBinary"
-              >
-                {{
-                  proxyBusy && proxyProgress
-                    ? `Mengunduh… ${Math.round((proxyProgress.downloaded / (proxyProgress.total || 1)) * 100)}%`
-                    : proxyBusy
-                      ? 'Mengunduh…'
-                      : 'Pasang engine proxy'
-                }}
-              </button>
-            </div>
-
-            <template v-else>
-              <div class="sites-statusbar">
-                <span
-                  class="status-pill"
-                  :class="proxyStatus?.running ? 'status-pill--green' : 'status-pill--amber'"
-                >
-                  <span class="status-dot"></span>
-                  {{
-                    proxyStatus?.running
-                      ? `Berjalan — ${proxyStatus.routed_sites} domain${proxyStatus.https ? ' (HTTPS)' : ' (HTTP)'}`
-                      : 'Proxy berhenti'
-                  }}
-                </span>
-                <button
-                  class="action-btn action-btn--accent"
-                  :disabled="proxyBusy || (!proxyStatus?.running && proxyableCount === 0)"
-                  :title="
-                    !proxyStatus?.running && proxyableCount === 0
-                      ? 'Aktifkan minimal satu domain dan isi port tujuannya'
-                      : ''
-                  "
-                  @click="handleToggleProxy"
-                >
-                  {{ proxyBusy ? 'Memproses…' : proxyStatus?.running ? 'Hentikan' : 'Jalankan' }}
-                </button>
-              </div>
-
-              <div class="sites-statusbar">
-                <span
-                  class="status-pill"
-                  :class="proxyStatus?.cert_installed ? 'status-pill--green' : 'status-pill--amber'"
-                >
-                  <span class="status-dot"></span>
-                  {{
-                    proxyStatus?.cert_installed
-                      ? 'Sertifikat lokal terpasang'
-                      : 'Belum ada sertifikat — domain dilayani lewat HTTP'
-                  }}
-                </span>
-                <button
-                  v-if="!proxyStatus?.cert_installed"
-                  class="action-btn"
-                  :disabled="proxyBusy"
-                  @click="handleInstallCert"
-                >Pasang sertifikat</button>
-              </div>
-              <p class="section-hint">
-                Sertifikat lokal membuat <code>https://</code> dipercaya browser. Windows akan
-                menampilkan dialog konfirmasi; menolaknya tidak masalah — domain tetap bisa dipakai
-                lewat HTTP.
-              </p>
-            </template>
-
-            <p v-if="proxyError" class="site-error">{{ proxyError }}</p>
-          </div>
-
-          <div v-if="(sitesStatus?.backups.length ?? 0) > 0" class="section-block">
-            <div class="section-title">RESTORE BACKUP</div>
-            <p class="section-hint">Pulihkan file hosts dari backup otomatis (5 terakhir).</p>
-            <div class="site-create">
-              <select v-model="selectedBackup" class="profile-create-input">
-                <option value="">Pilih backup…</option>
-                <option v-for="b in sitesStatus?.backups" :key="b" :value="b">{{ b }}</option>
-              </select>
-              <button
-                class="action-btn action-btn--red"
-                :disabled="!selectedBackup || sitesBusy"
-                @click="handleRestore"
-              >Restore</button>
-            </div>
-          </div>
+          <ProjectsPanel />
         </template>
 
         <template v-else-if="activeNav === 'php_node'">
@@ -1090,42 +591,6 @@ onMounted(async () => {
             </SettingRow>
 
             <p v-if="miseError" class="section-hint section-hint--note">{{ miseError }}</p>
-          </div>
-
-          <div class="section-block">
-            <div class="section-title">PROJECTS</div>
-            <p class="section-hint">
-              Folders whose PHP/Node versions you want to see and switch from the Dashboard.
-              mise resolves each folder on its own, including a mise.toml in a parent folder.
-              Link a service profile to a project to switch its services along with it.
-            </p>
-
-            <div class="profile-list">
-              <div v-for="p in config.projects" :key="p.id" class="profile-item">
-                <div class="profile-info">
-                  <span class="profile-name">{{ p.name }}</span>
-                  <span v-if="p.id === config.activeProjectId" class="profile-badge">active</span>
-                  <span class="site-domain project-path" :title="p.path">{{ p.path }}</span>
-                </div>
-                <div class="profile-actions">
-                  <select
-                    class="profile-create-input project-profile-select"
-                    :value="p.profileId ?? ''"
-                    title="Service profile applied when this project is selected"
-                    @change="setProjectProfile(p.id, ($event.target as HTMLSelectElement).value || null)"
-                  >
-                    <option value="">No service profile</option>
-                    <option v-for="pr in config.profiles" :key="pr.id" :value="pr.id">Profile: {{ pr.name }}</option>
-                  </select>
-                  <button class="action-btn action-btn--red" @click="handleRemoveProject(p.id, p.name)">Remove</button>
-                </div>
-              </div>
-              <p v-if="config.projects.length === 0" class="section-hint">No projects yet.</p>
-            </div>
-
-            <div class="profile-create">
-              <button class="action-btn" @click="pickProject">+ Add project folder</button>
-            </div>
           </div>
         </template>
 
@@ -1176,37 +641,6 @@ onMounted(async () => {
           </div>
         </template>
       </main>
-    </div>
-
-    <div v-if="showDiffModal" class="modal-overlay" @click.self="cancelApply">
-      <div class="modal-card">
-        <div class="modal-title">Konfirmasi perubahan hosts</div>
-        <p class="modal-desc">
-          Servel akan menulis blok terkelola di file hosts. Baris di luar blok tidak disentuh.
-          Klik <strong>Ya, terapkan</strong> lalu setujui prompt UAC.
-        </p>
-
-        <div class="diff-box">
-          <div v-for="l in pendingDiff?.removed ?? []" :key="'r-' + l" class="diff-line diff-line--del">- {{ l }}</div>
-          <div v-for="l in pendingDiff?.added ?? []" :key="'a-' + l" class="diff-line diff-line--add">+ {{ l }}</div>
-          <div v-for="l in pendingDiff?.unchanged ?? []" :key="'u-' + l" class="diff-line diff-line--same">&nbsp;&nbsp;{{ l }}</div>
-          <div
-            v-if="(pendingDiff?.added.length ?? 0) === 0 && (pendingDiff?.removed.length ?? 0) === 0"
-            class="diff-line diff-line--same"
-          >Tidak ada perubahan entri.</div>
-        </div>
-
-        <p v-if="applyError" class="site-error">{{ applyError }}</p>
-
-        <div class="modal-actions">
-          <button class="action-btn" :disabled="sitesBusy" @click="cancelApply">Batal</button>
-          <button
-            class="action-btn action-btn--accent"
-            :disabled="sitesBusy"
-            @click="confirmApply"
-          >{{ sitesBusy ? 'Menerapkan…' : 'Ya, terapkan' }}</button>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -1777,213 +1211,8 @@ onMounted(async () => {
   border-color: color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
-/* Sites (hosts) */
-.status-pill--amber {
-  background: color-mix(in srgb, var(--amber) 12%, transparent);
-  border-color: color-mix(in srgb, var(--amber) 35%, transparent);
-  color: var(--amber);
-}
-
-.sites-statusbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-
-.site-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.site-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-
-.site-info {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.toggle--sm {
-  width: 30px;
-  height: 17px;
-  flex-shrink: 0;
-}
-
-.toggle--sm .toggle-knob {
-  width: 11px;
-  height: 11px;
-}
-
-.toggle--sm.toggle--on .toggle-knob {
-  transform: translateX(13px);
-}
-
-.site-domain {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.site-domain--off {
-  color: var(--dim);
-  text-decoration: line-through;
-}
-
-.site-arrow {
-  color: var(--dim);
-  font-size: 11px;
-  flex-shrink: 0;
-}
-
-.site-ip {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--muted);
-  flex-shrink: 0;
-}
-
-.site-ip-input {
-  flex: 0 0 110px;
-  max-width: 110px;
-}
-
-.site-port-input {
-  flex: 0 0 70px;
-  max-width: 70px;
-}
-
-.site-port {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.site-port--none {
-  font-family: inherit;
-  font-style: italic;
-  opacity: 0.7;
-}
-
-.site-create {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-4);
-}
-
-.site-error {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  color: var(--red);
-  margin: var(--space-2) 0 0;
-}
-
-/* Diff-confirm modal */
-.modal-overlay {
-  position: absolute;
-  inset: 0;
-  background: color-mix(in srgb, var(--bg) 70%, transparent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-6);
-  z-index: 50;
-}
-
-.modal-card {
-  width: 100%;
-  max-width: 440px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-6);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.modal-title {
-  font-family: var(--font-sans);
-  font-size: 13px;
-  letter-spacing: 0.04em;
-  color: var(--text);
-}
-
-.modal-desc {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  color: var(--dim);
-  margin: 0;
-}
-
-.diff-box {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-3);
-  max-height: 200px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.diff-line {
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.diff-line--add {
-  color: var(--green);
-}
-
-.diff-line--del {
-  color: var(--red);
-}
-
-.diff-line--same {
-  color: var(--muted);
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-
-.project-path {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--dim);
-}
-
 .restore-error {
   color: var(--red);
   background: color-mix(in srgb, var(--red) 8%, var(--surface));
-}
-
-.project-profile-select {
-  width: auto;
-  max-width: 220px;
 }
 </style>

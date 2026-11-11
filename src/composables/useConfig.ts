@@ -9,27 +9,11 @@ export interface Profile {
   serviceIds: string[]
 }
 
-// Domain lokal → IP via file hosts (fitur Sites, M11). Hosts = proyeksi sites
-// yang enabled; config.json = source of truth. Apply ke hosts bersifat manual.
-// Tujuan routing site di balik reverse proxy (mirror `SiteTarget` Rust).
-// Tagged supaya varian lain bisa menyusul tanpa migrasi config ulang.
-export type SiteTarget = { kind: 'port'; value: number }
-
-export interface Site {
-  id: string
-  domain: string
-  ip: string
-  enabled: boolean
-  // null = site hosts-only: nama resolve, tapi tak ada yang mem-proxy-kan.
-  target?: SiteTarget | null
-}
-
 export interface ConfigState {
   version: number
   selectedServiceIds: string[]
   profiles: Profile[]
   activeProfileId: string | null
-  sites: Site[]
   lastPhpVersion: string | null
   lastNodeVersion: string | null
   watchedPath: string | null
@@ -46,11 +30,10 @@ export interface ConfigState {
 }
 
 const DEFAULT_CONFIG: ConfigState = {
-  version: 6,
+  version: 7,
   selectedServiceIds: [],
   profiles: [{ id: 'default', name: 'Default', serviceIds: [] }],
   activeProfileId: 'default',
-  sites: [],
   lastPhpVersion: null,
   lastNodeVersion: null,
   watchedPath: null,
@@ -135,13 +118,13 @@ export function useConfig() {
 
   // Project & konteks versi ditulis segera: backend mise membaca config dari
   // disk untuk menentukan cwd, jadi debounce akan membuat konteks tertinggal.
-  async function addProject(path: string): Promise<Project | null> {
+  async function addProject(path: string, extra: Partial<Project> = {}): Promise<Project | null> {
     const clean = path.replace(/[\\/]+$/, '')
     if (!clean) return null
     const exists = config.value.projects.find((p) => p.path.toLowerCase() === clean.toLowerCase())
     if (exists) return exists
     const name = clean.split(/[\\/]/).pop() || clean
-    const project: Project = { id: crypto.randomUUID(), name, path: clean }
+    const project: Project = { id: crypto.randomUUID(), name, ...extra, path: clean }
     config.value.projects = [...config.value.projects, project]
     await writeNow()
     return project
@@ -155,6 +138,11 @@ export function useConfig() {
 
   async function setActiveProject(id: string | null): Promise<void> {
     config.value.activeProjectId = id
+    await writeNow()
+  }
+
+  async function updateProject(id: string, patch: Partial<Project>): Promise<void> {
+    config.value.projects = config.value.projects.map((p) => (p.id === id ? { ...p, ...patch, id } : p))
     await writeNow()
   }
 
@@ -274,6 +262,7 @@ export function useConfig() {
     setContainerRuntime,
     addProject,
     removeProject,
+    updateProject,
     setActiveProject,
     setProjectProfile,
     setVersionProvider,

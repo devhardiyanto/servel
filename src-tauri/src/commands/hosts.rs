@@ -1,4 +1,6 @@
-//! Manajemen file hosts sistem untuk fitur Sites (domain lokal → IP).
+//! Sisa fitur domain `.test` (v1.4–v2.1), yang dihapus di v2.2. Yang
+//! dipertahankan hanya yang dibutuhkan untuk **membersihkan** blok terkelola
+//! Servel dari file hosts pengguna lama.
 //!
 //! Bagian **pure** (parse / generate / diff) di file ini **tidak** menyentuh
 //! privilege — semua write elevated diisolasi di primitive terpisah (T3).
@@ -6,12 +8,10 @@
 //! Servel **hanya** menyentuh baris di dalam blok bertanda sentinel; segala isi
 //! hosts di luar blok dipertahankan apa adanya.
 
-use super::config::{self, Site};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter, Manager};
 
 /// Marker awal blok terkelola Servel. Baris di antara marker = milik Servel.
 const BEGIN_MARKER: &str = "# >>> servel managed block >>>";
@@ -24,18 +24,6 @@ const END_MARKER: &str = "# <<< servel managed block <<<";
 pub struct HostEntry {
     pub ip: String,
     pub domain: String,
-}
-
-/// Hasil diff blok lama vs baru untuk preview konfirmasi di UI.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct DiffResult {
-    /// Baris `ip  domain` yang ada di blok baru tapi tidak di lama.
-    pub added: Vec<String>,
-    /// Baris yang ada di blok lama tapi hilang di baru.
-    pub removed: Vec<String>,
-    /// Baris yang sama di kedua blok.
-    pub unchanged: Vec<String>,
 }
 
 /// Path absolut file hosts sistem sesuai OS.
@@ -98,32 +86,6 @@ fn trim_eol(s: &str) -> &str {
     s.trim_end_matches(['\n', '\r'])
 }
 
-/// Ekstrak entri hosts di dalam managed block. Baris marker, komentar, dan
-/// baris kosong di-skip. Baris tak ada di dalam blok diabaikan sepenuhnya.
-pub fn parse_managed_block(content: &str) -> Vec<HostEntry> {
-    let (start, end) = match find_block_span(content) {
-        Some(span) => span,
-        None => return Vec::new(),
-    };
-
-    let mut out = Vec::new();
-    for line in content[start..end].lines() {
-        let t = line.trim();
-        // Skip marker & komentar (keduanya diawali '#') dan baris kosong.
-        if t.is_empty() || t.starts_with('#') {
-            continue;
-        }
-        let mut parts = t.split_whitespace();
-        if let (Some(ip), Some(domain)) = (parts.next(), parts.next()) {
-            out.push(HostEntry {
-                ip: ip.to_string(),
-                domain: domain.to_string(),
-            });
-        }
-    }
-    out
-}
-
 /// Hasilkan konten hosts baru = hosts existing dengan managed block Servel
 /// di-replace/inject dari `entries`. Semua byte di luar blok dipertahankan.
 ///
@@ -181,18 +143,6 @@ pub fn generate_hosts(existing: &str, entries: &[HostEntry]) -> String {
     }
 }
 
-fn fmt_entry(e: &HostEntry) -> String {
-    format!("{}  {}", e.ip, e.domain)
-}
-
-// --- Backup (T2) -------------------------------------------------------------
-// Sebelum tiap write ke hosts, salin hosts sekarang → app-data. Simpan 5
-// terakhir, rotasi otomatis. Backup disimpan di app-data (bukan system dir).
-
-const BACKUP_PREFIX: &str = "hosts.servel.";
-const BACKUP_SUFFIX: &str = ".bak";
-const BACKUP_KEEP: usize = 5;
-
 /// Timestamp epoch nanodetik — fixed-width untuk era sekarang → sorting leksikal
 /// nama file = urutan kronologis. Nanos meminimalkan tabrakan antar-panggilan.
 fn epoch_nanos() -> u128 {
@@ -201,78 +151,6 @@ fn epoch_nanos() -> u128 {
         .map(|d| d.as_nanos())
         .unwrap_or(0)
 }
-
-/// Daftar file backup di `dir`, terurut kronologis (lama → baru).
-pub fn list_backups(dir: &Path) -> Vec<PathBuf> {
-    let mut v: Vec<PathBuf> = match std::fs::read_dir(dir) {
-        Ok(rd) => rd
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| {
-                p.file_name()
-                    .and_then(|n| n.to_str())
-                    .map(|n| n.starts_with(BACKUP_PREFIX) && n.ends_with(BACKUP_SUFFIX))
-                    .unwrap_or(false)
-            })
-            .collect(),
-        Err(_) => Vec::new(),
-    };
-    v.sort();
-    v
-}
-
-/// Sisakan `keep` backup terbaru; hapus sisanya (yang terlama).
-fn rotate_backups(dir: &Path, keep: usize) -> Result<(), String> {
-    let all = list_backups(dir);
-    if all.len() <= keep {
-        return Ok(());
-    }
-    for p in &all[..all.len() - keep] {
-        std::fs::remove_file(p).map_err(|e| format!("gagal rotasi backup: {e}"))?;
-    }
-    Ok(())
-}
-
-/// Backup `hosts` ke `backup_dir` (timestamped) lalu rotasi simpan `BACKUP_KEEP`.
-/// Return path backup yang dibuat.
-pub fn backup_hosts_to_dir(hosts: &Path, backup_dir: &Path) -> Result<PathBuf, String> {
-    std::fs::create_dir_all(backup_dir).map_err(|e| format!("gagal buat backup dir: {e}"))?;
-    let name = format!("{BACKUP_PREFIX}{}{BACKUP_SUFFIX}", epoch_nanos());
-    let dest = backup_dir.join(name);
-    std::fs::copy(hosts, &dest).map_err(|e| format!("gagal backup hosts: {e}"))?;
-    rotate_backups(backup_dir, BACKUP_KEEP)?;
-    Ok(dest)
-}
-
-/// Diff managed block antara dua konten hosts (lama vs baru) untuk preview UI.
-pub fn diff_block(old_hosts: &str, new_hosts: &str) -> DiffResult {
-    let old: Vec<String> = parse_managed_block(old_hosts)
-        .iter()
-        .map(fmt_entry)
-        .collect();
-    let new: Vec<String> = parse_managed_block(new_hosts)
-        .iter()
-        .map(fmt_entry)
-        .collect();
-
-    let added = new.iter().filter(|l| !old.contains(l)).cloned().collect();
-    let removed = old.iter().filter(|l| !new.contains(l)).cloned().collect();
-    let unchanged = old.iter().filter(|l| new.contains(l)).cloned().collect();
-
-    DiffResult {
-        added,
-        removed,
-        unchanged,
-    }
-}
-
-// --- Elevated write (T3) -----------------------------------------------------
-// Satu-satunya titik yang butuh privilege. Diisolasi di sini; sisa modul murni.
-// Jalur Windows terbukti lewat spike T0 (lihat arch doc §B).
-//
-// Alur umum: tulis konten final ke temp non-privileged → jalankan copy temp→hosts
-// dengan elevation OS-spesifik → hosts hanya tersentuh oleh langkah elevated,
-// sehingga cancel/tolak = no-op (hosts utuh).
 
 /// Sentinel yang dikembalikan di Linux tanpa `pkexec` — frontend memicu fallback
 /// instruksi manual (paste konten hosts). Lihat arch doc §C O4.
@@ -403,107 +281,27 @@ pub fn write_hosts_elevated(content: &str) -> Result<(), String> {
 // --- Commands + event (T4) ---------------------------------------------------
 // Event `sites-changed` (kebab-case) di-emit setelah hosts berubah.
 
-/// Status sinkronisasi Sites untuk UI: apakah blok hosts == proyeksi sites,
-/// diff yang akan diterapkan, dan daftar backup untuk aksi restore.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct SitesStatus {
-    /// `true` bila hosts sudah cocok dengan proyeksi sites (tak perlu apply).
-    pub in_sync: bool,
-    /// Perubahan blok (current hosts → hasil generate) untuk preview konfirmasi.
-    pub diff: DiffResult,
-    /// Nama file backup, terbaru dulu (untuk dropdown restore).
-    pub backups: Vec<String>,
+/// Blok terkelola Servel masih ada di file hosts?
+pub fn has_managed_block(content: &str) -> bool {
+    find_block_span(content).is_some()
 }
 
-/// Proyeksi sites `enabled` → entri hosts. Sites disabled tidak masuk blok.
-fn project_sites(sites: &[Site]) -> Vec<HostEntry> {
-    sites
-        .iter()
-        .filter(|s| s.enabled)
-        .map(|s| HostEntry {
-            ip: s.ip.clone(),
-            domain: s.domain.clone(),
-        })
-        .collect()
-}
-
-/// Direktori backup hosts (co-located dengan config.json di app-config dir).
-fn backups_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| format!("gagal resolve app_config_dir: {e}"))?;
-    Ok(dir.join("hosts-backups"))
-}
-
-/// Nama backup dianggap valid bila tanpa separator path & sesuai pola penamaan
-/// (cegah path traversal saat restore).
-fn is_valid_backup_name(name: &str) -> bool {
-    !name.contains('/')
-        && !name.contains('\\')
-        && !name.contains("..")
-        && name.starts_with(BACKUP_PREFIX)
-        && name.ends_with(BACKUP_SUFFIX)
-}
-
-fn backup_names_newest_first(app: &AppHandle) -> Vec<String> {
-    let dir = match backups_dir(app) {
-        Ok(d) => d,
-        Err(_) => return Vec::new(),
-    };
-    let mut names: Vec<String> = list_backups(&dir)
-        .iter()
-        .filter_map(|p| p.file_name().and_then(|n| n.to_str()).map(String::from))
-        .collect();
-    names.reverse(); // list_backups: lama→baru; UI mau baru dulu.
-    names
-}
-
-#[tauri::command]
-pub async fn sites_status(app: AppHandle) -> Result<SitesStatus, String> {
-    let cfg = config::load_config(&app)?;
-    let desired = project_sites(&cfg.sites);
-    let existing = std::fs::read_to_string(hosts_path()).unwrap_or_default();
-    let generated = generate_hosts(&existing, &desired);
-    Ok(SitesStatus {
-        in_sync: existing == generated,
-        diff: diff_block(&existing, &generated),
-        backups: backup_names_newest_first(&app),
-    })
-}
-
-#[tauri::command]
-pub async fn sites_apply(app: AppHandle) -> Result<DiffResult, String> {
-    let cfg = config::load_config(&app)?;
-    let desired = project_sites(&cfg.sites);
-    let hosts = hosts_path();
-    let existing = std::fs::read_to_string(&hosts).unwrap_or_default();
-    let generated = generate_hosts(&existing, &desired);
-    let diff = diff_block(&existing, &generated);
-
-    // Sudah sinkron → tak perlu elevation (UAC) sama sekali.
-    if existing == generated {
-        return Ok(diff);
+/// Hapus blok terkelola Servel dari file hosts (butuh izin admin). Baris di
+/// luar blok tidak disentuh. Tidak melakukan apa-apa bila blok sudah tidak ada.
+pub fn remove_managed_block() -> Result<(), String> {
+    let path = hosts_path();
+    let current = std::fs::read_to_string(&path).map_err(|e| format!("gagal membaca file hosts: {e}"))?;
+    if !has_managed_block(&current) {
+        return Ok(());
     }
-
-    // Backup hosts sekarang SEBELUM write (rotasi 5) lalu tulis elevated.
-    backup_hosts_to_dir(&hosts, &backups_dir(&app)?)?;
-    write_hosts_elevated(&generated)?;
-    let _ = app.emit("sites-changed", ());
-    Ok(diff)
+    write_hosts_elevated(&generate_hosts(&current, &[]))
 }
 
-#[tauri::command]
-pub async fn sites_restore(app: AppHandle, backup_id: String) -> Result<(), String> {
-    if !is_valid_backup_name(&backup_id) {
-        return Err("Nama backup tidak valid.".to_string());
-    }
-    let path = backups_dir(&app)?.join(&backup_id);
-    let content = std::fs::read_to_string(&path).map_err(|e| format!("gagal baca backup: {e}"))?;
-    write_hosts_elevated(&content)?;
-    let _ = app.emit("sites-changed", ());
-    Ok(())
+/// Blok terkelola masih ada? `false` juga bila file hosts tidak terbaca.
+pub fn managed_block_present() -> bool {
+    std::fs::read_to_string(hosts_path())
+        .map(|c| has_managed_block(&c))
+        .unwrap_or(false)
 }
 
 #[cfg(test)]
@@ -585,9 +383,7 @@ mod tests {
         assert!(out.contains("\r\n"));
         // Tidak menyisipkan bare LF di seam blok.
         assert!(!out.contains("test\n#") || out.contains("test\r\n#"));
-        // Round-trip parse tetap benar meski CRLF.
-        let parsed = parse_managed_block(&out);
-        assert_eq!(parsed, entries(&[("127.0.0.1", "win.test")]));
+        assert!(out.contains("127.0.0.1  win.test\r\n"));
     }
 
     #[test]
@@ -597,103 +393,19 @@ mod tests {
     }
 
     #[test]
-    fn parse_extracts_only_block_entries() {
-        let existing = "1.2.3.4  outside.host\n";
-        let out = generate_hosts(
-            existing,
-            &entries(&[("127.0.0.1", "app.test"), ("192.168.1.10", "vm.test")]),
-        );
-        let parsed = parse_managed_block(&out);
-        assert_eq!(
-            parsed,
-            entries(&[("127.0.0.1", "app.test"), ("192.168.1.10", "vm.test")])
-        );
-        // Baris di luar blok tidak ikut ter-parse.
-        assert!(!parsed.iter().any(|e| e.domain == "outside.host"));
-    }
-
-    #[test]
-    fn parse_empty_when_no_block() {
-        assert!(parse_managed_block(SAMPLE).is_empty());
-    }
-
-    #[test]
-    fn diff_reports_added_removed_unchanged() {
-        let old = generate_hosts(
-            SAMPLE,
-            &entries(&[("127.0.0.1", "keep.test"), ("127.0.0.1", "drop.test")]),
-        );
-        let new = generate_hosts(
-            SAMPLE,
-            &entries(&[("127.0.0.1", "keep.test"), ("127.0.0.1", "fresh.test")]),
-        );
-        let d = diff_block(&old, &new);
-        assert_eq!(d.added, vec!["127.0.0.1  fresh.test"]);
-        assert_eq!(d.removed, vec!["127.0.0.1  drop.test"]);
-        assert_eq!(d.unchanged, vec!["127.0.0.1  keep.test"]);
+    fn detects_and_removes_managed_block() {
+        let hosts = "127.0.0.1 localhost\n# >>> servel managed block >>>\n127.0.0.1  myapp.test\n# <<< servel managed block <<<\n10.0.0.2 nas\n";
+        assert!(has_managed_block(hosts));
+        let cleaned = generate_hosts(hosts, &[]);
+        assert!(!has_managed_block(&cleaned));
+        assert!(cleaned.contains("127.0.0.1 localhost") && cleaned.contains("10.0.0.2 nas"));
+        assert!(!cleaned.contains("myapp.test"));
+        assert!(!has_managed_block("127.0.0.1 localhost\n"));
     }
 
     #[test]
     fn hosts_path_is_absolute() {
         assert!(hosts_path().is_absolute());
-    }
-
-    fn site(domain: &str, ip: &str, enabled: bool) -> Site {
-        Site {
-            id: domain.to_string(),
-            domain: domain.to_string(),
-            ip: ip.to_string(),
-            enabled,
-            // Hosts tak peduli target proxy — itu urusan lapisan proxy.
-            target: None,
-        }
-    }
-
-    #[test]
-    fn project_sites_only_enabled() {
-        let sites = vec![
-            site("on.test", "127.0.0.1", true),
-            site("off.test", "127.0.0.1", false),
-            site("vm.test", "192.168.1.5", true),
-        ];
-        let projected = project_sites(&sites);
-        assert_eq!(
-            projected,
-            entries(&[("127.0.0.1", "on.test"), ("192.168.1.5", "vm.test")])
-        );
-    }
-
-    #[test]
-    fn valid_backup_name_guards_traversal() {
-        assert!(is_valid_backup_name("hosts.servel.123.bak"));
-        assert!(!is_valid_backup_name("../hosts.servel.123.bak"));
-        assert!(!is_valid_backup_name("hosts.servel.123.bak/../evil"));
-        assert!(!is_valid_backup_name("random.txt"));
-        assert!(!is_valid_backup_name("..\\windows\\system32\\hosts"));
-    }
-
-    fn temp_dir(tag: &str) -> PathBuf {
-        let mut d = std::env::temp_dir();
-        d.push(format!("servel_hosts_test_{}_{}", tag, epoch_nanos()));
-        d
-    }
-
-    #[test]
-    fn backup_copies_hosts_content() {
-        let dir = temp_dir("copy");
-        std::fs::create_dir_all(&dir).unwrap();
-        let src = dir.join("hosts");
-        std::fs::write(&src, "127.0.0.1  localhost\n").unwrap();
-        let backup_dir = dir.join("backups");
-
-        let dest = backup_hosts_to_dir(&src, &backup_dir).expect("backup gagal");
-        assert!(dest.exists());
-        assert_eq!(
-            std::fs::read_to_string(&dest).unwrap(),
-            "127.0.0.1  localhost\n"
-        );
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -723,29 +435,5 @@ mod tests {
         assert!(cmd.contains("catch { exit 1223 }"));
         assert!(cmd.contains("C:\\w.ps1"));
         assert!(cmd.contains("C:\\Windows\\hosts"));
-    }
-
-    #[test]
-    fn rotation_keeps_only_newest() {
-        let dir = temp_dir("rotate");
-        std::fs::create_dir_all(&dir).unwrap();
-        // Buat 8 backup ber-timestamp menaik (fixed width) → terlama 3 harus dihapus.
-        for i in 0..8u32 {
-            let name = format!("{BACKUP_PREFIX}{:020}{BACKUP_SUFFIX}", i);
-            std::fs::write(dir.join(name), format!("v{i}")).unwrap();
-        }
-        rotate_backups(&dir, BACKUP_KEEP).expect("rotasi gagal");
-
-        let remaining = list_backups(&dir);
-        assert_eq!(remaining.len(), BACKUP_KEEP);
-        // Yang tersisa = 5 terbaru (index 3..8).
-        let names: Vec<String> = remaining
-            .iter()
-            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
-            .collect();
-        assert!(names[0].contains(&format!("{:020}", 3)));
-        assert!(names[4].contains(&format!("{:020}", 7)));
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

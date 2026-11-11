@@ -119,7 +119,7 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
 
 ### Ditunda
 
-- Menautkan Sites ke project. Sites sudah punya target port per domain; tautan ke project baru berguna bila nanti ada aksi per project (mis. "start project" yang juga menyalakan proxy).
+- Menautkan Sites ke project (dikerjakan di v2.2 dengan melebur keduanya).
 
 ## v2.0.0 — default baru
 
@@ -160,11 +160,33 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Private key updater hilang = pengguna terpasang tidak bisa auto-update lagi.
 - Bukan code signing: SmartScreen/Gatekeeper tetap muncul.
 
-## v2.2.0 — Sites menjalankan project (rencana)
+## v2.2.0 — project dijalankan di localhost
 
-- Site = folder project + jenis terdeteksi + perintah + port tetap; diakses lewat `localhost:port`.
-- Start/Stop/Buka/Log per site, dijalankan lewat `mise exec` agar versi mengikuti project.
-- Domain `.test`, proxy, dan sertifikat menjadi bagian opsional.
+**Selesai**
+
+- Satu daftar **Projects** (Settings → Projects): folder, profil service, perintah dev server, port tetap, auto-start. Daftar "Projects" di PHP & Node dilebur ke sini.
+- Deteksi jenis project → usulan perintah dan port: Laravel, Lumen, WordPress, Drupal, PHP polos, Vite (Vue/React/Svelte), Next, Nuxt, Angular, Node lain, Go (`air` bila ada). Package manager dari lockfile.
+- Start/Stop/Open/Log per project. Perintah dijalankan lewat shell di folder project dengan environment `mise env --json`, jadi versi mengikuti `mise.toml`. Env `PORT` selalu di-set.
+- Status: starting → running (port menjawab) / port tidak menjawab setelah 90 dtk / exited (exit code + baris output terakhir).
+- Stop mematikan seluruh pohon proses (`taskkill /T /F` di Windows, process group di Unix). Semua dev server dihentikan saat Servel keluar.
+- **Fitur domain `.test` dihapus** (hosts, reverse proxy Caddy, sertifikat lokal). Site lama dipindah ke Projects (domain menjadi nama, port dipertahankan, folder dipilih ulang). Banner di Projects menawarkan pembersihan blok hosts dan sertifikat lama.
+- Config v7; dependensi unduh/ekstrak Caddy dicabut.
+- CLI: `servel projects` menampilkan URL localhost tiap project.
+
+**Perlu verifikasi di Windows**
+
+- Start/Stop sungguhan: `cmd /S /C` dengan perintah berisi tanda kutip, dan `taskkill /T /F` membebaskan port (`npm` → `node` → `vite`). Di Linux sudah diuji ujung ke ujung lewat unit test.
+- `mise env --json` di mise 2026.11.2: bentuk output dan PATH yang dihasilkan.
+- Pembersihan sisa lama: hapus blok hosts (UAC) dan hapus sertifikat Caddy dari `CurrentUser\Root` (dialog konfirmasi Windows).
+- Updater v2.1.0 → v2.2.0 (uji pertama alur update).
+
+**Batasan**
+
+- Node backend dan Go hanya mengikuti port bila aplikasinya membaca `PORT`; kalau tidak, isi port aplikasinya di Edit.
+- `php -S` / `artisan serve` melayani satu request pada satu waktu di Windows.
+- Dependensi project (`vendor`, `node_modules`) tidak dipasang otomatis.
+- Bila Servel mati paksa (crash/kill), dev server yang sedang jalan tidak ikut dihentikan.
+- `%AppData%\Caddy` (data Caddy, termasuk kunci CA lama) tidak dihapus karena bisa dipakai instalasi Caddy lain.
 
 ## Setelah v2.2 (kandidat)
 
