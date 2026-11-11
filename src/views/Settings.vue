@@ -320,7 +320,12 @@ const {
   updateAvailable,
   checking: checkingUpdate,
   lastChecked,
+  canInstall,
+  installing: installingUpdate,
+  installPercent,
+  installError,
   check: checkUpdate,
+  install: installUpdate,
   openReleasePage,
 } = useUpdateCheck()
 
@@ -1135,8 +1140,32 @@ onMounted(async () => {
 
             <div v-if="updateAvailable" class="update-banner">
               <span class="ub-text">Versi baru tersedia: <strong>v{{ latestVersion }}</strong></span>
-              <button class="ub-download" @click="openReleasePage">Buka halaman rilis</button>
+              <span class="ub-actions">
+                <button v-if="canInstall" class="ub-link" :disabled="installingUpdate" @click="openReleasePage">
+                  Catatan rilis
+                </button>
+                <button v-if="canInstall" class="ub-download" :disabled="installingUpdate" @click="installUpdate">
+                  {{ installingUpdate ? 'Memasang…' : 'Update sekarang' }}
+                </button>
+                <button v-else class="ub-download" @click="openReleasePage">Buka halaman rilis</button>
+              </span>
             </div>
+            <div v-if="installingUpdate" class="update-progress">
+              <div class="up-track">
+                <div
+                  class="up-fill"
+                  :class="{ 'up-fill--unknown': installPercent === null }"
+                  :style="installPercent !== null ? { width: installPercent + '%' } : undefined"
+                />
+              </div>
+              <span class="up-text">
+                {{ installPercent !== null ? `Mengunduh ${installPercent}%` : 'Mengunduh…' }}
+                · Servel akan menutup, memasang, lalu membuka lagi.
+              </span>
+            </div>
+            <p v-if="installError" class="update-error">
+              Update otomatis gagal: {{ installError }}. Unduh installer dari halaman rilis.
+            </p>
 
             <div class="update-row">
               <button class="update-check-btn" :disabled="checkingUpdate" @click="checkUpdate">
@@ -1484,6 +1513,77 @@ onMounted(async () => {
 .ub-download:hover {
   background: color-mix(in srgb, var(--accent) 28%, transparent);
   border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+}
+
+.ub-download:disabled,
+.ub-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ub-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.ub-link {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.ub-link:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.update-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.up-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+
+.up-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.2s var(--ease);
+}
+
+.up-fill--unknown {
+  width: 35%;
+  animation: up-slide 1.2s var(--ease) infinite alternate;
+}
+
+@keyframes up-slide {
+  from { transform: translateX(-20%); }
+  to { transform: translateX(210%); }
+}
+
+.up-text {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.update-error {
+  margin-top: var(--space-3);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--red);
 }
 
 .update-row {

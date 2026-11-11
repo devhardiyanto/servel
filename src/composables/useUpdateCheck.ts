@@ -1,5 +1,7 @@
 import { ref } from 'vue'
 import { getVersion } from '@tauri-apps/api/app'
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 
 const REPO = 'devhardiyanto/servel'
 const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases/latest`
@@ -40,6 +42,59 @@ const latestVersion = ref<string>('')
 const updateAvailable = ref(false)
 const checking = ref(false)
 const lastChecked = ref<number | null>(null)
+// In-app updater (v2.1). `canInstall` = updater bawaan menemukan versi yang
+// sama dan bisa memasangnya; bila false, banner hanya menawarkan halaman rilis.
+const canInstall = ref(false)
+const installing = ref(false)
+const installPercent = ref<number | null>(null)
+const installError = ref('')
+
+interface UpdateInfo {
+  version: string
+  currentVersion: string
+  notes: string | null
+}
+
+interface UpdateProgress {
+  downloaded: number
+  total: number | null
+  percent: number | null
+}
+
+/** Tanya updater bawaan. Gagal (build dev, release tanpa latest.json) = false. */
+async function probeInstaller(): Promise<void> {
+  try {
+    const info = await invoke<UpdateInfo | null>('update_check')
+    canInstall.value = info !== null
+    if (info) {
+      latestVersion.value = info.version
+      updateAvailable.value = true
+    }
+  } catch (err) {
+    console.warn('[update-check] updater bawaan tidak tersedia:', err)
+    canInstall.value = false
+  }
+}
+
+async function runInstall(): Promise<void> {
+  if (installing.value) return
+  installing.value = true
+  installError.value = ''
+  installPercent.value = null
+  const unlisten = await listen<UpdateProgress>('update-progress', (e) => {
+    installPercent.value = e.payload.percent
+  })
+  try {
+    // Sukses = aplikasi restart, jadi baris setelah ini biasanya tak tercapai.
+    await invoke('update_install')
+  } catch (err) {
+    installError.value = String(err)
+    canInstall.value = false
+  } finally {
+    unlisten()
+    installing.value = false
+  }
+}
 
 async function runCheck(): Promise<void> {
   if (checking.value) return
@@ -62,6 +117,7 @@ async function runCheck(): Promise<void> {
   } catch (err) {
     console.error('[update-check]', err)
   } finally {
+    await probeInstaller()
     checking.value = false
     lastChecked.value = Date.now()
   }
@@ -78,7 +134,12 @@ export function useUpdateCheck() {
     updateAvailable,
     checking,
     lastChecked,
+    canInstall,
+    installing,
+    installPercent,
+    installError,
     check: runCheck,
+    install: runInstall,
     openReleasePage,
   }
 }

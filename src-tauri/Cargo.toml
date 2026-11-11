@@ -1,6 +1,6 @@
 [package]
 name = "servel"
-version = "2.0.0"
+version = "2.1.0"
 description = "One app. All your local dev environment."
 authors = ["devhardiyanto <dev.hardiyanto@gmail.com>"]
 edition = "2021"
@@ -30,6 +30,7 @@ notify-debouncer-mini = "0.4"
 # tidak menarik OpenSSL sebagai dependensi build di Windows.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 sha2 = "0.10"
+tauri-plugin-updater = "2"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_System_Diagnostics_Debug"] }
