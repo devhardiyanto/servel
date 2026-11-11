@@ -16,6 +16,14 @@ export interface Project {
   path: string
   /** Profil service yang diterapkan saat project dipilih (v1.9). */
   profileId?: string | null
+  /** Jenis hasil deteksi (laravel, vite, ...). Hanya label. */
+  kind?: string
+  /** Perintah dev server; `{port}` diganti port project. Kosong = tidak dijalankan Servel. */
+  command?: string
+  /** Port tetap di localhost. 0 = belum ditetapkan. */
+  port?: number
+  /** Jalankan otomatis saat Servel dibuka. */
+  autoStart?: boolean
 }
 
 export interface MiseContext {

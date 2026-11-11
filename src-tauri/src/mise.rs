@@ -314,6 +314,24 @@ async fn capture(args: &[String], cwd: &Path) -> Result<String, String> {
     }
 }
 
+/// Parse `mise env --json`: objek `{ "NAMA": "nilai", ... }`. Nilai non-string
+/// diabaikan.
+pub fn parse_env(stdout: &str) -> Result<std::collections::HashMap<String, String>, String> {
+    let v: Value = serde_json::from_str(stdout.trim()).map_err(|e| format!("output mise env tidak valid: {}", e))?;
+    let obj = v.as_object().ok_or_else(|| "output mise env bukan objek".to_string())?;
+    Ok(obj
+        .iter()
+        .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+        .collect())
+}
+
+/// Environment (PATH dan variabel lain) yang berlaku di `dir` menurut mise,
+/// untuk menjalankan dev server project dengan versi tool yang benar.
+pub async fn env_for(dir: &Path) -> Result<std::collections::HashMap<String, String>, String> {
+    let out = capture(&["env".into(), "--json".into()], dir).await?;
+    parse_env(&out)
+}
+
 /// Jalankan mise sambil men-stream output ke panel log (source `MISE`).
 async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), String> {
     let emit = |line: &str, stream: &str| {
@@ -575,6 +593,16 @@ mod tests {
         let v = parse_installed(include_str!("fixtures/mise-2026.11.2-ls-installed-php.json"));
         let got: Vec<(&str, bool)> = v.iter().map(|x| (x.version.as_str(), x.active)).collect();
         assert_eq!(got, vec![("8.3.33", false), ("8.3.35", false), ("8.5.11", true)]);
+    }
+
+    #[test]
+    fn parse_env_keeps_string_values() {
+        let env = parse_env(r#"{"PATH":"C:\\mise\\php\\8.3;C:\\Windows","APP_ENV":"local","N":1}"#).unwrap();
+        assert_eq!(env.get("APP_ENV").map(String::as_str), Some("local"));
+        assert!(env.get("PATH").unwrap().starts_with(r"C:\mise\php\8.3"));
+        assert!(!env.contains_key("N"));
+        assert!(parse_env("WARN something").is_err());
+        assert!(parse_env("[]").is_err());
     }
 
     #[test]

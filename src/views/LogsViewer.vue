@@ -4,11 +4,12 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { useLogs } from '@/composables/useLogs'
 import { useLogCopy } from '@/composables/useLogCopy'
 import { SetViewKey } from '@/types/navigation'
+import { useConfig } from '@/composables/useConfig'
 
 const setView = inject(SetViewKey)!
 const { lines, clear } = useLogs()
 
-const TABS = ['All', 'MySQL', 'PostgreSQL', 'Redis', 'PHP', 'Node', 'mise'] as const
+const TABS = ['All', 'Projects', 'MySQL', 'PostgreSQL', 'Redis', 'PHP', 'Node', 'mise'] as const
 type Tab = (typeof TABS)[number]
 
 const activeTab = ref<Tab>('All')
@@ -36,6 +37,11 @@ const TAB_KEYWORDS: Record<string, string[]> = {
 const filteredLines = computed(() => {
   if (activeTab.value === 'All') return lines.value
   const tab = activeTab.value
+  // Output dev server memakai nama project sebagai sumber.
+  if (tab === 'Projects') {
+    const names = new Set(useConfig().config.value.projects.map((p) => p.name))
+    return lines.value.filter((l) => names.has(l.src))
+  }
   const srcSet = TAB_SRC[tab] ?? []
   const keywords = TAB_KEYWORDS[tab] ?? []
   return lines.value.filter((l) => {

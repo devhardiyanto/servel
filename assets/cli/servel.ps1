@@ -585,7 +585,7 @@ function Invoke-Projects {
     $cfg = Get-Content $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $projects = @()
     if ($cfg.PSObject.Properties.Name -contains 'projects') { $projects = @($cfg.projects) }
-    if ($projects.Count -eq 0) { Write-Step 'belum ada project. Tambahkan di Servel → Settings → PHP & Node.'; return }
+    if ($projects.Count -eq 0) { Write-Step 'belum ada project. Tambahkan di Servel → Settings → Projects.'; return }
     $active = if ($cfg.PSObject.Properties.Name -contains 'activeProjectId') { $cfg.activeProjectId } else { $null }
     $profiles = @{}
     if ($cfg.PSObject.Properties.Name -contains 'profiles') { foreach ($p in @($cfg.profiles)) { $profiles[$p.id] = $p.name } }
@@ -596,6 +596,7 @@ function Invoke-Projects {
             PROJECT = $_.name
             PATH    = $_.path
             PROFILE = if ($pid_ -and $profiles.ContainsKey($pid_)) { $profiles[$pid_] } else { '' }
+            URL     = if (($_.PSObject.Properties.Name -contains 'port') -and ([int]$_.port -gt 0)) { "http://localhost:$($_.port)" } else { '' }
         }
     } | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
 }

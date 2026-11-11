@@ -23,37 +23,45 @@ pub struct Profile {
 pub struct Project {
     pub id: String,
     pub name: String,
+    /// Folder project. Kosong hanya pada entri hasil migrasi site lama
+    /// (domain `.test`) yang foldernya belum dipilih.
+    #[serde(default)]
     pub path: String,
     /// Profil service yang diterapkan saat project ini dipilih di Dashboard
     /// (v1.9). `None` = selection tidak diubah.
     #[serde(default)]
     pub profile_id: Option<String>,
+    /// Jenis hasil deteksi (`laravel`, `vite`, ...). Hanya label tampilan.
+    #[serde(default)]
+    pub kind: String,
+    /// Perintah dev server (v2.2); `{port}` diganti port project saat
+    /// dijalankan. Kosong = project hanya dipakai untuk versi/profil.
+    #[serde(default)]
+    pub command: String,
+    /// Port tetap di `localhost`. 0 = belum ditetapkan.
+    #[serde(default)]
+    pub port: u16,
+    /// Jalankan dev server otomatis saat Servel dibuka.
+    #[serde(default)]
+    pub auto_start: bool,
 }
 
-/// Tujuan routing sebuah site di balik reverse proxy.
-///
-/// Bentuknya sengaja tagged (`{ "kind": "port", "value": 5173 }`) supaya bisa
-/// tumbuh tanpa migrasi ulang — mis. varian `docroot` untuk mode Valet penuh,
-/// yang di-descope dari v1.5 (lihat keputusan A1 di grooming Phase 12).
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+/// Target proxy site lama (v1.5–v2.1). Hanya dibaca saat migrasi ke v7.
+#[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SiteTarget {
-    /// Proxy ke port lokal: `domain` → `127.0.0.1:value`.
     Port { value: u16 },
 }
 
-/// Domain lokal yang dipetakan ke sebuah IP lewat file hosts sistem.
-/// `id` di-generate frontend (`crypto.randomUUID`), pola sama `Profile`.
-/// Hosts = proyeksi dari `sites` yang `enabled`; config.json = source of truth.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+/// Site lama (domain `.test` lewat hosts + proxy, v1.4–v2.1). Fitur itu
+/// dihapus di v2.2; struct ini hanya dibaca untuk memindahkan isinya ke
+/// `projects` dan tidak pernah ditulis lagi.
+#[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct Site {
+pub struct LegacySite {
     pub id: String,
+    #[serde(default)]
     pub domain: String,
-    pub ip: String,
-    pub enabled: bool,
-    /// `None` = site hosts-only: nama resolve ke `ip`, tapi tak ada yang
-    /// mem-proxy-kan. Perilaku site v1.4 ke bawah, dan default hasil migrasi.
     #[serde(default)]
     pub target: Option<SiteTarget>,
 }
@@ -71,10 +79,10 @@ pub struct ConfigState {
     pub profiles: Vec<Profile>,
     #[serde(default)]
     pub active_profile_id: Option<String>,
-    /// Daftar domain lokal (fitur Sites, M11). Config lama tanpa field ini →
-    /// serde default `[]` (migrasi v2→v3).
-    #[serde(default)]
-    pub sites: Vec<Site>,
+    /// Site lama (v1.4–v2.1). Hanya dibaca; migrasi v7 memindahkannya ke
+    /// `projects`.
+    #[serde(default, skip_serializing)]
+    pub sites: Vec<LegacySite>,
     #[serde(default)]
     pub last_php_version: Option<String>,
     #[serde(default)]
@@ -125,6 +133,10 @@ fn default_runtime() -> String {
 ///   Docker; pindah ke WSLC dilakukan user lewat Settings.
 /// - v5 → v6: perkenalkan `projects`, `active_project_id`, `version_provider`
 ///   (mise, v1.7). `watched_path` lama (bila ada) dijadikan project pertama.
+/// - v6 → v7: project bisa dijalankan di `localhost:port` (v2.2) dan fitur
+///   domain `.test` dihapus. Site lama dipindah ke `projects`: domain menjadi
+///   nama, port target menjadi port, folder masih kosong. File hosts tidak
+///   disentuh di sini.
 ///
 /// Idempotent: config yang sudah v4 & punya profil valid dibiarkan apa adanya.
 fn migrate(mut cfg: ConfigState) -> ConfigState {
@@ -159,9 +171,34 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
                 name: project_name_from_path(&path),
                 path,
                 profile_id: None,
+                kind: String::new(),
+                command: String::new(),
+                port: 0,
+                auto_start: false,
             });
         }
     }
+    // v6 → v7: site lama menjadi project (folder belum dipilih).
+    for site in std::mem::take(&mut cfg.sites) {
+        if cfg.projects.iter().any(|p| p.id == site.id) {
+            continue;
+        }
+        let port = match site.target {
+            Some(SiteTarget::Port { value }) => value,
+            None => 0,
+        };
+        cfg.projects.push(Project {
+            id: site.id,
+            name: site.domain,
+            path: String::new(),
+            profile_id: None,
+            kind: String::new(),
+            command: String::new(),
+            port,
+            auto_start: false,
+        });
+    }
+
     // Service yang dihapus dari services.json dibuang dari profil, supaya Start
     // tidak mencoba service yang sudah tidak ada. Idempotent.
     for p in cfg.profiles.iter_mut() {
@@ -218,7 +255,7 @@ const REMOVED_SERVICE_IDS: &[&str] = &["sqlserver"];
 const DEFAULT_PROFILE_ID: &str = "default";
 
 /// Skema config terkini. Naikkan saat ada perubahan struktur yang butuh migrasi.
-const CURRENT_VERSION: u32 = 6;
+const CURRENT_VERSION: u32 = 7;
 
 impl Default for ConfigState {
     fn default() -> Self {
@@ -419,13 +456,7 @@ mod tests {
                 service_ids: vec!["mysql".to_string(), "redis".to_string()],
             }],
             active_profile_id: Some("default".to_string()),
-            sites: vec![Site {
-                id: "s-1".to_string(),
-                domain: "myapp.test".to_string(),
-                ip: "127.0.0.1".to_string(),
-                enabled: true,
-                target: Some(SiteTarget::Port { value: 5173 }),
-            }],
+            sites: Vec::new(),
             last_php_version: Some("8.3".to_string()),
             last_node_version: Some("20.0.0".to_string()),
             watched_path: Some("/home/user/project".to_string()),
@@ -451,7 +482,6 @@ mod tests {
         assert!(json.contains("profiles"));
         assert!(json.contains("activeProfileId"));
         assert!(json.contains("serviceIds"));
-        assert!(json.contains("sites"));
 
         let restored: ConfigState = serde_json::from_str(&json).expect("deserialize gagal");
         assert_eq!(restored.version, original.version);
@@ -459,14 +489,8 @@ mod tests {
         assert_eq!(restored.profiles.len(), 1);
         assert_eq!(restored.profiles[0].service_ids, original.profiles[0].service_ids);
         assert_eq!(restored.active_profile_id, original.active_profile_id);
-        assert_eq!(restored.sites.len(), 1);
-        assert_eq!(restored.sites[0].domain, "myapp.test");
-        assert_eq!(restored.sites[0].ip, "127.0.0.1");
-        assert!(restored.sites[0].enabled);
-        assert_eq!(
-            restored.sites[0].target,
-            Some(SiteTarget::Port { value: 5173 })
-        );
+        // Site lama tidak pernah ditulis lagi.
+        assert!(!json.contains("\"sites\""));
         assert_eq!(restored.last_php_version, original.last_php_version);
         assert_eq!(restored.last_node_version, original.last_node_version);
         assert_eq!(restored.watched_path, original.watched_path);
@@ -526,6 +550,10 @@ mod tests {
                 name: "astra".into(),
                 path: r"D:\dev\astra".into(),
                 profile_id: Some("default".into()),
+                kind: "laravel".into(),
+                command: "php artisan serve --host=127.0.0.1 --port={port}".into(),
+                port: 8001,
+                auto_start: true,
             }],
             active_project_id: Some("p1".into()),
         };
@@ -585,50 +613,38 @@ mod tests {
     }
 
     #[test]
-    fn test_migrate_v3_to_v4_keeps_sites_hosts_only() {
-        // Config v3 (sites sudah ada, belum kenal target) → naik ke v4 tanpa
-        // memberi target apa pun. Site lama tak punya makna proxy.
+    fn test_migrate_v7_moves_legacy_sites_into_projects() {
+        // Site v1.4–v2.1: domain + ip + enabled (+ target). Domain menjadi nama
+        // project, port target dipertahankan, folder dan perintah masih kosong.
         let json = r#"{
-            "version": 3,
-            "selectedServiceIds": ["mysql"],
-            "profiles": [{ "id": "default", "name": "Default", "serviceIds": ["mysql"] }],
-            "activeProfileId": "default",
-            "sites": [
-                { "id": "s-1", "domain": "myapp.test", "ip": "127.0.0.1", "enabled": true },
-                { "id": "s-2", "domain": "admin.test", "ip": "127.0.0.1", "enabled": false }
-            ]
-        }"#;
-
-        let cfg: ConfigState = serde_json::from_str(json).expect("parse gagal");
-        let cfg = migrate(cfg);
-
-        assert_eq!(cfg.version, CURRENT_VERSION);
-        assert_eq!(cfg.sites.len(), 2);
-        assert!(cfg.sites.iter().all(|s| s.target.is_none()));
-        // Sisa isi site tak boleh berubah.
-        assert_eq!(cfg.sites[0].domain, "myapp.test");
-        assert!(cfg.sites[0].enabled);
-        assert!(!cfg.sites[1].enabled);
-    }
-
-    #[test]
-    fn test_migrate_v4_preserves_existing_target() {
-        // Config yang sudah v4 tak boleh kehilangan target yang sudah di-set.
-        let json = r#"{
-            "version": 4,
+            "version": 6,
             "profiles": [{ "id": "default", "name": "Default", "serviceIds": [] }],
             "activeProfileId": "default",
+            "projects": [{ "id": "p1", "name": "astra", "path": "D:\\dev\\astra", "profileId": "default" }],
             "sites": [
-                { "id": "s-1", "domain": "myapp.test", "ip": "127.0.0.1", "enabled": true,
-                  "target": { "kind": "port", "value": 5173 } }
+                { "id": "s-1", "domain": "myapp.test", "ip": "127.0.0.1", "enabled": true },
+                { "id": "s-2", "domain": "astra-share-api.test", "ip": "127.0.0.1", "enabled": false,
+                  "target": { "kind": "port", "value": 8001 } }
             ]
         }"#;
 
-        let cfg: ConfigState = serde_json::from_str(json).expect("parse gagal");
-        let cfg = migrate(cfg);
+        let cfg = migrate(serde_json::from_str::<ConfigState>(json).expect("parse gagal"));
 
         assert_eq!(cfg.version, CURRENT_VERSION);
-        assert_eq!(cfg.sites[0].target, Some(SiteTarget::Port { value: 5173 }));
+        assert!(cfg.sites.is_empty());
+        assert_eq!(cfg.projects.len(), 3);
+        // Project lama utuh, tanpa perintah/port.
+        assert_eq!(cfg.projects[0].name, "astra");
+        assert_eq!(cfg.projects[0].profile_id.as_deref(), Some("default"));
+        assert_eq!((cfg.projects[0].command.as_str(), cfg.projects[0].port), ("", 0));
+        assert_eq!((cfg.projects[1].name.as_str(), cfg.projects[1].port), ("myapp.test", 0));
+        assert_eq!((cfg.projects[2].name.as_str(), cfg.projects[2].port), ("astra-share-api.test", 8001));
+        assert!(cfg.projects[1..].iter().all(|p| p.path.is_empty() && p.command.is_empty()));
+
+        // Setelah disimpan dan dibaca lagi, tidak ada duplikasi.
+        let saved = serde_json::to_string(&cfg).unwrap();
+        let again = migrate(serde_json::from_str::<ConfigState>(&saved).unwrap());
+        assert_eq!(again.projects.len(), 3);
     }
 
     #[test]
@@ -657,7 +673,7 @@ mod tests {
             "containerRuntime": "wslc"
         }"#;
         let cfg = migrate(serde_json::from_str::<ConfigState>(json).expect("parse gagal"));
-        assert_eq!(cfg.version, 6);
+        assert_eq!(cfg.version, CURRENT_VERSION);
         assert_eq!(cfg.version_provider, "auto");
         assert_eq!(cfg.projects.len(), 1);
         assert_eq!(cfg.projects[0].name, "astra");
@@ -719,18 +735,6 @@ mod tests {
         assert!(json.contains("\"containerRuntime\":\"wslc\""));
         let back: ConfigState = serde_json::from_str(&json).unwrap();
         assert_eq!(back.container_runtime, "wslc");
-    }
-
-    #[test]
-    fn test_site_target_json_shape_is_tagged() {
-        // Bentuk on-disk dikunci: { "kind": "port", "value": N }. Varian lain
-        // (mis. docroot) menyusul tanpa migrasi ulang.
-        let target = SiteTarget::Port { value: 8000 };
-        let json = serde_json::to_string(&target).expect("serialize gagal");
-        assert_eq!(json, r#"{"kind":"port","value":8000}"#);
-
-        let back: SiteTarget = serde_json::from_str(&json).expect("deserialize gagal");
-        assert_eq!(back, target);
     }
 
     #[test]

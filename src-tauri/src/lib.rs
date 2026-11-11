@@ -1,6 +1,6 @@
 mod commands;
 mod mise;
-mod proxy;
+mod sites;
 mod runtime;
 mod updater;
 mod tray;
@@ -67,7 +67,7 @@ pub fn run() {
         .manage(watcher::default_watcher_state())
         .manage(Mutex::new(HashMap::<String, bool>::new()))
         .manage(Mutex::new(ConfigState::default()))
-        .manage(proxy::lifecycle::ProxyProcess::default())
+        .manage(sites::process::SiteProcs::default())
         .invoke_handler(tauri::generate_handler![
             updater::update_check,
             updater::update_install,
@@ -95,20 +95,17 @@ pub fn run() {
             watcher::watch_project,
             commands::config::config_read,
             commands::config::config_write,
-            commands::hosts::sites_status,
-            commands::hosts::sites_apply,
-            commands::hosts::sites_restore,
-            proxy::binary::proxy_binary_status,
-            proxy::binary::proxy_binary_install,
-            proxy::lifecycle::proxy_status,
-            proxy::lifecycle::proxy_check_ports,
-            proxy::lifecycle::proxy_start,
-            proxy::lifecycle::proxy_stop,
-            proxy::lifecycle::proxy_reload,
-            proxy::lifecycle::proxy_install_cert,
             mise::mise_context,
             mise::mise_trust,
             mise::mise_repair,
+            sites::project_detect,
+            sites::sites_runtime,
+            sites::site_start,
+            sites::site_stop,
+            sites::site_forget,
+            sites::legacy_status,
+            sites::legacy_cleanup_hosts,
+            sites::legacy_remove_cert,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -131,6 +128,7 @@ pub fn run() {
 
             runtime::init(app.handle());
             mise::init(app.handle());
+            sites::autostart(app.handle());
 
             let app_handle = app.handle().clone();
             let status_daemon_ready = daemon_ready.clone();
@@ -385,11 +383,11 @@ pub fn run() {
         if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
             run_shutting_down.store(true, Ordering::Relaxed);
 
-            // Caddy adalah child-process yang memegang :80/:443. Tanpa stop
-            // eksplisit, port bisa nyangkut setelah Servel ditutup.
+            // Dev server tiap project adalah child-process yang memegang port.
+            // Tanpa stop eksplisit, port bisa nyangkut setelah Servel ditutup.
             let handle = handle.clone();
             tauri::async_runtime::block_on(async move {
-                let _ = proxy::lifecycle::stop_process(&handle).await;
+                sites::process::stop_all(&handle).await;
             });
         }
     });
