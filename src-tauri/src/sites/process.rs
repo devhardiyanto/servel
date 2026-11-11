@@ -407,6 +407,25 @@ pub async fn stop<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<(), String
     Ok(())
 }
 
+/// Stop lalu start lagi. Menunggu proses lama benar-benar selesai dan port
+/// bebas, supaya start baru tidak ditolak dengan "port sedang dipakai".
+pub async fn restart<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(), String> {
+    validate(site)?;
+    stop(app, &site.id).await?;
+    let procs = app.state::<SiteProcs>();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    while procs.is_active(&site.id) || !port_free(site.port).await {
+        if tokio::time::Instant::now() >= deadline {
+            return Err(format!(
+                "{} belum berhenti setelah 15 dtk; port {} masih dipakai",
+                site.name, site.port
+            ));
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+    start(app, site).await
+}
+
 /// Hentikan semua dev server (dipanggil saat Servel keluar).
 pub async fn stop_all<R: Runtime>(app: &AppHandle<R>) {
     let procs = app.state::<SiteProcs>();
@@ -532,6 +551,21 @@ mod tests {
             }
         }
         assert!(stopped, "setelah Stop, status harus stopped dan port bebas");
+
+        // Restart dari keadaan berhenti = start; dari keadaan jalan = stop + start.
+        restart(&handle, &p).await.expect("restart (dari berhenti) gagal");
+        restart(&handle, &p).await.expect("restart (dari jalan) gagal");
+        let mut running = false;
+        for _ in 0..60 {
+            tokio::time::sleep(Duration::from_millis(250)).await;
+            let st = snapshot(&handle).iter().find(|r| r.id == "e2e").map(|r| r.state).unwrap();
+            if st == SiteState::Running {
+                running = true;
+                break;
+            }
+        }
+        assert!(running && port_open(port).await, "setelah Restart, server harus jalan lagi");
+        stop(&handle, "e2e").await.unwrap();
     }
 
     /// Proses yang berhenti sendiri dilaporkan `exited` dengan exit code dan

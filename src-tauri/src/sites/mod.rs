@@ -61,6 +61,11 @@ pub async fn site_start(app: AppHandle, project: Project) -> Result<(), String> 
 }
 
 #[tauri::command]
+pub async fn site_restart(app: AppHandle, project: Project) -> Result<(), String> {
+    process::restart(&app, &project).await
+}
+
+#[tauri::command]
 pub async fn site_stop(app: AppHandle, id: String) -> Result<(), String> {
     process::stop(&app, &id).await
 }

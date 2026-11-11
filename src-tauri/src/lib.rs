@@ -102,6 +102,7 @@ pub fn run() {
             sites::sites_runtime,
             sites::site_start,
             sites::site_stop,
+            sites::site_restart,
             sites::site_forget,
             sites::legacy_status,
             sites::legacy_cleanup_hosts,

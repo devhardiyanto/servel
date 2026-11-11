@@ -15,7 +15,7 @@ import type { Project } from '@/types/mise'
 
 const { config, addProject, removeProject, updateProject } = useConfig()
 const versionCtx = useVersionContext()
-const { stateOf, infoOf, start, stop, forget, detect } = useProjectRuntime()
+const { stateOf, infoOf, start, stop, restart, forget, detect } = useProjectRuntime()
 
 const projects = computed<Project[]>(() => config.value.projects)
 const errors = ref<Record<string, string>>({})
@@ -210,6 +210,18 @@ async function handleStop(p: Project): Promise<void> {
   }
 }
 
+async function handleRestart(p: Project): Promise<void> {
+  errors.value = { ...errors.value, [p.id]: '' }
+  busy.value = { ...busy.value, [p.id]: true }
+  try {
+    await restart(p)
+  } catch (err) {
+    errors.value = { ...errors.value, [p.id]: String(err) }
+  } finally {
+    busy.value = { ...busy.value, [p.id]: false }
+  }
+}
+
 async function handleOpen(p: Project): Promise<void> {
   try {
     await openUrl(url(p))
@@ -326,6 +338,12 @@ onMounted(() => {
               <button v-else class="pp-btn pp-btn--accent" :disabled="busy[p.id]" @click="handleStart(p)">
                 Start
               </button>
+              <button
+                class="pp-btn"
+                :disabled="busy[p.id] || !isActive(stateOf(p.id))"
+                :title="isActive(stateOf(p.id)) ? 'Stop, then start again' : 'Project is not running'"
+                @click="handleRestart(p)"
+              >Restart</button>
             </template>
             <button v-if="p.path" class="pp-btn pp-btn--ghost" @click="editingId === p.id ? cancelEdit() : startEdit(p)">
               Edit
