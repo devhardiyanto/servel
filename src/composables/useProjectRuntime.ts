@@ -63,6 +63,11 @@ export function useProjectRuntime() {
     await invoke<void>('site_start', { project })
   }
 
+  /** Stop lalu start; menunggu port bebas di antaranya. */
+  async function restart(project: Project): Promise<void> {
+    await invoke<void>('site_restart', { project })
+  }
+
   async function stop(id: string): Promise<void> {
     await invoke<void>('site_stop', { id })
   }
@@ -76,5 +81,5 @@ export function useProjectRuntime() {
     return await invoke<ProjectSuggestion>('project_detect', { path, taken })
   }
 
-  return { runtime, stateOf, infoOf, start, stop, forget, detect }
+  return { runtime, stateOf, infoOf, start, stop, restart, forget, detect }
 }

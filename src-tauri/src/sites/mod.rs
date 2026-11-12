@@ -61,6 +61,11 @@ pub async fn site_start(app: AppHandle, project: Project) -> Result<(), String> 
 }
 
 #[tauri::command]
+pub async fn site_restart(app: AppHandle, project: Project) -> Result<(), String> {
+    process::restart(&app, &project).await
+}
+
+#[tauri::command]
 pub async fn site_stop(app: AppHandle, id: String) -> Result<(), String> {
     process::stop(&app, &id).await
 }
@@ -106,34 +111,119 @@ pub struct LegacyStatus {
     pub cert: bool,
 }
 
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+const CADDY_SUBJECT: &str = "*Caddy Local Authority*";
+
+/// Sertifikat Caddy yang masih dipercaya, dipisah menurut lokasinya:
+/// `user` hanya di store pengguna (hapus tanpa admin), `machine` di store
+/// komputer (butuh admin). `Cert:\CurrentUser\Root` di PowerShell juga
+/// menampilkan sertifikat komputer, jadi `user` = CurrentUser dikurangi
+/// LocalMachine.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+#[derive(Debug, Default, PartialEq)]
+pub struct CertScopes {
+    pub user: Vec<String>,
+    pub machine: Vec<String>,
+}
+
+/// Parse output skrip daftar sertifikat: baris `U:<thumb>,<thumb>` dan
+/// `M:<thumb>`. Thumbprint selain 40 hex dibuang supaya tidak pernah
+/// diteruskan ke certutil.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+pub fn parse_cert_scopes(stdout: &str) -> CertScopes {
+    let thumbs = |rest: &str| -> Vec<String> {
+        rest.split(',')
+            .map(str::trim)
+            .filter(|t| t.len() == 40 && t.chars().all(|c| c.is_ascii_hexdigit()))
+            .map(str::to_ascii_uppercase)
+            .collect()
+    };
+    let mut out = CertScopes::default();
+    for line in stdout.lines().map(str::trim) {
+        if let Some(rest) = line.strip_prefix("U:") {
+            out.user = thumbs(rest);
+        } else if let Some(rest) = line.strip_prefix("M:") {
+            out.machine = thumbs(rest);
+        }
+    }
+    out
+}
+
 #[cfg(target_os = "windows")]
-fn powershell(script: &str) -> std::process::Command {
+fn hidden(program: &str) -> std::process::Command {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x08000000;
-    let mut cmd = std::process::Command::new("powershell.exe");
-    cmd.args(["-NoProfile", "-NonInteractive", "-Command", script])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .creation_flags(CREATE_NO_WINDOW);
+    let mut cmd = std::process::Command::new(program);
+    cmd.creation_flags(CREATE_NO_WINDOW);
     cmd
 }
 
-/// Caddy memasang root CA-nya ke `CurrentUser\Root` (tanpa elevation).
+#[cfg(target_os = "windows")]
+fn cert_scopes() -> CertScopes {
+    let script = format!(
+        "$m=@(Get-ChildItem Cert:\\LocalMachine\\Root | Where-Object {{ $_.Subject -like '{s}' }} | ForEach-Object Thumbprint); \
+         $u=@(Get-ChildItem Cert:\\CurrentUser\\Root | Where-Object {{ $_.Subject -like '{s}' }} | ForEach-Object Thumbprint | Where-Object {{ $m -notcontains $_ }}); \
+         'U:' + ($u -join ','); 'M:' + ($m -join ',')",
+        s = CADDY_SUBJECT
+    );
+    hidden("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output()
+        .map(|o| parse_cert_scopes(&String::from_utf8_lossy(&o.stdout)))
+        .unwrap_or_default()
+}
+
 #[cfg(target_os = "windows")]
 fn cert_present() -> bool {
-    powershell(
-        "if (Get-ChildItem Cert:\\CurrentUser\\Root | \
-         Where-Object { $_.Subject -like '*Caddy Local Authority*' }) { exit 0 } else { exit 1 }",
-    )
-    .status()
-    .map(|s| s.success())
-    .unwrap_or(false)
+    let s = cert_scopes();
+    !s.user.is_empty() || !s.machine.is_empty()
 }
 
 /// macOS/Linux: Servel tidak pernah memasang sertifikat di sana.
 #[cfg(not(target_os = "windows"))]
 fn cert_present() -> bool {
     false
+}
+
+/// Hapus dari store pengguna. Windows selalu menampilkan dialog konfirmasi
+/// untuk store Root; menolaknya membuat certutil gagal.
+#[cfg(target_os = "windows")]
+fn remove_user_cert(thumb: &str) -> Result<(), String> {
+    let out = hidden("certutil.exe")
+        .args(["-user", "-delstore", "Root", thumb])
+        .output()
+        .map_err(|e| format!("certutil tidak bisa dijalankan: {}", e))?;
+    if out.status.success() {
+        return Ok(());
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let reason = text
+        .lines()
+        .map(str::trim)
+        .find(|l| l.starts_with("CertUtil:") && !l.contains("-delstore command"))
+        .unwrap_or("certutil gagal");
+    Err(format!("store pengguna: {}", reason))
+}
+
+/// Hapus dari store komputer lewat certutil yang dijalankan sebagai admin
+/// (memunculkan UAC). Batal UAC → kode 1223.
+#[cfg(target_os = "windows")]
+fn remove_machine_cert(thumb: &str) -> Result<(), String> {
+    let script = format!(
+        "try {{ $p = Start-Process -FilePath 'certutil.exe' -ArgumentList '-delstore','Root','{}' \
+         -Verb RunAs -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode }} catch {{ exit 1223 }}",
+        thumb
+    );
+    let status = hidden("powershell.exe")
+        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script])
+        .status()
+        .map_err(|e| format!("powershell tidak bisa dijalankan: {}", e))?;
+    match status.code() {
+        Some(0) => Ok(()),
+        Some(1223) => Err("store komputer: izin admin (UAC) ditolak".to_string()),
+        Some(c) => Err(format!("store komputer: certutil gagal (kode {})", c)),
+        None => Err("store komputer: proses dihentikan".to_string()),
+    }
 }
 
 /// Binary Caddy dan Caddyfile milik Servel tidak dipakai lagi.
@@ -166,23 +256,34 @@ pub async fn legacy_cleanup_hosts() -> Result<(), String> {
         .map_err(|e| format!("gagal menjalankan pembersihan: {}", e))?
 }
 
-/// Cabut sertifikat lokal Caddy dari trust store pengguna. Windows
-/// menampilkan dialog konfirmasi; menolaknya membuat sertifikat tetap ada.
+/// Cabut sertifikat lokal Caddy. Yang ada di store pengguna dihapus dengan
+/// dialog konfirmasi Windows; yang ada di store komputer butuh UAC. Error
+/// menyebut lokasi dan alasan sebenarnya, bukan tebakan.
 #[tauri::command]
 pub async fn legacy_remove_cert() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         tauri::async_runtime::spawn_blocking(|| {
-            let _ = powershell(
-                "Get-ChildItem Cert:\\CurrentUser\\Root | \
-                 Where-Object { $_.Subject -like '*Caddy Local Authority*' } | Remove-Item",
-            )
-            .status();
-            if cert_present() {
-                Err("Sertifikat belum terhapus (dialog konfirmasi ditolak?).".to_string())
-            } else {
-                Ok(())
+            let scopes = cert_scopes();
+            let mut errors: Vec<String> = Vec::new();
+            for t in &scopes.user {
+                if let Err(e) = remove_user_cert(t) {
+                    errors.push(e);
+                }
             }
+            for t in &scopes.machine {
+                if let Err(e) = remove_machine_cert(t) {
+                    errors.push(e);
+                }
+            }
+            if !cert_present() {
+                return Ok(());
+            }
+            if errors.is_empty() {
+                errors.push("sertifikat masih terdaftar setelah dihapus".to_string());
+            }
+            errors.dedup();
+            Err(format!("Sertifikat belum terhapus — {}", errors.join("; ")))
         })
         .await
         .map_err(|e| format!("gagal menjalankan pembersihan: {}", e))?
@@ -190,5 +291,24 @@ pub async fn legacy_remove_cert() -> Result<(), String> {
     #[cfg(not(target_os = "windows"))]
     {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const A: &str = "0123456789ABCDEF0123456789ABCDEF01234567";
+    const B: &str = "89abcdef0123456789abcdef0123456789abcdef";
+
+    #[test]
+    fn cert_scopes_split_and_sanitize() {
+        let out = format!("U:{A}\r\nM:{B},not-a-thumb,{A}; rm -rf\r\n");
+        let s = parse_cert_scopes(&out);
+        assert_eq!(s.user, vec![A.to_string()]);
+        // Huruf kecil dinormalkan; nilai yang bukan 40 hex dibuang.
+        assert_eq!(s.machine, vec![B.to_ascii_uppercase()]);
+        assert_eq!(parse_cert_scopes("U:\nM:\n"), CertScopes::default());
+        assert_eq!(parse_cert_scopes(""), CertScopes::default());
     }
 }

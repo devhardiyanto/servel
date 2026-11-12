@@ -49,7 +49,7 @@ pub async fn update_check(app: AppHandle) -> Result<Option<UpdateInfo>, String> 
     }))
 }
 
-/// Unduh, verifikasi tanda tangan, pasang, lalu restart. Progress dikirim
+/// Unduh, verifikasi tanda tangan, hentikan dev server, pasang, lalu restart. Progress dikirim
 /// lewat event `update-progress`. Di Windows proses keluar saat installer
 /// berjalan, jadi command ini tidak selalu sempat mengembalikan `Ok`.
 #[tauri::command]
@@ -63,8 +63,8 @@ pub async fn update_install(app: AppHandle) -> Result<(), String> {
 
     let mut downloaded: u64 = 0;
     let emitter = app.clone();
-    update
-        .download_and_install(
+    let bytes = update
+        .download(
             move |chunk, total| {
                 downloaded += chunk as u64;
                 let _ = emitter.emit("update-progress", progress(downloaded, total));
@@ -72,6 +72,15 @@ pub async fn update_install(app: AppHandle) -> Result<(), String> {
             || {},
         )
         .await
+        .map_err(|e| format!("gagal mengunduh update: {}", e))?;
+
+    // Installer Windows menutup Servel secara paksa, jadi hook "stop saat
+    // keluar" tidak sempat berjalan. Hentikan dev server di sini; kalau tidak,
+    // prosesnya tertinggal memegang port dan Start setelah update gagal.
+    crate::sites::process::stop_all(&app).await;
+
+    update
+        .install(bytes)
         .map_err(|e| format!("gagal memasang update: {}", e))?;
 
     app.restart();

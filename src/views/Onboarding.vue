@@ -229,11 +229,13 @@ const fnmOkDesc = computed<string>(() => {
               :style="{ width: progressPct + '%' }"
             ></div>
           </div>
-          <span class="ob-progress-label">{{ readyCount }}/{{ totalCount }} ready</span>
+          <span class="ob-progress-label">
+            {{ status === null ? 'checking…' : `${readyCount}/${totalCount} ready` }}
+          </span>
         </div>
 
         <div v-if="status === null" class="ob-cards" aria-busy="true" aria-label="Checking prerequisites">
-          <div v-for="i in 3" :key="`prereq-skel-${i}`" class="prereq-skel">
+          <div v-for="i in 2" :key="`prereq-skel-${i}`" class="prereq-skel">
             <SkeletonBox width="36px" height="36px" radius="8px" />
             <div class="prereq-skel__body">
               <div class="prereq-skel__row">
@@ -386,6 +388,10 @@ const fnmOkDesc = computed<string>(() => {
 .ob-inner {
   width: 100%;
   max-width: 560px;
+  /* Tengah vertikal bila konten lebih pendek dari jendela. `margin: auto`
+     (bukan align-items: center) supaya konten yang lebih tinggi tetap bisa
+     di-scroll dari atas, tidak terpotong. */
+  margin-block: auto;
 }
 
 .ob-mark {
