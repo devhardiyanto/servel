@@ -1,7 +1,7 @@
-use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
 use serde::{Deserialize, Serialize};
+use std::process::Stdio;
 use tauri::{Emitter, Manager, Window};
+use tokio::io::{AsyncBufReadExt, BufReader};
 
 use super::util::{emit_env_line, extract_semver, silent_command};
 
@@ -31,7 +31,10 @@ pub async fn node_list_installed() -> Result<Vec<NodeVersion>, String> {
         return Ok(crate::mise::list_installed("node")
             .await?
             .into_iter()
-            .map(|v| NodeVersion { version: v.version, active: v.active })
+            .map(|v| NodeVersion {
+                version: v.version,
+                active: v.active,
+            })
             .collect());
     }
     let output = build_fnm_command()
@@ -85,10 +88,15 @@ pub async fn node_get_active() -> Result<Option<String>, String> {
 #[tauri::command]
 /// `scope` (mise saja): `None` = otomatis, `"project"` = pin di project aktif,
 /// `"global"` = ubah config global. Diabaikan oleh fnm.
-pub async fn node_switch(window: Window, version: String, scope: Option<String>) -> Result<(), String> {
+pub async fn node_switch(
+    window: Window,
+    version: String,
+    scope: Option<String>,
+) -> Result<(), String> {
     if crate::mise::provider_is_mise().await {
         crate::mise::validate_version(&version)?;
-        return crate::mise::use_version(window.app_handle(), "node", &version, scope.as_deref()).await;
+        return crate::mise::use_version(window.app_handle(), "node", &version, scope.as_deref())
+            .await;
     }
     let mut child = build_fnm_command()
         .args(["default", &version])
@@ -230,7 +238,13 @@ fn parse_fnm_list(output: &str) -> Vec<NodeVersion> {
             let version = version_token.trim_start_matches('v');
 
             // Must start with a digit to be a valid semver-like version
-            if version.is_empty() || !version.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+            if version.is_empty()
+                || !version
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false)
+            {
                 return None;
             }
 
@@ -302,7 +316,10 @@ mod tests {
 
     #[test]
     fn test_parse_default_output_semver() {
-        assert_eq!(parse_current_output("v20.14.0\n"), Some("20.14.0".to_string()));
+        assert_eq!(
+            parse_current_output("v20.14.0\n"),
+            Some("20.14.0".to_string())
+        );
         assert_eq!(parse_current_output("20.14.0"), Some("20.14.0".to_string()));
     }
 

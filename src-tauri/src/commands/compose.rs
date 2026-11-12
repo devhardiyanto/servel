@@ -116,9 +116,9 @@ pub(crate) fn generate_compose(defs: &[ServiceDef], selected_ids: &[String]) -> 
 
 #[cfg(test)]
 mod tests {
+    use super::super::services::{PortMap, ServiceDef};
     use super::*;
     use std::collections::HashMap;
-    use super::super::services::{PortMap, ServiceDef};
 
     fn mysql_def() -> ServiceDef {
         ServiceDef {
@@ -127,7 +127,10 @@ mod tests {
             category: "core".to_string(),
             image: "mysql:8.0".to_string(),
             container_name: "servel_mysql".to_string(),
-            ports: vec![PortMap { host: "3306".to_string(), container: "3306".to_string() }],
+            ports: vec![PortMap {
+                host: "3306".to_string(),
+                container: "3306".to_string(),
+            }],
             environment: {
                 let mut m = HashMap::new();
                 m.insert("MYSQL_ROOT_PASSWORD".to_string(), "root".to_string());
@@ -146,7 +149,10 @@ mod tests {
             category: "core".to_string(),
             image: "redis:7-alpine".to_string(),
             container_name: "servel_redis".to_string(),
-            ports: vec![PortMap { host: "6379".to_string(), container: "6379".to_string() }],
+            ports: vec![PortMap {
+                host: "6379".to_string(),
+                container: "6379".to_string(),
+            }],
             environment: HashMap::new(),
             volumes: Some(vec!["servel_redis_data:/data".to_string()]),
             command: None,
@@ -162,8 +168,14 @@ mod tests {
             image: "axllent/mailpit:latest".to_string(),
             container_name: "servel_mailpit".to_string(),
             ports: vec![
-                PortMap { host: "1025".to_string(), container: "1025".to_string() },
-                PortMap { host: "8025".to_string(), container: "8025".to_string() },
+                PortMap {
+                    host: "1025".to_string(),
+                    container: "1025".to_string(),
+                },
+                PortMap {
+                    host: "8025".to_string(),
+                    container: "8025".to_string(),
+                },
             ],
             environment: HashMap::new(),
             volumes: None,
@@ -179,12 +191,21 @@ mod tests {
 
         assert!(yaml.contains("services:"), "harus ada services: block");
         assert!(yaml.contains("networks:"), "harus ada networks: block");
-        assert!(yaml.contains("servel_default:"), "harus ada servel_default network");
-        assert!(yaml.contains("driver: bridge"), "network harus driver bridge");
+        assert!(
+            yaml.contains("servel_default:"),
+            "harus ada servel_default network"
+        );
+        assert!(
+            yaml.contains("driver: bridge"),
+            "network harus driver bridge"
+        );
         // Tidak ada service yang di-render
         assert!(!yaml.contains("mysql:"), "tidak boleh ada mysql saat empty");
         // Tidak ada volumes top-level
-        assert!(!yaml.contains("\nvolumes:"), "tidak boleh ada volumes section saat empty");
+        assert!(
+            !yaml.contains("\nvolumes:"),
+            "tidak boleh ada volumes section saat empty"
+        );
     }
 
     #[test]
@@ -197,21 +218,33 @@ mod tests {
         assert!(yaml.contains("services:"));
         assert!(yaml.contains("  mysql:"), "mysql service harus ada");
         assert!(yaml.contains("image: mysql:8.0"), "image mysql");
-        assert!(yaml.contains("container_name: servel_mysql"), "container_name");
+        assert!(
+            yaml.contains("container_name: servel_mysql"),
+            "container_name"
+        );
         assert!(yaml.contains("restart: unless-stopped"), "restart policy");
 
         // Port di-quote
         assert!(yaml.contains("- \"3306:3306\""), "port harus di-quote");
 
         // Environment list format
-        assert!(yaml.contains("- MYSQL_ROOT_PASSWORD=root"), "env KEY=value format");
+        assert!(
+            yaml.contains("- MYSQL_ROOT_PASSWORD=root"),
+            "env KEY=value format"
+        );
 
         // Volume service
-        assert!(yaml.contains("- servel_mysql_data:/var/lib/mysql"), "volume service entry");
+        assert!(
+            yaml.contains("- servel_mysql_data:/var/lib/mysql"),
+            "volume service entry"
+        );
 
         // Named volume top-level
         assert!(yaml.contains("\nvolumes:"), "top-level volumes section");
-        assert!(yaml.contains("  servel_mysql_data:"), "named volume declaration");
+        assert!(
+            yaml.contains("  servel_mysql_data:"),
+            "named volume declaration"
+        );
 
         // Network
         assert!(yaml.contains("networks:"));
@@ -245,8 +278,14 @@ mod tests {
         assert!(pos_redis < pos_mailpit, "redis harus sebelum mailpit");
 
         // 2 named volumes (mysql + redis), mailpit tidak punya volume
-        assert!(yaml.contains("  servel_mysql_data:"), "mysql volume top-level");
-        assert!(yaml.contains("  servel_redis_data:"), "redis volume top-level");
+        assert!(
+            yaml.contains("  servel_mysql_data:"),
+            "mysql volume top-level"
+        );
+        assert!(
+            yaml.contains("  servel_redis_data:"),
+            "redis volume top-level"
+        );
 
         // Env mysql ter-render
         assert!(yaml.contains("- MYSQL_ROOT_PASSWORD=root"), "env mysql");

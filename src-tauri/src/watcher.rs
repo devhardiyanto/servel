@@ -112,10 +112,7 @@ pub async fn watch_project(
             Ok(events) => {
                 for event in events {
                     let file_path: &Path = &event.path;
-                    let name = file_path
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or("");
+                    let name = file_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
                     if name == ".phpvmrc" || name == ".nvmrc" {
                         // Only emit for files directly inside the watched dir.
                         if file_path.parent() == Some(dir_clone.as_path()) {
@@ -137,7 +134,9 @@ pub async fn watch_project(
         .map_err(|e| format!("Gagal watch direktori: {}", e))?;
 
     // Replace the previous watcher (drop old, store new).
-    let mut guard = state.lock().map_err(|e| format!("State lock error: {}", e))?;
+    let mut guard = state
+        .lock()
+        .map_err(|e| format!("State lock error: {}", e))?;
     *guard = Some(debouncer);
 
     Ok(())
@@ -150,7 +149,10 @@ mod tests {
     #[test]
     fn test_parse_version_file_basic() {
         assert_eq!(parse_version_file("8.3\n"), Some("8.3".to_string()));
-        assert_eq!(parse_version_file("v20.14.0\n"), Some("20.14.0".to_string()));
+        assert_eq!(
+            parse_version_file("v20.14.0\n"),
+            Some("20.14.0".to_string())
+        );
     }
 
     #[test]
@@ -168,7 +170,10 @@ mod tests {
     #[test]
     fn test_parse_version_file_lts_alias() {
         // lts/iron is a valid fnm alias — returned as-is (no digit requirement)
-        assert_eq!(parse_version_file("lts/iron\n"), Some("lts/iron".to_string()));
+        assert_eq!(
+            parse_version_file("lts/iron\n"),
+            Some("lts/iron".to_string())
+        );
     }
 
     #[test]
@@ -184,6 +189,9 @@ mod tests {
 
     #[test]
     fn test_parse_version_file_v_prefix_with_spaces() {
-        assert_eq!(parse_version_file("  v8.3.0  \n"), Some("8.3.0".to_string()));
+        assert_eq!(
+            parse_version_file("  v8.3.0  \n"),
+            Some("8.3.0".to_string())
+        );
     }
 }

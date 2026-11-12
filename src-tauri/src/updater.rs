@@ -34,14 +34,23 @@ pub fn progress(downloaded: u64, total: Option<u64>) -> UpdateProgress {
     let percent = total
         .filter(|t| *t > 0)
         .map(|t| ((downloaded.min(t) as u128 * 100) / t as u128) as u8);
-    UpdateProgress { downloaded, total, percent }
+    UpdateProgress {
+        downloaded,
+        total,
+        percent,
+    }
 }
 
 /// `Some(info)` bila ada versi lebih baru yang bisa dipasang dari sini.
 #[tauri::command]
 pub async fn update_check(app: AppHandle) -> Result<Option<UpdateInfo>, String> {
-    let updater = app.updater().map_err(|e| format!("updater tidak tersedia: {}", e))?;
-    let update = updater.check().await.map_err(|e| format!("gagal memeriksa update: {}", e))?;
+    let updater = app
+        .updater()
+        .map_err(|e| format!("updater tidak tersedia: {}", e))?;
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| format!("gagal memeriksa update: {}", e))?;
     Ok(update.map(|u| UpdateInfo {
         version: u.version.clone(),
         current_version: u.current_version.clone(),
@@ -54,7 +63,9 @@ pub async fn update_check(app: AppHandle) -> Result<Option<UpdateInfo>, String> 
 /// berjalan, jadi command ini tidak selalu sempat mengembalikan `Ok`.
 #[tauri::command]
 pub async fn update_install(app: AppHandle) -> Result<(), String> {
-    let updater = app.updater().map_err(|e| format!("updater tidak tersedia: {}", e))?;
+    let updater = app
+        .updater()
+        .map_err(|e| format!("updater tidak tersedia: {}", e))?;
     let update = updater
         .check()
         .await

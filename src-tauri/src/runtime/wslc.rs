@@ -78,12 +78,21 @@ async fn capture(args: &[String], timeout: Duration) -> Result<Output, String> {
         attempt += 1;
         let result = {
             let _guard = LOCK.lock().await;
-            let fut = command(args).stdout(Stdio::piped()).stderr(Stdio::piped()).output();
+            let fut = command(args)
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .output();
             tokio::time::timeout(timeout, fut).await
         };
 
         let output = match result {
-            Err(_) => return Err(format!("wslc {} timeout ({} dtk)", args.join(" "), timeout.as_secs())),
+            Err(_) => {
+                return Err(format!(
+                    "wslc {} timeout ({} dtk)",
+                    args.join(" "),
+                    timeout.as_secs()
+                ))
+            }
             Ok(Err(e)) => return Err(format!("Gagal menjalankan wslc: {}", e)),
             Ok(Ok(o)) => o,
         };
@@ -193,13 +202,17 @@ async fn run_streamed(
             tokio::time::sleep(RETRY_DELAY).await;
             continue;
         }
-        return Err(friendly_error(&stderr_acc)
-            .unwrap_or_else(|| last_line(&stderr_acc).unwrap_or_else(|| "wslc gagal".to_string())));
+        return Err(friendly_error(&stderr_acc).unwrap_or_else(|| {
+            last_line(&stderr_acc).unwrap_or_else(|| "wslc gagal".to_string())
+        }));
     }
 }
 
 fn last_line(s: &str) -> Option<String> {
-    s.lines().rev().find(|l| !l.trim().is_empty()).map(|l| l.trim().to_string())
+    s.lines()
+        .rev()
+        .find(|l| !l.trim().is_empty())
+        .map(|l| l.trim().to_string())
 }
 
 /// Terjemahkan stderr WSLC ke pesan yang bisa ditindaklanjuti.
@@ -207,12 +220,14 @@ pub fn friendly_error(stderr: &str) -> Option<String> {
     let lower = stderr.to_lowercase();
     if lower.contains("too many volumes") {
         return Some(
-            "Batas mount volume sesi WSLC tercapai — jalankan `wsl --shutdown` lalu coba lagi".to_string(),
+            "Batas mount volume sesi WSLC tercapai — jalankan `wsl --shutdown` lalu coba lagi"
+                .to_string(),
         );
     }
     if lower.contains("error_sharing_violation") {
         return Some(
-            "Sesi WSLC sedang terkunci — tunggu sebentar; bila berulang jalankan `wsl --shutdown`".to_string(),
+            "Sesi WSLC sedang terkunci — tunggu sebentar; bila berulang jalankan `wsl --shutdown`"
+                .to_string(),
         );
     }
     let port_hint = lower.contains("address already in use")
@@ -220,7 +235,10 @@ pub fn friendly_error(stderr: &str) -> Option<String> {
         || lower.contains("error_address_already_associated")
         || (lower.contains("port") && lower.contains("in use"));
     if port_hint {
-        return Some("Port sudah dipakai aplikasi lain — tutup aplikasi tersebut lalu Start ulang".to_string());
+        return Some(
+            "Port sudah dipakai aplikasi lain — tutup aplikasi tersebut lalu Start ulang"
+                .to_string(),
+        );
     }
     None
 }
@@ -238,9 +256,12 @@ pub async fn is_installed() -> bool {
 
 /// Sesi WSLC bisa dipakai (perintah list berhasil). Memicu start sesi bila perlu.
 pub async fn is_running() -> bool {
-    capture_ok(&owned(&["container", "list", "--all", "--format", "json"]), QUERY_TIMEOUT)
-        .await
-        .is_ok()
+    capture_ok(
+        &owned(&["container", "list", "--all", "--format", "json"]),
+        QUERY_TIMEOUT,
+    )
+    .await
+    .is_ok()
 }
 
 pub async fn version() -> Option<String> {
@@ -289,7 +310,9 @@ pub fn json_objects(stdout: &str) -> Vec<serde_json::Map<String, Value>> {
 
 /// Cari key secara case-insensitive.
 fn get<'a>(m: &'a serde_json::Map<String, Value>, key: &str) -> Option<&'a Value> {
-    m.iter().find(|(k, _)| k.eq_ignore_ascii_case(key)).map(|(_, v)| v)
+    m.iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case(key))
+        .map(|(_, v)| v)
 }
 
 fn first_get<'a>(m: &'a serde_json::Map<String, Value>, keys: &[&str]) -> Option<&'a Value> {
@@ -314,7 +337,11 @@ fn container_name(m: &serde_json::Map<String, Value>) -> Option<String> {
 /// (`{"Status":"running","Running":true,"ExitCode":0}`). Fallback ke `Status`
 /// teks ("Up 3 minutes" / "Exited (1) ...").
 fn container_state(m: &serde_json::Map<String, Value>) -> (String, Option<i32>) {
-    let status = get(m, "Status").and_then(Value::as_str).unwrap_or("").trim().to_lowercase();
+    let status = get(m, "Status")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_lowercase();
     // "Exited (137) 3 minutes ago" → 137. Dipakai bila tak ada field ExitCode
     // (WSLC 3.0.5 `container list` hanya memberi teks Status).
     let status_exit = || -> Option<i32> {
@@ -325,7 +352,9 @@ fn container_state(m: &serde_json::Map<String, Value>) -> (String, Option<i32>) 
             .and_then(|s| s.trim().parse().ok())
     };
 
-    let mut exit_code = first_get(m, &["ExitCode"]).and_then(Value::as_i64).map(|v| v as i32);
+    let mut exit_code = first_get(m, &["ExitCode"])
+        .and_then(Value::as_i64)
+        .map(|v| v as i32);
 
     let state = match get(m, "State") {
         Some(Value::Number(n)) => match n.as_i64() {
@@ -339,7 +368,9 @@ fn container_state(m: &serde_json::Map<String, Value>) -> (String, Option<i32>) 
         Some(Value::String(s)) if !s.trim().is_empty() => s.trim().to_lowercase(),
         Some(Value::Object(st)) => {
             if exit_code.is_none() {
-                exit_code = get(st, "ExitCode").and_then(Value::as_i64).map(|v| v as i32);
+                exit_code = get(st, "ExitCode")
+                    .and_then(Value::as_i64)
+                    .map(|v| v as i32);
             }
             match get(st, "Status").and_then(Value::as_str) {
                 Some(s) if !s.is_empty() => s.to_lowercase(),
@@ -351,18 +382,16 @@ fn container_state(m: &serde_json::Map<String, Value>) -> (String, Option<i32>) 
             }
         }
         // Tanpa State: turunkan dari teks Status.
-        _ => {
-            if status.starts_with("up") || status == "running" {
-                "running"
-            } else if status.starts_with("exited") {
-                "exited"
-            } else if status.starts_with("created") {
-                "created"
-            } else {
-                "unknown"
-            }
-            .to_string()
+        _ => if status.starts_with("up") || status == "running" {
+            "running"
+        } else if status.starts_with("exited") {
+            "exited"
+        } else if status.starts_with("created") {
+            "created"
+        } else {
+            "unknown"
         }
+        .to_string(),
     };
 
     if exit_code.is_none() && state == "exited" {
@@ -395,10 +424,17 @@ pub fn parse_list_json(stdout: &str) -> Vec<ServiceStatus> {
 fn mem_value_to_mb(v: &Value) -> Option<u64> {
     match v {
         Value::String(s) => parse_mem_usage_to_mb(s).or_else(|| {
-            s.trim().parse::<f64>().ok().map(|b| (b / 1_000_000.0).round() as u64)
+            s.trim()
+                .parse::<f64>()
+                .ok()
+                .map(|b| (b / 1_000_000.0).round() as u64)
         }),
-        Value::Number(n) => n.as_f64().map(|b| (b / 1_000_000.0).round().max(0.0) as u64),
-        Value::Object(o) => first_get(o, &["Usage", "Current", "UsageBytes", "Used"]).and_then(mem_value_to_mb),
+        Value::Number(n) => n
+            .as_f64()
+            .map(|b| (b / 1_000_000.0).round().max(0.0) as u64),
+        Value::Object(o) => {
+            first_get(o, &["Usage", "Current", "UsageBytes", "Used"]).and_then(mem_value_to_mb)
+        }
         _ => None,
     }
 }
@@ -410,12 +446,21 @@ pub fn parse_stats_json(stdout: &str) -> Vec<ContainerMemStat> {
         .iter()
         .filter_map(|m| {
             let name = container_name(m).or_else(|| {
-                first_get(m, &["Container"]).and_then(Value::as_str).map(|s| s.trim_start_matches('/').to_string())
+                first_get(m, &["Container"])
+                    .and_then(Value::as_str)
+                    .map(|s| s.trim_start_matches('/').to_string())
             })?;
             let id = id_from_container_name(&name)?;
             let mem = first_get(
                 m,
-                &["MemUsage", "MemoryUsage", "Memory", "MemoryUsageBytes", "MemUsageBytes", "Mem"],
+                &[
+                    "MemUsage",
+                    "MemoryUsage",
+                    "Memory",
+                    "MemoryUsageBytes",
+                    "MemUsageBytes",
+                    "Mem",
+                ],
             )
             .and_then(mem_value_to_mb)?;
             Some(ContainerMemStat { id, mem_mb: mem })
@@ -425,7 +470,10 @@ pub fn parse_stats_json(stdout: &str) -> Vec<ContainerMemStat> {
 
 /// Nama volume dari `wslc volume list --format json`.
 pub fn parse_names_json(stdout: &str) -> HashSet<String> {
-    json_objects(stdout).iter().filter_map(container_name).collect()
+    json_objects(stdout)
+        .iter()
+        .filter_map(container_name)
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -488,7 +536,8 @@ pub fn split_command(input: &str) -> Vec<String> {
 pub fn named_volume(spec: &str) -> Option<String> {
     // Path drive Windows (`C:\data:/data`) bukan named volume.
     let b = spec.as_bytes();
-    if b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/') {
+    if b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && (b[2] == b'\\' || b[2] == b'/')
+    {
         return None;
     }
     let name = spec.split(':').next()?.trim();
@@ -527,7 +576,11 @@ pub fn spec_hash(def: &ServiceDef) -> String {
         h.update(arg.as_bytes());
         h.update([0u8]);
     }
-    h.finalize().iter().take(8).map(|b| format!("{:02x}", b)).collect()
+    h.finalize()
+        .iter()
+        .take(8)
+        .map(|b| format!("{:02x}", b))
+        .collect()
 }
 
 /// Apa yang harus dilakukan Start terhadap satu service.
@@ -567,7 +620,10 @@ pub fn plan_start(
 // ---------------------------------------------------------------------------
 
 fn state_path(app: &AppHandle) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|d| d.join("wslc-state.json"))
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|d| d.join("wslc-state.json"))
 }
 
 fn load_state(app: &AppHandle) -> HashMap<String, String> {
@@ -607,17 +663,32 @@ pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> R
         .and_then(|f| f.to_str())
         .ok_or("nama file tidak valid")?
         .to_string();
-    let dir = host.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
+    let dir = host
+        .parent()
+        .map(std::path::Path::to_path_buf)
+        .unwrap_or_default();
 
     let cp = {
         let _guard = LOCK.lock().await;
-        let mut cmd = command(&owned(&["container", "cp", &leaf, &format!("{}:/tmp/", name)]));
-        cmd.current_dir(&dir).stdout(Stdio::null()).stderr(Stdio::null());
+        let mut cmd = command(&owned(&[
+            "container",
+            "cp",
+            &leaf,
+            &format!("{}:/tmp/", name),
+        ]));
+        cmd.current_dir(&dir)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
         tokio::time::timeout(RUN_TIMEOUT, cmd.status()).await
     };
     if matches!(cp, Ok(Ok(s)) if s.success()) {
         let mv = owned(&[
-            "exec", "-e", &format!("SRC={}", leaf), name, "sh", "-c",
+            "exec",
+            "-e",
+            &format!("SRC={}", leaf),
+            name,
+            "sh",
+            "-c",
             &format!(r#"mv -f "/tmp/$SRC" {}"#, dest),
         ]);
         if capture_ok(&mv, QUERY_TIMEOUT).await.is_ok() {
@@ -628,12 +699,19 @@ pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> R
     // Fallback: stdin.
     use tokio::io::AsyncWriteExt;
     let _guard = LOCK.lock().await;
-    let mut child = command(&owned(&["exec", "-i", name, "sh", "-c", &format!("cat > {}", dest)]))
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("Gagal menjalankan wslc: {}", e))?;
+    let mut child = command(&owned(&[
+        "exec",
+        "-i",
+        name,
+        "sh",
+        "-c",
+        &format!("cat > {}", dest),
+    ]))
+    .stdin(Stdio::piped())
+    .stdout(Stdio::null())
+    .stderr(Stdio::piped())
+    .spawn()
+    .map_err(|e| format!("Gagal menjalankan wslc: {}", e))?;
     let mut stdin = child.stdin.take().ok_or("stdin wslc tidak tersedia")?;
     let mut file = tokio::fs::File::open(host)
         .await
@@ -658,8 +736,19 @@ pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> R
 }
 
 /// `exec <name> sh -c <cmd>` dengan output di-stream ke panel log.
-pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str, source: &str) -> Result<(), String> {
-    run_streamed(app, &owned(&["exec", name, "sh", "-c", cmd]), source, RUN_TIMEOUT).await
+pub async fn exec_streamed(
+    app: &AppHandle,
+    name: &str,
+    cmd: &str,
+    source: &str,
+) -> Result<(), String> {
+    run_streamed(
+        app,
+        &owned(&["exec", name, "sh", "-c", cmd]),
+        source,
+        RUN_TIMEOUT,
+    )
+    .await
 }
 
 /// `wslc exec <name> sh -c <cmd>` → exit code (None bila gagal dijalankan/timeout).
@@ -668,14 +757,20 @@ pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str, source: &str)
 pub async fn exec_status(name: &str, cmd: &str, timeout: Duration) -> Option<i32> {
     let args = owned(&["exec", name, "sh", "-c", cmd]);
     let _guard = LOCK.lock().await;
-    let fut = command(&args).stdout(Stdio::null()).stderr(Stdio::null()).status();
+    let fut = command(&args)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
     tokio::time::timeout(timeout, fut).await.ok()?.ok()?.code()
 }
 
 pub async fn status() -> Result<Vec<ServiceStatus>, String> {
-    let out = capture_ok(&owned(&["container", "list", "--all", "--format", "json"]), QUERY_TIMEOUT)
-        .await
-        .map_err(|e| format!("wslc container list gagal: {}", e))?;
+    let out = capture_ok(
+        &owned(&["container", "list", "--all", "--format", "json"]),
+        QUERY_TIMEOUT,
+    )
+    .await
+    .map_err(|e| format!("wslc container list gagal: {}", e))?;
     Ok(parse_list_json(&out))
 }
 
@@ -704,22 +799,30 @@ pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
 }
 
 async fn existing_volumes() -> Option<HashSet<String>> {
-    capture_ok(&owned(&["volume", "list", "--format", "json"]), QUERY_TIMEOUT)
-        .await
-        .ok()
-        .map(|out| parse_names_json(&out))
+    capture_ok(
+        &owned(&["volume", "list", "--format", "json"]),
+        QUERY_TIMEOUT,
+    )
+    .await
+    .ok()
+    .map(|out| parse_names_json(&out))
 }
 
 async fn ensure_volumes(app: &AppHandle, def: &ServiceDef, known: &mut Option<HashSet<String>>) {
     let source = def.id.to_uppercase();
     for spec in def.volumes.iter().flatten() {
-        let Some(name) = named_volume(spec) else { continue };
+        let Some(name) = named_volume(spec) else {
+            continue;
+        };
         if known.as_ref().is_some_and(|k| k.contains(&name)) {
             continue;
         }
         // Gagal create (mis. sudah ada tapi list gagal dibaca) tidak fatal —
         // `run` yang akan melaporkan bila volume benar-benar bermasalah.
-        if capture_ok(&owned(&["volume", "create", &name]), QUERY_TIMEOUT).await.is_ok() {
+        if capture_ok(&owned(&["volume", "create", &name]), QUERY_TIMEOUT)
+            .await
+            .is_ok()
+        {
             emit(app, &source, "stdout", &format!("volume {} dibuat", name));
         }
         if let Some(k) = known.as_mut() {
@@ -746,7 +849,10 @@ async fn start_one(
             app,
             &source,
             "stdout",
-            &format!("{} sudah ada (dibuat di luar Servel) — dipakai apa adanya", name),
+            &format!(
+                "{} sudah ada (dibuat di luar Servel) — dipakai apa adanya",
+                name
+            ),
         );
     }
 
@@ -758,12 +864,25 @@ async fn start_one(
         }
         StartAction::Recreate | StartAction::Create => {
             if action == StartAction::Recreate {
-                emit(app, &source, "stdout", &format!("definisi {} berubah — membuat ulang container (data volume tetap)", name));
+                emit(
+                    app,
+                    &source,
+                    "stdout",
+                    &format!(
+                        "definisi {} berubah — membuat ulang container (data volume tetap)",
+                        name
+                    ),
+                );
                 run_streamed(app, &owned(&["remove", "-f", name]), &source, STOP_TIMEOUT).await?;
                 state.remove(name);
             }
             ensure_volumes(app, def, volumes).await;
-            emit(app, &source, "stdout", &format!("wslc run {} ({})", name, def.image));
+            emit(
+                app,
+                &source,
+                "stdout",
+                &format!("wslc run {} ({})", name, def.image),
+            );
             run_streamed(app, &build_run_args(def), &source, RUN_TIMEOUT).await?;
             state.insert(name.clone(), desired);
             Ok(())
@@ -771,10 +890,16 @@ async fn start_one(
     }
 }
 
-pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) -> Result<(), String> {
+pub async fn start(
+    app: &AppHandle,
+    defs: &[ServiceDef],
+    services: &[String],
+) -> Result<(), String> {
     let current = status().await?;
-    let by_name: HashMap<&str, &ServiceStatus> =
-        current.iter().map(|s| (s.container_name.as_str(), s)).collect();
+    let by_name: HashMap<&str, &ServiceStatus> = current
+        .iter()
+        .map(|s| (s.container_name.as_str(), s))
+        .collect();
 
     let mut state = load_state(app);
     let mut volumes = existing_volumes().await;
@@ -782,7 +907,12 @@ pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) ->
 
     for id in services {
         let Some(def) = defs.iter().find(|d| &d.id == id) else {
-            emit(app, "SERVEL", "stderr", &format!("service '{}' tidak dikenal — dilewati", id));
+            emit(
+                app,
+                "SERVEL",
+                "stderr",
+                &format!("service '{}' tidak dikenal — dilewati", id),
+            );
             continue;
         };
         let existing = by_name.get(def.container_name.as_str()).copied();
@@ -806,7 +936,14 @@ async fn stop_names(app: &AppHandle, targets: Vec<(String, String)>) -> Result<(
     let mut failed = Vec::new();
     for (source, name) in targets {
         emit(app, &source, "stdout", &format!("wslc stop {}", name));
-        if let Err(e) = run_streamed(app, &owned(&["stop", "-t", "30", &name]), &source, STOP_TIMEOUT).await {
+        if let Err(e) = run_streamed(
+            app,
+            &owned(&["stop", "-t", "30", &name]),
+            &source,
+            STOP_TIMEOUT,
+        )
+        .await
+        {
             failed.push(format!("{}: {}", name, e));
         }
     }
@@ -843,11 +980,16 @@ pub async fn stop(app: &AppHandle, defs: &[ServiceDef], services: &[String]) -> 
 /// Container tidak dihapus — lihat catatan modul.
 pub async fn stop_all(app: &AppHandle, defs: &[ServiceDef]) -> Result<(), String> {
     let current = status().await?;
-    let order: HashMap<&str, usize> =
-        defs.iter().enumerate().map(|(i, d)| (d.container_name.as_str(), i)).collect();
+    let order: HashMap<&str, usize> = defs
+        .iter()
+        .enumerate()
+        .map(|(i, d)| (d.container_name.as_str(), i))
+        .collect();
 
     let mut running: Vec<&ServiceStatus> = current.iter().filter(|s| s.running).collect();
-    running.sort_by_key(|s| std::cmp::Reverse(order.get(s.container_name.as_str()).copied().unwrap_or(0)));
+    running.sort_by_key(|s| {
+        std::cmp::Reverse(order.get(s.container_name.as_str()).copied().unwrap_or(0))
+    });
 
     let targets = running
         .into_iter()
@@ -868,7 +1010,10 @@ mod tests {
             category: "core".to_string(),
             image: "mysql:8.0".to_string(),
             container_name: format!("servel_{}", id),
-            ports: vec![PortMap { host: "3306".into(), container: "3306".into() }],
+            ports: vec![PortMap {
+                host: "3306".into(),
+                container: "3306".into(),
+            }],
             environment: HashMap::from([
                 ("MYSQL_ROOT_HOST".to_string(), "%".to_string()),
                 ("MYSQL_ALLOW_EMPTY_PASSWORD".to_string(), "yes".to_string()),
@@ -895,12 +1040,19 @@ mod tests {
         assert_eq!(
             args,
             vec![
-                "run", "-d", "--name", "servel_mysql",
-                "-p", "127.0.0.1:3306:3306",
-                "-v", "servel_mysql_data:/var/lib/mysql",
+                "run",
+                "-d",
+                "--name",
+                "servel_mysql",
+                "-p",
+                "127.0.0.1:3306:3306",
+                "-v",
+                "servel_mysql_data:/var/lib/mysql",
                 // env diurutkan → hash stabil walau HashMap acak
-                "-e", "MYSQL_ALLOW_EMPTY_PASSWORD=yes",
-                "-e", "MYSQL_ROOT_HOST=%",
+                "-e",
+                "MYSQL_ALLOW_EMPTY_PASSWORD=yes",
+                "-e",
+                "MYSQL_ROOT_HOST=%",
                 "mysql:8.0",
             ]
         );
@@ -912,15 +1064,33 @@ mod tests {
         d.image = "minio/minio".into();
         d.command = Some("server /data --console-address \":9001\"".into());
         let args = build_run_args(&d);
-        let tail: Vec<&str> = args.iter().rev().take(5).rev().map(String::as_str).collect();
-        assert_eq!(tail, vec!["minio/minio", "server", "/data", "--console-address", ":9001"]);
+        let tail: Vec<&str> = args
+            .iter()
+            .rev()
+            .take(5)
+            .rev()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            tail,
+            vec![
+                "minio/minio",
+                "server",
+                "/data",
+                "--console-address",
+                ":9001"
+            ]
+        );
     }
 
     #[test]
     fn split_command_handles_quotes_and_escapes() {
         assert_eq!(split_command("a  b\tc"), vec!["a", "b", "c"]);
         assert_eq!(split_command("x 'a b' \"c d\""), vec!["x", "a b", "c d"]);
-        assert_eq!(split_command(r#"say "he said \"hi\"""#), vec!["say", r#"he said "hi""#]);
+        assert_eq!(
+            split_command(r#"say "he said \"hi\"""#),
+            vec!["say", r#"he said "hi""#]
+        );
         assert_eq!(split_command("--opt=''"), vec!["--opt="]);
         assert_eq!(split_command(r"a\ b"), vec!["a b"]);
         assert!(split_command("   ").is_empty());
@@ -943,7 +1113,10 @@ mod tests {
     fn spec_hash_golden_for_bundled_services() {
         let defs: Vec<ServiceDef> =
             serde_json::from_str(include_str!("../../../assets/services/services.json")).unwrap();
-        let got: Vec<String> = defs.iter().map(|d| format!("{}={}", d.id, spec_hash(d))).collect();
+        let got: Vec<String> = defs
+            .iter()
+            .map(|d| format!("{}={}", d.id, spec_hash(d)))
+            .collect();
         // Dihitung juga oleh port algoritma PowerShell (Split-Command, sort ordinal,
         // SHA-256 + byte 0) — kedua sisi harus sama persis.
         assert_eq!(
@@ -956,7 +1129,10 @@ mod tests {
 
     #[test]
     fn named_volume_detection() {
-        assert_eq!(named_volume("servel_mysql_data:/var/lib/mysql").as_deref(), Some("servel_mysql_data"));
+        assert_eq!(
+            named_volume("servel_mysql_data:/var/lib/mysql").as_deref(),
+            Some("servel_mysql_data")
+        );
         assert_eq!(named_volume("./data:/data"), None);
         assert_eq!(named_volume("/abs:/data"), None);
         assert_eq!(named_volume(r"C:\data:/data"), None);
@@ -968,12 +1144,24 @@ mod tests {
         let down = status("mysql", false);
         assert_eq!(plan_start(None, None, "h"), StartAction::Create);
         assert_eq!(plan_start(None, Some("old"), "h"), StartAction::Create);
-        assert_eq!(plan_start(Some(&up), Some("h"), "h"), StartAction::AlreadyRunning);
+        assert_eq!(
+            plan_start(Some(&up), Some("h"), "h"),
+            StartAction::AlreadyRunning
+        );
         assert_eq!(plan_start(Some(&down), Some("h"), "h"), StartAction::Start);
-        assert_eq!(plan_start(Some(&up), Some("old"), "h"), StartAction::Recreate);
-        assert_eq!(plan_start(Some(&down), Some("old"), "h"), StartAction::Recreate);
+        assert_eq!(
+            plan_start(Some(&up), Some("old"), "h"),
+            StartAction::Recreate
+        );
+        assert_eq!(
+            plan_start(Some(&down), Some("old"), "h"),
+            StartAction::Recreate
+        );
         // Adopsi: tidak tercatat → tidak pernah recreate.
-        assert_eq!(plan_start(Some(&up), None, "h"), StartAction::AlreadyRunning);
+        assert_eq!(
+            plan_start(Some(&up), None, "h"),
+            StartAction::AlreadyRunning
+        );
         assert_eq!(plan_start(Some(&down), None, "h"), StartAction::Start);
     }
 
@@ -987,9 +1175,18 @@ mod tests {
         ]"#;
         let s = parse_list_json(json);
         assert_eq!(s.len(), 3);
-        assert_eq!((s[0].id.as_str(), s[0].running, s[0].state.as_str()), ("mysql", true, "running"));
-        assert_eq!((s[1].id.as_str(), s[1].running, s[1].state.as_str()), ("redis", false, "exited"));
-        assert_eq!((s[2].id.as_str(), s[2].state.as_str()), ("minio", "created"));
+        assert_eq!(
+            (s[0].id.as_str(), s[0].running, s[0].state.as_str()),
+            ("mysql", true, "running")
+        );
+        assert_eq!(
+            (s[1].id.as_str(), s[1].running, s[1].state.as_str()),
+            ("redis", false, "exited")
+        );
+        assert_eq!(
+            (s[2].id.as_str(), s[2].state.as_str()),
+            ("minio", "created")
+        );
     }
 
     #[test]
@@ -1004,7 +1201,10 @@ mod tests {
         let s = parse_list_json(ndjson);
         assert_eq!(s.len(), 3);
         assert!(s[0].running);
-        assert_eq!((s[1].id.as_str(), s[1].state.as_str(), s[1].exit_code), ("mailpit", "exited", Some(137)));
+        assert_eq!(
+            (s[1].id.as_str(), s[1].state.as_str(), s[1].exit_code),
+            ("mailpit", "exited", Some(137))
+        );
         assert_eq!((s[2].id.as_str(), s[2].exit_code), ("mongodb", Some(1)));
     }
 
@@ -1015,7 +1215,18 @@ mod tests {
     fn parse_list_real_wslc_3_0_5_output() {
         let s = parse_list_json(include_str!("fixtures/wslc-3.0.5-container-list.ndjson"));
         let ids: Vec<&str> = s.iter().map(|x| x.id.as_str()).collect();
-        assert_eq!(ids, vec!["minio", "rabbitmq", "mailpit", "gotenberg", "postgres", "mysql", "redis"]);
+        assert_eq!(
+            ids,
+            vec![
+                "minio",
+                "rabbitmq",
+                "mailpit",
+                "gotenberg",
+                "postgres",
+                "mysql",
+                "redis"
+            ]
+        );
         for st in &s {
             assert!(!st.running, "{} harus terbaca stopped", st.id);
             assert_eq!(st.state, "exited");
@@ -1028,7 +1239,10 @@ mod tests {
     fn parse_list_running_line_in_real_format() {
         let line = r#"{"Command":"\"docker-entrypoint.s…\"","ID":"52039129147c","Image":"mysql:8.0","Labels":"a=b,c=d","Names":"servel_mysql","State":"running","Status":"Up 5 minutes"}"#;
         let s = parse_list_json(line);
-        assert_eq!((s[0].id.as_str(), s[0].running, s[0].exit_code), ("mysql", true, None));
+        assert_eq!(
+            (s[0].id.as_str(), s[0].running, s[0].exit_code),
+            ("mysql", true, None)
+        );
     }
 
     #[test]
@@ -1074,8 +1288,14 @@ mod tests {
     fn transient_and_friendly_errors() {
         assert!(is_transient("HRESULT ERROR_SHARING_VIOLATION"));
         assert!(!is_transient("no such container"));
-        assert!(friendly_error("Too many volumes have been mounted (limit: 15)").unwrap().contains("wsl --shutdown"));
-        assert!(friendly_error("bind: address already in use").unwrap().contains("Port"));
+        assert!(
+            friendly_error("Too many volumes have been mounted (limit: 15)")
+                .unwrap()
+                .contains("wsl --shutdown")
+        );
+        assert!(friendly_error("bind: address already in use")
+            .unwrap()
+            .contains("Port"));
         assert!(friendly_error("image not found").is_none());
     }
 }

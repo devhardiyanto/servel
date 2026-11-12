@@ -1,10 +1,10 @@
 mod commands;
 mod mise;
 mod php_ext;
-mod sites;
 mod runtime;
-mod updater;
+mod sites;
 mod tray;
+mod updater;
 mod watcher;
 
 use std::collections::HashMap;
@@ -24,7 +24,10 @@ fn format_up_message(def: Option<&ServiceDef>, id: &str) -> String {
         } else {
             format!(" {}", version)
         };
-        format!("{}{} started \u{2192} {}", d.name, version_part, d.container_name)
+        format!(
+            "{}{} started \u{2192} {}",
+            d.name, version_part, d.container_name
+        )
     } else {
         format!("{} started \u{2192} servel_{}", id, id)
     }

@@ -290,7 +290,8 @@ pub fn has_managed_block(content: &str) -> bool {
 /// luar blok tidak disentuh. Tidak melakukan apa-apa bila blok sudah tidak ada.
 pub fn remove_managed_block() -> Result<(), String> {
     let path = hosts_path();
-    let current = std::fs::read_to_string(&path).map_err(|e| format!("gagal membaca file hosts: {e}"))?;
+    let current =
+        std::fs::read_to_string(&path).map_err(|e| format!("gagal membaca file hosts: {e}"))?;
     if !has_managed_block(&current) {
         return Ok(());
     }

@@ -1,7 +1,7 @@
-use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
 use serde::{Deserialize, Serialize};
+use std::process::Stdio;
 use tauri::{Emitter, Manager, Window};
+use tokio::io::{AsyncBufReadExt, BufReader};
 
 use super::util::{emit_env_line, extract_semver};
 
@@ -23,20 +23,27 @@ fn emit_line(window: &Window, line: &str, stream: &str) {
 /// Validate that `version` is a safe semver string (`major.minor[.patch]`).
 /// Rejects anything that could inject shell metacharacters.
 fn validate_version_string(version: &str) -> Result<(), String> {
-    let valid = version
-        .chars()
-        .all(|c| c.is_ascii_digit() || c == '.');
+    let valid = version.chars().all(|c| c.is_ascii_digit() || c == '.');
     if !valid || version.is_empty() {
-        return Err(format!("version '{}' tidak valid — hanya digit dan titik yang diizinkan", version));
+        return Err(format!(
+            "version '{}' tidak valid — hanya digit dan titik yang diizinkan",
+            version
+        ));
     }
     // Must match major.minor pattern at minimum
     let parts: Vec<&str> = version.split('.').collect();
     if parts.len() < 2 || parts.len() > 3 {
-        return Err(format!("version '{}' tidak valid — format harus major.minor[.patch]", version));
+        return Err(format!(
+            "version '{}' tidak valid — format harus major.minor[.patch]",
+            version
+        ));
     }
     for part in &parts {
         if part.is_empty() || part.parse::<u32>().is_err() {
-            return Err(format!("version '{}' tidak valid — setiap segmen harus angka", version));
+            return Err(format!(
+                "version '{}' tidak valid — setiap segmen harus angka",
+                version
+            ));
         }
     }
     Ok(())
@@ -53,7 +60,10 @@ pub async fn php_list_installed() -> Result<Vec<PhpVersion>, String> {
         return Ok(crate::mise::list_installed("php")
             .await?
             .into_iter()
-            .map(|v| PhpVersion { version: v.version, active: v.active })
+            .map(|v| PhpVersion {
+                version: v.version,
+                active: v.active,
+            })
             .collect());
     }
     let output = build_phpvm_command("list")
@@ -102,10 +112,15 @@ pub async fn php_get_active() -> Result<Option<String>, String> {
 #[tauri::command]
 /// `scope` (mise saja): `None` = otomatis, `"project"` = pin di project aktif,
 /// `"global"` = ubah config global. Diabaikan oleh phpvm.
-pub async fn php_switch(window: Window, version: String, scope: Option<String>) -> Result<(), String> {
+pub async fn php_switch(
+    window: Window,
+    version: String,
+    scope: Option<String>,
+) -> Result<(), String> {
     if crate::mise::provider_is_mise().await {
         crate::mise::validate_version(&version)?;
-        return crate::mise::use_version(window.app_handle(), "php", &version, scope.as_deref()).await;
+        return crate::mise::use_version(window.app_handle(), "php", &version, scope.as_deref())
+            .await;
     }
     // Wajib sebelum format! — phpvm dijalankan lewat PowerShell (shell string).
     validate_version_string(&version)?;
@@ -360,7 +375,13 @@ fn parse_phpvm_list(output: &str) -> Vec<PhpVersion> {
             let version = rest_no_suffix.trim_start_matches('v').trim().to_string();
 
             // Skip lines that don't look like a version (e.g. header text).
-            if version.is_empty() || !version.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+            if version.is_empty()
+                || !version
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false)
+            {
                 return None;
             }
 

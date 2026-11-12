@@ -74,8 +74,10 @@ fn build_version_submenu(
             None::<&str>,
         )?);
     }
-    let refs: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> =
-        items.iter().map(|i| i as &dyn tauri::menu::IsMenuItem<tauri::Wry>).collect();
+    let refs: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = items
+        .iter()
+        .map(|i| i as &dyn tauri::menu::IsMenuItem<tauri::Wry>)
+        .collect();
     Submenu::with_items(app, title, true, &refs)
 }
 
@@ -98,7 +100,10 @@ pub(crate) async fn refresh_version_submenus(app: &AppHandle) {
         })
         .collect();
 
-    let node_active = crate::commands::node::node_get_active().await.ok().flatten();
+    let node_active = crate::commands::node::node_get_active()
+        .await
+        .ok()
+        .flatten();
     let node: Vec<(String, bool)> = crate::commands::node::node_list_installed()
         .await
         .unwrap_or_default()
@@ -152,65 +157,65 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
                 return;
             }
             match id {
-            "show" => {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.show();
-                    let _ = w.set_focus();
+                "show" => {
+                    if let Some(w) = app.get_webview_window("main") {
+                        let _ = w.show();
+                        let _ = w.set_focus();
+                    }
                 }
-            }
-            "start_all" => {
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let selected_ids = {
-                        let state = app.state::<Mutex<ConfigState>>();
-                        let cfg = state.lock().unwrap();
-                        cfg.selected_service_ids.clone()
-                    };
+                "start_all" => {
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let selected_ids = {
+                            let state = app.state::<Mutex<ConfigState>>();
+                            let cfg = state.lock().unwrap();
+                            cfg.selected_service_ids.clone()
+                        };
 
-                    if selected_ids.is_empty() {
-                        emit_log_line(&app, "TRAY", "no selected services");
-                        return;
-                    }
+                        if selected_ids.is_empty() {
+                            emit_log_line(&app, "TRAY", "no selected services");
+                            return;
+                        }
 
-                    let _ = app.emit(
-                        "services-action",
-                        serde_json::json!({
-                            "action": "start",
-                            "services": selected_ids.clone()
-                        }),
-                    );
+                        let _ = app.emit(
+                            "services-action",
+                            serde_json::json!({
+                                "action": "start",
+                                "services": selected_ids.clone()
+                            }),
+                        );
 
-                    if let Err(e) = tray_services_start(&app, selected_ids).await {
-                        emit_log_line(&app, "TRAY", &format!("start_all error: {}", e));
-                    }
-                });
-            }
-            "stop_all" => {
-                let app = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    let selected_ids = {
-                        let state = app.state::<Mutex<ConfigState>>();
-                        let cfg = state.lock().unwrap();
-                        cfg.selected_service_ids.clone()
-                    };
+                        if let Err(e) = tray_services_start(&app, selected_ids).await {
+                            emit_log_line(&app, "TRAY", &format!("start_all error: {}", e));
+                        }
+                    });
+                }
+                "stop_all" => {
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let selected_ids = {
+                            let state = app.state::<Mutex<ConfigState>>();
+                            let cfg = state.lock().unwrap();
+                            cfg.selected_service_ids.clone()
+                        };
 
-                    let _ = app.emit(
-                        "services-action",
-                        serde_json::json!({
-                            "action": "stop_all",
-                            "services": selected_ids
-                        }),
-                    );
+                        let _ = app.emit(
+                            "services-action",
+                            serde_json::json!({
+                                "action": "stop_all",
+                                "services": selected_ids
+                            }),
+                        );
 
-                    if let Err(e) = tray_services_stop_all(&app).await {
-                        emit_log_line(&app, "TRAY", &format!("stop_all error: {}", e));
-                    }
-                });
-            }
-            "quit" => {
-                app.exit(0);
-            }
-            _ => {}
+                        if let Err(e) = tray_services_stop_all(&app).await {
+                            emit_log_line(&app, "TRAY", &format!("stop_all error: {}", e));
+                        }
+                    });
+                }
+                "quit" => {
+                    app.exit(0);
+                }
+                _ => {}
             }
         })
         .build(app)?;

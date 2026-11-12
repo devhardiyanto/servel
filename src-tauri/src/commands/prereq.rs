@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
+use std::process::Stdio;
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 use tokio::process::Command;
-use std::process::Stdio;
 
 use super::util::extract_semver;
 #[cfg(not(target_os = "windows"))]
@@ -130,7 +130,9 @@ pub fn decode_wsl_output(bytes: &[u8]) -> String {
             .chunks_exact(2)
             .map(|c| u16::from_le_bytes([c[0], c[1]]))
             .collect();
-        String::from_utf16_lossy(&units).trim_start_matches('\u{feff}').to_string()
+        String::from_utf16_lossy(&units)
+            .trim_start_matches('\u{feff}')
+            .to_string()
     } else {
         String::from_utf8_lossy(bytes).into_owned()
     }
@@ -180,7 +182,11 @@ pub async fn check_prerequisites() -> PrereqStatus {
             RuntimeKind::Docker => {
                 let installed = runtime::docker::is_installed().await;
                 let running = installed && runtime::docker::is_running().await;
-                let version = if installed { runtime::docker::version().await } else { None };
+                let version = if installed {
+                    runtime::docker::version().await
+                } else {
+                    None
+                };
                 (installed, running, version)
             }
             RuntimeKind::Wslc => {
