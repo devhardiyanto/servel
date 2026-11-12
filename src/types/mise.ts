@@ -24,6 +24,8 @@ export interface Project {
   port?: number
   /** Jalankan otomatis saat Servel dibuka. */
   autoStart?: boolean
+  /** Environment tambahan untuk dev server (v2.2.1), di atas environment mise. */
+  env?: Record<string, string>
 }
 
 export interface MiseContext {

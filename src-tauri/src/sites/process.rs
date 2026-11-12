@@ -204,6 +204,23 @@ pub fn validate(site: &Project) -> Result<(), String> {
     if site.port < 1024 {
         return Err("port harus 1024–65535".to_string());
     }
+    for (key, value) in &site.env {
+        validate_env(key, value)?;
+    }
+    Ok(())
+}
+
+/// Nama variabel: tanpa spasi, `=`, atau NUL. `PORT` milik Servel (port site).
+pub fn validate_env(key: &str, value: &str) -> Result<(), String> {
+    if key.is_empty() || key.chars().any(|c| c == '=' || c == '\0' || c.is_whitespace()) {
+        return Err(format!("nama environment variable tidak valid: \"{}\"", key));
+    }
+    if key.eq_ignore_ascii_case("PORT") {
+        return Err("PORT diatur dari kolom Port, bukan dari Environment".to_string());
+    }
+    if value.contains('\0') {
+        return Err(format!("nilai {} mengandung karakter NUL", key));
+    }
     Ok(())
 }
 
@@ -246,6 +263,12 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
                 Some("warn"),
             ),
         }
+    }
+    // Environment milik project dipasang paling akhir, jadi menimpa nilai mise.
+    if !site.env.is_empty() {
+        cmd.envs(&site.env);
+        let keys: Vec<&str> = site.env.keys().map(String::as_str).collect();
+        emit_log(app, &source, &format!("env: {}", keys.join(", ")), None);
     }
 
     emit_log(app, &source, &format!("$ {}  (di {})", line, site.path), None);
@@ -470,6 +493,7 @@ mod tests {
             command: command.into(),
             port,
             auto_start: false,
+            env: Default::default(),
         }
     }
 
@@ -489,6 +513,16 @@ mod tests {
         assert!(validate(&site(&dir, "  ", 3000)).unwrap_err().contains("perintah"));
         assert!(validate(&site(&dir, "npm run dev", 80)).unwrap_err().contains("port"));
         assert!(validate(&site(&dir, "npm run dev", 3000)).is_ok());
+
+        let mut p = site(&dir, "npm run dev", 3000);
+        p.env.insert("SSL_CERT_FILE".into(), r"C:\Program Files\Git\usr\ssl\certs\ca-bundle.crt".into());
+        assert!(validate(&p).is_ok());
+        p.env.insert("port".into(), "1".into());
+        assert!(validate(&p).unwrap_err().contains("PORT"));
+        assert!(validate_env("A B", "x").is_err());
+        assert!(validate_env("A=B", "x").is_err());
+        assert!(validate_env("", "x").is_err());
+        assert!(validate_env("NODE_OPTIONS", "--max-old-space-size=4096").is_ok());
     }
 
     #[tokio::test]
@@ -581,8 +615,9 @@ mod tests {
             l.local_addr().unwrap().port()
         };
         let dir = std::env::temp_dir();
-        let mut p = site(&dir.to_string_lossy(), "echo \"PORT=$PORT\"; echo 'boom' >&2; exit 3", port);
+        let mut p = site(&dir.to_string_lossy(), "echo \"V=$SERVEL_TEST_VAR\"; exit 3", port);
         p.id = "crash".into();
+        p.env.insert("SERVEL_TEST_VAR".into(), "dari-project".into());
         start(&handle, &p).await.expect("start gagal");
 
         let mut info = None;
@@ -596,6 +631,7 @@ mod tests {
         let info = info.unwrap();
         assert_eq!(info.state, SiteState::Exited);
         assert_eq!(info.exit_code, Some(3));
-        assert!(info.last_line.is_some());
+        // Environment milik project sampai ke proses.
+        assert_eq!(info.last_line.as_deref(), Some("V=dari-project"));
     }
 }

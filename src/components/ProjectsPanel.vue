@@ -12,6 +12,7 @@ import {
   type SiteState,
 } from '@/composables/useProjectRuntime'
 import type { Project } from '@/types/mise'
+import { parseEnvText, envToText } from '@/utils/envText'
 
 const { config, addProject, removeProject, updateProject } = useConfig()
 const versionCtx = useVersionContext()
@@ -118,7 +119,7 @@ async function handleChooseFolder(p: Project): Promise<void> {
 
 // --- Edit ------------------------------------------------------------------
 const editingId = ref<string | null>(null)
-const form = ref({ name: '', command: '', port: '', autoStart: false, profileId: '' })
+const form = ref({ name: '', command: '', port: '', autoStart: false, profileId: '', env: '' })
 const formError = ref('')
 
 function startEdit(p: Project): void {
@@ -129,6 +130,7 @@ function startEdit(p: Project): void {
     command: p.command ?? '',
     port: (p.port ?? 0) > 0 ? String(p.port) : '',
     autoStart: p.autoStart ?? false,
+    env: envToText(p.env),
     profileId: p.profileId ?? '',
   }
 }
@@ -171,7 +173,13 @@ async function saveEdit(p: Project, thenStart = false): Promise<void> {
       return
     }
   }
+  const parsed = parseEnvText(form.value.env)
+  if (parsed.error) {
+    formError.value = `Environment — ${parsed.error}`
+    return
+  }
   await updateProject(p.id, {
+    env: parsed.env,
     name,
     command: form.value.command.trim(),
     port,
@@ -393,6 +401,16 @@ onMounted(() => {
             <option v-for="pr in config.profiles" :key="pr.id" :value="pr.id">Profile: {{ pr.name }}</option>
           </select>
 
+          <label :for="`pp-env-${p.id}`" class="pp-label-top">Environment</label>
+          <textarea
+            :id="`pp-env-${p.id}`"
+            v-model="form.env"
+            class="pp-input pp-input--mono pp-textarea"
+            rows="3"
+            spellcheck="false"
+            placeholder="SSL_CERT_FILE=C:\ssl\ca-bundle.crt&#10;NODE_OPTIONS=--max-old-space-size=4096"
+          ></textarea>
+
           <label :for="`pp-auto-${p.id}`">On launch</label>
           <label class="pp-check">
             <input :id="`pp-auto-${p.id}`" v-model="form.autoStart" type="checkbox" />
@@ -401,7 +419,8 @@ onMounted(() => {
 
           <p class="pp-form__hint">
             <code>{port}</code> in the command is replaced by the port, and the <code>PORT</code> environment variable
-            is set to it. Leave the command empty to use this project only for versions and services. Changes apply
+            is set to it. Environment takes one <code>KEY=VALUE</code> per line and overrides values from mise;
+            it applies only to the dev server Servel starts, not to your terminal. Leave the command empty to use this project only for versions and services. Changes apply
             the next time the project starts.
           </p>
           <p v-if="formError" class="pp-error pp-form__wide">{{ formError }}</p>
@@ -659,6 +678,17 @@ onMounted(() => {
 .pp-input--mono {
   font-family: var(--font-mono);
   font-size: 11px;
+}
+
+.pp-textarea {
+  resize: vertical;
+  min-height: 56px;
+  line-height: 1.5;
+}
+
+.pp-label-top {
+  align-self: start;
+  padding-top: 6px;
 }
 
 .pp-input--port {

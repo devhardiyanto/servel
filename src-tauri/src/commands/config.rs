@@ -44,6 +44,10 @@ pub struct Project {
     /// Jalankan dev server otomatis saat Servel dibuka.
     #[serde(default)]
     pub auto_start: bool,
+    /// Environment tambahan untuk dev server (v2.2.1), dipasang di atas
+    /// environment dari mise. `PORT` dikelola Servel dan tidak boleh diisi.
+    #[serde(default)]
+    pub env: std::collections::BTreeMap<String, String>,
 }
 
 /// Target proxy site lama (v1.5–v2.1). Hanya dibaca saat migrasi ke v7.
@@ -175,6 +179,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
                 command: String::new(),
                 port: 0,
                 auto_start: false,
+                env: Default::default(),
             });
         }
     }
@@ -196,6 +201,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
             command: String::new(),
             port,
             auto_start: false,
+            env: Default::default(),
         });
     }
 
@@ -554,6 +560,7 @@ mod tests {
                 command: "php artisan serve --host=127.0.0.1 --port={port}".into(),
                 port: 8001,
                 auto_start: true,
+                env: [("SSL_CERT_FILE".to_string(), r"C:\ca.crt".to_string())].into(),
             }],
             active_project_id: Some("p1".into()),
         };

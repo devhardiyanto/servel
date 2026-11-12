@@ -188,7 +188,27 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Bila Servel mati paksa (crash/kill), dev server yang sedang jalan tidak ikut dihentikan.
 - `%AppData%\Caddy` (data Caddy, termasuk kunci CA lama) tidak dihapus karena bisa dipakai instalasi Caddy lain.
 
+## v2.2.1 — patch dari pemakaian
+
+**Selesai**
+
+- Tombol Restart per project (menunggu port bebas, maks 15 dtk).
+- Environment per project (`KEY=VALUE`), dipasang di atas environment mise; `PORT` dicadangkan.
+- Updater menghentikan dev server setelah unduh dan sebelum install (installer Windows menutup Servel tanpa menjalankan hook keluar).
+- Remove certificate: pisahkan store pengguna (`certutil -user -delstore`, dialog konfirmasi) dan store komputer (certutil lewat UAC); pesan error menyebut store dan alasannya.
+- Onboarding: label "checking…" dengan 2 kartu skeleton; konten di tengah vertikal.
+
+**Perlu verifikasi di Windows**
+
+- Remove certificate (dialog konfirmasi / UAC) sampai banner hilang.
+- Update sekarang v2.2.0 → v2.2.1 dengan project berjalan: setelah Servel terbuka lagi, Start tidak gagal "port sedang dipakai".
+- `SSL_CERT_FILE` lewat Environment menyelesaikan error 60 di PHP.
+
 ## Setelah v2.2 (kandidat)
 
+- PHP extensions bawaan (toggle DLL di `ext\` per versi) + tombol "Fix HTTPS certificates" — v2.3.
+- Bersihkan dev server yatim setelah Servel mati paksa — v2.3.
+- Start project sekaligus menyalakan service di profilnya — menunggu keputusan.
+- PECL extension otomatis, CLI start/stop project — ditunda.
 - Patch dari pemakaian lapangan (item "Perlu verifikasi" di atas).
 - Code signing begitu sertifikat tersedia.
