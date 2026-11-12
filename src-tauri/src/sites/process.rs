@@ -130,6 +130,18 @@ pub fn strip_ansi(s: &str) -> String {
                         break;
                     }
                 }
+            } else if chars.peek() == Some(&']') {
+                // OSC (judul terminal, hyperlink): sampai BEL atau ESC \.
+                chars.next();
+                while let Some(n) = chars.next() {
+                    if n == '\u{7}' {
+                        break;
+                    }
+                    if n == '\u{1b}' && chars.peek() == Some(&'\\') {
+                        chars.next();
+                        break;
+                    }
+                }
             }
             continue;
         }
@@ -666,6 +678,7 @@ mod tests {
         assert_eq!(strip_ansi("\u{1b}[32m  VITE v5.4.0\u{1b}[39m  ready"), "  VITE v5.4.0  ready");
         assert_eq!(strip_ansi("\u{1b}[2K\u{1b}[1Gdone"), "done");
         assert_eq!(strip_ansi("plain"), "plain");
+        assert_eq!(strip_ansi("\u{1b}]0;mise\u{7}installing"), "installing");
     }
 
     #[test]

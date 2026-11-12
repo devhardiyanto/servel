@@ -332,6 +332,23 @@ pub async fn env_for(dir: &Path) -> Result<std::collections::HashMap<String, Str
     parse_env(&out)
 }
 
+/// Rapikan satu baris output mise untuk panel log. mise menggambar progress
+/// bar dengan `\r`, kode ANSI, dan karakter blok/spinner walau tanpa terminal;
+/// yang disimpan hanya keadaan terakhir baris itu, tanpa gambar bar-nya.
+pub fn clean_log_line(raw: &str) -> Option<String> {
+    let last = raw.rsplit('\r').find(|seg| !seg.trim().is_empty())?;
+    let text: String = crate::sites::process::strip_ansi(last)
+        .chars()
+        .filter(|c| {
+            let u = *c as u32;
+            // Block Elements, Braille (spinner), dan karakter kontrol lain.
+            !(0x2580..=0x259F).contains(&u) && !(0x2800..=0x28FF).contains(&u) && (!c.is_control() || *c == '\t')
+        })
+        .collect();
+    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if text.is_empty() { None } else { Some(text) }
+}
+
 /// Jalankan mise sambil men-stream output ke panel log (source `MISE`).
 async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), String> {
     let emit = |line: &str, stream: &str| {
@@ -351,7 +368,7 @@ async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), 
     let out_task = tokio::spawn(async move {
         let mut lines = BufReader::new(stdout).lines();
         while let Ok(Some(l)) = lines.next_line().await {
-            if !l.trim().is_empty() {
+            if let Some(l) = clean_log_line(&l) {
                 let _ = app_out.emit("cmd-output", serde_json::json!({ "line": l, "stream": "stdout", "source": "MISE" }));
             }
         }
@@ -361,7 +378,7 @@ async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), 
         let mut acc = Vec::new();
         let mut lines = BufReader::new(stderr).lines();
         while let Ok(Some(l)) = lines.next_line().await {
-            if !l.trim().is_empty() {
+            if let Some(l) = clean_log_line(&l) {
                 // mise menulis progress install ke stderr — bukan error.
                 let _ = app_err.emit("cmd-output", serde_json::json!({ "line": l, "stream": "stdout", "source": "MISE" }));
                 acc.push(l);
@@ -759,5 +776,19 @@ mod tests {
         assert_eq!(untrusted_path(e).as_deref(), Some(r"D:\dev\astra\mise.toml"));
         assert_eq!(map_error(e, ""), format!("{}|{}", ERR_UNTRUSTED, r"D:\dev\astra\mise.toml"));
         assert_eq!(untrusted_path("mise ERROR tool not found"), None);
+    }
+
+    #[test]
+    fn clean_log_line_drops_progress_drawing() {
+        assert_eq!(
+            clean_log_line("\u{1b}[2K\u{1b}[1Gmise \u{2588}\u{2588}\u{2591}\u{2591} 0/1 \u{b7} 3.0s").as_deref(),
+            Some("mise 0/1 \u{b7} 3.0s")
+        );
+        assert_eq!(
+            clean_log_line("\u{2807} php@8.3.35 resolving\r\u{1b}[2Kmise \u{2192} php@8.3.35 already installed\r").as_deref(),
+            Some("mise \u{2192} php@8.3.35 already installed")
+        );
+        assert_eq!(clean_log_line("\u{1b}[2K\r  "), None);
+        assert_eq!(clean_log_line("mise use -g php@8.3.35").as_deref(), Some("mise use -g php@8.3.35"));
     }
 }

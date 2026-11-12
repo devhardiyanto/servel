@@ -191,8 +191,19 @@ pub fn ini_field(output: &str, label: &str) -> Option<String> {
     output
         .lines()
         .find_map(|l| l.trim().strip_prefix(label))
-        .map(|r| r.trim_start_matches(':').trim().to_string())
+        .map(|r| unquote(r.trim_start_matches(':').trim()).to_string())
         .filter(|v| !v.is_empty() && v != "(none)")
+}
+
+/// PHP 8.5 menulis path di `php --ini` dalam tanda kutip (`"C:\php\php.ini"`);
+/// kutipnya dibuang, kalau tidak Windows menolak path itu (os error 123).
+fn unquote(v: &str) -> &str {
+    for q in ['"', '\''] {
+        if let Some(inner) = v.strip_prefix(q).and_then(|r| r.strip_suffix(q)) {
+            return inner.trim();
+        }
+    }
+    v
 }
 
 // ---------------------------------------------------------------------------
@@ -654,6 +665,10 @@ mod tests {
         let out = "Configuration File (php.ini) Path: \nLoaded Configuration File:         C:\\php\\8.3.35\\php.ini\nScan for additional .ini files in: (none)\n";
         assert_eq!(ini_field(out, "Loaded Configuration File").as_deref(), Some(r"C:\php\8.3.35\php.ini"));
         assert_eq!(ini_field("Loaded Configuration File:         (none)\n", "Loaded Configuration File"), None);
+        // Format PHP 8.5: path dikutip.
+        let out85 = "Configuration File (php.ini) Path: \"C:\\php\\8.5.11\"\nLoaded Configuration File:         \"C:\\php\\8.5.11\\php.ini\"\n";
+        assert_eq!(ini_field(out85, "Loaded Configuration File").as_deref(), Some(r"C:\php\8.5.11\php.ini"));
+        assert_eq!(ini_field(out85, "Configuration File (php.ini) Path").as_deref(), Some(r"C:\php\8.5.11"));
         let err = "PHP Warning:  PHP Startup: Unable to load dynamic library 'redis' (tried: C:\\ext\\redis)";
         assert!(startup_warning(err).is_some());
         assert!(startup_warning("[PHP Modules]\ncurl\n").is_none());
