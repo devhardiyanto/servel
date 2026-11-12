@@ -2,7 +2,13 @@
 
 > **One app. All your local dev environment.**
 
-Servel is a desktop app (Tauri 2 + Vue 3) that orchestrates your local development environment from a single UI: switch PHP and Node versions, and start/stop Docker-based services — without juggling three terminals every morning.
+Servel is a desktop app (Tauri 2 + Vue 3) that runs your local development environment from one window:
+
+- **Services**: MySQL, PostgreSQL, Redis and friends in containers (WSL containers on Windows, or Docker).
+- **Projects**: your Laravel, Vite, Nuxt, Node or Go apps, started for you on a fixed `localhost:<port>`.
+- **Versions**: PHP and Node per project through [mise](https://mise.jdx.dev), plus PHP extensions per version.
+
+No more juggling three terminals every morning.
 
 ![Dashboard](docs/screenshots/dashboard-running.png)
 
@@ -10,26 +16,33 @@ Servel is a desktop app (Tauri 2 + Vue 3) that orchestrates your local developme
 
 ## Features
 
-- **PHP extensions (new in v2.3)** — turn bundled extensions on or off per PHP version, and fix HTTPS (curl error 60) on Windows with one click. `php.ini` is backed up and the change is undone if PHP no longer starts.
-- **Projects on localhost (new in v2.2)** — add a project folder and Servel detects what it is (Laravel, WordPress, Vite, Next, Node, Go, ...), runs its dev server with the versions from the project's `mise.toml`, and gives it a fixed `localhost:<port>` address. Start, stop, open and read its log from one place; optionally start it when Servel opens.
-- **In-app updates (new in v2.1)** — Settings → About downloads, verifies and installs a new version, then restarts Servel.
-- **Projects (v1.9)** — link a project folder to a service profile: selecting the project switches its PHP/Node versions (via mise) and its service selection together.
-- **Database restore & Docker import (v1.8)** — restore a `.sql` dump into MySQL/PostgreSQL from Settings, or copy your databases from an old Docker container into WSL containers.
-- **Readiness checks (v1.8)** — a service shows "up" only once it accepts connections, not just when its container starts.
-- **mise integration (new in v1.7)** — when [mise](https://mise.jdx.dev) is installed, Servel shows and switches PHP/Node versions per project folder. It writes to the `mise.toml` that actually applies, and asks before pinning a version that currently comes from your global config.
-- **PHP version switching** via [phpvm](https://github.com/devhardiyanto/phpvm) — list installed versions, switch active, install new.
-- **Node version switching** via [fnm](https://github.com/Schniz/fnm) — same workflow as PHP.
-- **WSL containers on Windows (new in v1.6)** — run every service on the container engine built into WSL (`wslc`). No Docker Desktop, no extra Linux distro. Docker stays available as an alternative.
-- **Docker services orchestration** — MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg. Toggle what you need, click Start.
-- **Auto-detect `.phpvmrc` / `.nvmrc`** — point Servel at a project folder, it picks the right versions.
-- **Persistent state + system tray** — Servel remembers your last selection; runs from the tray so it does not crowd your taskbar.
-- **Dynamic `docker-compose.yml` generator** — only the services you toggled on are written to the compose file. Saves RAM, keeps the runtime clean.
+**Projects**
+- Add a project folder; Servel detects what it is (Laravel, Lumen, WordPress, Drupal, plain PHP, Vite with Vue/React/Svelte, Next, Nuxt, Angular, other Node apps, Go) and suggests the dev-server command and a free port.
+- Start, Stop, Restart and Open each project at `localhost:<port>`; its output goes to the Logs viewer.
+- The dev server runs with the PHP/Node/Go versions from the project's `mise.toml`, plus any environment variables you set for that project.
+- Optionally start a project when Servel opens, and link it to a service profile.
+- Dev servers stop when Servel quits, and do not linger if Servel crashes.
+
+**Services**
+- MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg. Toggle what you need, click Start.
+- Windows: runs on WSL containers (`wslc`, built into WSL 3.0.1+). No Docker Desktop and no extra Linux distro needed. Docker stays available.
+- A service shows "up" only once it accepts connections.
+- Service profiles, database restore from a `.sql` dump, and import from an old Docker setup.
+
+**PHP and Node**
+- With mise: see and switch PHP/Node versions per project, written to the `mise.toml` that actually applies. phpvm and fnm are still supported.
+- PHP extensions: turn bundled extensions on or off per PHP version. `php.ini` is backed up first and the change is undone if PHP no longer starts.
+- Windows: one click fixes HTTPS from PHP (curl error 60).
+
+**App**
+- In-app updates from Settings → About.
+- System tray, remembered selection, and a `servel` terminal command on Windows.
 
 ---
 
 ## Install
 
-Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `1.7.0`).
+Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `2.3.0`).
 
 > Servel ships **unsigned** for Windows and macOS. Workarounds are documented below; see the FAQ for the long-term plan.
 
@@ -42,7 +55,9 @@ Download the installer for your OS from the [Releases page](https://github.com/d
    - **No (Append)**: append Servel's WSL2 settings to the bottom of your existing file.
    - **Cancel (Skip)**: leave `.wslconfig` untouched. Recommended if you use WSL containers and already tuned WSL yourself.
 4. The installer also adds the `servel` terminal command to your user PATH (see [`servel` terminal command](#servel-terminal-command-windows)).
-5. Launch Servel from the Start Menu. With WSL 3.0.1+ and no Docker installed, Servel uses the built-in WSL containers automatically.
+5. Launch Servel from the Start Menu. With WSL 3.0.1+, Servel uses the built-in WSL containers automatically.
+
+**Updating:** from v2.1 on, open **Settings → About → Cek update → Update sekarang**. Servel stops running projects, installs the new version and reopens. Older versions update by installing the new release manually once.
 
 If you changed `.wslconfig`, restart WSL once so it takes effect:
 
@@ -110,7 +125,7 @@ servel shell postgres            # shell inside the container
 servel restore mysql D:\backup\dump.sql   # or a folder of .sql files
 servel use php 8.3               # via mise, in the current project folder
 servel use node 22 --global      # change the global version
-servel projects                  # list the projects configured in the app
+servel projects                  # list projects from the app, with their localhost URLs
 ```
 
 The app and the CLI share state, so you can use them interchangeably. Open a **new** terminal after installing so it picks up the new PATH. If you previously aliased `servel` in your shell profile, remove that alias; otherwise it shadows the bundled command.
@@ -126,53 +141,103 @@ export PATH="$PATH:$(cygpath "$LOCALAPPDATA")/Servel/cli/bin"
 - **Windows / macOS:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) — make sure it is running before starting any service from Servel.
 - **Linux:** [Docker Engine](https://docs.docker.com/engine/install/) + the Compose v2 plugin. Add your user to the `docker` group so you do not need `sudo`.
 
-### phpvm — PHP version manager
+### mise — PHP, Node and Go versions (recommended)
 
-- Repo: [github.com/devhardiyanto/phpvm](https://github.com/devhardiyanto/phpvm)
-- Install via the instructions on the repo (PowerShell on Windows, shell installer on Linux/macOS).
-- After install, add the `phpvm` hook to your shell profile so version switching takes effect in new terminals:
-  ```bash
-  phpvm hook
-  ```
+- Site: [mise.jdx.dev](https://mise.jdx.dev). Install it, then install the versions you need, for example `mise use -g php@8.3 node@22`.
+- When mise is installed, Servel uses it automatically (**Settings → PHP & Node → Manage PHP & Node with → Auto**).
+- Versions are resolved per folder, so a `mise.toml` in a project (or one of its parent folders) decides which PHP/Node that project uses, both in Servel and in your terminal.
 
-### fnm — Node version manager
+### phpvm and fnm (alternative)
 
-- Repo: [github.com/Schniz/fnm](https://github.com/Schniz/fnm)
-- Install via the official installer or your package manager (`winget install Schniz.fnm`, `brew install fnm`, `cargo install fnm`).
-- Add the fnm shell hook to your profile as documented in the fnm README.
+Without mise, Servel switches versions with [phpvm](https://github.com/devhardiyanto/phpvm) and [fnm](https://github.com/Schniz/fnm). Both are optional.
+
+- phpvm: install from its repo, then add the hook to your shell profile with `phpvm hook`.
+- fnm: `winget install Schniz.fnm`, `brew install fnm` or `cargo install fnm`, then add its shell hook as documented in the fnm README.
 
 ---
 
-## First Run
+## First run
 
-![Onboarding](docs/screenshots/onboarding-fresh.png)
-
-On first launch Servel runs an **Onboarding** flow:
-
-1. **Prerequisites check** — Servel detects Docker, phpvm, and fnm. Missing items get a red badge with a link to the install instructions.
-2. **Pick your services** — toggle the services you usually use. You can change this later.
-3. **Pick versions** — choose your active PHP and Node versions from the lists detected by phpvm and fnm.
-4. **Done** — you land on the Dashboard. Click **Start** to bring up your selected services.
+On first launch Servel checks what is installed: the container engine (WSL containers or Docker) and mise (or phpvm + fnm). Missing items show what to install. Click **Refresh checks** after installing, then **Continue to Servel**.
 
 ---
 
-## Tray Menu
+## Using Servel
 
-![Tray](docs/screenshots/tray-menu.png)
+### Services (Dashboard)
 
-Servel runs from the system tray. Right-click the tray icon for:
+1. Toggle the services you need. The selection is saved as a **profile**; create more profiles in **Settings → Services**.
+2. Click **Start selected**. Each service shows "starting" until it accepts connections, then "up".
+3. **Stop all** stops every service; the data stays in volumes.
 
-- **Show Servel** — open the main window.
-- **Start all selected** — bring up every service currently toggled on.
-- **Stop all** — bring down every running service.
-- **Quit Servel** — exit the app (services keep running unless you stopped them first).
+Services listen on `127.0.0.1` with these defaults (for local development only):
 
----
+| Service | Port | Login |
+|---|---|---|
+| MySQL | 3306 | `root`, no password; database `local_db` |
+| PostgreSQL | 5432 | `postgres`, no password; database `local_db` |
+| Redis | 6379 | none |
+| RabbitMQ | 5672, UI 15672 | `guest` / `guest` |
+| MongoDB | 27017 | none |
+| MinIO | 9000, console 9001 | `admin` / `password` |
+| Mailpit | SMTP 1025, UI 8025 | none |
+| Gotenberg | 3030 | none |
 
-## Screens
+To load data: **Settings → Services → Restore database** (pick a `.sql` dump for MySQL or PostgreSQL). Coming from Docker on Windows: **Import from Docker** copies your databases into WSL containers.
 
-- ![Settings](docs/screenshots/settings-general.png)
-- ![Logs](docs/screenshots/logs-fullscreen.png)
+### Projects (Settings → Projects)
+
+1. Click **+ Add project folder** and pick the folder. Servel detects the type and opens the form with a suggested **Command** and **Port**.
+2. Check the form, then **Save & start**.
+3. When the status turns **running**, click `localhost:<port>` to open it.
+
+| Field | What it does |
+|---|---|
+| **Command** | Any command, run in the project folder. `{port}` is replaced by the port, and the `PORT` variable is set to it. **Detect** fills it in again. Leave it empty to use the project only for versions and services. |
+| **Port** | Fixed port on `localhost` (1024–65535). |
+| **Services** | Service profile applied when you pick this project under **Versions for** on the Dashboard. |
+| **Environment** | One `KEY=VALUE` per line, set for this project's dev server on top of mise's environment. Lines copied from a shell (`export KEY='value'`) work as-is. |
+| **On launch** | Start this project when Servel opens. |
+
+Examples of commands Servel suggests:
+
+| Project | Command |
+|---|---|
+| Laravel | `php artisan serve --host=127.0.0.1 --port={port}` |
+| Lumen / plain PHP | `php -S 127.0.0.1:{port} -t public` |
+| WordPress | `php -S 127.0.0.1:{port}` |
+| Vite (Vue/React) | `npm run dev -- --port {port} --strictPort` |
+| Next | `npm run dev -- -p {port}` |
+| Node backend | `npm run dev` (reads `PORT`) |
+| Go | `go run .` or `air` (reads `PORT`) |
+
+`npm` becomes `pnpm`, `yarn` or `bun` when that lockfile is present. **Restart** stops the project, waits for the port to be free and starts it again. Output shows under **Logs → Projects**.
+
+Notes:
+
+- Node backends and Go apps follow the port only if they read the `PORT` variable. Otherwise set the app's own port in **Port**; the status shows "port not answering" until something listens on it.
+- Dependencies are not installed for you. Run `composer install` / `npm install` first; if a project exits, its card shows the last output line.
+- On Windows, `php -S` and `artisan serve` handle one request at a time.
+
+### PHP and Node versions
+
+- **Dashboard → Versions for** picks the context: **Global** or one of your projects. The PHP and Node lists show the versions that apply there and where they come from (project `mise.toml` or global config).
+- Switching a version in a project context writes to that project's `mise.toml`. If the version currently comes from your global config, Servel asks whether to pin it in the project or change it globally.
+- A `mise.toml` that mise does not trust yet shows a **Trust** button.
+
+### PHP extensions (Settings → PHP & Node)
+
+1. Pick the PHP version at the top of **PHP extensions**.
+2. Turn extensions on or off with their switches. The change goes into that version's `php.ini` and applies to every project and terminal that uses the version. Restart running PHP projects to pick it up.
+3. **Windows:** if **HTTPS certificates** says "Not set", click **Fix HTTPS certificates**. This sets `curl.cainfo` and `openssl.cafile`, which fixes curl error 60.
+
+Before each change Servel backs up `php.ini` next to it (`php.ini.servel-<time>.bak`, last 5 kept). If PHP fails to start afterwards, the old `php.ini` is restored and the reason is shown.
+
+Extensions that are not bundled (redis, xdebug, imagick, ...) are not downloaded for you: put the DLL that matches your PHP version (thread safety, architecture) into the `ext` folder shown in the panel, and it appears in the list.
+
+### Tray menu
+
+Right-click the tray icon for **Show Servel**, the **PHP** and **Node** version submenus, **Start all selected**, **Stop all** and **Quit Servel**. Closing the window keeps Servel in the tray (change it in **Settings → General**). Quitting stops running projects; services keep running until you stop them.
 
 ---
 
@@ -190,7 +255,7 @@ netstat -ano | findstr :3306
 lsof -i :3306
 ```
 
-Stop the offending process, or change the service port mapping in Servel Settings.
+Stop the offending process and click Start again. For a project, pick another **Port** in its Edit form.
 
 ### "WSL containers is not responding" (Windows)
 
@@ -201,7 +266,7 @@ Stop the offending process, or change the service port mapping in Servel Setting
 
 ### Databases are empty after switching to WSL containers
 
-Expected: WSL containers and Docker Desktop have separate storage. Restore your dumps into the new containers (for example with `mysql < dump.sql` via `wslc exec -i servel_mysql ...`), or switch back to Docker in **Settings → Container engine**.
+Expected: WSL containers and Docker Desktop have separate storage. Use **Settings → Services → Import from Docker** (Docker must be running), or **Restore database** with a `.sql` dump. You can also switch back to Docker in **Settings → Container engine**.
 
 ### "Docker not running" / containers fail to start
 
@@ -219,11 +284,11 @@ WSL only reads `.wslconfig` at startup. After install (or after editing the file
 wsl --shutdown
 ```
 
-Then start Docker Desktop again.
+Then start Servel (and Docker Desktop, if you use it) again.
 
 ### Windows SmartScreen blocks the installer
 
-Servel v1.0 is **unsigned** to keep the project free of certificate costs during beta. SmartScreen will show a warning — click **More info** → **Run anyway**. Code signing is on the roadmap for v1.1 if adoption justifies the cost.
+Servel releases are currently **unsigned**, so SmartScreen shows a warning. Click **More info** → **Run anyway**.
 
 ### macOS says "Servel is damaged and can't be opened"
 
@@ -233,11 +298,27 @@ This is Gatekeeper's quarantine attribute on an unsigned app. Remove it:
 xattr -d com.apple.quarantine /Applications/Servel.app
 ```
 
-Apple notarization is on the roadmap for v1.1.
+Releases are not notarized yet, so this is needed after each manual install.
+
+### PHP: `cURL error 60: SSL certificate problem`
+
+PHP on Windows has no certificate list. Open **Settings → PHP & Node → PHP extensions** and click **Fix HTTPS certificates** for the PHP version you use. For a single project only, you can instead add `SSL_CERT_FILE=<path to ca-bundle.crt>` to its **Environment**.
+
+### PHP extension change was undone
+
+PHP printed a startup error with the new setting, so Servel restored `php.ini`; the message shows PHP's own error. Usually the DLL does not match the PHP version, thread safety (TS/NTS) or architecture. Download the matching build and try again.
+
+### Project shows "port not answering"
+
+The process is running but nothing listens on the project's port. The app probably uses its own port: check **Logs → Projects** for the address it prints, then set that port in Edit (or make the app read `PORT`).
+
+### Old `.test` domains still resolve (upgraded from v2.1 or older)
+
+The `.test` domains feature was removed in v2.2. **Settings → Projects** shows a cleanup box while Servel's hosts-file entries or the old local HTTPS certificate are still present: **Remove from hosts** (asks for admin rights) and **Remove certificate**.
 
 ### Service stays stuck on "starting"
 
-Check the Logs viewer for that service. Common causes: image still pulling on first run, port conflict, or Docker out of disk space (`docker system prune` to reclaim).
+Check the Logs viewer for that service. Common causes: the image is still downloading on first run, a port conflict, or no disk space left. Servel marks a service "up" after 120 seconds even if its health check never passes, and writes a warning to the log.
 
 ---
 
