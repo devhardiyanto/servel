@@ -224,6 +224,17 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Ekspor root Windows bisa kurang lengkap (Windows mengunduh sebagian root hanya saat dibutuhkan); bundle Git lebih lengkap.
 - Proses anak yang dibuat dalam milidetik pertama sebelum masuk job object bisa lolos; catatan di disk menjadi cadangannya.
 
+## v2.3.1 — patch dari uji Windows
+
+**Selesai**
+
+- Path `php.ini` dari `php --ini` PHP 8.5 dikutip; kutip dibuang (di v2.3.0 simpan gagal dengan os error 123 dan php.ini dianggap belum ada).
+- Output progress mise di Logs dibersihkan dari bar, spinner, dan kode ANSI/OSC.
+
+**Perlu verifikasi di Windows**
+
+- Toggle extension dan Fix HTTPS certificates pada PHP 8.5.
+
 ## Setelah v2.2 (kandidat)
 
 - Start project sekaligus menyalakan service di profilnya — menunggu keputusan.

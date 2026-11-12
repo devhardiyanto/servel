@@ -38,28 +38,15 @@ pub fn dump_command(service_id: &str) -> Option<&'static str> {
 }
 
 fn emit(app: &AppHandle, source: &str, stream: &str, line: &str) {
-    let _ = app.emit(
-        "cmd-output",
-        serde_json::json!({ "line": line, "stream": stream, "source": source }),
-    );
+    let _ = app.emit("cmd-output", serde_json::json!({ "line": line, "stream": stream, "source": source }));
 }
 
-pub async fn migrate_from_docker(
-    app: &AppHandle,
-    defs: &[ServiceDef],
-    service_id: &str,
-) -> Result<(), String> {
+pub async fn migrate_from_docker(app: &AppHandle, defs: &[ServiceDef], service_id: &str) -> Result<(), String> {
     if ensure_resolved().await != RuntimeKind::Wslc {
-        return Err(
-            "pindahkan engine ke WSL containers dulu (Settings → Container engine)".to_string(),
-        );
+        return Err("pindahkan engine ke WSL containers dulu (Settings → Container engine)".to_string());
     }
-    let cmd = dump_command(service_id).ok_or_else(|| {
-        format!(
-            "migrasi hanya untuk mysql dan postgres, bukan '{}'",
-            service_id
-        )
-    })?;
+    let cmd = dump_command(service_id)
+        .ok_or_else(|| format!("migrasi hanya untuk mysql dan postgres, bukan '{}'", service_id))?;
     let def = defs
         .iter()
         .find(|d| d.id == service_id)
@@ -68,22 +55,11 @@ pub async fn migrate_from_docker(
     let source = service_id.to_uppercase();
 
     if !super::docker::is_running().await {
-        return Err(
-            "Docker tidak berjalan — start Docker Desktop dulu untuk mengambil data lama"
-                .to_string(),
-        );
+        return Err("Docker tidak berjalan — start Docker Desktop dulu untuk mengambil data lama".to_string());
     }
 
-    emit(
-        app,
-        &source,
-        "stdout",
-        &format!("docker start {} (sumber data lama)", name),
-    );
-    let started = silent_command("docker")
-        .args(["start", name])
-        .status()
-        .await;
+    emit(app, &source, "stdout", &format!("docker start {} (sumber data lama)", name));
+    let started = silent_command("docker").args(["start", name]).status().await;
     if !matches!(started, Ok(s) if s.success()) {
         return Err(format!("container Docker {} tidak ditemukan", name));
     }
@@ -91,9 +67,7 @@ pub async fn migrate_from_docker(
     let mut ready = false;
     if let Some(probe) = super::readiness::probe_command(service_id) {
         for _ in 0..60 {
-            if super::docker::exec_status(name, probe, std::time::Duration::from_secs(10)).await
-                == Some(0)
-            {
+            if super::docker::exec_status(name, probe, std::time::Duration::from_secs(10)).await == Some(0) {
                 ready = true;
                 break;
             }
@@ -105,12 +79,7 @@ pub async fn migrate_from_docker(
     }
 
     let dump_path = std::env::temp_dir().join(format!("servel-migrate-{}.sql", service_id));
-    emit(
-        app,
-        &source,
-        "stdout",
-        &format!("dump dari Docker → {}", dump_path.display()),
-    );
+    emit(app, &source, "stdout", &format!("dump dari Docker → {}", dump_path.display()));
     let mut child = silent_command("docker")
         .args(["exec", name, "sh", "-c", cmd])
         .stdout(Stdio::piped())
@@ -126,28 +95,17 @@ pub async fn migrate_from_docker(
         .map_err(|e| format!("gagal menulis dump: {}", e))?;
     file.flush().await.ok();
     drop(file);
-    let out = child
-        .wait_with_output()
-        .await
-        .map_err(|e| format!("gagal menunggu docker: {}", e))?;
+    let out = child.wait_with_output().await.map_err(|e| format!("gagal menunggu docker: {}", e))?;
     if !out.status.success() {
         let _ = tokio::fs::remove_file(&dump_path).await;
-        return Err(format!(
-            "dump gagal: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        ));
+        return Err(format!("dump gagal: {}", String::from_utf8_lossy(&out.stderr).trim()));
     }
 
     let result = super::restore::restore(app, defs, service_id, &dump_path.to_string_lossy()).await;
     // Dump bisa berisi data sensitif — jangan ditinggal di temp.
     let _ = tokio::fs::remove_file(&dump_path).await;
     if result.is_ok() {
-        emit(
-            app,
-            &source,
-            "stdout",
-            "migrasi selesai. Container Docker lama tidak dihapus — hapus manual bila sudah yakin.",
-        );
+        emit(app, &source, "stdout", "migrasi selesai. Container Docker lama tidak dihapus — hapus manual bila sudah yakin.");
     }
     result
 }
@@ -163,10 +121,7 @@ mod tests {
         assert!(m.contains("--single-transaction") && m.contains("--databases $dbs"));
         let p = dump_command("postgres").unwrap();
         assert!(p.contains("pg_dump -U \"$U\" -C"));
-        assert!(
-            !p.contains("pg_dumpall"),
-            "pg_dumpall memuat CREATE ROLE postgres"
-        );
+        assert!(!p.contains("pg_dumpall"), "pg_dumpall memuat CREATE ROLE postgres");
         assert!(p.contains("datname <> 'postgres'"));
         assert!(dump_command("redis").is_none());
     }

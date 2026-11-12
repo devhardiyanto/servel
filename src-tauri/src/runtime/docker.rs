@@ -5,9 +5,7 @@ use std::process::Stdio;
 use tauri::AppHandle;
 
 use crate::commands::compose::{compose_path, generate_compose};
-use crate::commands::services::{
-    parse_docker_ps_json, union_with_running, ServiceDef, ServiceStatus,
-};
+use crate::commands::services::{parse_docker_ps_json, union_with_running, ServiceDef, ServiceStatus};
 use crate::commands::stats::{parse_docker_stats_json, ContainerMemStat};
 use crate::commands::util::{silent_command, stream_and_wait_app};
 
@@ -28,10 +26,7 @@ pub async fn has_servel_containers() -> Option<bool> {
         .args(["ps", "-a", "-q", "--filter", "name=servel_"])
         .stdout(Stdio::piped())
         .output();
-    let out = tokio::time::timeout(std::time::Duration::from_secs(10), fut)
-        .await
-        .ok()?
-        .ok()?;
+    let out = tokio::time::timeout(std::time::Duration::from_secs(10), fut).await.ok()?.ok()?;
     if !out.status.success() {
         return None;
     }
@@ -74,10 +69,7 @@ pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> R
     if out.status.success() {
         Ok(())
     } else {
-        Err(format!(
-            "docker cp gagal: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        ))
+        Err(format!("docker cp gagal: {}", String::from_utf8_lossy(&out.stderr).trim()))
     }
 }
 
@@ -90,9 +82,7 @@ pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str) -> Result<(),
 
 /// `docker exec <name> sh -c <cmd>` → exit code.
 pub async fn exec_status(name: &str, cmd: &str, timeout: std::time::Duration) -> Option<i32> {
-    let fut = silent_command("docker")
-        .args(["exec", name, "sh", "-c", cmd])
-        .status();
+    let fut = silent_command("docker").args(["exec", name, "sh", "-c", cmd]).status();
     tokio::time::timeout(timeout, fut).await.ok()?.ok()?.code()
 }
 
@@ -110,9 +100,7 @@ pub async fn status() -> Result<Vec<ServiceStatus>, String> {
         return Err(format!("docker ps gagal: {}", stderr));
     }
 
-    Ok(parse_docker_ps_json(&String::from_utf8_lossy(
-        &output.stdout,
-    )))
+    Ok(parse_docker_ps_json(&String::from_utf8_lossy(&output.stdout)))
 }
 
 /// `docker stats --no-stream --format json` (tanpa `--filter` agar kompatibel
@@ -131,9 +119,7 @@ pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
         return Err(format!("docker stats gagal: {}", stderr));
     }
 
-    Ok(parse_docker_stats_json(&String::from_utf8_lossy(
-        &output.stdout,
-    )))
+    Ok(parse_docker_stats_json(&String::from_utf8_lossy(&output.stdout)))
 }
 
 fn compose_path_str() -> Result<String, String> {
@@ -143,11 +129,7 @@ fn compose_path_str() -> Result<String, String> {
         .ok_or_else(|| "compose path tidak valid UTF-8".to_string())
 }
 
-pub async fn start(
-    app: &AppHandle,
-    defs: &[ServiceDef],
-    services: &[String],
-) -> Result<(), String> {
+pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) -> Result<(), String> {
     // Safety net: gabungkan container servel_ yang SEDANG running ke compose.
     // Tanpa ini, `up --remove-orphans` menghancurkan service yang tidak ada di
     // `services` — mis. saat frontend mengirim subset karena race state setelah

@@ -179,11 +179,7 @@ pub async fn apply_preference(pref_raw: &str) -> RuntimeKind {
                 let (wslc_ok, docker_ok) =
                     tokio::join!(wslc::is_installed(), docker::is_installed());
                 // Hanya tanya Docker bila keputusan bergantung padanya.
-                let has_data = if wslc_ok && docker_ok {
-                    docker::has_servel_containers().await
-                } else {
-                    None
-                };
+                let has_data = if wslc_ok && docker_ok { docker::has_servel_containers().await } else { None };
                 resolve(pref, is_windows, wslc_ok, docker_ok, has_data)
             }
         }
@@ -229,11 +225,7 @@ pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
 }
 
 /// Start `services` (id). Service lain yang sedang running tetap dibiarkan.
-pub async fn start(
-    app: &AppHandle,
-    defs: &[ServiceDef],
-    services: &[String],
-) -> Result<(), String> {
+pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) -> Result<(), String> {
     match ensure_resolved().await {
         RuntimeKind::Docker => docker::start(app, defs, services).await,
         RuntimeKind::Wslc => wslc::start(app, defs, services).await,
@@ -260,25 +252,15 @@ mod tests {
 
     #[test]
     fn non_windows_always_docker() {
-        for pref in [
-            RuntimePreference::Auto,
-            RuntimePreference::Docker,
-            RuntimePreference::Wslc,
-        ] {
+        for pref in [RuntimePreference::Auto, RuntimePreference::Docker, RuntimePreference::Wslc] {
             assert_eq!(resolve(pref, false, true, false, None), RuntimeKind::Docker);
         }
     }
 
     #[test]
     fn explicit_preference_wins_on_windows() {
-        assert_eq!(
-            resolve(RuntimePreference::Wslc, true, false, true, Some(true)),
-            RuntimeKind::Wslc
-        );
-        assert_eq!(
-            resolve(RuntimePreference::Docker, true, true, false, None),
-            RuntimeKind::Docker
-        );
+        assert_eq!(resolve(RuntimePreference::Wslc, true, false, true, Some(true)), RuntimeKind::Wslc);
+        assert_eq!(resolve(RuntimePreference::Docker, true, true, false, None), RuntimeKind::Docker);
     }
 
     #[test]
@@ -287,31 +269,19 @@ mod tests {
         // Hanya wslc → WSLC.
         assert_eq!(resolve(Auto, true, true, false, None), RuntimeKind::Wslc);
         // Keduanya ada, Docker kosong / daemon mati (sisa docker.exe) → WSLC (baru di v2.0).
-        assert_eq!(
-            resolve(Auto, true, true, true, Some(false)),
-            RuntimeKind::Wslc
-        );
+        assert_eq!(resolve(Auto, true, true, true, Some(false)), RuntimeKind::Wslc);
         assert_eq!(resolve(Auto, true, true, true, None), RuntimeKind::Wslc);
         // Docker masih menyimpan container Servel → tetap Docker.
-        assert_eq!(
-            resolve(Auto, true, true, true, Some(true)),
-            RuntimeKind::Docker
-        );
+        assert_eq!(resolve(Auto, true, true, true, Some(true)), RuntimeKind::Docker);
         // Tanpa wslc → Docker (onboarding menampilkan cara install).
-        assert_eq!(
-            resolve(Auto, true, false, true, Some(false)),
-            RuntimeKind::Docker
-        );
+        assert_eq!(resolve(Auto, true, false, true, Some(false)), RuntimeKind::Docker);
         assert_eq!(resolve(Auto, true, false, false, None), RuntimeKind::Docker);
     }
 
     #[test]
     fn parse_preference_is_lenient() {
         assert_eq!(RuntimePreference::parse("WSLC"), RuntimePreference::Wslc);
-        assert_eq!(
-            RuntimePreference::parse(" docker "),
-            RuntimePreference::Docker
-        );
+        assert_eq!(RuntimePreference::parse(" docker "), RuntimePreference::Docker);
         assert_eq!(RuntimePreference::parse("auto"), RuntimePreference::Auto);
         assert_eq!(RuntimePreference::parse(""), RuntimePreference::Auto);
         assert_eq!(RuntimePreference::parse("podman"), RuntimePreference::Auto);

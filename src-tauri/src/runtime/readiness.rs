@@ -23,9 +23,7 @@ pub fn probe_command(service_id: &str) -> Option<&'static str> {
     match service_id {
         // TCP 127.0.0.1 (bukan socket) supaya server sementara saat first-init
         // image resmi tidak dianggap siap.
-        "mysql" => Some(
-            r#"MYSQL_PWD="${MYSQL_ROOT_PASSWORD:-}" mysqladmin ping -h 127.0.0.1 -uroot --silent"#,
-        ),
+        "mysql" => Some(r#"MYSQL_PWD="${MYSQL_ROOT_PASSWORD:-}" mysqladmin ping -h 127.0.0.1 -uroot --silent"#),
         "postgres" => Some(r#"pg_isready -h 127.0.0.1 -U "${POSTGRES_USER:-postgres}" -q"#),
         "redis" => Some("redis-cli -h 127.0.0.1 ping | grep -q PONG"),
         "mongodb" => Some(r#"mongosh --quiet --eval "db.adminCommand('ping').ok" | grep -q 1"#),
@@ -131,15 +129,9 @@ mod tests {
         let now = Instant::now();
         assert_eq!(t.decide("mysql", now), Decision::Probe);
         assert!(!t.record("mysql", ProbeOutcome::NotReady));
-        assert_eq!(
-            t.decide("mysql", now + Duration::from_secs(3)),
-            Decision::Probe
-        );
+        assert_eq!(t.decide("mysql", now + Duration::from_secs(3)), Decision::Probe);
         assert!(t.record("mysql", ProbeOutcome::Ready));
-        assert_eq!(
-            t.decide("mysql", now + Duration::from_secs(6)),
-            Decision::Ready
-        );
+        assert_eq!(t.decide("mysql", now + Duration::from_secs(6)), Decision::Ready);
     }
 
     #[test]
@@ -157,10 +149,7 @@ mod tests {
         let start = Instant::now();
         assert_eq!(t.decide("postgres", start), Decision::Probe);
         t.record("postgres", ProbeOutcome::NotReady);
-        assert_eq!(
-            t.decide("postgres", start + READY_TIMEOUT),
-            Decision::TimedOut
-        );
+        assert_eq!(t.decide("postgres", start + READY_TIMEOUT), Decision::TimedOut);
         assert!(t.is_ready("postgres"));
     }
 
@@ -172,11 +161,7 @@ mod tests {
         t.record("redis", ProbeOutcome::Ready);
         t.retain_running(&set(&[]));
         assert!(!t.is_ready("redis"));
-        assert_eq!(
-            t.decide("redis", now),
-            Decision::Probe,
-            "start berikutnya di-probe lagi"
-        );
+        assert_eq!(t.decide("redis", now), Decision::Probe, "start berikutnya di-probe lagi");
     }
 
     #[test]

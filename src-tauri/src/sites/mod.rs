@@ -221,13 +221,7 @@ fn remove_machine_cert(thumb: &str) -> Result<(), String> {
         thumb
     );
     let status = hidden("powershell.exe")
-        .args([
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            &script,
-        ])
+        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script])
         .status()
         .map_err(|e| format!("powershell tidak bisa dijalankan: {}", e))?;
     match status.code() {
@@ -240,9 +234,7 @@ fn remove_machine_cert(thumb: &str) -> Result<(), String> {
 
 /// Binary Caddy dan Caddyfile milik Servel tidak dipakai lagi.
 fn remove_proxy_files(app: &AppHandle) {
-    let Ok(dir) = app.path().app_data_dir() else {
-        return;
-    };
+    let Ok(dir) = app.path().app_data_dir() else { return };
     for name in ["caddy.exe", "caddy"] {
         let _ = std::fs::remove_file(dir.join("bin").join(name));
     }

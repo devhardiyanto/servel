@@ -79,10 +79,7 @@ pub struct InstalledVersion {
 }
 
 fn str_field(m: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
-    m.get(key)
-        .and_then(Value::as_str)
-        .map(str::to_string)
-        .filter(|s| !s.is_empty())
+    m.get(key).and_then(Value::as_str).map(str::to_string).filter(|s| !s.is_empty())
 }
 
 fn source_path(m: &serde_json::Map<String, Value>) -> Option<String> {
@@ -110,10 +107,7 @@ pub fn global_config_roots(env: &dyn Fn(&str) -> Option<String>) -> Vec<String> 
     if let Some(x) = env("XDG_CONFIG_HOME").filter(|v| !v.is_empty()) {
         roots.push(norm(&format!("{}/mise", x)));
     }
-    if let Some(home) = env("USERPROFILE")
-        .or_else(|| env("HOME"))
-        .filter(|v| !v.is_empty())
-    {
+    if let Some(home) = env("USERPROFILE").or_else(|| env("HOME")).filter(|v| !v.is_empty()) {
         roots.push(norm(&format!("{}/.config/mise", home)));
         roots.push(norm(&format!("{}/.tool-versions", home)));
     }
@@ -121,9 +115,7 @@ pub fn global_config_roots(env: &dyn Fn(&str) -> Option<String>) -> Vec<String> 
 }
 
 pub fn classify_source(source: Option<&str>, global_roots: &[String]) -> SourceScope {
-    let Some(src) = source else {
-        return SourceScope::None;
-    };
+    let Some(src) = source else { return SourceScope::None };
     let s = norm(src);
     let is_global = global_roots
         .iter()
@@ -157,10 +149,7 @@ pub fn parse_current(stdout: &str, global_roots: &[String]) -> Vec<ToolCurrent> 
                 requested: str_field(pick, "requested_version"),
                 scope: classify_source(source.as_deref(), global_roots),
                 source,
-                installed: pick
-                    .get("installed")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false),
+                installed: pick.get("installed").and_then(Value::as_bool).unwrap_or(false),
             })
         })
         .collect();
@@ -201,14 +190,9 @@ pub fn untrusted_path(stderr: &str) -> Option<String> {
     if !lower.contains("not trusted") {
         return None;
     }
-    let line = stderr
-        .lines()
-        .find(|l| l.to_lowercase().contains("not trusted"))?;
+    let line = stderr.lines().find(|l| l.to_lowercase().contains("not trusted"))?;
     let start = line.to_lowercase().find(" in ")? + 4;
-    let end = line
-        .to_lowercase()
-        .find(" are not trusted")
-        .or_else(|| line.to_lowercase().find(" is not trusted"))?;
+    let end = line.to_lowercase().find(" are not trusted").or_else(|| line.to_lowercase().find(" is not trusted"))?;
     (end > start).then(|| line[start..end].trim().trim_matches('"').to_string())
 }
 
@@ -219,9 +203,7 @@ pub enum UsePlan {
     /// Tulis ke file config tertentu (sudah ada, atau `mise.toml` baru di root project).
     File(String),
     /// Tool di project masih dari global — tanyakan user dulu.
-    NeedsScope {
-        project_file: String,
-    },
+    NeedsScope { project_file: String },
 }
 
 /// `requested_scope`: `None` (otomatis), `Some("global")`, `Some("project")`.
@@ -237,16 +219,12 @@ pub fn plan_use(
     all: &[ToolCurrent],
     requested_scope: Option<&str>,
 ) -> UsePlan {
-    let Some(root) = project else {
-        return UsePlan::Global;
-    };
+    let Some(root) = project else { return UsePlan::Global };
     if requested_scope == Some("global") {
         return UsePlan::Global;
     }
     let project_source = |t: &ToolCurrent| {
-        (t.scope == SourceScope::Project)
-            .then(|| t.source.clone())
-            .flatten()
+        (t.scope == SourceScope::Project).then(|| t.source.clone()).flatten()
     };
     if let Some(src) = all.iter().find(|t| t.tool == tool).and_then(project_source) {
         return UsePlan::File(src);
@@ -270,14 +248,8 @@ pub fn validate_version(version: &str) -> Result<(), String> {
     let parts: Vec<&str> = version.split('.').collect();
     let ok = !version.is_empty()
         && parts.len() <= 3
-        && parts
-            .iter()
-            .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()));
-    if ok {
-        Ok(())
-    } else {
-        Err(format!("versi '{}' tidak valid", version))
-    }
+        && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()));
+    if ok { Ok(()) } else { Err(format!("versi '{}' tidak valid", version)) }
 }
 
 pub fn use_args(plan: &UsePlan, tool: &str, version: &str) -> Option<Vec<String>> {
@@ -318,11 +290,7 @@ fn map_error(stderr: &str, stdout: &str) -> String {
     }
     // Pesan paling berguna: baris ERROR terakhir. Abaikan WARN (mis. notifikasi
     // "mise version X available") yang sering muncul di stderr.
-    let lines: Vec<&str> = stderr
-        .lines()
-        .map(str::trim)
-        .filter(|l| !l.is_empty())
-        .collect();
+    let lines: Vec<&str> = stderr.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
     let msg = lines
         .iter()
         .rev()
@@ -334,10 +302,7 @@ fn map_error(stderr: &str, stdout: &str) -> String {
 }
 
 async fn capture(args: &[String], cwd: &Path) -> Result<String, String> {
-    let fut = command(args, cwd)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output();
+    let fut = command(args, cwd).stdout(Stdio::piped()).stderr(Stdio::piped()).output();
     let out = tokio::time::timeout(std::time::Duration::from_secs(30), fut)
         .await
         .map_err(|_| format!("mise {} timeout", args.join(" ")))?
@@ -345,21 +310,15 @@ async fn capture(args: &[String], cwd: &Path) -> Result<String, String> {
     if out.status.success() {
         Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     } else {
-        Err(map_error(
-            &String::from_utf8_lossy(&out.stderr),
-            &String::from_utf8_lossy(&out.stdout),
-        ))
+        Err(map_error(&String::from_utf8_lossy(&out.stderr), &String::from_utf8_lossy(&out.stdout)))
     }
 }
 
 /// Parse `mise env --json`: objek `{ "NAMA": "nilai", ... }`. Nilai non-string
 /// diabaikan.
 pub fn parse_env(stdout: &str) -> Result<std::collections::HashMap<String, String>, String> {
-    let v: Value = serde_json::from_str(stdout.trim())
-        .map_err(|e| format!("output mise env tidak valid: {}", e))?;
-    let obj = v
-        .as_object()
-        .ok_or_else(|| "output mise env bukan objek".to_string())?;
+    let v: Value = serde_json::from_str(stdout.trim()).map_err(|e| format!("output mise env tidak valid: {}", e))?;
+    let obj = v.as_object().ok_or_else(|| "output mise env bukan objek".to_string())?;
     Ok(obj
         .iter()
         .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
@@ -383,26 +342,17 @@ pub fn clean_log_line(raw: &str) -> Option<String> {
         .filter(|c| {
             let u = *c as u32;
             // Block Elements, Braille (spinner), dan karakter kontrol lain.
-            !(0x2580..=0x259F).contains(&u)
-                && !(0x2800..=0x28FF).contains(&u)
-                && (!c.is_control() || *c == '\t')
+            !(0x2580..=0x259F).contains(&u) && !(0x2800..=0x28FF).contains(&u) && (!c.is_control() || *c == '\t')
         })
         .collect();
     let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
-    if text.is_empty() {
-        None
-    } else {
-        Some(text)
-    }
+    if text.is_empty() { None } else { Some(text) }
 }
 
 /// Jalankan mise sambil men-stream output ke panel log (source `MISE`).
 async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), String> {
     let emit = |line: &str, stream: &str| {
-        let _ = app.emit(
-            "cmd-output",
-            serde_json::json!({ "line": line, "stream": stream, "source": "MISE" }),
-        );
+        let _ = app.emit("cmd-output", serde_json::json!({ "line": line, "stream": stream, "source": "MISE" }));
     };
     emit(&format!("mise {}", args.join(" ")), "stdout");
 
@@ -419,10 +369,7 @@ async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), 
         let mut lines = BufReader::new(stdout).lines();
         while let Ok(Some(l)) = lines.next_line().await {
             if let Some(l) = clean_log_line(&l) {
-                let _ = app_out.emit(
-                    "cmd-output",
-                    serde_json::json!({ "line": l, "stream": "stdout", "source": "MISE" }),
-                );
+                let _ = app_out.emit("cmd-output", serde_json::json!({ "line": l, "stream": "stdout", "source": "MISE" }));
             }
         }
     });
@@ -433,10 +380,7 @@ async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), 
         while let Ok(Some(l)) = lines.next_line().await {
             if let Some(l) = clean_log_line(&l) {
                 // mise menulis progress install ke stderr — bukan error.
-                let _ = app_err.emit(
-                    "cmd-output",
-                    serde_json::json!({ "line": l, "stream": "stdout", "source": "MISE" }),
-                );
+                let _ = app_err.emit("cmd-output", serde_json::json!({ "line": l, "stream": "stdout", "source": "MISE" }));
                 acc.push(l);
             }
         }
@@ -509,23 +453,14 @@ fn env_lookup(k: &str) -> Option<String> {
 }
 
 async fn current_tools(project: Option<&Project>) -> Result<Vec<ToolCurrent>, String> {
-    let out = capture(
-        &["ls".into(), "--current".into(), "--json".into()],
-        &context_dir(project),
-    )
-    .await?;
+    let out = capture(&["ls".into(), "--current".into(), "--json".into()], &context_dir(project)).await?;
     Ok(parse_current(&out, &global_config_roots(&env_lookup)))
 }
 
 pub async fn list_installed(tool: &str) -> Result<Vec<InstalledVersion>, String> {
     let project = active_project();
     let out = capture(
-        &[
-            "ls".into(),
-            "--installed".into(),
-            "--json".into(),
-            tool.into(),
-        ],
+        &["ls".into(), "--installed".into(), "--json".into(), tool.into()],
         &context_dir(project.as_ref()),
     )
     .await?;
@@ -535,16 +470,8 @@ pub async fn list_installed(tool: &str) -> Result<Vec<InstalledVersion>, String>
 /// Folder instalasi `tool@version` (`mise where`), mis. folder PHP 8.3.35.
 pub async fn install_dir(tool: &str, version: &str) -> Result<PathBuf, String> {
     validate_version(version)?;
-    let out = capture(
-        &["where".into(), format!("{}@{}", tool, version)],
-        &home_dir(),
-    )
-    .await?;
-    let dir = out
-        .lines()
-        .map(str::trim)
-        .rfind(|l| !l.is_empty())
-        .unwrap_or("");
+    let out = capture(&["where".into(), format!("{}@{}", tool, version)], &home_dir()).await?;
+    let dir = out.lines().map(str::trim).rfind(|l| !l.is_empty()).unwrap_or("");
     if dir.is_empty() {
         return Err(format!("mise tidak menemukan {}@{}", tool, version));
     }
@@ -573,9 +500,7 @@ pub async fn use_version(
     let plan = plan_use(root.as_deref(), tool, &current, scope);
 
     let Some(args) = use_args(&plan, tool, version) else {
-        let UsePlan::NeedsScope { project_file } = plan else {
-            unreachable!()
-        };
+        let UsePlan::NeedsScope { project_file } = plan else { unreachable!() };
         return Err(format!("{}|{}|{}", ERR_NEEDS_SCOPE, tool, project_file));
     };
     run_logged(app, &args, &dir).await
@@ -583,12 +508,7 @@ pub async fn use_version(
 
 pub async fn install(app: &AppHandle, tool: &str, version: &str) -> Result<(), String> {
     let dir = context_dir(active_project().as_ref());
-    run_logged(
-        app,
-        &["install".into(), format!("{}@{}", tool, version)],
-        &dir,
-    )
-    .await
+    run_logged(app, &["install".into(), format!("{}@{}", tool, version)], &dir).await
 }
 
 // ---------------------------------------------------------------------------
@@ -615,9 +535,7 @@ pub async fn mise_context() -> MiseContext {
     let mise_version = version().await;
     let is_mise = provider_is_mise().await;
     let project = active_project();
-    let project_missing = project
-        .as_ref()
-        .is_some_and(|p| !Path::new(&p.path).is_dir());
+    let project_missing = project.as_ref().is_some_and(|p| !Path::new(&p.path).is_dir());
 
     let mut ctx = MiseContext {
         provider: if is_mise { "mise" } else { "legacy" }.to_string(),
@@ -645,11 +563,7 @@ pub async fn mise_context() -> MiseContext {
 #[tauri::command]
 pub async fn mise_trust(app: AppHandle, path: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
-    let dir = p
-        .parent()
-        .filter(|d| d.is_dir())
-        .map(Path::to_path_buf)
-        .unwrap_or_else(home_dir);
+    let dir = p.parent().filter(|d| d.is_dir()).map(Path::to_path_buf).unwrap_or_else(home_dir);
     run_logged(&app, &["trust".into(), path], &dir).await
 }
 
@@ -665,11 +579,7 @@ pub async fn mise_repair(app: AppHandle, action: String) -> Result<(), String> {
     };
     // `doctor` exit non-zero bila menemukan masalah — laporannya tetap di log.
     let r = run_logged(&app, &args, &home_dir()).await;
-    if action == "doctor" {
-        Ok(())
-    } else {
-        r
-    }
+    if action == "doctor" { Ok(()) } else { r }
 }
 
 #[cfg(test)]
@@ -690,10 +600,7 @@ mod tests {
     #[test]
     fn parse_real_ls_current_from_event_backend() {
         // Output asli di D:\dev\event\source-code\event-backend (mise 2026.11.2).
-        let tools = parse_current(
-            include_str!("fixtures/mise-2026.11.2-ls-current.json"),
-            &roots(),
-        );
+        let tools = parse_current(include_str!("fixtures/mise-2026.11.2-ls-current.json"), &roots());
         let names: Vec<&str> = tools.iter().map(|t| t.tool.as_str()).collect();
         assert_eq!(names, vec!["go", "node", "php", "python"]);
 
@@ -701,11 +608,7 @@ mod tests {
         assert_eq!(node.version, "24.21.0");
         assert_eq!(node.requested.as_deref(), Some("24"));
         assert_eq!(node.source.as_deref(), Some(r"D:\dev\event\mise.toml"));
-        assert_eq!(
-            node.scope,
-            SourceScope::Project,
-            "config di folder induk tetap 'project'"
-        );
+        assert_eq!(node.scope, SourceScope::Project, "config di folder induk tetap 'project'");
 
         let php = tools.iter().find(|t| t.tool == "php").unwrap();
         assert_eq!(php.version, "8.5.11");
@@ -715,20 +618,14 @@ mod tests {
 
     #[test]
     fn parse_real_ls_installed_php() {
-        let v = parse_installed(include_str!(
-            "fixtures/mise-2026.11.2-ls-installed-php.json"
-        ));
+        let v = parse_installed(include_str!("fixtures/mise-2026.11.2-ls-installed-php.json"));
         let got: Vec<(&str, bool)> = v.iter().map(|x| (x.version.as_str(), x.active)).collect();
-        assert_eq!(
-            got,
-            vec![("8.3.33", false), ("8.3.35", false), ("8.5.11", true)]
-        );
+        assert_eq!(got, vec![("8.3.33", false), ("8.3.35", false), ("8.5.11", true)]);
     }
 
     #[test]
     fn parse_env_keeps_string_values() {
-        let env = parse_env(r#"{"PATH":"C:\\mise\\php\\8.3;C:\\Windows","APP_ENV":"local","N":1}"#)
-            .unwrap();
+        let env = parse_env(r#"{"PATH":"C:\\mise\\php\\8.3;C:\\Windows","APP_ENV":"local","N":1}"#).unwrap();
         assert_eq!(env.get("APP_ENV").map(String::as_str), Some("local"));
         assert!(env.get("PATH").unwrap().starts_with(r"C:\mise\php\8.3"));
         assert!(!env.contains_key("N"));
@@ -742,37 +639,19 @@ mod tests {
             parse_version(include_str!("fixtures/mise-2026.11.2-version.txt")).as_deref(),
             Some("2026.11.2")
         );
-        assert_eq!(
-            parse_version("2026.11.5 linux-x64 (2026-11-09)").as_deref(),
-            Some("2026.11.5")
-        );
+        assert_eq!(parse_version("2026.11.5 linux-x64 (2026-11-09)").as_deref(), Some("2026.11.5"));
         assert_eq!(parse_version("no version here"), None);
     }
 
     #[test]
     fn classify_global_variants() {
         let r = roots();
-        assert_eq!(
-            classify_source(Some(r"C:\Users\devha\.config\mise\config.toml"), &r),
-            SourceScope::Global
-        );
-        assert_eq!(
-            classify_source(Some(r"c:/users/DEVHA/.config/mise/conf.d/x.toml"), &r),
-            SourceScope::Global
-        );
-        assert_eq!(
-            classify_source(Some(r"C:\Users\devha\.tool-versions"), &r),
-            SourceScope::Global
-        );
-        assert_eq!(
-            classify_source(Some(r"D:\dev\astra\mise.toml"), &r),
-            SourceScope::Project
-        );
+        assert_eq!(classify_source(Some(r"C:\Users\devha\.config\mise\config.toml"), &r), SourceScope::Global);
+        assert_eq!(classify_source(Some(r"c:/users/DEVHA/.config/mise/conf.d/x.toml"), &r), SourceScope::Global);
+        assert_eq!(classify_source(Some(r"C:\Users\devha\.tool-versions"), &r), SourceScope::Global);
+        assert_eq!(classify_source(Some(r"D:\dev\astra\mise.toml"), &r), SourceScope::Project);
         // Prefix yang mirip tapi bukan folder yang sama → bukan global.
-        assert_eq!(
-            classify_source(Some(r"C:\Users\devha\.config\mise-other\x.toml"), &r),
-            SourceScope::Project
-        );
+        assert_eq!(classify_source(Some(r"C:\Users\devha\.config\mise-other\x.toml"), &r), SourceScope::Project);
         assert_eq!(classify_source(None, &r), SourceScope::None);
     }
 
@@ -781,20 +660,11 @@ mod tests {
         // v2.0: integrasi mise juga untuk macOS/Linux (HOME, bukan USERPROFILE).
         let env = |k: &str| (k == "HOME").then(|| "/home/irfan".to_string());
         let r = global_config_roots(&env);
-        assert_eq!(
-            classify_source(Some("/home/irfan/.config/mise/config.toml"), &r),
-            SourceScope::Global
-        );
-        assert_eq!(
-            classify_source(Some("/home/irfan/code/app/mise.toml"), &r),
-            SourceScope::Project
-        );
+        assert_eq!(classify_source(Some("/home/irfan/.config/mise/config.toml"), &r), SourceScope::Global);
+        assert_eq!(classify_source(Some("/home/irfan/code/app/mise.toml"), &r), SourceScope::Project);
         let mac = |k: &str| (k == "HOME").then(|| "/Users/irfan".to_string());
         let r = global_config_roots(&mac);
-        assert_eq!(
-            classify_source(Some("/Users/irfan/.tool-versions"), &r),
-            SourceScope::Global
-        );
+        assert_eq!(classify_source(Some("/Users/irfan/.tool-versions"), &r), SourceScope::Global);
     }
 
     #[test]
@@ -806,14 +676,8 @@ mod tests {
             _ => None,
         };
         let r = global_config_roots(&env);
-        assert_eq!(
-            classify_source(Some(r"E:\cfg\mise.toml"), &r),
-            SourceScope::Global
-        );
-        assert_eq!(
-            classify_source(Some(r"E:\xdg\mise\config.toml"), &r),
-            SourceScope::Global
-        );
+        assert_eq!(classify_source(Some(r"E:\cfg\mise.toml"), &r), SourceScope::Global);
+        assert_eq!(classify_source(Some(r"E:\xdg\mise\config.toml"), &r), SourceScope::Global);
     }
 
     fn tool(name: &str, scope: SourceScope, source: Option<&str>) -> ToolCurrent {
@@ -840,11 +704,7 @@ mod tests {
         // event-backend: node dari D:\dev\event\mise.toml (folder induk).
         let root = Path::new(r"D:\dev\event\source-code\event-backend");
         let all = vec![
-            tool(
-                "node",
-                SourceScope::Project,
-                Some(r"D:\dev\event\mise.toml"),
-            ),
+            tool("node", SourceScope::Project, Some(r"D:\dev\event\mise.toml")),
             tool("php", SourceScope::Global, Some(GLOBAL)),
         ];
         let plan = plan_use(Some(root), "node", &all, None);
@@ -861,25 +721,13 @@ mod tests {
         // (config yang sudah dipakai node), bukan file baru di subfolder.
         let root = Path::new(r"D:\dev\event\source-code\event-backend");
         let all = vec![
-            tool(
-                "node",
-                SourceScope::Project,
-                Some(r"D:\dev\event\mise.toml"),
-            ),
+            tool("node", SourceScope::Project, Some(r"D:\dev\event\mise.toml")),
             tool("php", SourceScope::Global, Some(GLOBAL)),
         ];
-        let target = UsePlan::NeedsScope {
-            project_file: r"D:\dev\event\mise.toml".into(),
-        };
+        let target = UsePlan::NeedsScope { project_file: r"D:\dev\event\mise.toml".into() };
         assert_eq!(plan_use(Some(root), "php", &all, None), target);
-        assert_eq!(
-            plan_use(Some(root), "php", &all, Some("project")),
-            UsePlan::File(r"D:\dev\event\mise.toml".into())
-        );
-        assert_eq!(
-            plan_use(Some(root), "php", &all, Some("global")),
-            UsePlan::Global
-        );
+        assert_eq!(plan_use(Some(root), "php", &all, Some("project")), UsePlan::File(r"D:\dev\event\mise.toml".into()));
+        assert_eq!(plan_use(Some(root), "php", &all, Some("global")), UsePlan::Global);
     }
 
     #[test]
@@ -887,16 +735,8 @@ mod tests {
         let root = Path::new("/w/mono/apps/api");
         let all = vec![
             tool("node", SourceScope::Project, Some("/w/mono/mise.toml")),
-            tool(
-                "go",
-                SourceScope::Project,
-                Some("/w/mono/apps/api/mise.toml"),
-            ),
-            tool(
-                "php",
-                SourceScope::Global,
-                Some("/home/u/.config/mise/config.toml"),
-            ),
+            tool("go", SourceScope::Project, Some("/w/mono/apps/api/mise.toml")),
+            tool("php", SourceScope::Global, Some("/home/u/.config/mise/config.toml")),
         ];
         assert_eq!(
             plan_use(Some(root), "php", &all, Some("project")),
@@ -907,23 +747,11 @@ mod tests {
     #[test]
     fn pin_without_any_project_config_creates_root_file() {
         let root = Path::new("/dev/yhpa");
-        let all = vec![tool(
-            "php",
-            SourceScope::Global,
-            Some("/home/u/.config/mise/config.toml"),
-        )];
+        let all = vec![tool("php", SourceScope::Global, Some("/home/u/.config/mise/config.toml"))];
         let expected = root.join("mise.toml").to_string_lossy().into_owned();
-        assert_eq!(
-            plan_use(Some(root), "php", &all, None),
-            UsePlan::NeedsScope {
-                project_file: expected.clone()
-            }
-        );
+        assert_eq!(plan_use(Some(root), "php", &all, None), UsePlan::NeedsScope { project_file: expected.clone() });
         // Tool belum diminta di mana pun → sama: tanya dulu.
-        assert!(matches!(
-            plan_use(Some(root), "deno", &[], None),
-            UsePlan::NeedsScope { .. }
-        ));
+        assert!(matches!(plan_use(Some(root), "deno", &[], None), UsePlan::NeedsScope { .. }));
     }
 
     #[test]
@@ -938,39 +766,29 @@ mod tests {
 
     #[test]
     fn error_message_skips_warn_noise() {
-        let e =
-            "mise WARN  mise version 2026.11.5 available\nmise ERROR no version found for php@9.9";
+        let e = "mise WARN  mise version 2026.11.5 available\nmise ERROR no version found for php@9.9";
         assert_eq!(map_error(e, ""), "no version found for php@9.9");
     }
 
     #[test]
     fn untrusted_error_detection() {
         let e = "mise ERROR Config files in D:\\dev\\astra\\mise.toml are not trusted.\nTrust them with `mise trust`.";
-        assert_eq!(
-            untrusted_path(e).as_deref(),
-            Some(r"D:\dev\astra\mise.toml")
-        );
-        assert_eq!(
-            map_error(e, ""),
-            format!("{}|{}", ERR_UNTRUSTED, r"D:\dev\astra\mise.toml")
-        );
+        assert_eq!(untrusted_path(e).as_deref(), Some(r"D:\dev\astra\mise.toml"));
+        assert_eq!(map_error(e, ""), format!("{}|{}", ERR_UNTRUSTED, r"D:\dev\astra\mise.toml"));
         assert_eq!(untrusted_path("mise ERROR tool not found"), None);
     }
 
     #[test]
     fn clean_log_line_drops_progress_drawing() {
         assert_eq!(
-            clean_log_line(
-                "\u{1b}[2K\u{1b}[1Gmise \u{2588}\u{2588}\u{2591}\u{2591} 0/1 \u{b7} 3.0s"
-            )
-            .as_deref(),
+            clean_log_line("\u{1b}[2K\u{1b}[1Gmise \u{2588}\u{2588}\u{2591}\u{2591} 0/1 \u{b7} 3.0s").as_deref(),
             Some("mise 0/1 \u{b7} 3.0s")
         );
-        assert_eq!(clean_log_line("\u{2807} php@8.3.35 resolving\r\u{1b}[2Kmise \u{2192} php@8.3.35 already installed\r").as_deref(), Some("mise \u{2192} php@8.3.35 already installed"));
-        assert_eq!(clean_log_line("\u{1b}[2K\r  "), None);
         assert_eq!(
-            clean_log_line("mise use -g php@8.3.35").as_deref(),
-            Some("mise use -g php@8.3.35")
+            clean_log_line("\u{2807} php@8.3.35 resolving\r\u{1b}[2Kmise \u{2192} php@8.3.35 already installed\r").as_deref(),
+            Some("mise \u{2192} php@8.3.35 already installed")
         );
+        assert_eq!(clean_log_line("\u{1b}[2K\r  "), None);
+        assert_eq!(clean_log_line("mise use -g php@8.3.35").as_deref(), Some("mise use -g php@8.3.35"));
     }
 }

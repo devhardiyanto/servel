@@ -229,14 +229,8 @@ pub fn extract_semver(input: &str) -> Option<String> {
 }
 
 const SERVICE_IDS: &[&str] = &[
-    "mysql",
-    "postgres",
-    "redis",
-    "rabbitmq",
-    "mongodb",
-    "minio",
-    "mailpit",
-    "gotenberg",
+    "mysql", "postgres", "redis", "rabbitmq", "mongodb",
+    "minio", "mailpit", "gotenberg",
 ];
 
 /// Derive log source tag dari docker compose output line.
@@ -264,9 +258,7 @@ pub fn parse_docker_error(stderr_acc: &str) -> Option<String> {
                 ));
             }
         }
-        return Some(
-            "Port conflict — salah satu port service sudah dipakai aplikasi lain".to_string(),
-        );
+        return Some("Port conflict — salah satu port service sudah dipakai aplikasi lain".to_string());
     }
     if lower.contains("network") && lower.contains("already exists") {
         return Some("Network conflict — restart Docker Desktop".to_string());
@@ -283,9 +275,7 @@ pub fn parse_docker_error(stderr_acc: &str) -> Option<String> {
 pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<(), String> {
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("Gagal spawn docker: {}", e))?;
+    let mut child = cmd.spawn().map_err(|e| format!("Gagal spawn docker: {}", e))?;
 
     let stdout = child.stdout.take().ok_or("stdout tidak tersedia")?;
     let stderr = child.stderr.take().ok_or("stderr tidak tersedia")?;
@@ -331,7 +321,10 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
         .map_err(|e| format!("Gagal menunggu docker: {}", e))?;
 
     if !status.success() {
-        let acc = stderr_buf.lock().map(|b| b.join("\n")).unwrap_or_default();
+        let acc = stderr_buf
+            .lock()
+            .map(|b| b.join("\n"))
+            .unwrap_or_default();
         let msg = parse_docker_error(&acc)
             .unwrap_or_else(|| format!("docker compose gagal (exit {})", status));
         let _ = app.emit(
@@ -393,3 +386,4 @@ mod tests {
         assert_eq!(extract_semver("20.14.0"), Some("20.14.0".to_string()));
     }
 }
+

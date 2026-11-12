@@ -52,9 +52,7 @@ pub fn ext_name(value: &str) -> String {
         .strip_suffix(".dll")
         .or_else(|| base.strip_suffix(".so"))
         .unwrap_or(base);
-    base.strip_prefix("php_")
-        .unwrap_or(base)
-        .to_ascii_lowercase()
+    base.strip_prefix("php_").unwrap_or(base).to_ascii_lowercase()
 }
 
 /// Nama modul dari `php -m` → nama extension. `Zend OPcache` → `opcache`.
@@ -120,11 +118,7 @@ pub fn set_extension(ini: &str, name: &str, enable: bool) -> String {
     let matches: Vec<(usize, bool, bool)> = lines
         .iter()
         .enumerate()
-        .filter_map(|(i, l)| {
-            parse_ext_line(l)
-                .filter(|(_, _, n)| *n == name)
-                .map(|(a, z, _)| (i, a, z))
-        })
+        .filter_map(|(i, l)| parse_ext_line(l).filter(|(_, _, n)| *n == name).map(|(a, z, _)| (i, a, z)))
         .collect();
 
     if enable {
@@ -137,11 +131,7 @@ pub fn set_extension(ini: &str, name: &str, enable: bool) -> String {
             let body = line.trim_start().trim_start_matches(';').trim_start();
             lines[*i] = format!("{}{}", &line[..indent_len], body);
         } else {
-            let key = if ZEND_EXTENSIONS.contains(&name.as_str()) {
-                "zend_extension"
-            } else {
-                "extension"
-            };
+            let key = if ZEND_EXTENSIONS.contains(&name.as_str()) { "zend_extension" } else { "extension" };
             lines.push(format!("{}={}", key, name));
         }
     } else {
@@ -170,8 +160,7 @@ pub fn set_directive(ini: &str, key: &str, value: &str) -> String {
             (false, Some(_)) => return false,
             (false, None) => t,
         };
-        t.strip_prefix(key)
-            .is_some_and(|r| r.trim_start().starts_with('='))
+        t.strip_prefix(key).is_some_and(|r| r.trim_start().starts_with('='))
     };
     if let Some(i) = lines.iter().position(|l| is_key(l, false)) {
         lines[i] = wanted;
@@ -198,8 +187,6 @@ pub fn ext_files(names: &[String]) -> BTreeSet<String> {
 }
 
 /// Nilai dari output `php --ini`, mis. `Loaded Configuration File`.
-/// PHP 8.5 menulis path di dalam tanda kutip (`"C:\php\php.ini"`); kutipnya
-/// dibuang, kalau tidak Windows menolak path itu (os error 123).
 pub fn ini_field(output: &str, label: &str) -> Option<String> {
     output
         .lines()
@@ -208,6 +195,8 @@ pub fn ini_field(output: &str, label: &str) -> Option<String> {
         .filter(|v| !v.is_empty() && v != "(none)")
 }
 
+/// PHP 8.5 menulis path di `php --ini` dalam tanda kutip (`"C:\php\php.ini"`);
+/// kutipnya dibuang, kalau tidak Windows menolak path itu (os error 123).
 fn unquote(v: &str) -> &str {
     for q in ['"', '\''] {
         if let Some(inner) = v.strip_prefix(q).and_then(|r| r.strip_suffix(q)) {
@@ -269,41 +258,27 @@ async fn locate(version: Option<&str>) -> Result<PhpInstall, String> {
                 .ok_or_else(|| "belum ada versi PHP aktif".to_string())?,
         };
         let dir = crate::mise::install_dir("php", &version).await?;
-        let candidates = [
-            dir.join("php.exe"),
-            dir.join("bin").join("php"),
-            dir.join("php"),
-        ];
+        let candidates = [dir.join("php.exe"), dir.join("bin").join("php"), dir.join("php")];
         let binary = candidates
             .into_iter()
             .find(|p| p.is_file())
             .ok_or_else(|| format!("php tidak ditemukan di {}", dir.display()))?;
         return Ok(PhpInstall { version, binary });
     }
-    let out = run(
-        Path::new("php"),
-        &["-r", "echo PHP_BINARY, \"\\n\", PHP_VERSION;"],
-    )
-    .await?;
+    let out = run(Path::new("php"), &["-r", "echo PHP_BINARY, \"\\n\", PHP_VERSION;"]).await?;
     let mut lines = out.0.lines();
     let binary = lines.next().unwrap_or("").trim().to_string();
     let version = lines.next().unwrap_or("").trim().to_string();
     if binary.is_empty() {
         return Err("php tidak ditemukan di PATH".to_string());
     }
-    Ok(PhpInstall {
-        version,
-        binary: PathBuf::from(binary),
-    })
+    Ok(PhpInstall { version, binary: PathBuf::from(binary) })
 }
 
 /// Jalankan php → (stdout, stderr, sukses).
 async fn run(binary: &Path, args: &[&str]) -> Result<(String, String, bool), String> {
     let mut cmd = silent_command(&binary.to_string_lossy());
-    cmd.args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+    cmd.args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     let out = tokio::time::timeout(Duration::from_secs(20), cmd.output())
         .await
         .map_err(|_| "php tidak merespons (timeout)".to_string())?
@@ -360,24 +335,12 @@ async fn status_of(install: &PhpInstall) -> Result<PhpExtStatus, String> {
     .await?;
     let mut info = info.lines();
     let reported_dir = info.next().unwrap_or("").to_string();
-    let cainfo = info
-        .next()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_string);
-    let cafile = info
-        .next()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_string);
+    let cainfo = info.next().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string);
+    let cafile = info.next().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string);
     let (ext_dir, _) = resolve_ext_dir(&reported_dir, &install.binary);
 
     let names: Vec<String> = std::fs::read_dir(&ext_dir)
-        .map(|rd| {
-            rd.filter_map(|e| e.ok())
-                .map(|e| e.file_name().to_string_lossy().into_owned())
-                .collect()
-        })
+        .map(|rd| rd.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().into_owned()).collect())
         .unwrap_or_default();
     let files = ext_files(&names);
     let (loaded, _, _) = modules(install).await?;
@@ -396,11 +359,7 @@ async fn status_of(install: &PhpInstall) -> Result<PhpExtStatus, String> {
 
     let https = cfg!(windows).then(|| {
         let exists = |v: &Option<String>| v.as_ref().is_some_and(|p| Path::new(p).is_file());
-        HttpsStatus {
-            ok: exists(&cainfo) && exists(&cafile),
-            cainfo,
-            cafile,
-        }
+        HttpsStatus { ok: exists(&cainfo) && exists(&cafile), cainfo, cafile }
     });
 
     Ok(PhpExtStatus {
@@ -452,9 +411,7 @@ fn backup(ini: &Path) -> Result<Option<PathBuf>, String> {
 /// paket PHP Windows) bila tersedia.
 fn initial_ini(ini: &Path) -> String {
     let template = ini.parent().map(|d| d.join("php.ini-development"));
-    template
-        .and_then(|t| std::fs::read_to_string(t).ok())
-        .unwrap_or_default()
+    template.and_then(|t| std::fs::read_to_string(t).ok()).unwrap_or_default()
 }
 
 /// Tulis php.ini lalu pastikan PHP masih start dan `check` terpenuhi;
@@ -477,18 +434,10 @@ async fn write_checked(
         Err(e) => Err(e),
     };
     if let Err(e) = result {
-        let restored = if existed {
-            std::fs::write(ini, &old)
-        } else {
-            std::fs::remove_file(ini)
-        };
+        let restored = if existed { std::fs::write(ini, &old) } else { std::fs::remove_file(ini) };
         let note = match (restored, backup) {
             (Ok(()), _) => "php.ini dikembalikan seperti semula".to_string(),
-            (Err(re), Some(b)) => format!(
-                "php.ini gagal dikembalikan ({}); backup ada di {}",
-                re,
-                b.display()
-            ),
+            (Err(re), Some(b)) => format!("php.ini gagal dikembalikan ({}); backup ada di {}", re, b.display()),
             (Err(re), None) => format!("php.ini gagal dikembalikan ({})", re),
         };
         return Err(format!("{}. {}.", e, note));
@@ -503,11 +452,7 @@ pub async fn php_ext_status(version: Option<String>) -> Result<PhpExtStatus, Str
 }
 
 #[tauri::command]
-pub async fn php_ext_set(
-    version: Option<String>,
-    name: String,
-    enable: bool,
-) -> Result<PhpExtStatus, String> {
+pub async fn php_ext_set(version: Option<String>, name: String, enable: bool) -> Result<PhpExtStatus, String> {
     let _guard = WRITE_LOCK.lock().await;
     let install = locate(version.as_deref()).await?;
     set_ext(&install, &name, enable).await
@@ -525,10 +470,7 @@ async fn set_ext(install: &PhpInstall, name: &str, enable: bool) -> Result<PhpEx
         .find(|e| e.name == name)
         .ok_or_else(|| format!("extension {} tidak ada di {}", name, before.extension_dir))?;
     if ext.builtin {
-        return Err(format!(
-            "{} sudah tertanam di PHP ini dan tidak bisa dimatikan",
-            name
-        ));
+        return Err(format!("{} sudah tertanam di PHP ini dan tidak bisa dimatikan", name));
     }
 
     let ini = PathBuf::from(&before.ini_path);
@@ -548,15 +490,10 @@ async fn set_ext(install: &PhpInstall, name: &str, enable: bool) -> Result<PhpEx
     }
     let text = set_extension(&text, &name, enable);
     let wanted = name.clone();
-    write_checked(install, &ini, &text, move |loaded| {
-        match (enable, loaded.contains(&wanted)) {
-            (true, false) => Err(format!("{} tetap tidak termuat", wanted)),
-            (false, true) => Err(format!(
-                "{} masih termuat (mungkin diaktifkan di file .ini lain)",
-                wanted
-            )),
-            _ => Ok(()),
-        }
+    write_checked(install, &ini, &text, move |loaded| match (enable, loaded.contains(&wanted)) {
+        (true, false) => Err(format!("{} tetap tidak termuat", wanted)),
+        (false, true) => Err(format!("{} masih termuat (mungkin diaktifkan di file .ini lain)", wanted)),
+        _ => Ok(()),
     })
     .await?;
     status_of(install).await
@@ -573,11 +510,7 @@ fn find_ca_bundle() -> Option<PathBuf> {
             roots.push(base.join("Programs").join("Git"));
         }
     }
-    let rel = [
-        "mingw64/etc/ssl/certs/ca-bundle.crt",
-        "usr/ssl/certs/ca-bundle.crt",
-        "mingw64/ssl/certs/ca-bundle.crt",
-    ];
+    let rel = ["mingw64/etc/ssl/certs/ca-bundle.crt", "usr/ssl/certs/ca-bundle.crt", "mingw64/ssl/certs/ca-bundle.crt"];
     roots
         .iter()
         .flat_map(|r| rel.iter().map(move |p| r.join(p)))
@@ -591,8 +524,7 @@ fn find_ca_bundle() -> Option<PathBuf> {
 fn export_windows_roots(target: &Path) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     if let Some(dir) = target.parent() {
-        std::fs::create_dir_all(dir)
-            .map_err(|e| format!("gagal membuat {}: {}", dir.display(), e))?;
+        std::fs::create_dir_all(dir).map_err(|e| format!("gagal membuat {}: {}", dir.display(), e))?;
     }
     let script = format!(
         "$c = @(Get-ChildItem Cert:\\LocalMachine\\Root) + @(Get-ChildItem Cert:\\CurrentUser\\Root) | Sort-Object Thumbprint -Unique; \
@@ -615,10 +547,7 @@ fn export_windows_roots(target: &Path) -> Result<(), String> {
 
 /// Isi `curl.cainfo` dan `openssl.cafile` di php.ini versi ini (Windows).
 #[tauri::command]
-pub async fn php_ext_fix_https(
-    app: tauri::AppHandle,
-    version: Option<String>,
-) -> Result<PhpExtStatus, String> {
+pub async fn php_ext_fix_https(app: tauri::AppHandle, version: Option<String>) -> Result<PhpExtStatus, String> {
     #[cfg(not(target_os = "windows"))]
     {
         let _ = (&app, &version);
@@ -670,22 +599,13 @@ mod tests {
         assert_eq!(ext_name("pdo_mysql.so"), "pdo_mysql");
         assert_eq!(ext_name(" Intl "), "intl");
         assert_eq!(module_name("Zend OPcache"), "opcache");
-        let files = ext_files(&[
-            "php_curl.dll".into(),
-            "php_pdo_pgsql.dll".into(),
-            "libsodium.dll".into(),
-            "redis.so".into(),
-        ]);
-        assert_eq!(
-            files.into_iter().collect::<Vec<_>>(),
-            vec!["curl", "pdo_pgsql", "redis"]
-        );
+        let files = ext_files(&["php_curl.dll".into(), "php_pdo_pgsql.dll".into(), "libsodium.dll".into(), "redis.so".into()]);
+        assert_eq!(files.into_iter().collect::<Vec<_>>(), vec!["curl", "pdo_pgsql", "redis"]);
     }
 
     #[test]
     fn parse_php_m_output() {
-        let out =
-            "[PHP Modules]\nCore\ncurl\nmbstring\nZend OPcache\n\n[Zend Modules]\nZend OPcache\n";
+        let out = "[PHP Modules]\nCore\ncurl\nmbstring\nZend OPcache\n\n[Zend Modules]\nZend OPcache\n";
         let m = parse_modules(out);
         assert!(m.contains("core") && m.contains("curl") && m.contains("opcache"));
         assert!(!m.iter().any(|x| x.starts_with('[')));
@@ -695,10 +615,7 @@ mod tests {
     fn enable_uncomments_existing_line_and_keeps_crlf() {
         let out = set_extension(WIN_INI, "intl", true);
         assert!(out.contains("\r\nextension=intl\r\n"));
-        assert!(
-            out.contains(";extension=curl\r\n"),
-            "baris lain tidak berubah"
-        );
+        assert!(out.contains(";extension=curl\r\n"), "baris lain tidak berubah");
         assert_eq!(out.matches("intl").count(), 1);
         // Idempotent.
         assert_eq!(set_extension(&out, "intl", true), out);
@@ -718,10 +635,7 @@ mod tests {
     fn disable_comments_every_active_line() {
         let ini = "extension=php_gd.dll\nextension = gd ; dobel\n;extension=gd\n";
         let out = set_extension(ini, "gd", false);
-        assert_eq!(
-            out,
-            ";extension=php_gd.dll\n;extension = gd ; dobel\n;extension=gd\n"
-        );
+        assert_eq!(out, ";extension=php_gd.dll\n;extension = gd ; dobel\n;extension=gd\n");
         assert_eq!(set_extension(&out, "gd", false), out);
     }
 
@@ -749,27 +663,12 @@ mod tests {
     #[test]
     fn php_ini_fields_and_startup_warnings() {
         let out = "Configuration File (php.ini) Path: \nLoaded Configuration File:         C:\\php\\8.3.35\\php.ini\nScan for additional .ini files in: (none)\n";
-        assert_eq!(
-            ini_field(out, "Loaded Configuration File").as_deref(),
-            Some(r"C:\php\8.3.35\php.ini")
-        );
-        assert_eq!(
-            ini_field(
-                "Loaded Configuration File:         (none)\n",
-                "Loaded Configuration File"
-            ),
-            None
-        );
+        assert_eq!(ini_field(out, "Loaded Configuration File").as_deref(), Some(r"C:\php\8.3.35\php.ini"));
+        assert_eq!(ini_field("Loaded Configuration File:         (none)\n", "Loaded Configuration File"), None);
         // Format PHP 8.5: path dikutip.
         let out85 = "Configuration File (php.ini) Path: \"C:\\php\\8.5.11\"\nLoaded Configuration File:         \"C:\\php\\8.5.11\\php.ini\"\n";
-        assert_eq!(
-            ini_field(out85, "Loaded Configuration File").as_deref(),
-            Some(r"C:\php\8.5.11\php.ini")
-        );
-        assert_eq!(
-            ini_field(out85, "Configuration File (php.ini) Path").as_deref(),
-            Some(r"C:\php\8.5.11")
-        );
+        assert_eq!(ini_field(out85, "Loaded Configuration File").as_deref(), Some(r"C:\php\8.5.11\php.ini"));
+        assert_eq!(ini_field(out85, "Configuration File (php.ini) Path").as_deref(), Some(r"C:\php\8.5.11"));
         let err = "PHP Warning:  PHP Startup: Unable to load dynamic library 'redis' (tried: C:\\ext\\redis)";
         assert!(startup_warning(err).is_some());
         assert!(startup_warning("[PHP Modules]\ncurl\n").is_none());
@@ -782,10 +681,7 @@ mod tests {
     #[tokio::test]
     async fn real_php_enable_disable_and_rollback() {
         use std::os::unix::fs::PermissionsExt;
-        let Ok(out) = std::process::Command::new("php")
-            .args(["-r", "echo ini_get('extension_dir');"])
-            .output()
-        else {
+        let Ok(out) = std::process::Command::new("php").args(["-r", "echo ini_get('extension_dir');"]).output() else {
             eprintln!("php tidak ada; uji dilewati");
             return;
         };
@@ -804,46 +700,25 @@ mod tests {
         let wrapper = root.join("php");
         std::fs::write(
             &wrapper,
-            format!(
-                "#!/bin/sh\nexec php -n -c '{}' -d extension_dir='{}' \"$@\"\n",
-                ini.display(),
-                ext.display()
-            ),
+            format!("#!/bin/sh\nexec php -n -c '{}' -d extension_dir='{}' \"$@\"\n", ini.display(), ext.display()),
         )
         .unwrap();
         std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755)).unwrap();
-        let install = PhpInstall {
-            version: "test".into(),
-            binary: wrapper,
-        };
+        let install = PhpInstall { version: "test".into(), binary: wrapper };
 
         let st = status_of(&install).await.unwrap();
         assert_eq!(PathBuf::from(&st.ini_path), ini);
         let cal = st.extensions.iter().find(|e| e.name == "calendar").unwrap();
         assert!(cal.available && !cal.loaded && !cal.builtin);
-        assert!(st
-            .extensions
-            .iter()
-            .any(|e| e.name == "core" && e.builtin && e.loaded));
+        assert!(st.extensions.iter().any(|e| e.name == "core" && e.builtin && e.loaded));
 
         // Aktifkan: baris komentar di-uncomment, modul termuat, backup dibuat.
         let st = set_ext(&install, "calendar", true).await.unwrap();
-        assert!(st
-            .extensions
-            .iter()
-            .any(|e| e.name == "calendar" && e.loaded));
-        assert!(std::fs::read_to_string(&ini)
-            .unwrap()
-            .contains("\nextension=calendar\n"));
+        assert!(st.extensions.iter().any(|e| e.name == "calendar" && e.loaded));
+        assert!(std::fs::read_to_string(&ini).unwrap().contains("\nextension=calendar\n"));
         let backups = std::fs::read_dir(&root)
             .unwrap()
-            .filter(|e| {
-                e.as_ref()
-                    .unwrap()
-                    .file_name()
-                    .to_string_lossy()
-                    .starts_with(BACKUP_PREFIX)
-            })
+            .filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().starts_with(BACKUP_PREFIX))
             .count();
         assert_eq!(backups, 1);
 
@@ -855,19 +730,11 @@ mod tests {
 
         // Nonaktifkan.
         let st = set_ext(&install, "calendar", false).await.unwrap();
-        assert!(st
-            .extensions
-            .iter()
-            .any(|e| e.name == "calendar" && !e.loaded));
-        assert!(std::fs::read_to_string(&ini)
-            .unwrap()
-            .contains(";extension=calendar"));
+        assert!(st.extensions.iter().any(|e| e.name == "calendar" && !e.loaded));
+        assert!(std::fs::read_to_string(&ini).unwrap().contains(";extension=calendar"));
 
         // Modul tertanam tidak bisa diubah.
-        assert!(set_ext(&install, "core", false)
-            .await
-            .unwrap_err()
-            .contains("tertanam"));
+        assert!(set_ext(&install, "core", false).await.unwrap_err().contains("tertanam"));
 
         let _ = std::fs::remove_dir_all(&root);
     }

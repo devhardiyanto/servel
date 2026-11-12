@@ -95,12 +95,11 @@ impl SiteProcs {
     }
 
     fn is_active(&self, id: &str) -> bool {
-        self.entries.lock().unwrap().get(id).is_some_and(|e| {
-            matches!(
-                e.state,
-                SiteState::Starting | SiteState::Running | SiteState::Unresponsive
-            )
-        })
+        self.entries
+            .lock()
+            .unwrap()
+            .get(id)
+            .is_some_and(|e| matches!(e.state, SiteState::Starting | SiteState::Running | SiteState::Unresponsive))
     }
 }
 
@@ -159,11 +158,7 @@ pub async fn port_open(port: u16) -> bool {
         SocketAddr::from((Ipv6Addr::LOCALHOST, port)),
     ];
     for addr in addrs {
-        let attempt = tokio::time::timeout(
-            Duration::from_millis(400),
-            tokio::net::TcpStream::connect(addr),
-        )
-        .await;
+        let attempt = tokio::time::timeout(Duration::from_millis(400), tokio::net::TcpStream::connect(addr)).await;
         if matches!(attempt, Ok(Ok(_))) {
             return true;
         }
@@ -214,16 +209,10 @@ async fn kill_tree(pid: u32) {
     #[cfg(not(target_os = "windows"))]
     {
         let group = format!("-{}", pid);
-        let _ = silent_command("kill")
-            .args(["-TERM", "--", &group])
-            .status()
-            .await;
+        let _ = silent_command("kill").args(["-TERM", "--", &group]).status().await;
         // Beri waktu berhenti baik-baik, lalu paksa bila masih hidup.
         tokio::time::sleep(Duration::from_secs(3)).await;
-        let _ = silent_command("kill")
-            .args(["-KILL", "--", &group])
-            .status()
-            .await;
+        let _ = silent_command("kill").args(["-KILL", "--", &group]).status().await;
     }
 }
 
@@ -239,12 +228,9 @@ mod job {
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
     use windows_sys::Win32::System::JobObjects::{
         AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
-        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
-        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
     };
-    use windows_sys::Win32::System::Threading::{
-        OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
-    };
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE};
 
     static JOB: OnceLock<usize> = OnceLock::new();
 
@@ -309,10 +295,7 @@ async fn process_started(pid: u32) -> Option<String> {
                 "-NoProfile",
                 "-NonInteractive",
                 "-Command",
-                &format!(
-                    "(Get-Process -Id {} -ErrorAction Stop).StartTime.ToFileTimeUtc()",
-                    pid
-                ),
+                &format!("(Get-Process -Id {} -ErrorAction Stop).StartTime.ToFileTimeUtc()", pid),
             ])
             .stdout(Stdio::piped())
             .output()
@@ -324,9 +307,7 @@ async fn process_started(pid: u32) -> Option<String> {
 }
 
 fn persist_records(procs: &SiteProcs) {
-    let Some(path) = procs.records_path.lock().unwrap().clone() else {
-        return;
-    };
+    let Some(path) = procs.records_path.lock().unwrap().clone() else { return };
     let records = procs.records.lock().unwrap().clone();
     if records.is_empty() {
         let _ = std::fs::remove_file(&path);
@@ -358,12 +339,8 @@ pub fn init_records<R: Runtime>(app: &AppHandle<R>, path: std::path::PathBuf) {
 /// PID yang sama tidak tersentuh. Mengembalikan jumlah proses yang dimatikan.
 pub async fn cleanup_leftovers<R: Runtime>(app: &AppHandle<R>) -> usize {
     let procs = app.state::<SiteProcs>();
-    let Some(path) = procs.records_path.lock().unwrap().clone() else {
-        return 0;
-    };
-    let Ok(raw) = std::fs::read_to_string(&path) else {
-        return 0;
-    };
+    let Some(path) = procs.records_path.lock().unwrap().clone() else { return 0 };
+    let Ok(raw) = std::fs::read_to_string(&path) else { return 0 };
     let _ = std::fs::remove_file(&path);
     let records: HashMap<String, Record> = serde_json::from_str(&raw).unwrap_or_default();
     let mut killed = 0;
@@ -371,15 +348,7 @@ pub async fn cleanup_leftovers<R: Runtime>(app: &AppHandle<R>) -> usize {
         if process_started(rec.pid).await.as_deref() == Some(rec.started.as_str()) {
             kill_tree(rec.pid).await;
             killed += 1;
-            emit_log(
-                app,
-                "SERVEL",
-                &format!(
-                    "menghentikan dev server sisa sesi sebelumnya (project {}, pid {})",
-                    id, rec.pid
-                ),
-                Some("warn"),
-            );
+            emit_log(app, "SERVEL", &format!("menghentikan dev server sisa sesi sebelumnya (project {}, pid {})", id, rec.pid), Some("warn"));
         }
     }
     killed
@@ -406,15 +375,8 @@ pub fn validate(site: &Project) -> Result<(), String> {
 
 /// Nama variabel: tanpa spasi, `=`, atau NUL. `PORT` milik Servel (port site).
 pub fn validate_env(key: &str, value: &str) -> Result<(), String> {
-    if key.is_empty()
-        || key
-            .chars()
-            .any(|c| c == '=' || c == '\0' || c.is_whitespace())
-    {
-        return Err(format!(
-            "nama environment variable tidak valid: \"{}\"",
-            key
-        ));
+    if key.is_empty() || key.chars().any(|c| c == '=' || c == '\0' || c.is_whitespace()) {
+        return Err(format!("nama environment variable tidak valid: \"{}\"", key));
     }
     if key.eq_ignore_ascii_case("PORT") {
         return Err("PORT diatur dari kolom Port, bukan dari Environment".to_string());
@@ -472,34 +434,18 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
         emit_log(app, &source, &format!("env: {}", keys.join(", ")), None);
     }
 
-    emit_log(
-        app,
-        &source,
-        &format!("$ {}  (di {})", line, site.path),
-        None,
-    );
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| format!("gagal menjalankan perintah: {}", e))?;
+    emit_log(app, &source, &format!("$ {}  (di {})", line, site.path), None);
+    let mut child = cmd.spawn().map_err(|e| format!("gagal menjalankan perintah: {}", e))?;
     let pid = child.id();
 
     // Pastikan dev server tidak tertinggal bila Servel mati paksa.
     if let Some(pid) = pid {
         #[cfg(target_os = "windows")]
         if let Err(e) = job::assign(pid) {
-            emit_log(
-                app,
-                &source,
-                &format!("{}; proses mungkin tertinggal bila Servel crash", e),
-                Some("warn"),
-            );
+            emit_log(app, &source, &format!("{}; proses mungkin tertinggal bila Servel crash", e), Some("warn"));
         }
         if let Some(started) = process_started(pid).await {
-            procs
-                .records
-                .lock()
-                .unwrap()
-                .insert(site.id.clone(), Record { pid, started });
+            procs.records.lock().unwrap().insert(site.id.clone(), Record { pid, started });
             persist_records(&procs);
         }
     }
@@ -525,18 +471,8 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     // Output → panel log. stderr diperlakukan sebagai output biasa: `php -S`
     // dan banyak dev server menulis log normalnya ke stderr.
     for (reader_app, id, src, stream) in [
-        (
-            app.clone(),
-            site.id.clone(),
-            source.clone(),
-            child.stdout.take().map(Pipe::Out),
-        ),
-        (
-            app.clone(),
-            site.id.clone(),
-            source.clone(),
-            child.stderr.take().map(Pipe::Err),
-        ),
+        (app.clone(), site.id.clone(), source.clone(), child.stdout.take().map(Pipe::Out)),
+        (app.clone(), site.id.clone(), source.clone(), child.stderr.take().map(Pipe::Err)),
     ] {
         let Some(stream) = stream else { continue };
         tauri::async_runtime::spawn(async move {
@@ -565,11 +501,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
                 requested = e.stopping;
                 e.pid = None;
                 e.exit_code = code;
-                e.state = if requested {
-                    SiteState::Stopped
-                } else {
-                    SiteState::Exited
-                };
+                e.state = if requested { SiteState::Stopped } else { SiteState::Exited };
                 if requested {
                     e.last_line = None;
                 }
@@ -614,11 +546,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
                 let mut map = procs.entries.lock().unwrap();
                 if let Some(e) = map.get_mut(&ready_id) {
                     if e.generation == generation && e.state == SiteState::Starting {
-                        e.state = if open {
-                            SiteState::Running
-                        } else {
-                            SiteState::Unresponsive
-                        };
+                        e.state = if open { SiteState::Running } else { SiteState::Unresponsive };
                     }
                 }
             }
@@ -747,10 +675,7 @@ mod tests {
 
     #[test]
     fn strip_ansi_removes_colors() {
-        assert_eq!(
-            strip_ansi("\u{1b}[32m  VITE v5.4.0\u{1b}[39m  ready"),
-            "  VITE v5.4.0  ready"
-        );
+        assert_eq!(strip_ansi("\u{1b}[32m  VITE v5.4.0\u{1b}[39m  ready"), "  VITE v5.4.0  ready");
         assert_eq!(strip_ansi("\u{1b}[2K\u{1b}[1Gdone"), "done");
         assert_eq!(strip_ansi("plain"), "plain");
         assert_eq!(strip_ansi("\u{1b}]0;mise\u{7}installing"), "installing");
@@ -760,23 +685,14 @@ mod tests {
     fn validate_rejects_incomplete_sites() {
         let dir = std::env::temp_dir();
         let dir = dir.to_string_lossy();
-        assert!(validate(&site("", "npm run dev", 3000))
-            .unwrap_err()
-            .contains("folder"));
+        assert!(validate(&site("", "npm run dev", 3000)).unwrap_err().contains("folder"));
         assert!(validate(&site("/definitely/not/here", "npm run dev", 3000)).is_err());
-        assert!(validate(&site(&dir, "  ", 3000))
-            .unwrap_err()
-            .contains("perintah"));
-        assert!(validate(&site(&dir, "npm run dev", 80))
-            .unwrap_err()
-            .contains("port"));
+        assert!(validate(&site(&dir, "  ", 3000)).unwrap_err().contains("perintah"));
+        assert!(validate(&site(&dir, "npm run dev", 80)).unwrap_err().contains("port"));
         assert!(validate(&site(&dir, "npm run dev", 3000)).is_ok());
 
         let mut p = site(&dir, "npm run dev", 3000);
-        p.env.insert(
-            "SSL_CERT_FILE".into(),
-            r"C:\Program Files\Git\usr\ssl\certs\ca-bundle.crt".into(),
-        );
+        p.env.insert("SSL_CERT_FILE".into(), r"C:\Program Files\Git\usr\ssl\certs\ca-bundle.crt".into());
         assert!(validate(&p).is_ok());
         p.env.insert("port".into(), "1".into());
         assert!(validate(&p).unwrap_err().contains("PORT"));
@@ -788,9 +704,7 @@ mod tests {
 
     #[tokio::test]
     async fn port_checks_see_a_listener() {
-        let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
-            .await
-            .unwrap();
+        let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
         let port = listener.local_addr().unwrap().port();
         assert!(port_open(port).await);
         assert!(!port_free(port).await);
@@ -805,11 +719,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test(flavor = "multi_thread")]
     async fn start_then_stop_frees_the_port() {
-        if std::process::Command::new("python3")
-            .arg("--version")
-            .output()
-            .is_err()
-        {
+        if std::process::Command::new("python3").arg("--version").output().is_err() {
             eprintln!("python3 tidak ada; uji dilewati");
             return;
         }
@@ -824,27 +734,16 @@ mod tests {
         let dir = std::env::temp_dir();
         // `sh -c "<cmd> & wait"` membuat anak terpisah dari shell, seperti
         // npm → node: Stop harus mematikan keduanya.
-        let mut p = site(
-            &dir.to_string_lossy(),
-            "python3 -m http.server {port} --bind 127.0.0.1 & wait",
-            port,
-        );
+        let mut p = site(&dir.to_string_lossy(), "python3 -m http.server {port} --bind 127.0.0.1 & wait", port);
         p.id = "e2e".into();
 
         start(&handle, &p).await.expect("start gagal");
-        assert!(
-            start(&handle, &p).await.is_err(),
-            "start kedua harus ditolak"
-        );
+        assert!(start(&handle, &p).await.is_err(), "start kedua harus ditolak");
 
         let mut state = SiteState::Starting;
         for _ in 0..60 {
             tokio::time::sleep(Duration::from_millis(250)).await;
-            state = snapshot(&handle)
-                .iter()
-                .find(|r| r.id == "e2e")
-                .map(|r| r.state)
-                .unwrap();
+            state = snapshot(&handle).iter().find(|r| r.id == "e2e").map(|r| r.state).unwrap();
             if state != SiteState::Starting {
                 break;
             }
@@ -856,11 +755,7 @@ mod tests {
         let mut stopped = false;
         for _ in 0..40 {
             tokio::time::sleep(Duration::from_millis(250)).await;
-            let st = snapshot(&handle)
-                .iter()
-                .find(|r| r.id == "e2e")
-                .map(|r| r.state)
-                .unwrap();
+            let st = snapshot(&handle).iter().find(|r| r.id == "e2e").map(|r| r.state).unwrap();
             if st == SiteState::Stopped && port_free(port).await {
                 stopped = true;
                 break;
@@ -869,29 +764,18 @@ mod tests {
         assert!(stopped, "setelah Stop, status harus stopped dan port bebas");
 
         // Restart dari keadaan berhenti = start; dari keadaan jalan = stop + start.
-        restart(&handle, &p)
-            .await
-            .expect("restart (dari berhenti) gagal");
-        restart(&handle, &p)
-            .await
-            .expect("restart (dari jalan) gagal");
+        restart(&handle, &p).await.expect("restart (dari berhenti) gagal");
+        restart(&handle, &p).await.expect("restart (dari jalan) gagal");
         let mut running = false;
         for _ in 0..60 {
             tokio::time::sleep(Duration::from_millis(250)).await;
-            let st = snapshot(&handle)
-                .iter()
-                .find(|r| r.id == "e2e")
-                .map(|r| r.state)
-                .unwrap();
+            let st = snapshot(&handle).iter().find(|r| r.id == "e2e").map(|r| r.state).unwrap();
             if st == SiteState::Running {
                 running = true;
                 break;
             }
         }
-        assert!(
-            running && port_open(port).await,
-            "setelah Restart, server harus jalan lagi"
-        );
+        assert!(running && port_open(port).await, "setelah Restart, server harus jalan lagi");
         stop(&handle, "e2e").await.unwrap();
     }
 
@@ -908,14 +792,9 @@ mod tests {
             l.local_addr().unwrap().port()
         };
         let dir = std::env::temp_dir();
-        let mut p = site(
-            &dir.to_string_lossy(),
-            "echo \"V=$SERVEL_TEST_VAR\"; exit 3",
-            port,
-        );
+        let mut p = site(&dir.to_string_lossy(), "echo \"V=$SERVEL_TEST_VAR\"; exit 3", port);
         p.id = "crash".into();
-        p.env
-            .insert("SERVEL_TEST_VAR".into(), "dari-project".into());
+        p.env.insert("SERVEL_TEST_VAR".into(), "dari-project".into());
         start(&handle, &p).await.expect("start gagal");
 
         let mut info = None;
@@ -947,46 +826,20 @@ mod tests {
         init_records(&handle, path.clone());
 
         // "Sisa" dev server: proses dengan group sendiri, seperti yang dibuat start().
-        let mut orphan = std::process::Command::new("sleep")
-            .arg("60")
-            .process_group(0)
-            .spawn()
-            .unwrap();
-        let mut other = std::process::Command::new("sleep")
-            .arg("60")
-            .process_group(0)
-            .spawn()
-            .unwrap();
+        let mut orphan = std::process::Command::new("sleep").arg("60").process_group(0).spawn().unwrap();
+        let mut other = std::process::Command::new("sleep").arg("60").process_group(0).spawn().unwrap();
         let started = process_started(orphan.id()).await.unwrap();
         let records: HashMap<String, Record> = [
-            (
-                "a".to_string(),
-                Record {
-                    pid: orphan.id(),
-                    started,
-                },
-            ),
-            (
-                "b".to_string(),
-                Record {
-                    pid: other.id(),
-                    started: "Thu Jan  1 00:00:00 1970".into(),
-                },
-            ),
+            ("a".to_string(), Record { pid: orphan.id(), started }),
+            ("b".to_string(), Record { pid: other.id(), started: "Thu Jan  1 00:00:00 1970".into() }),
         ]
         .into();
         std::fs::write(&path, serde_json::to_string(&records).unwrap()).unwrap();
 
         assert_eq!(cleanup_leftovers(&handle).await, 1);
-        let status = tokio::task::spawn_blocking(move || orphan.wait())
-            .await
-            .unwrap()
-            .unwrap();
+        let status = tokio::task::spawn_blocking(move || orphan.wait()).await.unwrap().unwrap();
         assert!(!status.success(), "proses sisa harus dimatikan");
-        assert!(
-            other.try_wait().unwrap().is_none(),
-            "PID dengan waktu mulai berbeda tidak boleh disentuh"
-        );
+        assert!(other.try_wait().unwrap().is_none(), "PID dengan waktu mulai berbeda tidak boleh disentuh");
         assert!(!path.exists(), "catatan dihapus setelah dibersihkan");
         let _ = other.kill();
         let _ = other.wait();

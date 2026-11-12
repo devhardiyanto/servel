@@ -129,6 +129,7 @@ pub fn probe_host_port(port: u16) -> bool {
     std::net::TcpListener::bind(("127.0.0.1", port)).is_err()
 }
 
+
 /// Inti load_services tanpa #[tauri::command], bisa dipanggil internal.
 pub(crate) async fn load_services_internal(app: &AppHandle) -> Result<Vec<ServiceDef>, String> {
     let resource_path = app
@@ -142,24 +143,14 @@ pub(crate) async fn load_services_internal(app: &AppHandle) -> Result<Vec<Servic
     if !resource_path.exists() {
         let dev_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../assets/services/services.json");
-        let content = std::fs::read_to_string(&dev_path).map_err(|e| {
-            format!(
-                "Gagal baca services.json (dev fallback, {}): {}",
-                dev_path.display(),
-                e
-            )
-        })?;
+        let content = std::fs::read_to_string(&dev_path)
+            .map_err(|e| format!("Gagal baca services.json (dev fallback, {}): {}", dev_path.display(), e))?;
         return serde_json::from_str(&content)
             .map_err(|e| format!("Gagal parse services.json: {}", e));
     }
 
-    let content = std::fs::read_to_string(&resource_path).map_err(|e| {
-        format!(
-            "Gagal baca services.json ({}): {}",
-            resource_path.display(),
-            e
-        )
-    })?;
+    let content = std::fs::read_to_string(&resource_path)
+        .map_err(|e| format!("Gagal baca services.json ({}): {}", resource_path.display(), e))?;
 
     serde_json::from_str(&content).map_err(|e| format!("Gagal parse services.json: {}", e))
 }
@@ -326,11 +317,7 @@ mod tests {
         assert_eq!(effective.len(), 5);
         assert_eq!(effective[0], "mongodb", "requested harus tetap di depan");
         for id in ["mysql", "postgres", "minio", "redis"] {
-            assert!(
-                effective.contains(&id.to_string()),
-                "{} harus terlindungi",
-                id
-            );
+            assert!(effective.contains(&id.to_string()), "{} harus terlindungi", id);
         }
     }
 
@@ -348,10 +335,7 @@ mod tests {
         // Bind port ephemeral → probe pada port itu harus true (terpakai).
         let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
-        assert!(
-            probe_host_port(port),
-            "port yang sedang di-bind harus terdeteksi terpakai"
-        );
+        assert!(probe_host_port(port), "port yang sedang di-bind harus terdeteksi terpakai");
     }
 
     #[test]
@@ -361,10 +345,7 @@ mod tests {
             let l = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
             l.local_addr().unwrap().port()
         };
-        assert!(
-            !probe_host_port(port),
-            "port yang sudah dilepas harus terdeteksi bebas"
-        );
+        assert!(!probe_host_port(port), "port yang sudah dilepas harus terdeteksi bebas");
     }
 
     #[test]
@@ -372,11 +353,7 @@ mod tests {
         let json = include_str!("../../../assets/services/services.json");
         let defs: Vec<ServiceDef> = serde_json::from_str(json).expect("services.json harus valid");
 
-        assert_eq!(
-            defs.len(),
-            8,
-            "harus ada 8 service (SQL Server dihapus di v1.7)"
-        );
+        assert_eq!(defs.len(), 8, "harus ada 8 service (SQL Server dihapus di v1.7)");
 
         let core_count = defs.iter().filter(|d| d.category == "core").count();
         let additional_count = defs.iter().filter(|d| d.category == "additional").count();

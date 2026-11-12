@@ -1,9 +1,9 @@
+pub mod prereq;
+pub mod php;
+pub mod node;
+pub(crate) mod util;
+pub mod services;
 pub(crate) mod compose;
 pub mod config;
 pub mod hosts;
-pub mod node;
-pub mod php;
-pub mod prereq;
-pub mod services;
 pub(crate) mod stats;
-pub(crate) mod util;

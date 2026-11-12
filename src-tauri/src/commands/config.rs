@@ -208,8 +208,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
     // Service yang dihapus dari services.json dibuang dari profil, supaya Start
     // tidak mencoba service yang sudah tidak ada. Idempotent.
     for p in cfg.profiles.iter_mut() {
-        p.service_ids
-            .retain(|id| !REMOVED_SERVICE_IDS.contains(&id.as_str()));
+        p.service_ids.retain(|id| !REMOVED_SERVICE_IDS.contains(&id.as_str()));
     }
     cfg.selected_service_ids
         .retain(|id| !REMOVED_SERVICE_IDS.contains(&id.as_str()));
@@ -217,10 +216,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
     // Invariant: profil yang ditautkan ke project harus ada.
     let profile_ids: Vec<String> = cfg.profiles.iter().map(|p| p.id.clone()).collect();
     for p in cfg.projects.iter_mut() {
-        if p.profile_id
-            .as_ref()
-            .is_some_and(|id| !profile_ids.contains(id))
-        {
+        if p.profile_id.as_ref().is_some_and(|id| !profile_ids.contains(id)) {
             p.profile_id = None;
         }
     }
@@ -301,7 +297,8 @@ impl Default for ConfigState {
 /// sudah ter-journal → config.json kosong/truncated.
 fn write_config_atomic(path: &Path, json: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("gagal create_dir_all: {}", e))?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("gagal create_dir_all: {}", e))?;
     }
 
     let tmp_path = path.with_extension("tmp");
@@ -363,7 +360,8 @@ pub async fn config_read(app: AppHandle) -> Result<ConfigState, String> {
         return Ok(ConfigState::default());
     }
 
-    let raw = std::fs::read_to_string(&path).map_err(|e| format!("gagal baca config.json: {}", e));
+    let raw = std::fs::read_to_string(&path)
+        .map_err(|e| format!("gagal baca config.json: {}", e));
 
     let raw = match raw {
         Ok(s) => s,
@@ -495,10 +493,7 @@ mod tests {
         assert_eq!(restored.version, original.version);
         assert_eq!(restored.selected_service_ids, original.selected_service_ids);
         assert_eq!(restored.profiles.len(), 1);
-        assert_eq!(
-            restored.profiles[0].service_ids,
-            original.profiles[0].service_ids
-        );
+        assert_eq!(restored.profiles[0].service_ids, original.profiles[0].service_ids);
         assert_eq!(restored.active_profile_id, original.active_profile_id);
         // Site lama tidak pernah ditulis lagi.
         assert!(!json.contains("\"sites\""));
@@ -648,21 +643,10 @@ mod tests {
         // Project lama utuh, tanpa perintah/port.
         assert_eq!(cfg.projects[0].name, "astra");
         assert_eq!(cfg.projects[0].profile_id.as_deref(), Some("default"));
-        assert_eq!(
-            (cfg.projects[0].command.as_str(), cfg.projects[0].port),
-            ("", 0)
-        );
-        assert_eq!(
-            (cfg.projects[1].name.as_str(), cfg.projects[1].port),
-            ("myapp.test", 0)
-        );
-        assert_eq!(
-            (cfg.projects[2].name.as_str(), cfg.projects[2].port),
-            ("astra-share-api.test", 8001)
-        );
-        assert!(cfg.projects[1..]
-            .iter()
-            .all(|p| p.path.is_empty() && p.command.is_empty()));
+        assert_eq!((cfg.projects[0].command.as_str(), cfg.projects[0].port), ("", 0));
+        assert_eq!((cfg.projects[1].name.as_str(), cfg.projects[1].port), ("myapp.test", 0));
+        assert_eq!((cfg.projects[2].name.as_str(), cfg.projects[2].port), ("astra-share-api.test", 8001));
+        assert!(cfg.projects[1..].iter().all(|p| p.path.is_empty() && p.command.is_empty()));
 
         // Setelah disimpan dan dibaca lagi, tidak ada duplikasi.
         let saved = serde_json::to_string(&cfg).unwrap();

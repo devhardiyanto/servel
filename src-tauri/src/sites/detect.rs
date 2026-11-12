@@ -77,11 +77,7 @@ pub fn run_script(pm: &str, script: &str, args: &str) -> String {
 
 fn detect_php_framework(dir: &Path) -> Option<Detection> {
     let composer = read_json(&dir.join("composer.json"));
-    let requires = |name: &str| {
-        composer
-            .as_ref()
-            .is_some_and(|c| has_key(c, "require", name))
-    };
+    let requires = |name: &str| composer.as_ref().is_some_and(|c| has_key(c, "require", name));
 
     if requires("laravel/framework") && dir.join("artisan").is_file() {
         return Some(det(
@@ -92,22 +88,12 @@ fn detect_php_framework(dir: &Path) -> Option<Detection> {
         ));
     }
     if requires("laravel/lumen-framework") {
-        return Some(det(
-            "lumen",
-            "Lumen",
-            "php -S 127.0.0.1:{port} -t public",
-            8000,
-        ));
+        return Some(det("lumen", "Lumen", "php -S 127.0.0.1:{port} -t public", 8000));
     }
     // Drupal: router bawaan ada di docroot (`.ht.router.php`). Project composer
     // menaruh docroot di `web/`.
     if dir.join("core/lib/Drupal.php").is_file() {
-        return Some(det(
-            "drupal",
-            "Drupal",
-            "php -S 127.0.0.1:{port} .ht.router.php",
-            8000,
-        ));
+        return Some(det("drupal", "Drupal", "php -S 127.0.0.1:{port} .ht.router.php", 8000));
     }
     if dir.join("web/core/lib/Drupal.php").is_file() {
         return Some(det(
@@ -118,12 +104,7 @@ fn detect_php_framework(dir: &Path) -> Option<Detection> {
         ));
     }
     if dir.join("wp-load.php").is_file() || dir.join("wp-config.php").is_file() {
-        return Some(det(
-            "wordpress",
-            "WordPress",
-            "php -S 127.0.0.1:{port}",
-            8000,
-        ));
+        return Some(det("wordpress", "WordPress", "php -S 127.0.0.1:{port}", 8000));
     }
     None
 }
@@ -141,15 +122,11 @@ fn detect_node(dir: &Path) -> Option<Detection> {
     };
 
     if has_dep(&pkg, "next") {
-        let cmd = script
-            .map(|s| run_script(pm, s, "-p {port}"))
-            .unwrap_or_default();
+        let cmd = script.map(|s| run_script(pm, s, "-p {port}")).unwrap_or_default();
         return Some(det("next", "Next.js", cmd, 3000));
     }
     if has_dep(&pkg, "nuxt") {
-        let cmd = script
-            .map(|s| run_script(pm, s, "--port {port}"))
-            .unwrap_or_default();
+        let cmd = script.map(|s| run_script(pm, s, "--port {port}")).unwrap_or_default();
         return Some(det("nuxt", "Nuxt", cmd, 3000));
     }
     if has_dep(&pkg, "vite") {
@@ -168,9 +145,7 @@ fn detect_node(dir: &Path) -> Option<Detection> {
         return Some(det("vite", flavor, cmd, 5173));
     }
     if has_dep(&pkg, "@angular/core") {
-        let cmd = script
-            .map(|s| run_script(pm, s, "--port {port}"))
-            .unwrap_or_default();
+        let cmd = script.map(|s| run_script(pm, s, "--port {port}")).unwrap_or_default();
         return Some(det("angular", "Angular", cmd, 4200));
     }
 
@@ -189,11 +164,7 @@ fn detect_go(dir: &Path) -> Option<Detection> {
     if !dir.join("go.mod").is_file() {
         return None;
     }
-    let cmd = if dir.join(".air.toml").is_file() {
-        "air"
-    } else {
-        "go run ."
-    };
+    let cmd = if dir.join(".air.toml").is_file() { "air" } else { "go run ." };
     Some(det("go", "Go", cmd, 8080))
 }
 
@@ -275,30 +246,18 @@ mod tests {
     fn laravel_wins_over_its_own_package_json() {
         let p = Proj::new("laravel");
         p.file("artisan", "#!/usr/bin/env php")
-            .file(
-                "composer.json",
-                r#"{"require":{"php":"^8.2","laravel/framework":"^11.0"}}"#,
-            )
-            .file(
-                "package.json",
-                r#"{"scripts":{"dev":"vite"},"devDependencies":{"vite":"^5"}}"#,
-            );
+            .file("composer.json", r#"{"require":{"php":"^8.2","laravel/framework":"^11.0"}}"#)
+            .file("package.json", r#"{"scripts":{"dev":"vite"},"devDependencies":{"vite":"^5"}}"#);
         let d = p.detect();
         assert_eq!(d.kind, "laravel");
-        assert_eq!(
-            d.command,
-            "php artisan serve --host=127.0.0.1 --port={port}"
-        );
+        assert_eq!(d.command, "php artisan serve --host=127.0.0.1 --port={port}");
         assert_eq!(d.default_port, 8000);
     }
 
     #[test]
     fn lumen_wordpress_drupal() {
         let p = Proj::new("lumen");
-        p.file(
-            "composer.json",
-            r#"{"require":{"laravel/lumen-framework":"^10.0"}}"#,
-        );
+        p.file("composer.json", r#"{"require":{"laravel/lumen-framework":"^10.0"}}"#);
         assert_eq!(p.detect().command, "php -S 127.0.0.1:{port} -t public");
 
         let p = Proj::new("wp");
@@ -311,12 +270,8 @@ mod tests {
         assert_eq!(p.detect().command, "php -S 127.0.0.1:{port} .ht.router.php");
 
         let p = Proj::new("drupal-composer");
-        p.file("web/core/lib/Drupal.php", "<?php")
-            .file("composer.json", "{}");
-        assert_eq!(
-            p.detect().command,
-            "php -S 127.0.0.1:{port} -t web web/.ht.router.php"
-        );
+        p.file("web/core/lib/Drupal.php", "<?php").file("composer.json", "{}");
+        assert_eq!(p.detect().command, "php -S 127.0.0.1:{port} -t web web/.ht.router.php");
     }
 
     #[test]
@@ -333,10 +288,7 @@ mod tests {
 
         // pnpm meneruskan argumen tanpa `--`.
         p.file("pnpm-lock.yaml", "");
-        assert_eq!(
-            p.detect().command,
-            "pnpm run dev --port {port} --strictPort"
-        );
+        assert_eq!(p.detect().command, "pnpm run dev --port {port} --strictPort");
 
         let p = Proj::new("react");
         p.file(
@@ -352,30 +304,18 @@ mod tests {
     #[test]
     fn next_nuxt_and_plain_node() {
         let p = Proj::new("next");
-        p.file(
-            "package.json",
-            r#"{"scripts":{"dev":"next dev"},"dependencies":{"next":"14"}}"#,
-        );
+        p.file("package.json", r#"{"scripts":{"dev":"next dev"},"dependencies":{"next":"14"}}"#);
         assert_eq!(p.detect().command, "npm run dev -- -p {port}");
 
         let p = Proj::new("nuxt");
-        p.file(
-            "package.json",
-            r#"{"scripts":{"dev":"nuxt dev"},"devDependencies":{"nuxt":"3"}}"#,
-        );
+        p.file("package.json", r#"{"scripts":{"dev":"nuxt dev"},"devDependencies":{"nuxt":"3"}}"#);
         assert_eq!(p.detect().command, "npm run dev -- --port {port}");
 
         // Backend biasa: tanpa argumen port, mengandalkan env PORT.
         let p = Proj::new("express");
-        p.file(
-            "package.json",
-            r#"{"scripts":{"start":"node server.js"},"dependencies":{"express":"4"}}"#,
-        );
+        p.file("package.json", r#"{"scripts":{"start":"node server.js"},"dependencies":{"express":"4"}}"#);
         let d = p.detect();
-        assert_eq!(
-            (d.kind.as_str(), d.command.as_str()),
-            ("node", "npm run start")
-        );
+        assert_eq!((d.kind.as_str(), d.command.as_str()), ("node", "npm run start"));
         assert_eq!(d.default_port, 3000);
 
         // Tanpa script: pakai `main`.
@@ -415,8 +355,7 @@ mod tests {
     #[test]
     fn broken_json_does_not_panic() {
         let p = Proj::new("broken");
-        p.file("package.json", "{ not json")
-            .file("composer.json", "[[");
+        p.file("package.json", "{ not json").file("composer.json", "[[");
         // composer.json ada → PHP polos; package.json rusak diabaikan.
         assert_eq!(p.detect().kind, "php");
     }
@@ -433,10 +372,7 @@ mod tests {
 
     #[test]
     fn render_and_name() {
-        assert_eq!(
-            render_command("php -S 127.0.0.1:{port} -t public", 8001),
-            "php -S 127.0.0.1:8001 -t public"
-        );
+        assert_eq!(render_command("php -S 127.0.0.1:{port} -t public", 8001), "php -S 127.0.0.1:8001 -t public");
         assert_eq!(render_command("npm run dev", 3000), "npm run dev");
         assert_eq!(name_from_path(r"D:\dev\astra\share-api"), "share-api");
         assert_eq!(name_from_path("/home/u/app/"), "app");

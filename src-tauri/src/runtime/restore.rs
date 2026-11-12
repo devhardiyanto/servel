@@ -46,24 +46,12 @@ pub fn validate_dump(path: &Path) -> Result<(), String> {
 }
 
 fn emit(app: &AppHandle, source: &str, stream: &str, line: &str) {
-    let _ = app.emit(
-        "cmd-output",
-        serde_json::json!({ "line": line, "stream": stream, "source": source }),
-    );
+    let _ = app.emit("cmd-output", serde_json::json!({ "line": line, "stream": stream, "source": source }));
 }
 
-pub async fn restore(
-    app: &AppHandle,
-    defs: &[ServiceDef],
-    service_id: &str,
-    file: &str,
-) -> Result<(), String> {
-    let cmd = restore_command(service_id).ok_or_else(|| {
-        format!(
-            "restore hanya untuk mysql dan postgres, bukan '{}'",
-            service_id
-        )
-    })?;
+pub async fn restore(app: &AppHandle, defs: &[ServiceDef], service_id: &str, file: &str) -> Result<(), String> {
+    let cmd = restore_command(service_id)
+        .ok_or_else(|| format!("restore hanya untuk mysql dan postgres, bukan '{}'", service_id))?;
     let path = PathBuf::from(file);
     validate_dump(&path)?;
     let def = defs
@@ -73,12 +61,7 @@ pub async fn restore(
     let source = service_id.to_uppercase();
     let name = def.container_name.clone();
 
-    emit(
-        app,
-        &source,
-        "stdout",
-        &format!("restore {} → {}", path.display(), name),
-    );
+    emit(app, &source, "stdout", &format!("restore {} → {}", path.display(), name));
     super::start(app, defs, &[service_id.to_string()]).await?;
 
     // Tunggu service siap (probe yang sama dengan status "up").
@@ -88,10 +71,7 @@ pub async fn restore(
             break;
         }
         if Instant::now() >= deadline {
-            return Err(format!(
-                "{} belum siap setelah 120 dtk — cek tab Logs",
-                name
-            ));
+            return Err(format!("{} belum siap setelah 120 dtk — cek tab Logs", name));
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
@@ -108,12 +88,7 @@ pub async fn restore(
         RuntimeKind::Docker => super::docker::exec_streamed(app, &name, &cmd).await,
     };
     match &r {
-        Ok(()) => emit(
-            app,
-            &source,
-            "stdout",
-            &format!("restore selesai: {}", path.display()),
-        ),
+        Ok(()) => emit(app, &source, "stdout", &format!("restore selesai: {}", path.display())),
         Err(e) => emit(app, &source, "stderr", &format!("restore gagal: {}", e)),
     }
     r
