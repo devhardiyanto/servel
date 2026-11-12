@@ -3395,7 +3395,7 @@ dependencies = [
 
 [[package]]
 name = "servel"
-version = "2.2.1"
+version = "2.3.0"
 dependencies = [
  "notify",
  "notify-debouncer-mini",

@@ -9,6 +9,7 @@ import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
 import ProjectsPanel from '@/components/ProjectsPanel.vue'
+import PhpExtensionsPanel from '@/components/PhpExtensionsPanel.vue'
 import SettingRow from '@/components/SettingRow.vue'
 import { ENGINE_LABEL, type EnginePreference, type PrereqStatus } from '@/types/prereq'
 import { useEngineStatus } from '@/composables/useEngineStatus'
@@ -591,6 +592,10 @@ onMounted(async () => {
             </SettingRow>
 
             <p v-if="miseError" class="section-hint section-hint--note">{{ miseError }}</p>
+          </div>
+
+          <div class="section-block">
+            <PhpExtensionsPanel />
           </div>
         </template>
 

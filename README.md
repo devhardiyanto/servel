@@ -10,6 +10,7 @@ Servel is a desktop app (Tauri 2 + Vue 3) that orchestrates your local developme
 
 ## Features
 
+- **PHP extensions (new in v2.3)** — turn bundled extensions on or off per PHP version, and fix HTTPS (curl error 60) on Windows with one click. `php.ini` is backed up and the change is undone if PHP no longer starts.
 - **Projects on localhost (new in v2.2)** — add a project folder and Servel detects what it is (Laravel, WordPress, Vite, Next, Node, Go, ...), runs its dev server with the versions from the project's `mise.toml`, and gives it a fixed `localhost:<port>` address. Start, stop, open and read its log from one place; optionally start it when Servel opens.
 - **In-app updates (new in v2.1)** — Settings → About downloads, verifies and installs a new version, then restarts Servel.
 - **Projects (v1.9)** — link a project folder to a service profile: selecting the project switches its PHP/Node versions (via mise) and its service selection together.

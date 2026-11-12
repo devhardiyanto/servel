@@ -1,6 +1,6 @@
 [package]
 name = "servel"
-version = "2.2.1"
+version = "2.3.0"
 description = "One app. All your local dev environment."
 authors = ["devhardiyanto <dev.hardiyanto@gmail.com>"]
 edition = "2021"
@@ -30,7 +30,14 @@ sha2 = "0.10"
 tauri-plugin-updater = "2"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_System_Diagnostics_Debug"] }
+windows-sys = { version = "0.59", features = [
+  "Win32_System_Diagnostics_Debug",
+  # Job object: dev server ikut mati bila Servel mati paksa (v2.3).
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_JobObjects",
+  "Win32_System_Threading",
+] }
 
 [dev-dependencies]
 # `tauri::test::mock_app` untuk menguji start/stop dev server tanpa jendela.

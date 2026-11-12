@@ -450,6 +450,17 @@ pub async fn list_installed(tool: &str) -> Result<Vec<InstalledVersion>, String>
     Ok(parse_installed(&out))
 }
 
+/// Folder instalasi `tool@version` (`mise where`), mis. folder PHP 8.3.35.
+pub async fn install_dir(tool: &str, version: &str) -> Result<PathBuf, String> {
+    validate_version(version)?;
+    let out = capture(&["where".into(), format!("{}@{}", tool, version)], &home_dir()).await?;
+    let dir = out.lines().map(str::trim).rfind(|l| !l.is_empty()).unwrap_or("");
+    if dir.is_empty() {
+        return Err(format!("mise tidak menemukan {}@{}", tool, version));
+    }
+    Ok(PathBuf::from(dir))
+}
+
 pub async fn get_active(tool: &str) -> Result<Option<String>, String> {
     let project = active_project();
     Ok(current_tools(project.as_ref())
