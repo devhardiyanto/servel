@@ -76,11 +76,17 @@ pub async fn site_forget(app: AppHandle, id: String) {
     process::forget(&app, &id);
 }
 
-/// Jalankan project ber-`auto_start` saat Servel dibuka. Gagal start satu
+/// Saat Servel dibuka: bersihkan dev server sisa sesi sebelumnya, lalu
+/// jalankan project ber-`auto_start`. Gagal start satu
 /// project tidak menghalangi yang lain; errornya masuk ke panel log.
 pub fn autostart(app: &AppHandle) {
+    if let Ok(dir) = app.path().app_data_dir() {
+        process::init_records(app, dir.join("running-projects.json"));
+    }
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        // Bersihkan sisa sesi yang mati paksa dulu, supaya port-nya bebas.
+        process::cleanup_leftovers(&app).await;
         let Ok(cfg) = load_config(&app) else { return };
         for project in cfg.projects.iter().filter(|p| p.auto_start) {
             if let Err(e) = process::start(&app, project).await {

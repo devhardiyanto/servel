@@ -63,6 +63,19 @@ struct Entry {
 pub struct SiteProcs {
     entries: Mutex<HashMap<String, Entry>>,
     counter: Mutex<u64>,
+    /// Catatan dev server yang sedang jalan, disimpan ke disk supaya sisa
+    /// dari sesi yang mati paksa bisa dibersihkan saat Servel dibuka lagi.
+    /// `None` = tidak disimpan (mis. di unit test).
+    records_path: Mutex<Option<std::path::PathBuf>>,
+    records: Mutex<HashMap<String, Record>>,
+}
+
+/// Dev server yang sedang jalan. `started` = waktu mulai proses menurut OS,
+/// untuk memastikan PID belum dipakai ulang proses lain sebelum dimatikan.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+pub struct Record {
+    pub pid: u32,
+    pub started: String,
 }
 
 impl SiteProcs {
@@ -191,6 +204,144 @@ async fn kill_tree(pid: u32) {
     }
 }
 
+/// Windows: dev server dimasukkan ke job object dengan
+/// `KILL_ON_JOB_CLOSE`. Handle job hanya dipegang Servel, jadi saat Servel
+/// berakhir dengan cara apa pun (termasuk crash atau dimatikan dari Task
+/// Manager), Windows menutup handle itu dan mematikan seluruh pohon proses.
+/// Proses anak yang dibuat sebelum penugasan selesai (beberapa milidetik
+/// pertama) bisa lolos; catatan di disk menjadi cadangannya.
+#[cfg(target_os = "windows")]
+mod job {
+    use std::sync::OnceLock;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_SET_QUOTA, PROCESS_TERMINATE};
+
+    static JOB: OnceLock<usize> = OnceLock::new();
+
+    fn job() -> Option<HANDLE> {
+        let h = *JOB.get_or_init(|| unsafe {
+            let h = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if h.is_null() {
+                return 0;
+            }
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let ok = SetInformationJobObject(
+                h,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const core::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            if ok == 0 {
+                CloseHandle(h);
+                return 0;
+            }
+            h as usize
+        });
+        (h != 0).then_some(h as HANDLE)
+    }
+
+    pub fn assign(pid: u32) -> Result<(), String> {
+        let job = job().ok_or("job object tidak bisa dibuat")?;
+        unsafe {
+            let proc = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
+            if proc.is_null() {
+                return Err(format!("proses {} tidak bisa dibuka", pid));
+            }
+            let ok = AssignProcessToJobObject(job, proc);
+            CloseHandle(proc);
+            if ok == 0 {
+                return Err("proses tidak bisa dimasukkan ke job object".to_string());
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Waktu mulai proses menurut OS, sebagai teks pembanding. `None` bila proses
+/// tidak ada. Unix: `ps -o lstart=`; Windows: tidak dipakai (job object).
+async fn process_started(pid: u32) -> Option<String> {
+    #[cfg(not(target_os = "windows"))]
+    {
+        let out = silent_command("ps")
+            .args(["-o", "lstart=", "-p", &pid.to_string()])
+            .stdout(Stdio::piped())
+            .output()
+            .await
+            .ok()?;
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        (out.status.success() && !s.is_empty()).then_some(s)
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let out = silent_command("powershell.exe")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                &format!("(Get-Process -Id {} -ErrorAction Stop).StartTime.ToFileTimeUtc()", pid),
+            ])
+            .stdout(Stdio::piped())
+            .output()
+            .await
+            .ok()?;
+        let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        (out.status.success() && !s.is_empty()).then_some(s)
+    }
+}
+
+fn persist_records(procs: &SiteProcs) {
+    let Some(path) = procs.records_path.lock().unwrap().clone() else { return };
+    let records = procs.records.lock().unwrap().clone();
+    if records.is_empty() {
+        let _ = std::fs::remove_file(&path);
+        return;
+    }
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Ok(json) = serde_json::to_string_pretty(&records) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
+fn record_remove(procs: &SiteProcs, id: &str) {
+    let removed = procs.records.lock().unwrap().remove(id).is_some();
+    if removed {
+        persist_records(procs);
+    }
+}
+
+/// Aktifkan penyimpanan catatan di `path` (dipanggil sekali saat Servel start).
+pub fn init_records<R: Runtime>(app: &AppHandle<R>, path: std::path::PathBuf) {
+    *app.state::<SiteProcs>().records_path.lock().unwrap() = Some(path);
+}
+
+/// Matikan dev server sisa sesi sebelumnya yang tidak berhenti bersih
+/// (Servel crash atau dimatikan paksa). PID hanya dimatikan bila waktu mulai
+/// prosesnya sama dengan catatan, jadi proses lain yang kebetulan mendapat
+/// PID yang sama tidak tersentuh. Mengembalikan jumlah proses yang dimatikan.
+pub async fn cleanup_leftovers<R: Runtime>(app: &AppHandle<R>) -> usize {
+    let procs = app.state::<SiteProcs>();
+    let Some(path) = procs.records_path.lock().unwrap().clone() else { return 0 };
+    let Ok(raw) = std::fs::read_to_string(&path) else { return 0 };
+    let _ = std::fs::remove_file(&path);
+    let records: HashMap<String, Record> = serde_json::from_str(&raw).unwrap_or_default();
+    let mut killed = 0;
+    for (id, rec) in records {
+        if process_started(rec.pid).await.as_deref() == Some(rec.started.as_str()) {
+            kill_tree(rec.pid).await;
+            killed += 1;
+            emit_log(app, "SERVEL", &format!("menghentikan dev server sisa sesi sebelumnya (project {}, pid {})", id, rec.pid), Some("warn"));
+        }
+    }
+    killed
+}
+
 pub fn validate(site: &Project) -> Result<(), String> {
     if site.path.trim().is_empty() {
         return Err("folder project belum dipilih".to_string());
@@ -275,6 +426,18 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     let mut child = cmd.spawn().map_err(|e| format!("gagal menjalankan perintah: {}", e))?;
     let pid = child.id();
 
+    // Pastikan dev server tidak tertinggal bila Servel mati paksa.
+    if let Some(pid) = pid {
+        #[cfg(target_os = "windows")]
+        if let Err(e) = job::assign(pid) {
+            emit_log(app, &source, &format!("{}; proses mungkin tertinggal bila Servel crash", e), Some("warn"));
+        }
+        if let Some(started) = process_started(pid).await {
+            procs.records.lock().unwrap().insert(site.id.clone(), Record { pid, started });
+            persist_records(&procs);
+        }
+    }
+
     let generation = {
         let mut c = procs.counter.lock().unwrap();
         *c += 1;
@@ -315,6 +478,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     tauri::async_runtime::spawn(async move {
         let code = child.wait().await.ok().and_then(|s| s.code());
         let procs = wait_app.state::<SiteProcs>();
+        record_remove(&procs, &wait_id);
         let mut requested = false;
         {
             let mut map = procs.entries.lock().unwrap();
@@ -633,5 +797,38 @@ mod tests {
         assert_eq!(info.exit_code, Some(3));
         // Environment milik project sampai ke proses.
         assert_eq!(info.last_line.as_deref(), Some("V=dari-project"));
+    }
+
+    /// Sisa sesi sebelumnya: proses yang masih hidup dengan waktu mulai yang
+    /// cocok dimatikan; catatan dengan waktu mulai berbeda (PID dipakai ulang)
+    /// dibiarkan.
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn leftovers_are_killed_only_when_start_time_matches() {
+        use std::os::unix::process::CommandExt;
+        let app = tauri::test::mock_app();
+        app.manage(SiteProcs::default());
+        let handle = app.handle().clone();
+        let path = std::env::temp_dir().join(format!("servel-records-{}.json", std::process::id()));
+        init_records(&handle, path.clone());
+
+        // "Sisa" dev server: proses dengan group sendiri, seperti yang dibuat start().
+        let mut orphan = std::process::Command::new("sleep").arg("60").process_group(0).spawn().unwrap();
+        let mut other = std::process::Command::new("sleep").arg("60").process_group(0).spawn().unwrap();
+        let started = process_started(orphan.id()).await.unwrap();
+        let records: HashMap<String, Record> = [
+            ("a".to_string(), Record { pid: orphan.id(), started }),
+            ("b".to_string(), Record { pid: other.id(), started: "Thu Jan  1 00:00:00 1970".into() }),
+        ]
+        .into();
+        std::fs::write(&path, serde_json::to_string(&records).unwrap()).unwrap();
+
+        assert_eq!(cleanup_leftovers(&handle).await, 1);
+        let status = tokio::task::spawn_blocking(move || orphan.wait()).await.unwrap().unwrap();
+        assert!(!status.success(), "proses sisa harus dimatikan");
+        assert!(other.try_wait().unwrap().is_none(), "PID dengan waktu mulai berbeda tidak boleh disentuh");
+        assert!(!path.exists(), "catatan dihapus setelah dibersihkan");
+        let _ = other.kill();
+        let _ = other.wait();
     }
 }

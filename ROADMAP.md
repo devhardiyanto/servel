@@ -204,10 +204,28 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Update sekarang v2.2.0 → v2.2.1 dengan project berjalan: setelah Servel terbuka lagi, Start tidak gagal "port sedang dipakai".
 - `SSL_CERT_FILE` lewat Environment menyelesaikan error 60 di PHP.
 
+## v2.3.0 — PHP extensions, sertifikat HTTPS, dev server yatim
+
+**Selesai**
+
+- `php_ext`: daftar extension per versi PHP (file di folder extension + `php -m`), toggle lewat `php.ini` (uncomment baris yang ada atau tambah `extension=`/`zend_extension=`). Backup 5 terakhir; setelah menulis, PHP dijalankan untuk verifikasi dan `php.ini` dikembalikan bila ada peringatan startup atau status tidak berubah. `extension_dir` absolut di Windows bila bawaannya relatif.
+- Fix HTTPS certificates (Windows): `curl.cainfo` + `openssl.cafile` ke bundle Git for Windows, atau ekspor root Windows ke folder data Servel bila Git tidak ada.
+- Dev server yatim: Windows memakai job object `KILL_ON_JOB_CLOSE`; semua platform mencatat PID + waktu mulai proses ke `running-projects.json` dan mematikan sisa sesi saat Servel dibuka (hanya bila waktu mulai cocok).
+- Uji ujung ke ujung dengan PHP sungguhan (aktifkan, nonaktifkan, rollback extension rusak) dan dengan proses sisa (dimatikan vs PID dipakai ulang).
+
+**Perlu verifikasi di Windows**
+
+- Toggle extension pada PHP dari mise (mis. intl, pdo_pgsql), termasuk saat `php.ini` belum ada.
+- Fix HTTPS certificates lalu panggilan HTTPS dari PHP berhasil tanpa `SSL_CERT_FILE`.
+- Job object: matikan Servel dari Task Manager saat project berjalan → port project bebas.
+
+**Batasan**
+
+- Ekspor root Windows bisa kurang lengkap (Windows mengunduh sebagian root hanya saat dibutuhkan); bundle Git lebih lengkap.
+- Proses anak yang dibuat dalam milidetik pertama sebelum masuk job object bisa lolos; catatan di disk menjadi cadangannya.
+
 ## Setelah v2.2 (kandidat)
 
-- PHP extensions bawaan (toggle DLL di `ext\` per versi) + tombol "Fix HTTPS certificates" — v2.3.
-- Bersihkan dev server yatim setelah Servel mati paksa — v2.3.
 - Start project sekaligus menyalakan service di profilnya — menunggu keputusan.
 - PECL extension otomatis, CLI start/stop project — ditunda.
 - Patch dari pemakaian lapangan (item "Perlu verifikasi" di atas).
