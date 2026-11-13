@@ -262,9 +262,26 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Keempat perintah dari PowerShell 5.1, pwsh 7, cmd, dan Git Bash (skrip CLI tidak bisa dijalankan di lingkungan pengembangan; hanya protokolnya yang diuji).
 - `control.json` sisa sesi yang mati paksa → pesan "aplikasi Servel tidak berjalan".
 
+## v2.6.0 — unduh extension PECL (Windows)
+
+**Selesai**
+
+- `pecl`: cari rilis stabil terbaru di downloads.php.net yang punya build untuk PHP ini (mayor.minor, TS/NTS, x64/x86; compiler diambil dari nama file, tidak ditebak), unduh, ekstrak `php_<ext>.dll` ke folder extension dan DLL pendukung ke folder `php.exe`.
+- `php_ext_install`: pasang lalu aktifkan lewat `set_ext`; bila PHP menolak, DLL dihapus dan `php.ini` dikembalikan.
+- UI: "Install another extension" di panel PHP extensions (hanya Windows).
+- Diuji dengan unduhan sungguhan: redis 6.3.0 (PHP 8.5 NTS), xdebug 3.5.3 (PHP 8.3 TS), imagick 3.8.1 (PHP 8.3 NTS, 167 DLL pendukung).
+
+**Perlu verifikasi di Windows**
+
+- Download & enable redis dan xdebug pada PHP dari mise; `php -m` memuatnya.
+- imagick: DLL pendukung di folder `php.exe` cukup untuk memuat extension.
+
+**Batasan**
+
+- Tanpa checksum dari sumber; integritas hanya lewat HTTPS ke php.net.
+
 ## Rencana berikutnya
 
 - v2.4.x — patch dari uji lapangan; screenshot baru di `docs/screenshots/` dan bagian code signing di README (hanya dokumen, ikut patch mana pun).
-- v2.6.0 — unduh extension PECL (redis, xdebug, imagick) dari dalam aplikasi.
 - v2.7.0 — satu bahasa untuk seluruh label, log, dan pesan error (sekarang campur Inggris/Indonesia). Diff lebar, jadi rilis tersendiri.
 - Code signing begitu sertifikat tersedia.

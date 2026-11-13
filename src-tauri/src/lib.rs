@@ -1,6 +1,7 @@
 mod commands;
 mod mise;
 mod control;
+mod pecl;
 mod php_ext;
 mod sites;
 mod runtime;
@@ -102,6 +103,7 @@ pub fn run() {
             mise::mise_repair,
             php_ext::php_ext_status,
             php_ext::php_ext_set,
+            php_ext::php_ext_install,
             php_ext::php_ext_fix_https,
             sites::project_detect,
             sites::sites_runtime,

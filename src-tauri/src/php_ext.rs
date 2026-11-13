@@ -240,6 +240,9 @@ pub struct PhpExtStatus {
     pub extensions: Vec<PhpExt>,
     /// Hanya Windows: PHP di Windows tidak membawa daftar CA sendiri.
     pub https: Option<HttpsStatus>,
+    /// Extension PECL bisa diunduh dari aplikasi (hanya Windows; di
+    /// macOS/Linux extension dikompilasi lewat `pecl install`).
+    pub can_install: bool,
 }
 
 struct PhpInstall {
@@ -370,6 +373,7 @@ async fn status_of(install: &PhpInstall) -> Result<PhpExtStatus, String> {
         extension_dir: ext_dir.to_string_lossy().into_owned(),
         extensions,
         https,
+        can_install: cfg!(windows),
     })
 }
 
@@ -497,6 +501,52 @@ async fn set_ext(install: &PhpInstall, name: &str, enable: bool) -> Result<PhpEx
     })
     .await?;
     status_of(install).await
+}
+
+/// Unduh extension PECL (redis, xdebug, imagick, ...) untuk versi PHP ini,
+/// pasang DLL-nya, lalu aktifkan. Bila PHP menolak DLL itu, `php.ini`
+/// dikembalikan (oleh `set_ext`) dan DLL yang baru ditulis dihapus lagi.
+#[tauri::command]
+pub async fn php_ext_install(app: tauri::AppHandle, version: Option<String>, name: String) -> Result<PhpExtStatus, String> {
+    if !cfg!(windows) {
+        return Err("unduhan extension hanya untuk Windows; di macOS/Linux pakai `pecl install`".to_string());
+    }
+    let name = name.trim().to_ascii_lowercase();
+    if !crate::pecl::valid_name(&name) {
+        return Err(format!("nama extension tidak valid: {}", name));
+    }
+    let _guard = WRITE_LOCK.lock().await;
+    let install = locate(version.as_deref()).await?;
+    let before = status_of(&install).await?;
+    if let Some(e) = before.extensions.iter().find(|e| e.name == name) {
+        return Err(if e.loaded {
+            format!("{} sudah aktif", name)
+        } else {
+            format!("{} sudah ada di folder extension; aktifkan lewat switch-nya", name)
+        });
+    }
+    let (out, _, _) = run(
+        &install.binary,
+        &["-r", "echo PHP_MAJOR_VERSION, '.', PHP_MINOR_VERSION, \"\\n\", PHP_ZTS, \"\\n\", PHP_INT_SIZE;"],
+    )
+    .await?;
+    let build = crate::pecl::parse_build(&out).ok_or_else(|| "jenis build PHP tidak terbaca".to_string())?;
+    let ext_dir = PathBuf::from(&before.extension_dir);
+    let php_dir = install.binary.parent().map(Path::to_path_buf).ok_or_else(|| "folder php tidak diketahui".to_string())?;
+    let got = crate::pecl::install(&name, &build, &ext_dir, &php_dir).await?;
+    {
+        use tauri::Emitter;
+        let extra = if got.support_dlls > 0 { format!(", {} pustaka pendukung", got.support_dlls) } else { String::new() };
+        let line = format!("{} {} dipasang untuk PHP {} ({}{})", name, got.version, install.version, got.file, extra);
+        let _ = app.emit("cmd-output", serde_json::json!({ "line": line, "stream": "stdout", "source": "PHP" }));
+    }
+    match set_ext(&install, &name, true).await {
+        Ok(status) => Ok(status),
+        Err(e) => {
+            let _ = std::fs::remove_file(ext_dir.join(format!("php_{}.dll", name)));
+            Err(format!("{} {} terunduh, tetapi PHP menolaknya: {}", name, got.version, e))
+        }
+    }
 }
 
 /// File CA bundle yang sudah ada di mesin (Git for Windows), atau `None`.
