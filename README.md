@@ -237,7 +237,7 @@ Notes:
 
 Before each change Servel backs up `php.ini` next to it (`php.ini.servel-<time>.bak`, last 5 kept). If PHP fails to start afterwards, the old `php.ini` is restored and the reason is shown.
 
-Extensions that are not bundled (redis, xdebug, imagick, ...) are not downloaded for you: put the DLL that matches your PHP version (thread safety, architecture) into the `ext` folder shown in the panel, and it appears in the list.
+Extensions that are not bundled (redis, xdebug, imagick, mongodb, ...) can be downloaded on Windows: type the name under **Install another extension** and click **Download & enable**. Servel picks the build from downloads.php.net that matches your PHP version, thread safety and architecture, puts the DLL in the `ext` folder (support libraries, as imagick has, go next to `php.exe`) and turns the extension on. If PHP rejects it, the DLL is removed and `php.ini` is put back. The download site publishes no checksums, so the only integrity check is HTTPS to php.net. On macOS and Linux, install extensions with `pecl install`; they then appear in the list.
 
 ### Tray menu
 

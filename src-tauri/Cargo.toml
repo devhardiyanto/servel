@@ -1,6 +1,6 @@
 [package]
 name = "servel"
-version = "2.5.0"
+version = "2.6.0"
 description = "One app. All your local dev environment."
 authors = ["devhardiyanto <dev.hardiyanto@gmail.com>"]
 edition = "2021"
@@ -30,6 +30,11 @@ sha2 = "0.10"
 tauri-plugin-updater = "2"
 # Token acak untuk kanal kontrol CLI (v2.5).
 getrandom = "0.2"
+# Unduh extension PECL (v2.6). Sama dengan yang dipakai tauri-plugin-updater:
+# rustls + ring, tanpa backend TLS baru.
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+zip = { version = "4", default-features = false, features = ["deflate"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

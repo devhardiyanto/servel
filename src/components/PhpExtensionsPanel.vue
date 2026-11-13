@@ -24,6 +24,7 @@ interface PhpExtStatus {
   extensionDir: string
   extensions: PhpExt[]
   https: HttpsStatus | null
+  canInstall: boolean
 }
 
 interface PhpVersion {
@@ -40,6 +41,10 @@ const busy = ref<string | null>(null)
 const actionError = ref('')
 const notice = ref('')
 const filter = ref('')
+const installName = ref('')
+
+/** Extension PECL yang sering dipakai; nama lain boleh diketik. */
+const SUGGESTED = ['redis', 'xdebug', 'imagick', 'mongodb', 'apcu', 'igbinary', 'pcov', 'memcached', 'yaml']
 
 const toggleable = computed<PhpExt[]>(() => {
   const q = filter.value.trim().toLowerCase()
@@ -100,6 +105,27 @@ async function fixHttps(): Promise<void> {
   try {
     status.value = await invoke<PhpExtStatus>('php_ext_fix_https', { version: selected.value || null })
     notice.value = 'HTTPS certificates set. Restart running PHP projects to pick them up.'
+  } catch (err) {
+    actionError.value = String(err)
+  } finally {
+    busy.value = null
+  }
+}
+
+async function installExt(): Promise<void> {
+  const name = installName.value.trim().toLowerCase()
+  if (busy.value || !name) return
+  if (!/^[a-z0-9_]+$/.test(name)) {
+    actionError.value = 'Extension names use only letters, digits and underscores, e.g. redis.'
+    return
+  }
+  busy.value = '__install'
+  actionError.value = ''
+  notice.value = ''
+  try {
+    status.value = await invoke<PhpExtStatus>('php_ext_install', { version: selected.value || null, name })
+    notice.value = `${name} installed and enabled. Restart running PHP projects to pick it up.`
+    installName.value = ''
   } catch (err) {
     actionError.value = String(err)
   } finally {
@@ -202,9 +228,35 @@ onMounted(async () => {
         <summary>{{ builtin.length }} built into this PHP (always on)</summary>
         <p>{{ builtin.join(', ') }}</p>
       </details>
-      <p class="px-hint">
-        Need redis, xdebug or imagick? Download the DLL that matches PHP {{ status.version }} into
-        <code>{{ status.extensionDir }}</code>, then it appears here to enable.
+      <div v-if="status.canInstall" class="px-install">
+        <label for="px-install-name" class="px-install__label">Install another extension</label>
+        <div class="px-install__row">
+          <input
+            id="px-install-name"
+            v-model="installName"
+            class="px-input"
+            list="px-install-list"
+            placeholder="redis, xdebug, imagick…"
+            spellcheck="false"
+            :disabled="busy !== null"
+            @keydown.enter="installExt"
+          />
+          <datalist id="px-install-list">
+            <option v-for="n in SUGGESTED" :key="n" :value="n" />
+          </datalist>
+          <button class="px-btn px-btn--accent" :disabled="busy !== null || !installName.trim()" @click="installExt">
+            {{ busy === '__install' ? 'Downloading…' : 'Download & enable' }}
+          </button>
+        </div>
+        <p class="px-hint">
+          Downloads the build that matches PHP {{ status.version }} from downloads.php.net, puts it in
+          <code>{{ status.extensionDir }}</code> and turns it on. If PHP rejects it, the file is removed and php.ini
+          is put back.
+        </p>
+      </div>
+      <p v-else class="px-hint">
+        Need redis, xdebug or imagick? Install it with <code>pecl install</code> for PHP {{ status.version }}; it
+        then appears here to enable.
       </p>
     </template>
   </div>
@@ -434,6 +486,27 @@ onMounted(async () => {
 .px-select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+}
+
+.px-install {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.px-install__label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.px-install__row {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .px-builtin {
