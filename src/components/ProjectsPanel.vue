@@ -119,7 +119,7 @@ async function handleChooseFolder(p: Project): Promise<void> {
 
 // --- Edit ------------------------------------------------------------------
 const editingId = ref<string | null>(null)
-const form = ref({ name: '', command: '', port: '', autoStart: false, profileId: '', env: '' })
+const form = ref({ name: '', command: '', port: '', autoStart: false, profileId: '', env: '', startServices: false })
 const formError = ref('')
 
 function startEdit(p: Project): void {
@@ -132,6 +132,7 @@ function startEdit(p: Project): void {
     autoStart: p.autoStart ?? false,
     env: envToText(p.env),
     profileId: p.profileId ?? '',
+    startServices: p.startServices ?? false,
   }
 }
 
@@ -185,6 +186,8 @@ async function saveEdit(p: Project, thenStart = false): Promise<void> {
     port,
     autoStart: form.value.autoStart,
     profileId: form.value.profileId || null,
+    // Tanpa profil opsi ini tidak berarti; simpan mati supaya tidak menyala diam-diam nanti.
+    startServices: form.value.profileId ? form.value.startServices : false,
   })
   editingId.value = null
   formError.value = ''
@@ -319,6 +322,7 @@ onMounted(() => {
               {{ p.name }}
               <span v-if="p.kind" class="pp-kind">{{ p.kind }}</span>
               <span v-if="p.autoStart" class="pp-kind">auto-start</span>
+              <span v-if="p.startServices && p.profileId" class="pp-kind">+ services</span>
             </div>
             <div class="pp-path" :title="p.path">{{ p.path || 'Folder not chosen yet (from an old .test site)' }}</div>
           </div>
@@ -401,6 +405,17 @@ onMounted(() => {
             <option v-for="pr in config.profiles" :key="pr.id" :value="pr.id">Profile: {{ pr.name }}</option>
           </select>
 
+          <span></span>
+          <label class="pp-check" :class="{ 'pp-check--off': !form.profileId }">
+            <input
+              :id="`pp-svc-${p.id}`"
+              v-model="form.startServices"
+              type="checkbox"
+              :disabled="!form.profileId"
+            />
+            Start these services when the project starts
+          </label>
+
           <label :for="`pp-env-${p.id}`" class="pp-label-top">Environment</label>
           <textarea
             :id="`pp-env-${p.id}`"
@@ -420,7 +435,7 @@ onMounted(() => {
           <p class="pp-form__hint">
             <code>{port}</code> in the command is replaced by the port, and the <code>PORT</code> environment variable
             is set to it. Environment takes one <code>KEY=VALUE</code> per line and overrides values from mise;
-            it applies only to the dev server Servel starts, not to your terminal. Leave the command empty to use this project only for versions and services. Changes apply
+            it applies only to the dev server Servel starts, not to your terminal. Starting services leaves other running services alone and never stops them when the project stops. Leave the command empty to use this project only for versions and services. Changes apply
             the next time the project starts.
           </p>
           <p v-if="formError" class="pp-error pp-form__wide">{{ formError }}</p>
@@ -693,6 +708,10 @@ onMounted(() => {
 
 .pp-input--port {
   max-width: 120px;
+}
+
+.pp-check--off {
+  opacity: 0.5;
 }
 
 .pp-check {

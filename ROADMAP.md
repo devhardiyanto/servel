@@ -235,9 +235,24 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 
 - Toggle extension dan Fix HTTPS certificates pada PHP 8.5.
 
-## Setelah v2.2 (kandidat)
+## v2.4.0 — log per project, start project + service
 
-- Start project sekaligus menyalakan service di profilnya — menunggu keputusan.
-- PECL extension otomatis, CLI start/stop project — ditunda.
-- Patch dari pemakaian lapangan (item "Perlu verifikasi" di atas).
+**Selesai**
+
+- Logs: chip filter per project di tab Projects (dengan jumlah error), tombol "Errors & warnings" di semua tab.
+- `line_level`: baris output dev server ditandai error/warn dari isinya (heuristik kata kunci; "0 errors" tidak dihitung).
+- Buffer log per sumber (500 baris per sumber, pengaman total 4000) menggantikan 400 baris bersama.
+- `Project.start_services`: Start/Restart/auto-start ikut menyalakan service di profil project, di latar belakang; service lain tidak disentuh dan Stop project tidak mematikan service. Default mati.
+
+**Perlu verifikasi di Windows**
+
+- Start project dengan opsi service aktif saat container belum jalan (WSL containers).
+- Filter per project dan "Errors & warnings" dengan dua dev server berjalan.
+
+## Rencana berikutnya
+
+- v2.4.x — patch dari uji lapangan; screenshot baru di `docs/screenshots/` dan bagian code signing di README (hanya dokumen, ikut patch mana pun).
+- v2.5.0 — start/stop/restart project dari CLI (`servel start <project>`).
+- v2.6.0 — unduh extension PECL (redis, xdebug, imagick) dari dalam aplikasi.
+- v2.7.0 — satu bahasa untuk seluruh label, log, dan pesan error (sekarang campur Inggris/Indonesia). Diff lebar, jadi rilis tersendiri.
 - Code signing begitu sertifikat tersedia.

@@ -26,6 +26,8 @@ export interface Project {
   autoStart?: boolean
   /** Environment tambahan untuk dev server (v2.2.1), di atas environment mise. */
   env?: Record<string, string>
+  /** Start project ikut menyalakan service di profilnya (v2.4). */
+  startServices?: boolean
 }
 
 export interface MiseContext {

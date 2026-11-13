@@ -48,6 +48,10 @@ pub struct Project {
     /// environment dari mise. `PORT` dikelola Servel dan tidak boleh diisi.
     #[serde(default)]
     pub env: std::collections::BTreeMap<String, String>,
+    /// Saat dev server dijalankan, nyalakan juga service di profil project
+    /// (v2.4). Tanpa `profile_id` tidak berpengaruh.
+    #[serde(default)]
+    pub start_services: bool,
 }
 
 /// Target proxy site lama (v1.5–v2.1). Hanya dibaca saat migrasi ke v7.
@@ -180,6 +184,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
                 port: 0,
                 auto_start: false,
                 env: Default::default(),
+                start_services: false,
             });
         }
     }
@@ -202,6 +207,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
             port,
             auto_start: false,
             env: Default::default(),
+            start_services: false,
         });
     }
 
@@ -561,6 +567,7 @@ mod tests {
                 port: 8001,
                 auto_start: true,
                 env: [("SSL_CERT_FILE".to_string(), r"C:\ca.crt".to_string())].into(),
+                start_services: true,
             }],
             active_project_id: Some("p1".into()),
         };
