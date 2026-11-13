@@ -195,7 +195,7 @@ To load data: **Settings → Services → Restore database** (pick a `.sql` dump
 |---|---|
 | **Command** | Any command, run in the project folder. `{port}` is replaced by the port, and the `PORT` variable is set to it. **Detect** fills it in again. Leave it empty to use the project only for versions and services. |
 | **Port** | Fixed port on `localhost` (1024–65535). |
-| **Services** | Service profile applied when you pick this project under **Versions for** on the Dashboard. |
+| **Services** | Service profile applied when you pick this project under **Versions for** on the Dashboard. Tick **Start these services when the project starts** to have Start, Restart and start-on-launch also start that profile's services; running services are left alone and stopping the project stops none. |
 | **Environment** | One `KEY=VALUE` per line, set for this project's dev server on top of mise's environment. Lines copied from a shell (`export KEY='value'`) work as-is. |
 | **On launch** | Start this project when Servel opens. |
 
@@ -211,7 +211,7 @@ Examples of commands Servel suggests:
 | Node backend | `npm run dev` (reads `PORT`) |
 | Go | `go run .` or `air` (reads `PORT`) |
 
-`npm` becomes `pnpm`, `yarn` or `bun` when that lockfile is present. **Restart** stops the project, waits for the port to be free and starts it again. Output shows under **Logs → Projects**.
+`npm` becomes `pnpm`, `yarn` or `bun` when that lockfile is present. **Restart** stops the project, waits for the port to be free and starts it again. Output shows under **Logs → Projects**. There, pick a project chip to see only its output, or **Errors & warnings** to hide everything else; each project keeps its own last 500 lines.
 
 Notes:
 

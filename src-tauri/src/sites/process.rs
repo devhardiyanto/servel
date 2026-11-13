@@ -116,6 +116,24 @@ fn emit_log<R: Runtime>(app: &AppHandle<R>, source: &str, line: &str, level: Opt
     let _ = app.emit("cmd-output", payload);
 }
 
+/// Tebak tingkat sebuah baris output dev server dari isinya, untuk filter
+/// "Errors only" di Logs. Sengaja sempit: hanya kata yang jelas menandai
+/// masalah, dan ringkasan "0 errors" tidak dihitung.
+pub fn line_level(line: &str) -> Option<&'static str> {
+    let l = line.to_lowercase();
+    let has = |words: &[&str]| words.iter().any(|w| l.contains(w));
+    if has(&["0 error", "no error", "without error"]) {
+        return None;
+    }
+    if has(&["error", "exception", "fatal", "panic:", "traceback", "unhandled", "econnrefused", "eaddrinuse"]) {
+        return Some("error");
+    }
+    if has(&["warn", "deprecated"]) {
+        return Some("warn");
+    }
+    None
+}
+
 /// Buang escape ANSI (warna) dari output dev server supaya log terbaca.
 pub fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -577,7 +595,7 @@ async fn pump<R: Runtime, B: tokio::io::AsyncBufRead + Unpin>(
         if line.trim().is_empty() {
             continue;
         }
-        emit_log(&app, &source, line, None);
+        emit_log(&app, &source, line, line_level(line));
         let procs = app.state::<SiteProcs>();
         let mut map = procs.entries.lock().unwrap();
         if let Some(e) = map.get_mut(&id) {
@@ -670,7 +688,17 @@ mod tests {
             port,
             auto_start: false,
             env: Default::default(),
+            start_services: false,
         }
+    }
+
+    #[test]
+    fn line_level_marks_obvious_problems() {
+        assert_eq!(line_level("Error: Cannot find module 'dotenv'"), Some("error"));
+        assert_eq!(line_level("PHP Fatal error:  Uncaught Exception in /app/x.php:3"), Some("error"));
+        assert_eq!(line_level("[nuxt] WARN  Deprecated option"), Some("warn"));
+        assert_eq!(line_level("✓ built in 533ms, 0 errors"), None);
+        assert_eq!(line_level("[Thu Nov 12] 127.0.0.1:54729 Accepted"), None);
     }
 
     #[test]

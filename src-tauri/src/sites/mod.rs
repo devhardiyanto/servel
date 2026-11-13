@@ -13,7 +13,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use tauri::{AppHandle, Manager};
 
-use crate::commands::config::{load_config, Project};
+use crate::commands::config::{load_config, Profile, Project};
 use crate::commands::hosts;
 use detect::Detection;
 use process::SiteRuntime;
@@ -57,12 +57,62 @@ pub async fn sites_runtime(app: AppHandle) -> Vec<SiteRuntime> {
 /// sudah tersimpan ke config di disk.
 #[tauri::command]
 pub async fn site_start(app: AppHandle, project: Project) -> Result<(), String> {
+    start_profile_services(&app, &project);
     process::start(&app, &project).await
 }
 
 #[tauri::command]
 pub async fn site_restart(app: AppHandle, project: Project) -> Result<(), String> {
+    start_profile_services(&app, &project);
     process::restart(&app, &project).await
+}
+
+/// Service yang ikut dinyalakan saat `project` dijalankan: isi profilnya,
+/// bila opsi `start_services` aktif dan profilnya masih ada.
+pub fn services_for(project: &Project, profiles: &[Profile]) -> Vec<String> {
+    if !project.start_services {
+        return Vec::new();
+    }
+    project
+        .profile_id
+        .as_deref()
+        .and_then(|id| profiles.iter().find(|p| p.id == id))
+        .map(|p| p.service_ids.clone())
+        .unwrap_or_default()
+}
+
+/// Nyalakan service profil project di latar belakang. Dev server tidak
+/// menunggu: menarik image bisa lama, dan aplikasi baru butuh database saat
+/// melayani request. Service lain yang sedang berjalan dibiarkan; kegagalan
+/// hanya masuk log.
+fn start_profile_services(app: &AppHandle, project: &Project) {
+    if !project.start_services {
+        return;
+    }
+    let app = app.clone();
+    let project = project.clone();
+    tauri::async_runtime::spawn(async move {
+        use tauri::Emitter;
+        let log = |line: String, stream: &str| {
+            let _ = app.emit(
+                "cmd-output",
+                serde_json::json!({ "line": line, "stream": stream, "source": project.name }),
+            );
+        };
+        let Ok(cfg) = load_config(&app) else { return };
+        let ids = services_for(&project, &cfg.profiles);
+        if ids.is_empty() {
+            return;
+        }
+        log(format!("menyalakan service profil: {}", ids.join(", ")), "stdout");
+        let result = match crate::commands::services::load_services_internal(&app).await {
+            Ok(defs) => crate::runtime::start(&app, &defs, &ids).await,
+            Err(e) => Err(e),
+        };
+        if let Err(e) = result {
+            log(format!("service profil gagal dinyalakan: {}", e), "stderr");
+        }
+    });
 }
 
 #[tauri::command]
@@ -89,6 +139,7 @@ pub fn autostart(app: &AppHandle) {
         process::cleanup_leftovers(&app).await;
         let Ok(cfg) = load_config(&app) else { return };
         for project in cfg.projects.iter().filter(|p| p.auto_start) {
+            start_profile_services(&app, project);
             if let Err(e) = process::start(&app, project).await {
                 use tauri::Emitter;
                 let _ = app.emit(
@@ -303,6 +354,26 @@ pub async fn legacy_remove_cert() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn services_for_follows_option_and_profile() {
+        let profiles = vec![Profile {
+            id: "astra".into(),
+            name: "Astra".into(),
+            service_ids: vec!["mysql".into(), "redis".into()],
+        }];
+        let mut p: Project = serde_json::from_str(r#"{"id":"1","name":"api","profileId":"astra"}"#).unwrap();
+        // Config lama tanpa field: opsi mati, tidak ada yang dinyalakan.
+        assert!(!p.start_services);
+        assert!(services_for(&p, &profiles).is_empty());
+        p.start_services = true;
+        assert_eq!(services_for(&p, &profiles), vec!["mysql".to_string(), "redis".to_string()]);
+        // Profil sudah dihapus atau tidak dipilih.
+        p.profile_id = Some("gone".into());
+        assert!(services_for(&p, &profiles).is_empty());
+        p.profile_id = None;
+        assert!(services_for(&p, &profiles).is_empty());
+    }
 
     const A: &str = "0123456789ABCDEF0123456789ABCDEF01234567";
     const B: &str = "89abcdef0123456789abcdef0123456789abcdef";

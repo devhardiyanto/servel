@@ -34,12 +34,41 @@ const TAB_KEYWORDS: Record<string, string[]> = {
   mise: ['mise '],
 }
 
-const filteredLines = computed(() => {
+// Filter di tab Projects: satu project saja, atau semua ('').
+const projectFilter = ref('')
+const problemsOnly = ref(false)
+
+const projectNames = computed(() => useConfig().config.value.projects.map((p) => p.name))
+
+function isProblem(l: { level?: string }): boolean {
+  return l.level === 'error' || l.level === 'warn'
+}
+
+/** Chip per project: nama + jumlah baris error, supaya terlihat siapa yang bermasalah. */
+const projectChips = computed(() =>
+  useConfig()
+    .config.value.projects.map((p) => ({
+      name: p.name,
+      runnable: !!p.command,
+      total: lines.value.filter((l) => l.src === p.name).length,
+      errors: lines.value.filter((l) => l.src === p.name && l.level === 'error').length,
+    }))
+    // Project tanpa perintah tidak pernah punya output; jangan jadi chip kosong.
+    .filter((c) => c.runnable || c.total > 0),
+)
+
+// Project yang difilter dihapus/diganti nama → kembali ke semua.
+watch(projectNames, (names) => {
+  if (projectFilter.value && !names.includes(projectFilter.value)) projectFilter.value = ''
+})
+
+const tabLines = computed(() => {
   if (activeTab.value === 'All') return lines.value
   const tab = activeTab.value
   // Output dev server memakai nama project sebagai sumber.
   if (tab === 'Projects') {
-    const names = new Set(useConfig().config.value.projects.map((p) => p.name))
+    if (projectFilter.value) return lines.value.filter((l) => l.src === projectFilter.value)
+    const names = new Set(projectNames.value)
     return lines.value.filter((l) => names.has(l.src))
   }
   const srcSet = TAB_SRC[tab] ?? []
@@ -50,6 +79,8 @@ const filteredLines = computed(() => {
     return keywords.some((kw) => textLower.includes(kw))
   })
 })
+
+const filteredLines = computed(() => (problemsOnly.value ? tabLines.value.filter(isProblem) : tabLines.value))
 
 const errorCount = computed(
   () => filteredLines.value.filter((l) => l.level === 'error').length,
@@ -76,7 +107,7 @@ onUnmounted(() => {
 })
 
 watch(
-  () => lines.value.length,
+  () => [lines.value.length, activeTab.value, projectFilter.value, problemsOnly.value],
   async () => {
     if (autoScroll.value) {
       await nextTick()
@@ -183,6 +214,13 @@ function triggerDownload(text: string, filename: string): void {
         >{{ tab }}</button>
       </nav>
       <div class="lv-header__right">
+        <button
+          class="lv-btn lv-btn--outline"
+          :class="{ 'lv-btn--problems-on': problemsOnly }"
+          :aria-pressed="problemsOnly"
+          title="Show only lines marked as error or warning"
+          @click="problemsOnly = !problemsOnly"
+        >Errors &amp; warnings</button>
         <button class="lv-btn lv-btn--outline" @click="clear">Clear</button>
         <button
           class="lv-btn lv-btn--autoscroll"
@@ -193,6 +231,22 @@ function triggerDownload(text: string, filename: string): void {
         </button>
       </div>
     </header>
+
+    <!-- Filter per project -->
+    <div v-if="activeTab === 'Projects' && projectChips.length > 1" class="lv-chips">
+      <button class="lv-chip" :class="{ 'lv-chip--active': projectFilter === '' }" @click="projectFilter = ''">
+        All projects
+      </button>
+      <button
+        v-for="c in projectChips"
+        :key="c.name"
+        class="lv-chip"
+        :class="{ 'lv-chip--active': projectFilter === c.name }"
+        @click="projectFilter = c.name"
+      >
+        {{ c.name }}<span v-if="c.errors > 0" class="lv-chip__err">{{ c.errors }}</span>
+      </button>
+    </div>
 
     <!-- Log area -->
     <div ref="logAreaRef" class="lv-area" tabindex="0" @click="focusContainer">
@@ -215,7 +269,7 @@ function triggerDownload(text: string, filename: string): void {
         <span class="lv-text">{{ line.text }}</span>
       </div>
       <div v-if="filteredLines.length === 0" class="lv-empty">
-        no logs — output will appear here
+        {{ problemsOnly && tabLines.length > 0 ? 'no errors or warnings in these logs' : 'no logs — output will appear here' }}
       </div>
     </div>
 
@@ -284,6 +338,56 @@ function triggerDownload(text: string, filename: string): void {
   letter-spacing: 0.1em;
   color: var(--muted);
   text-transform: uppercase;
+}
+
+.lv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px var(--space-4);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.lv-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.lv-chip:hover {
+  color: var(--text);
+}
+
+.lv-chip--active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.lv-chip__err {
+  color: var(--red);
+  font-weight: 700;
+}
+
+.lv-btn--problems-on {
+  color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 50%, transparent);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+}
+
+.lv-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .lv-tabs {
