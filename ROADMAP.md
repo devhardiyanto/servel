@@ -249,10 +249,22 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Start project dengan opsi service aktif saat container belum jalan (WSL containers).
 - Filter per project dan "Errors & warnings" dengan dua dev server berjalan.
 
+## v2.5.0 — start/stop/restart project dari CLI
+
+**Selesai**
+
+- `control`: kanal kontrol lokal. Aplikasi mendengarkan di `127.0.0.1:<port acak>`, menulis `control.json` (port, token acak per sesi, pid) ke folder data. Satu baris permintaan `<token> <aksi> [project]`, satu baris JSON balasan. Aksi: start, stop, restart, status.
+- CLI: `servel start|stop|restart <project>` dan `servel ps`. Project dicari dari nama (tanpa beda huruf besar/kecil) atau id; nama ganda ditolak.
+- Start/restart dari CLI memakai jalur yang sama dengan UI, termasuk opsi service profil.
+
+**Perlu verifikasi di Windows**
+
+- Keempat perintah dari PowerShell 5.1, pwsh 7, cmd, dan Git Bash (skrip CLI tidak bisa dijalankan di lingkungan pengembangan; hanya protokolnya yang diuji).
+- `control.json` sisa sesi yang mati paksa → pesan "aplikasi Servel tidak berjalan".
+
 ## Rencana berikutnya
 
 - v2.4.x — patch dari uji lapangan; screenshot baru di `docs/screenshots/` dan bagian code signing di README (hanya dokumen, ikut patch mana pun).
-- v2.5.0 — start/stop/restart project dari CLI (`servel start <project>`).
 - v2.6.0 — unduh extension PECL (redis, xdebug, imagick) dari dalam aplikasi.
 - v2.7.0 — satu bahasa untuk seluruh label, log, dan pesan error (sekarang campur Inggris/Indonesia). Diff lebar, jadi rilis tersendiri.
 - Code signing begitu sertifikat tersedia.

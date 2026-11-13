@@ -57,14 +57,24 @@ pub async fn sites_runtime(app: AppHandle) -> Vec<SiteRuntime> {
 /// sudah tersimpan ke config di disk.
 #[tauri::command]
 pub async fn site_start(app: AppHandle, project: Project) -> Result<(), String> {
-    start_profile_services(&app, &project);
-    process::start(&app, &project).await
+    start_with_services(&app, &project).await
 }
 
 #[tauri::command]
 pub async fn site_restart(app: AppHandle, project: Project) -> Result<(), String> {
-    start_profile_services(&app, &project);
-    process::restart(&app, &project).await
+    restart_with_services(&app, &project).await
+}
+
+/// Start dev server; service profilnya ikut bila opsinya aktif. Dipakai UI
+/// dan CLI (`control`).
+pub async fn start_with_services(app: &AppHandle, project: &Project) -> Result<(), String> {
+    start_profile_services(app, project);
+    process::start(app, project).await
+}
+
+pub async fn restart_with_services(app: &AppHandle, project: &Project) -> Result<(), String> {
+    start_profile_services(app, project);
+    process::restart(app, project).await
 }
 
 /// Service yang ikut dinyalakan saat `project` dijalankan: isi profilnya,
