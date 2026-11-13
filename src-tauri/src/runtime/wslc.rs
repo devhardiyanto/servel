@@ -83,8 +83,8 @@ async fn capture(args: &[String], timeout: Duration) -> Result<Output, String> {
         };
 
         let output = match result {
-            Err(_) => return Err(format!("wslc {} timeout ({} dtk)", args.join(" "), timeout.as_secs())),
-            Ok(Err(e)) => return Err(format!("Gagal menjalankan wslc: {}", e)),
+            Err(_) => return Err(format!("wslc {} timed out ({} s)", args.join(" "), timeout.as_secs())),
+            Ok(Err(e)) => return Err(format!("Could not run wslc: {}", e)),
             Ok(Ok(o)) => o,
         };
 
@@ -134,10 +134,10 @@ async fn run_streamed(
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
-                .map_err(|e| format!("Gagal menjalankan wslc: {}", e))?;
+                .map_err(|e| format!("Could not run wslc: {}", e))?;
 
-            let stdout = child.stdout.take().ok_or("stdout wslc tidak tersedia")?;
-            let stderr = child.stderr.take().ok_or("stderr wslc tidak tersedia")?;
+            let stdout = child.stdout.take().ok_or("wslc stdout not available")?;
+            let stderr = child.stderr.take().ok_or("wslc stderr not available")?;
 
             let app_out = app.clone();
             let src_out = source.to_string();
@@ -177,7 +177,7 @@ async fn run_streamed(
                         timeout.as_secs() / 60
                     ));
                 }
-                Ok(Err(e)) => return Err(format!("Gagal menunggu wslc: {}", e)),
+                Ok(Err(e)) => return Err(format!("Waiting for wslc failed: {}", e)),
                 Ok(Ok(s)) => s,
             };
             let _ = out_task.await;
@@ -194,7 +194,7 @@ async fn run_streamed(
             continue;
         }
         return Err(friendly_error(&stderr_acc)
-            .unwrap_or_else(|| last_line(&stderr_acc).unwrap_or_else(|| "wslc gagal".to_string())));
+            .unwrap_or_else(|| last_line(&stderr_acc).unwrap_or_else(|| "wslc failed".to_string())));
     }
 }
 
@@ -207,12 +207,12 @@ pub fn friendly_error(stderr: &str) -> Option<String> {
     let lower = stderr.to_lowercase();
     if lower.contains("too many volumes") {
         return Some(
-            "Batas mount volume sesi WSLC tercapai — jalankan `wsl --shutdown` lalu coba lagi".to_string(),
+            "The WSLC session reached its volume mount limit. Run `wsl --shutdown`, then try again".to_string(),
         );
     }
     if lower.contains("error_sharing_violation") {
         return Some(
-            "Sesi WSLC sedang terkunci — tunggu sebentar; bila berulang jalankan `wsl --shutdown`".to_string(),
+            "The WSLC session is locked. Wait a moment; if it keeps happening, run `wsl --shutdown`".to_string(),
         );
     }
     let port_hint = lower.contains("address already in use")
@@ -220,7 +220,7 @@ pub fn friendly_error(stderr: &str) -> Option<String> {
         || lower.contains("error_address_already_associated")
         || (lower.contains("port") && lower.contains("in use"));
     if port_hint {
-        return Some("Port sudah dipakai aplikasi lain — tutup aplikasi tersebut lalu Start ulang".to_string());
+        return Some("The port is used by another program. Close that program, then Start again".to_string());
     }
     None
 }
@@ -605,7 +605,7 @@ pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> R
     let leaf = host
         .file_name()
         .and_then(|f| f.to_str())
-        .ok_or("nama file tidak valid")?
+        .ok_or("file name is not valid")?
         .to_string();
     let dir = host.parent().map(std::path::Path::to_path_buf).unwrap_or_default();
 
@@ -633,25 +633,25 @@ pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> R
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("Gagal menjalankan wslc: {}", e))?;
-    let mut stdin = child.stdin.take().ok_or("stdin wslc tidak tersedia")?;
+        .map_err(|e| format!("Could not run wslc: {}", e))?;
+    let mut stdin = child.stdin.take().ok_or("wslc stdin not available")?;
     let mut file = tokio::fs::File::open(host)
         .await
-        .map_err(|e| format!("gagal membuka {}: {}", host.display(), e))?;
+        .map_err(|e| format!("could not open {}: {}", host.display(), e))?;
     tokio::io::copy(&mut file, &mut stdin)
         .await
-        .map_err(|e| format!("gagal mengirim file ke container: {}", e))?;
+        .map_err(|e| format!("could not send the file to the container: {}", e))?;
     stdin.shutdown().await.ok();
     drop(stdin);
     let out = tokio::time::timeout(RUN_TIMEOUT, child.wait_with_output())
         .await
-        .map_err(|_| "kirim file ke container timeout".to_string())?
-        .map_err(|e| format!("gagal menunggu wslc: {}", e))?;
+        .map_err(|_| "sending the file to the container timed out".to_string())?
+        .map_err(|e| format!("waiting for wslc failed: {}", e))?;
     if out.status.success() {
         Ok(())
     } else {
         Err(format!(
-            "container cp dan stdin sama-sama gagal: {}",
+            "container cp and stdin both failed: {}",
             String::from_utf8_lossy(&out.stderr).trim()
         ))
     }
@@ -675,7 +675,7 @@ pub async fn exec_status(name: &str, cmd: &str, timeout: Duration) -> Option<i32
 pub async fn status() -> Result<Vec<ServiceStatus>, String> {
     let out = capture_ok(&owned(&["container", "list", "--all", "--format", "json"]), QUERY_TIMEOUT)
         .await
-        .map_err(|e| format!("wslc container list gagal: {}", e))?;
+        .map_err(|e| format!("wslc container list failed: {}", e))?;
     Ok(parse_list_json(&out))
 }
 
@@ -689,7 +689,7 @@ const STATS_MAX_FAILURES: u32 = 3;
 /// Output kosong saat tidak ada container running → `Ok(vec![])`.
 pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
     if STATS_FAILURES.load(Ordering::Relaxed) >= STATS_MAX_FAILURES {
-        return Err("wslc stats dinonaktifkan untuk sesi ini".to_string());
+        return Err("wslc stats is off for this session".to_string());
     }
     match capture_ok(&owned(&["stats", "--format", "json"]), STATS_TIMEOUT).await {
         Ok(out) => {
@@ -698,7 +698,7 @@ pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
         }
         Err(e) => {
             STATS_FAILURES.fetch_add(1, Ordering::Relaxed);
-            Err(format!("wslc stats gagal: {}", e))
+            Err(format!("wslc stats failed: {}", e))
         }
     }
 }
@@ -720,7 +720,7 @@ async fn ensure_volumes(app: &AppHandle, def: &ServiceDef, known: &mut Option<Ha
         // Gagal create (mis. sudah ada tapi list gagal dibaca) tidak fatal —
         // `run` yang akan melaporkan bila volume benar-benar bermasalah.
         if capture_ok(&owned(&["volume", "create", &name]), QUERY_TIMEOUT).await.is_ok() {
-            emit(app, &source, "stdout", &format!("volume {} dibuat", name));
+            emit(app, &source, "stdout", &format!("volume {} created", name));
         }
         if let Some(k) = known.as_mut() {
             k.insert(name);
@@ -746,7 +746,7 @@ async fn start_one(
             app,
             &source,
             "stdout",
-            &format!("{} sudah ada (dibuat di luar Servel) — dipakai apa adanya", name),
+            &format!("{} already exists (created outside Servel); using it as it is", name),
         );
     }
 
@@ -758,7 +758,7 @@ async fn start_one(
         }
         StartAction::Recreate | StartAction::Create => {
             if action == StartAction::Recreate {
-                emit(app, &source, "stdout", &format!("definisi {} berubah — membuat ulang container (data volume tetap)", name));
+                emit(app, &source, "stdout", &format!("the definition of {} changed; recreating the container (volume data is kept)", name));
                 run_streamed(app, &owned(&["remove", "-f", name]), &source, STOP_TIMEOUT).await?;
                 state.remove(name);
             }
@@ -782,7 +782,7 @@ pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) ->
 
     for id in services {
         let Some(def) = defs.iter().find(|d| &d.id == id) else {
-            emit(app, "SERVEL", "stderr", &format!("service '{}' tidak dikenal — dilewati", id));
+            emit(app, "SERVEL", "stderr", &format!("unknown service '{}', skipped", id));
             continue;
         };
         let existing = by_name.get(def.container_name.as_str()).copied();
@@ -798,7 +798,7 @@ pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) ->
     if failed.is_empty() {
         Ok(())
     } else {
-        Err(format!("Gagal start {}", failed.join("; ")))
+        Err(format!("Could not start {}", failed.join("; ")))
     }
 }
 
@@ -813,7 +813,7 @@ async fn stop_names(app: &AppHandle, targets: Vec<(String, String)>) -> Result<(
     if failed.is_empty() {
         Ok(())
     } else {
-        Err(format!("Gagal stop {}", failed.join("; ")))
+        Err(format!("Could not stop {}", failed.join("; ")))
     }
 }
 
@@ -1075,7 +1075,7 @@ mod tests {
         assert!(is_transient("HRESULT ERROR_SHARING_VIOLATION"));
         assert!(!is_transient("no such container"));
         assert!(friendly_error("Too many volumes have been mounted (limit: 15)").unwrap().contains("wsl --shutdown"));
-        assert!(friendly_error("bind: address already in use").unwrap().contains("Port"));
+        assert!(friendly_error("bind: address already in use").unwrap().contains("port"));
         assert!(friendly_error("image not found").is_none());
     }
 }

@@ -69,9 +69,9 @@ async function handleDeleteProfile(id: string, name: string): Promise<void> {
   if (config.value.profiles.length <= 1) return
   let ok = false
   try {
-    ok = await ask(`Hapus profil "${name}"?`, { title: 'Hapus Profil', kind: 'warning' })
+    ok = await ask(`Delete profile "${name}"?`, { title: 'Delete profile', kind: 'warning' })
   } catch {
-    ok = window.confirm(`Hapus profil "${name}"?`)
+    ok = window.confirm(`Delete profile "${name}"?`)
   }
   if (!ok) return
   deleteProfile(id)
@@ -445,9 +445,9 @@ onMounted(async () => {
 
         <template v-else-if="activeNav === 'services'">
           <div class="section-block">
-            <div class="section-title">PROFIL</div>
+            <div class="section-title">PROFILES</div>
             <p class="section-hint">
-              Preset pilihan service. Ganti profil aktif lewat switcher di Dashboard.
+              Saved sets of services. Change the active profile with the switcher on the Dashboard.
             </p>
 
             <div class="profile-list">
@@ -462,8 +462,8 @@ onMounted(async () => {
                     @keyup.esc="cancelEditProfile"
                   />
                   <div class="profile-actions">
-                    <button class="action-btn" @click="commitEditProfile">Simpan</button>
-                    <button class="action-btn" @click="cancelEditProfile">Batal</button>
+                    <button class="action-btn" @click="commitEditProfile">Save</button>
+                    <button class="action-btn" @click="cancelEditProfile">Cancel</button>
                   </div>
                 </template>
                 <template v-else>
@@ -477,9 +477,9 @@ onMounted(async () => {
                     <button
                       class="action-btn action-btn--red"
                       :disabled="config.profiles.length <= 1"
-                      :title="config.profiles.length <= 1 ? 'Minimal 1 profil' : 'Hapus profil'"
+                      :title="config.profiles.length <= 1 ? 'At least one profile is needed' : 'Delete profile'"
                       @click="handleDeleteProfile(p.id, p.name)"
-                    >Hapus</button>
+                    >Delete</button>
                   </div>
                 </template>
               </div>
@@ -491,14 +491,14 @@ onMounted(async () => {
                 class="profile-create-input"
                 type="text"
                 maxlength="40"
-                placeholder="Nama profil baru…"
+                placeholder="New profile name…"
                 @keyup.enter="handleCreateProfile"
               />
               <button
                 class="action-btn action-btn--accent"
                 :disabled="!newProfileName.trim()"
                 @click="handleCreateProfile"
-              >Buat dari selection</button>
+              >Create from selection</button>
             </div>
           </div>
 
@@ -609,15 +609,15 @@ onMounted(async () => {
             </div>
 
             <div v-if="updateAvailable" class="update-banner">
-              <span class="ub-text">Versi baru tersedia: <strong>v{{ latestVersion }}</strong></span>
+              <span class="ub-text">New version available: <strong>v{{ latestVersion }}</strong></span>
               <span class="ub-actions">
                 <button v-if="canInstall" class="ub-link" :disabled="installingUpdate" @click="openReleasePage">
-                  Catatan rilis
+                  Release notes
                 </button>
                 <button v-if="canInstall" class="ub-download" :disabled="installingUpdate" @click="installUpdate">
-                  {{ installingUpdate ? 'Memasang…' : 'Update sekarang' }}
+                  {{ installingUpdate ? 'Installing…' : 'Update now' }}
                 </button>
-                <button v-else class="ub-download" @click="openReleasePage">Buka halaman rilis</button>
+                <button v-else class="ub-download" @click="openReleasePage">Open release page</button>
               </span>
             </div>
             <div v-if="installingUpdate" class="update-progress">
@@ -629,19 +629,19 @@ onMounted(async () => {
                 />
               </div>
               <span class="up-text">
-                {{ installPercent !== null ? `Mengunduh ${installPercent}%` : 'Mengunduh…' }}
-                · Servel akan menutup, memasang, lalu membuka lagi.
+                {{ installPercent !== null ? `Downloading ${installPercent}%` : 'Downloading…' }}
+                · Servel will close, install, then open again.
               </span>
             </div>
             <p v-if="installError" class="update-error">
-              Update otomatis gagal: {{ installError }}. Unduh installer dari halaman rilis.
+              Automatic update failed: {{ installError }}. Download the installer from the release page.
             </p>
 
             <div class="update-row">
               <button class="update-check-btn" :disabled="checkingUpdate" @click="checkUpdate">
-                {{ checkingUpdate ? 'Memeriksa…' : 'Cek update' }}
+                {{ checkingUpdate ? 'Checking…' : 'Check for updates' }}
               </button>
-              <span v-if="!updateAvailable && lastChecked" class="update-uptodate">Sudah versi terbaru</span>
+              <span v-if="!updateAvailable && lastChecked" class="update-uptodate">You have the latest version</span>
             </div>
           </div>
         </template>

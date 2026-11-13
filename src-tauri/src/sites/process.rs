@@ -276,16 +276,16 @@ mod job {
     }
 
     pub fn assign(pid: u32) -> Result<(), String> {
-        let job = job().ok_or("job object tidak bisa dibuat")?;
+        let job = job().ok_or("could not create the job object")?;
         unsafe {
             let proc = OpenProcess(PROCESS_SET_QUOTA | PROCESS_TERMINATE, 0, pid);
             if proc.is_null() {
-                return Err(format!("proses {} tidak bisa dibuka", pid));
+                return Err(format!("could not open process {}", pid));
             }
             let ok = AssignProcessToJobObject(job, proc);
             CloseHandle(proc);
             if ok == 0 {
-                return Err("proses tidak bisa dimasukkan ke job object".to_string());
+                return Err("could not add the process to the job object".to_string());
             }
         }
         Ok(())
@@ -366,7 +366,7 @@ pub async fn cleanup_leftovers<R: Runtime>(app: &AppHandle<R>) -> usize {
         if process_started(rec.pid).await.as_deref() == Some(rec.started.as_str()) {
             kill_tree(rec.pid).await;
             killed += 1;
-            emit_log(app, "SERVEL", &format!("menghentikan dev server sisa sesi sebelumnya (project {}, pid {})", id, rec.pid), Some("warn"));
+            emit_log(app, "SERVEL", &format!("stopping a dev server left from the previous session (project {}, pid {})", id, rec.pid), Some("warn"));
         }
     }
     killed
@@ -374,16 +374,16 @@ pub async fn cleanup_leftovers<R: Runtime>(app: &AppHandle<R>) -> usize {
 
 pub fn validate(site: &Project) -> Result<(), String> {
     if site.path.trim().is_empty() {
-        return Err("folder project belum dipilih".to_string());
+        return Err("the project folder is not chosen yet".to_string());
     }
     if !Path::new(&site.path).is_dir() {
-        return Err(format!("folder tidak ditemukan: {}", site.path));
+        return Err(format!("folder not found: {}", site.path));
     }
     if site.command.trim().is_empty() {
-        return Err("perintah belum diisi".to_string());
+        return Err("the command is empty".to_string());
     }
     if site.port < 1024 {
-        return Err("port harus 1024–65535".to_string());
+        return Err("port must be 1024–65535".to_string());
     }
     for (key, value) in &site.env {
         validate_env(key, value)?;
@@ -394,13 +394,13 @@ pub fn validate(site: &Project) -> Result<(), String> {
 /// Nama variabel: tanpa spasi, `=`, atau NUL. `PORT` milik Servel (port site).
 pub fn validate_env(key: &str, value: &str) -> Result<(), String> {
     if key.is_empty() || key.chars().any(|c| c == '=' || c == '\0' || c.is_whitespace()) {
-        return Err(format!("nama environment variable tidak valid: \"{}\"", key));
+        return Err(format!("environment variable name is not valid: \"{}\"", key));
     }
     if key.eq_ignore_ascii_case("PORT") {
-        return Err("PORT diatur dari kolom Port, bukan dari Environment".to_string());
+        return Err("PORT is set in the Port field, not in Environment".to_string());
     }
     if value.contains('\0') {
-        return Err(format!("nilai {} mengandung karakter NUL", key));
+        return Err(format!("the value of {} contains a NUL character", key));
     }
     Ok(())
 }
@@ -409,11 +409,11 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     validate(site)?;
     let procs = app.state::<SiteProcs>();
     if procs.is_active(&site.id) {
-        return Err(format!("{} sudah berjalan", site.name));
+        return Err(format!("{} is already running", site.name));
     }
     if !port_free(site.port).await {
         return Err(format!(
-            "port {} sedang dipakai program lain. Ganti port site ini atau hentikan program itu.",
+            "port {} is used by another program. Change this project's port or stop that program.",
             site.port
         ));
     }
@@ -440,7 +440,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
             Err(e) => emit_log(
                 app,
                 &source,
-                &format!("mise env gagal ({}); memakai versi dari PATH", e),
+                &format!("mise env failed ({}); using the versions on PATH", e),
                 Some("warn"),
             ),
         }
@@ -452,15 +452,15 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
         emit_log(app, &source, &format!("env: {}", keys.join(", ")), None);
     }
 
-    emit_log(app, &source, &format!("$ {}  (di {})", line, site.path), None);
-    let mut child = cmd.spawn().map_err(|e| format!("gagal menjalankan perintah: {}", e))?;
+    emit_log(app, &source, &format!("$ {}  (in {})", line, site.path), None);
+    let mut child = cmd.spawn().map_err(|e| format!("could not run the command: {}", e))?;
     let pid = child.id();
 
     // Pastikan dev server tidak tertinggal bila Servel mati paksa.
     if let Some(pid) = pid {
         #[cfg(target_os = "windows")]
         if let Err(e) = job::assign(pid) {
-            emit_log(app, &source, &format!("{}; proses mungkin tertinggal bila Servel crash", e), Some("warn"));
+            emit_log(app, &source, &format!("{}; the process may be left running if Servel crashes", e), Some("warn"));
         }
         if let Some(started) = process_started(pid).await {
             procs.records.lock().unwrap().insert(site.id.clone(), Record { pid, started });
@@ -526,11 +526,11 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
             }
         }
         if requested {
-            emit_log(&wait_app, &wait_src, "dihentikan", None);
+            emit_log(&wait_app, &wait_src, "stopped", None);
         } else {
             let msg = match code {
-                Some(c) => format!("proses berhenti (exit {})", c),
-                None => "proses berhenti".to_string(),
+                Some(c) => format!("the process ended (exit {})", c),
+                None => "the process ended".to_string(),
             };
             emit_log(&wait_app, &wait_src, &msg, Some("error"));
         }
@@ -634,7 +634,7 @@ pub async fn restart<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(
     while procs.is_active(&site.id) || !port_free(site.port).await {
         if tokio::time::Instant::now() >= deadline {
             return Err(format!(
-                "{} belum berhenti setelah 15 dtk; port {} masih dipakai",
+                "{} has not stopped after 15 s; port {} is still in use",
                 site.name, site.port
             ));
         }
@@ -715,7 +715,7 @@ mod tests {
         let dir = dir.to_string_lossy();
         assert!(validate(&site("", "npm run dev", 3000)).unwrap_err().contains("folder"));
         assert!(validate(&site("/definitely/not/here", "npm run dev", 3000)).is_err());
-        assert!(validate(&site(&dir, "  ", 3000)).unwrap_err().contains("perintah"));
+        assert!(validate(&site(&dir, "  ", 3000)).unwrap_err().contains("command"));
         assert!(validate(&site(&dir, "npm run dev", 80)).unwrap_err().contains("port"));
         assert!(validate(&site(&dir, "npm run dev", 3000)).is_ok());
 

@@ -304,21 +304,21 @@ impl Default for ConfigState {
 fn write_config_atomic(path: &Path, json: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
-            .map_err(|e| format!("gagal create_dir_all: {}", e))?;
+            .map_err(|e| format!("could not create the config folder: {}", e))?;
     }
 
     let tmp_path = path.with_extension("tmp");
     {
         let mut f = std::fs::File::create(&tmp_path)
-            .map_err(|e| format!("gagal buat config.tmp: {}", e))?;
+            .map_err(|e| format!("could not create config.tmp: {}", e))?;
         f.write_all(json.as_bytes())
-            .map_err(|e| format!("gagal tulis config.tmp: {}", e))?;
+            .map_err(|e| format!("could not write config.tmp: {}", e))?;
         f.sync_all()
-            .map_err(|e| format!("gagal fsync config.tmp: {}", e))?;
+            .map_err(|e| format!("could not flush config.tmp: {}", e))?;
     }
 
     std::fs::rename(&tmp_path, path)
-        .map_err(|e| format!("gagal rename config.tmp \u{2192} config.json: {}", e))?;
+        .map_err(|e| format!("could not rename config.tmp to config.json: {}", e))?;
 
     // fsync direktori parent agar entri rename durable. Pada Windows File::open ke
     // direktori tidak selalu didukung — best-effort, abaikan error.
@@ -354,7 +354,7 @@ pub fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
     let config_dir = app
         .path()
         .app_config_dir()
-        .map_err(|e| format!("gagal resolve app_config_dir: {}", e))?;
+        .map_err(|e| format!("could not find the app config folder: {}", e))?;
     Ok(config_dir.join("config.json"))
 }
 
@@ -367,7 +367,7 @@ pub async fn config_read(app: AppHandle) -> Result<ConfigState, String> {
     }
 
     let raw = std::fs::read_to_string(&path)
-        .map_err(|e| format!("gagal baca config.json: {}", e));
+        .map_err(|e| format!("could not read config.json: {}", e));
 
     let raw = match raw {
         Ok(s) => s,
@@ -414,7 +414,7 @@ pub async fn config_write(app: AppHandle, mut config: ConfigState) -> Result<(),
     project_active_selection(&mut config);
 
     let json = serde_json::to_string_pretty(&config)
-        .map_err(|e| format!("gagal serialize config: {}", e))?;
+        .map_err(|e| format!("could not serialize the config: {}", e))?;
 
     // Atomic + durable write: tulis ke .tmp, fsync, lalu rename.
     write_config_atomic(&path, &json)?;

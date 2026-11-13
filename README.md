@@ -57,7 +57,7 @@ Download the installer for your OS from the [Releases page](https://github.com/d
 4. The installer also adds the `servel` terminal command to your user PATH (see [`servel` terminal command](#servel-terminal-command-windows)).
 5. Launch Servel from the Start Menu. With WSL 3.0.1+, Servel uses the built-in WSL containers automatically.
 
-**Updating:** from v2.1 on, open **Settings → About → Cek update → Update sekarang**. Servel stops running projects, installs the new version and reopens. Older versions update by installing the new release manually once.
+**Updating:** from v2.1 on, open **Settings → About → Check for updates → Update now**. Servel stops running projects, installs the new version and reopens. Older versions update by installing the new release manually once.
 
 If you changed `.wslconfig`, restart WSL once so it takes effect:
 

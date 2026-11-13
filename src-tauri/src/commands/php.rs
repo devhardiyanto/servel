@@ -27,16 +27,16 @@ fn validate_version_string(version: &str) -> Result<(), String> {
         .chars()
         .all(|c| c.is_ascii_digit() || c == '.');
     if !valid || version.is_empty() {
-        return Err(format!("version '{}' tidak valid — hanya digit dan titik yang diizinkan", version));
+        return Err(format!("version '{}' is not valid: only digits and dots are allowed", version));
     }
     // Must match major.minor pattern at minimum
     let parts: Vec<&str> = version.split('.').collect();
     if parts.len() < 2 || parts.len() > 3 {
-        return Err(format!("version '{}' tidak valid — format harus major.minor[.patch]", version));
+        return Err(format!("version '{}' is not valid: use major.minor[.patch]", version));
     }
     for part in &parts {
         if part.is_empty() || part.parse::<u32>().is_err() {
-            return Err(format!("version '{}' tidak valid — setiap segmen harus angka", version));
+            return Err(format!("version '{}' is not valid: every part must be a number", version));
         }
     }
     Ok(())
@@ -61,11 +61,11 @@ pub async fn php_list_installed() -> Result<Vec<PhpVersion>, String> {
         .stderr(Stdio::piped())
         .output()
         .await
-        .map_err(|e| format!("phpvm tidak ditemukan di PATH: {}", e))?;
+        .map_err(|e| format!("phpvm not found on PATH: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("phpvm list gagal: {}", stderr.trim()));
+        return Err(format!("phpvm list failed: {}", stderr.trim()));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -86,7 +86,7 @@ pub async fn php_get_active() -> Result<Option<String>, String> {
         .stderr(Stdio::piped())
         .output()
         .await
-        .map_err(|e| format!("phpvm tidak ditemukan di PATH: {}", e))?;
+        .map_err(|e| format!("phpvm not found on PATH: {}", e))?;
 
     if !output.status.success() {
         // phpvm current may exit non-zero when no version is active — treat as None.
@@ -114,10 +114,10 @@ pub async fn php_switch(window: Window, version: String, scope: Option<String>) 
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("phpvm tidak ditemukan di PATH: {}", e))?;
+        .map_err(|e| format!("phpvm not found on PATH: {}", e))?;
 
-    let stdout = child.stdout.take().ok_or("stdout tidak tersedia")?;
-    let stderr = child.stderr.take().ok_or("stderr tidak tersedia")?;
+    let stdout = child.stdout.take().ok_or("stdout not available")?;
+    let stderr = child.stderr.take().ok_or("stderr not available")?;
 
     let window_out = window.clone();
     let stdout_task = tokio::spawn(async move {
@@ -140,10 +140,10 @@ pub async fn php_switch(window: Window, version: String, scope: Option<String>) 
     let status = child
         .wait()
         .await
-        .map_err(|e| format!("Gagal menunggu phpvm: {}", e))?;
+        .map_err(|e| format!("Waiting for phpvm failed: {}", e))?;
 
     if !status.success() {
-        return Err(format!("phpvm use {} gagal (exit {})", version, status));
+        return Err(format!("phpvm use {} failed (exit {})", version, status));
     }
 
     emit_env_line(&window, &format!("switched php → {}", version));
@@ -173,10 +173,10 @@ pub async fn php_install(window: Window, version: String) -> Result<(), String> 
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("phpvm tidak ditemukan di PATH: {}", e))?;
+        .map_err(|e| format!("phpvm not found on PATH: {}", e))?;
 
-    let stdout = child.stdout.take().ok_or("stdout tidak tersedia")?;
-    let stderr = child.stderr.take().ok_or("stderr tidak tersedia")?;
+    let stdout = child.stdout.take().ok_or("stdout not available")?;
+    let stderr = child.stderr.take().ok_or("stderr not available")?;
 
     let window_out = window.clone();
     let stdout_task = tokio::spawn(async move {
@@ -199,10 +199,10 @@ pub async fn php_install(window: Window, version: String) -> Result<(), String> 
     let status = child
         .wait()
         .await
-        .map_err(|e| format!("Gagal menunggu phpvm: {}", e))?;
+        .map_err(|e| format!("Waiting for phpvm failed: {}", e))?;
 
     if !status.success() {
-        return Err(format!("phpvm install {} gagal (exit {})", version, status));
+        return Err(format!("phpvm install {} failed (exit {})", version, status));
     }
 
     Ok(())

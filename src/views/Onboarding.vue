@@ -306,7 +306,7 @@ const fnmOkDesc = computed<string>(() => {
         <div v-if="isLinux && engineInstalledButNotRunning" class="ob-instruction">
           <p class="ob-instruction__title">Start Docker manually:</p>
           <code class="ob-instruction__cmd">sudo systemctl start docker</code>
-          <p class="ob-instruction__hint">Lalu klik "Refresh checks" untuk perbarui status.</p>
+          <p class="ob-instruction__hint">Then click "Refresh checks" to update the status.</p>
         </div>
 
         <p class="ob-note">Already installed everything? Click Refresh to re-check.</p>

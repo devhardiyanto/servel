@@ -94,10 +94,10 @@ pub async fn watch_project(
     let dir = PathBuf::from(&path);
 
     if !dir.exists() {
-        return Err(format!("Path tidak ditemukan: {}", path));
+        return Err(format!("Path not found: {}", path));
     }
     if !dir.is_dir() {
-        return Err(format!("Path bukan direktori: {}", path));
+        return Err(format!("Path is not a folder: {}", path));
     }
 
     // Initial scan — emit immediately if version files already present.
@@ -129,12 +129,12 @@ pub async fn watch_project(
             }
         },
     )
-    .map_err(|e| format!("Gagal membuat file watcher: {}", e))?;
+    .map_err(|e| format!("Could not create the file watcher: {}", e))?;
 
     debouncer
         .watcher()
         .watch(&dir, RecursiveMode::NonRecursive)
-        .map_err(|e| format!("Gagal watch direktori: {}", e))?;
+        .map_err(|e| format!("Could not watch the folder: {}", e))?;
 
     // Replace the previous watcher (drop old, store new).
     let mut guard = state.lock().map_err(|e| format!("State lock error: {}", e))?;

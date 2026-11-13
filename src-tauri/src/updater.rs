@@ -40,8 +40,8 @@ pub fn progress(downloaded: u64, total: Option<u64>) -> UpdateProgress {
 /// `Some(info)` bila ada versi lebih baru yang bisa dipasang dari sini.
 #[tauri::command]
 pub async fn update_check(app: AppHandle) -> Result<Option<UpdateInfo>, String> {
-    let updater = app.updater().map_err(|e| format!("updater tidak tersedia: {}", e))?;
-    let update = updater.check().await.map_err(|e| format!("gagal memeriksa update: {}", e))?;
+    let updater = app.updater().map_err(|e| format!("updater not available: {}", e))?;
+    let update = updater.check().await.map_err(|e| format!("could not check for updates: {}", e))?;
     Ok(update.map(|u| UpdateInfo {
         version: u.version.clone(),
         current_version: u.current_version.clone(),
@@ -54,12 +54,12 @@ pub async fn update_check(app: AppHandle) -> Result<Option<UpdateInfo>, String> 
 /// berjalan, jadi command ini tidak selalu sempat mengembalikan `Ok`.
 #[tauri::command]
 pub async fn update_install(app: AppHandle) -> Result<(), String> {
-    let updater = app.updater().map_err(|e| format!("updater tidak tersedia: {}", e))?;
+    let updater = app.updater().map_err(|e| format!("updater not available: {}", e))?;
     let update = updater
         .check()
         .await
-        .map_err(|e| format!("gagal memeriksa update: {}", e))?
-        .ok_or_else(|| "tidak ada update yang tersedia".to_string())?;
+        .map_err(|e| format!("could not check for updates: {}", e))?
+        .ok_or_else(|| "no update available".to_string())?;
 
     let mut downloaded: u64 = 0;
     let emitter = app.clone();
@@ -72,7 +72,7 @@ pub async fn update_install(app: AppHandle) -> Result<(), String> {
             || {},
         )
         .await
-        .map_err(|e| format!("gagal mengunduh update: {}", e))?;
+        .map_err(|e| format!("could not download the update: {}", e))?;
 
     // Installer Windows menutup Servel secara paksa, jadi hook "stop saat
     // keluar" tidak sempat berjalan. Hentikan dev server di sini; kalau tidak,
@@ -81,7 +81,7 @@ pub async fn update_install(app: AppHandle) -> Result<(), String> {
 
     update
         .install(bytes)
-        .map_err(|e| format!("gagal memasang update: {}", e))?;
+        .map_err(|e| format!("could not install the update: {}", e))?;
 
     app.restart();
 }

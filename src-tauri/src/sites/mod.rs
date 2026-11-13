@@ -35,12 +35,12 @@ pub struct ProjectSuggestion {
 pub async fn project_detect(path: String, taken: Vec<u16>) -> Result<ProjectSuggestion, String> {
     let dir = Path::new(&path);
     if !dir.is_dir() {
-        return Err(format!("folder tidak ditemukan: {}", path));
+        return Err(format!("folder not found: {}", path));
     }
     let detection = detect::detect(dir);
     let taken: HashSet<u16> = taken.into_iter().collect();
     let port = detect::pick_port(detection.default_port, &taken, process::port_bindable)
-        .ok_or_else(|| "tidak ada port kosong".to_string())?;
+        .ok_or_else(|| "no free port".to_string())?;
     Ok(ProjectSuggestion {
         name: detect::name_from_path(&path),
         detection,
@@ -114,13 +114,13 @@ fn start_profile_services(app: &AppHandle, project: &Project) {
         if ids.is_empty() {
             return;
         }
-        log(format!("menyalakan service profil: {}", ids.join(", ")), "stdout");
+        log(format!("starting the profile's services: {}", ids.join(", ")), "stdout");
         let result = match crate::commands::services::load_services_internal(&app).await {
             Ok(defs) => crate::runtime::start(&app, &defs, &ids).await,
             Err(e) => Err(e),
         };
         if let Err(e) = result {
-            log(format!("service profil gagal dinyalakan: {}", e), "stderr");
+            log(format!("the profile's services could not be started: {}", e), "stderr");
         }
     });
 }
@@ -155,7 +155,7 @@ pub fn autostart(app: &AppHandle) {
                 let _ = app.emit(
                     "cmd-output",
                     serde_json::json!({
-                        "line": format!("tidak bisa dijalankan otomatis: {}", e),
+                        "line": format!("could not start on launch: {}", e),
                         "stream": "stderr",
                         "source": project.name,
                     }),
@@ -259,7 +259,7 @@ fn remove_user_cert(thumb: &str) -> Result<(), String> {
     let out = hidden("certutil.exe")
         .args(["-user", "-delstore", "Root", thumb])
         .output()
-        .map_err(|e| format!("certutil tidak bisa dijalankan: {}", e))?;
+        .map_err(|e| format!("could not run certutil: {}", e))?;
     if out.status.success() {
         return Ok(());
     }
@@ -268,8 +268,8 @@ fn remove_user_cert(thumb: &str) -> Result<(), String> {
         .lines()
         .map(str::trim)
         .find(|l| l.starts_with("CertUtil:") && !l.contains("-delstore command"))
-        .unwrap_or("certutil gagal");
-    Err(format!("store pengguna: {}", reason))
+        .unwrap_or("certutil failed");
+    Err(format!("user store: {}", reason))
 }
 
 /// Hapus dari store komputer lewat certutil yang dijalankan sebagai admin
@@ -284,12 +284,12 @@ fn remove_machine_cert(thumb: &str) -> Result<(), String> {
     let status = hidden("powershell.exe")
         .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &script])
         .status()
-        .map_err(|e| format!("powershell tidak bisa dijalankan: {}", e))?;
+        .map_err(|e| format!("could not run powershell: {}", e))?;
     match status.code() {
         Some(0) => Ok(()),
-        Some(1223) => Err("store komputer: izin admin (UAC) ditolak".to_string()),
-        Some(c) => Err(format!("store komputer: certutil gagal (kode {})", c)),
-        None => Err("store komputer: proses dihentikan".to_string()),
+        Some(1223) => Err("computer store: admin permission (UAC) was denied".to_string()),
+        Some(c) => Err(format!("computer store: certutil failed (code {})", c)),
+        None => Err("computer store: the process was ended".to_string()),
     }
 }
 
@@ -320,7 +320,7 @@ pub async fn legacy_status(app: AppHandle) -> LegacyStatus {
 pub async fn legacy_cleanup_hosts() -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(hosts::remove_managed_block)
         .await
-        .map_err(|e| format!("gagal menjalankan pembersihan: {}", e))?
+        .map_err(|e| format!("could not run the cleanup: {}", e))?
 }
 
 /// Cabut sertifikat lokal Caddy. Yang ada di store pengguna dihapus dengan
@@ -347,13 +347,13 @@ pub async fn legacy_remove_cert() -> Result<(), String> {
                 return Ok(());
             }
             if errors.is_empty() {
-                errors.push("sertifikat masih terdaftar setelah dihapus".to_string());
+                errors.push("the certificate is still listed after removal".to_string());
             }
             errors.dedup();
-            Err(format!("Sertifikat belum terhapus — {}", errors.join("; ")))
+            Err(format!("The certificate was not removed: {}", errors.join("; ")))
         })
         .await
-        .map_err(|e| format!("gagal menjalankan pembersihan: {}", e))?
+        .map_err(|e| format!("could not run the cleanup: {}", e))?
     }
     #[cfg(not(target_os = "windows"))]
     {

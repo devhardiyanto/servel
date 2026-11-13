@@ -319,7 +319,7 @@ export function useServices() {
           useLogs('ENV').push({
             ts: new Date().toTimeString().slice(0, 8),
             src: 'ENV',
-            text: `port ${c.port} (${c.serviceName}) sudah dipakai proses lain`,
+            text: `port ${c.port} (${c.serviceName}) is used by another program`,
           })
         }
         return
@@ -339,7 +339,7 @@ export function useServices() {
       // untuk yang sudah running, start yang belum.
       await invoke('services_start', { services: allSelected })
     } catch (err) {
-      const msg = typeof err === 'string' ? err : 'services_start gagal'
+      const msg = typeof err === 'string' ? err : 'services_start failed'
       serviceError.value = msg
       for (const id of newOnes) {
         const current = uiState.value[id]
@@ -363,7 +363,7 @@ export function useServices() {
     try {
       await invoke('services_stop', { services: ids })
     } catch (err) {
-      const msg = typeof err === 'string' ? err : 'services_stop gagal'
+      const msg = typeof err === 'string' ? err : 'services_stop failed'
       serviceError.value = msg
       for (const id of ids) {
         const current = uiState.value[id]
@@ -416,7 +416,7 @@ export function useServices() {
         })
       }
     } catch (err) {
-      const msg = typeof err === 'string' ? err : 'services_stop_all gagal'
+      const msg = typeof err === 'string' ? err : 'services_stop_all failed'
       serviceError.value = msg
       for (const id of Object.keys(uiState.value)) {
         const current = uiState.value[id]

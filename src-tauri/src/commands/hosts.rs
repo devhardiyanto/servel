@@ -162,7 +162,7 @@ fn write_temp_content(content: &str) -> Result<PathBuf, String> {
     let temp = std::env::temp_dir().join(format!("servel_hosts_{}.new", epoch_nanos()));
     // std::fs::write menulis byte mentah → tak ada BOM (hosts harus polos).
     std::fs::write(&temp, content.as_bytes())
-        .map_err(|e| format!("gagal tulis temp hosts: {e}"))?;
+        .map_err(|e| format!("could not write the temporary hosts file: {e}"))?;
     Ok(temp)
 }
 
@@ -201,7 +201,7 @@ pub fn write_hosts_elevated(content: &str) -> Result<(), String> {
         catch { exit 1 }\r\n";
     std::fs::write(&worker, worker_body).map_err(|e| {
         let _ = std::fs::remove_file(&temp);
-        format!("gagal tulis worker elevation: {e}")
+        format!("could not write the elevation script: {e}")
     })?;
 
     let cmd = build_runas_command(
@@ -217,13 +217,13 @@ pub fn write_hosts_elevated(content: &str) -> Result<(), String> {
     let _ = std::fs::remove_file(&temp);
     let _ = std::fs::remove_file(&worker);
 
-    let status = status.map_err(|e| format!("gagal menjalankan powershell: {e}"))?;
+    let status = status.map_err(|e| format!("could not run powershell: {e}"))?;
     match status.code() {
         Some(0) => Ok(()),
-        Some(1223) => Err("Penulisan hosts dibatalkan (UAC ditolak).".to_string()),
-        Some(1) => Err("Gagal menyalin ke file hosts (proses elevated error).".to_string()),
-        Some(c) => Err(format!("Penulisan hosts gagal (kode {c}).")),
-        None => Err("Proses elevation dihentikan tanpa kode keluar.".to_string()),
+        Some(1223) => Err("Writing hosts was cancelled (UAC denied).".to_string()),
+        Some(1) => Err("Could not copy to the hosts file (the elevated process failed).".to_string()),
+        Some(c) => Err(format!("Writing hosts failed (code {c}).")),
+        None => Err("The elevated process ended without an exit code.".to_string()),
     }
 }
 
@@ -241,11 +241,11 @@ pub fn write_hosts_elevated(content: &str) -> Result<(), String> {
     );
     let status = Command::new("osascript").arg("-e").arg(&script).status();
     let _ = std::fs::remove_file(&temp);
-    let status = status.map_err(|e| format!("gagal menjalankan osascript: {e}"))?;
+    let status = status.map_err(|e| format!("could not run osascript: {e}"))?;
     if status.success() {
         Ok(())
     } else {
-        Err("Penulisan hosts dibatalkan atau gagal (macOS).".to_string())
+        Err("Writing hosts was cancelled or failed (macOS).".to_string())
     }
 }
 
@@ -270,11 +270,11 @@ pub fn write_hosts_elevated(content: &str) -> Result<(), String> {
         .arg(&hosts)
         .status();
     let _ = std::fs::remove_file(&temp);
-    let status = status.map_err(|e| format!("gagal menjalankan pkexec: {e}"))?;
+    let status = status.map_err(|e| format!("could not run pkexec: {e}"))?;
     if status.success() {
         Ok(())
     } else {
-        Err("Penulisan hosts dibatalkan atau gagal (Linux).".to_string())
+        Err("Writing hosts was cancelled or failed (Linux).".to_string())
     }
 }
 
@@ -290,7 +290,7 @@ pub fn has_managed_block(content: &str) -> bool {
 /// luar blok tidak disentuh. Tidak melakukan apa-apa bila blok sudah tidak ada.
 pub fn remove_managed_block() -> Result<(), String> {
     let path = hosts_path();
-    let current = std::fs::read_to_string(&path).map_err(|e| format!("gagal membaca file hosts: {e}"))?;
+    let current = std::fs::read_to_string(&path).map_err(|e| format!("could not read the hosts file: {e}"))?;
     if !has_managed_block(&current) {
         return Ok(());
     }

@@ -258,14 +258,14 @@ async fn locate(version: Option<&str>) -> Result<PhpInstall, String> {
             Some(v) => v.to_string(),
             None => crate::mise::get_active("php")
                 .await?
-                .ok_or_else(|| "belum ada versi PHP aktif".to_string())?,
+                .ok_or_else(|| "no active PHP version yet".to_string())?,
         };
         let dir = crate::mise::install_dir("php", &version).await?;
         let candidates = [dir.join("php.exe"), dir.join("bin").join("php"), dir.join("php")];
         let binary = candidates
             .into_iter()
             .find(|p| p.is_file())
-            .ok_or_else(|| format!("php tidak ditemukan di {}", dir.display()))?;
+            .ok_or_else(|| format!("php not found in {}", dir.display()))?;
         return Ok(PhpInstall { version, binary });
     }
     let out = run(Path::new("php"), &["-r", "echo PHP_BINARY, \"\\n\", PHP_VERSION;"]).await?;
@@ -273,7 +273,7 @@ async fn locate(version: Option<&str>) -> Result<PhpInstall, String> {
     let binary = lines.next().unwrap_or("").trim().to_string();
     let version = lines.next().unwrap_or("").trim().to_string();
     if binary.is_empty() {
-        return Err("php tidak ditemukan di PATH".to_string());
+        return Err("php not found on PATH".to_string());
     }
     Ok(PhpInstall { version, binary: PathBuf::from(binary) })
 }
@@ -284,8 +284,8 @@ async fn run(binary: &Path, args: &[&str]) -> Result<(String, String, bool), Str
     cmd.args(args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
     let out = tokio::time::timeout(Duration::from_secs(20), cmd.output())
         .await
-        .map_err(|_| "php tidak merespons (timeout)".to_string())?
-        .map_err(|e| format!("php tidak bisa dijalankan: {}", e))?;
+        .map_err(|_| "php did not respond (timeout)".to_string())?
+        .map_err(|e| format!("could not run php: {}", e))?;
     Ok((
         String::from_utf8_lossy(&out.stdout).into_owned(),
         String::from_utf8_lossy(&out.stderr).into_owned(),
@@ -307,7 +307,7 @@ async fn ini_path(install: &PhpInstall) -> Result<PathBuf, String> {
         }
     }
     let dir = ini_field(&out, "Configuration File (php.ini) Path")
-        .ok_or_else(|| "lokasi php.ini tidak diketahui".to_string())?;
+        .ok_or_else(|| "php.ini location is unknown".to_string())?;
     Ok(PathBuf::from(dir).join("php.ini"))
 }
 
@@ -389,9 +389,9 @@ fn backup(ini: &Path) -> Result<Option<PathBuf>, String> {
     if !ini.is_file() {
         return Ok(None);
     }
-    let dir = ini.parent().ok_or("folder php.ini tidak diketahui")?;
+    let dir = ini.parent().ok_or("php.ini folder is unknown")?;
     let target = dir.join(format!("{}{}{}", BACKUP_PREFIX, epoch(), BACKUP_SUFFIX));
-    std::fs::copy(ini, &target).map_err(|e| format!("gagal mem-backup php.ini: {}", e))?;
+    std::fs::copy(ini, &target).map_err(|e| format!("could not back up php.ini: {}", e))?;
     let mut olds: Vec<PathBuf> = std::fs::read_dir(dir)
         .map(|rd| {
             rd.filter_map(|e| e.ok())
@@ -429,20 +429,20 @@ async fn write_checked(
     let existed = ini.is_file();
     let old = std::fs::read_to_string(ini).unwrap_or_default();
     let backup = backup(ini)?;
-    std::fs::write(ini, new_text).map_err(|e| format!("gagal menulis {}: {}", ini.display(), e))?;
+    std::fs::write(ini, new_text).map_err(|e| format!("could not write {}: {}", ini.display(), e))?;
 
     let result = match modules(install).await {
-        Ok((_, Some(warning), _)) => Err(format!("PHP menolak perubahan: {}", warning)),
-        Ok((_, None, false)) => Err("PHP gagal start setelah perubahan".to_string()),
+        Ok((_, Some(warning), _)) => Err(format!("PHP rejected the change: {}", warning)),
+        Ok((_, None, false)) => Err("PHP failed to start after the change".to_string()),
         Ok((loaded, None, true)) => check(&loaded),
         Err(e) => Err(e),
     };
     if let Err(e) = result {
         let restored = if existed { std::fs::write(ini, &old) } else { std::fs::remove_file(ini) };
         let note = match (restored, backup) {
-            (Ok(()), _) => "php.ini dikembalikan seperti semula".to_string(),
-            (Err(re), Some(b)) => format!("php.ini gagal dikembalikan ({}); backup ada di {}", re, b.display()),
-            (Err(re), None) => format!("php.ini gagal dikembalikan ({})", re),
+            (Ok(()), _) => "php.ini was put back as it was".to_string(),
+            (Err(re), Some(b)) => format!("php.ini could not be put back ({}); the backup is at {}", re, b.display()),
+            (Err(re), None) => format!("php.ini could not be put back ({})", re),
         };
         return Err(format!("{}. {}.", e, note));
     }
@@ -465,21 +465,21 @@ pub async fn php_ext_set(version: Option<String>, name: String, enable: bool) ->
 async fn set_ext(install: &PhpInstall, name: &str, enable: bool) -> Result<PhpExtStatus, String> {
     let name = ext_name(name);
     if name.is_empty() || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        return Err(format!("nama extension tidak valid: {}", name));
+        return Err(format!("extension name is not valid: {}", name));
     }
     let before = status_of(install).await?;
     let ext = before
         .extensions
         .iter()
         .find(|e| e.name == name)
-        .ok_or_else(|| format!("extension {} tidak ada di {}", name, before.extension_dir))?;
+        .ok_or_else(|| format!("extension {} is not in {}", name, before.extension_dir))?;
     if ext.builtin {
-        return Err(format!("{} sudah tertanam di PHP ini dan tidak bisa dimatikan", name));
+        return Err(format!("{} is built into this PHP and cannot be turned off", name));
     }
 
     let ini = PathBuf::from(&before.ini_path);
     let mut text = if ini.is_file() {
-        std::fs::read_to_string(&ini).map_err(|e| format!("gagal membaca php.ini: {}", e))?
+        std::fs::read_to_string(&ini).map_err(|e| format!("could not read php.ini: {}", e))?
     } else {
         initial_ini(&ini)
     };
@@ -495,8 +495,8 @@ async fn set_ext(install: &PhpInstall, name: &str, enable: bool) -> Result<PhpEx
     let text = set_extension(&text, &name, enable);
     let wanted = name.clone();
     write_checked(install, &ini, &text, move |loaded| match (enable, loaded.contains(&wanted)) {
-        (true, false) => Err(format!("{} tetap tidak termuat", wanted)),
-        (false, true) => Err(format!("{} masih termuat (mungkin diaktifkan di file .ini lain)", wanted)),
+        (true, false) => Err(format!("{} still does not load", wanted)),
+        (false, true) => Err(format!("{} is still loaded (another .ini file may turn it on)", wanted)),
         _ => Ok(()),
     })
     .await?;
@@ -509,20 +509,20 @@ async fn set_ext(install: &PhpInstall, name: &str, enable: bool) -> Result<PhpEx
 #[tauri::command]
 pub async fn php_ext_install(app: tauri::AppHandle, version: Option<String>, name: String) -> Result<PhpExtStatus, String> {
     if !cfg!(windows) {
-        return Err("unduhan extension hanya untuk Windows; di macOS/Linux pakai `pecl install`".to_string());
+        return Err("extension downloads are for Windows only; on macOS/Linux use `pecl install`".to_string());
     }
     let name = name.trim().to_ascii_lowercase();
     if !crate::pecl::valid_name(&name) {
-        return Err(format!("nama extension tidak valid: {}", name));
+        return Err(format!("extension name is not valid: {}", name));
     }
     let _guard = WRITE_LOCK.lock().await;
     let install = locate(version.as_deref()).await?;
     let before = status_of(&install).await?;
     if let Some(e) = before.extensions.iter().find(|e| e.name == name) {
         return Err(if e.loaded {
-            format!("{} sudah aktif", name)
+            format!("{} is already on", name)
         } else {
-            format!("{} sudah ada di folder extension; aktifkan lewat switch-nya", name)
+            format!("{} is already in the extension folder; turn it on with its switch", name)
         });
     }
     let (out, _, _) = run(
@@ -530,21 +530,21 @@ pub async fn php_ext_install(app: tauri::AppHandle, version: Option<String>, nam
         &["-r", "echo PHP_MAJOR_VERSION, '.', PHP_MINOR_VERSION, \"\\n\", PHP_ZTS, \"\\n\", PHP_INT_SIZE;"],
     )
     .await?;
-    let build = crate::pecl::parse_build(&out).ok_or_else(|| "jenis build PHP tidak terbaca".to_string())?;
+    let build = crate::pecl::parse_build(&out).ok_or_else(|| "could not read the PHP build type".to_string())?;
     let ext_dir = PathBuf::from(&before.extension_dir);
-    let php_dir = install.binary.parent().map(Path::to_path_buf).ok_or_else(|| "folder php tidak diketahui".to_string())?;
+    let php_dir = install.binary.parent().map(Path::to_path_buf).ok_or_else(|| "php folder is unknown".to_string())?;
     let got = crate::pecl::install(&name, &build, &ext_dir, &php_dir).await?;
     {
         use tauri::Emitter;
-        let extra = if got.support_dlls > 0 { format!(", {} pustaka pendukung", got.support_dlls) } else { String::new() };
-        let line = format!("{} {} dipasang untuk PHP {} ({}{})", name, got.version, install.version, got.file, extra);
+        let extra = if got.support_dlls > 0 { format!(", {} support libraries", got.support_dlls) } else { String::new() };
+        let line = format!("{} {} installed for PHP {} ({}{})", name, got.version, install.version, got.file, extra);
         let _ = app.emit("cmd-output", serde_json::json!({ "line": line, "stream": "stdout", "source": "PHP" }));
     }
     match set_ext(&install, &name, true).await {
         Ok(status) => Ok(status),
         Err(e) => {
             let _ = std::fs::remove_file(ext_dir.join(format!("php_{}.dll", name)));
-            Err(format!("{} {} terunduh, tetapi PHP menolaknya: {}", name, got.version, e))
+            Err(format!("{} {} was downloaded, but PHP rejected it: {}", name, got.version, e))
         }
     }
 }
@@ -574,7 +574,7 @@ fn find_ca_bundle() -> Option<PathBuf> {
 fn export_windows_roots(target: &Path) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     if let Some(dir) = target.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| format!("gagal membuat {}: {}", dir.display(), e))?;
+        std::fs::create_dir_all(dir).map_err(|e| format!("could not create {}: {}", dir.display(), e))?;
     }
     let script = format!(
         "$c = @(Get-ChildItem Cert:\\LocalMachine\\Root) + @(Get-ChildItem Cert:\\CurrentUser\\Root) | Sort-Object Thumbprint -Unique; \
@@ -591,7 +591,7 @@ fn export_windows_roots(target: &Path) -> Result<(), String> {
     if ok && target.is_file() {
         Ok(())
     } else {
-        Err("gagal mengekspor sertifikat Windows".to_string())
+        Err("could not export the Windows certificates".to_string())
     }
 }
 
@@ -601,7 +601,7 @@ pub async fn php_ext_fix_https(app: tauri::AppHandle, version: Option<String>) -
     #[cfg(not(target_os = "windows"))]
     {
         let _ = (&app, &version);
-        Err("hanya diperlukan di Windows; PHP di macOS/Linux memakai sertifikat sistem".to_string())
+        Err("only needed on Windows; PHP on macOS/Linux uses the system certificates".to_string())
     }
     #[cfg(target_os = "windows")]
     {
@@ -614,7 +614,7 @@ pub async fn php_ext_fix_https(app: tauri::AppHandle, version: Option<String>) -
                 let target = app
                     .path()
                     .app_data_dir()
-                    .map_err(|e| format!("folder data Servel tidak diketahui: {}", e))?
+                    .map_err(|e| format!("Servel's data folder is unknown: {}", e))?
                     .join("certs")
                     .join("ca-bundle.pem");
                 export_windows_roots(&target)?;
@@ -625,7 +625,7 @@ pub async fn php_ext_fix_https(app: tauri::AppHandle, version: Option<String>) -
         let bundle_str = bundle.to_string_lossy().replace('\\', "/");
         let ini = ini_path(&install).await?;
         let text = if ini.is_file() {
-            std::fs::read_to_string(&ini).map_err(|e| format!("gagal membaca php.ini: {}", e))?
+            std::fs::read_to_string(&ini).map_err(|e| format!("could not read php.ini: {}", e))?
         } else {
             initial_ini(&ini)
         };
@@ -775,7 +775,7 @@ mod tests {
         // Extension rusak: PHP memberi peringatan startup → php.ini dikembalikan.
         let before = std::fs::read_to_string(&ini).unwrap();
         let err = set_ext(&install, "broken", true).await.unwrap_err();
-        assert!(err.contains("dikembalikan"), "{}", err);
+        assert!(err.contains("put back"), "{}", err);
         assert_eq!(std::fs::read_to_string(&ini).unwrap(), before);
 
         // Nonaktifkan.
@@ -784,7 +784,7 @@ mod tests {
         assert!(std::fs::read_to_string(&ini).unwrap().contains(";extension=calendar"));
 
         // Modul tertanam tidak bisa diubah.
-        assert!(set_ext(&install, "core", false).await.unwrap_err().contains("tertanam"));
+        assert!(set_ext(&install, "core", false).await.unwrap_err().contains("built into"));
 
         let _ = std::fs::remove_dir_all(&root);
     }

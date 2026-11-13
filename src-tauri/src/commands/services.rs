@@ -135,7 +135,7 @@ pub(crate) async fn load_services_internal(app: &AppHandle) -> Result<Vec<Servic
     let resource_path = app
         .path()
         .resource_dir()
-        .map_err(|e| format!("Gagal resolve resource dir: {}", e))?
+        .map_err(|e| format!("Could not find the resource folder: {}", e))?
         .join("services")
         .join("services.json");
 
@@ -144,15 +144,15 @@ pub(crate) async fn load_services_internal(app: &AppHandle) -> Result<Vec<Servic
         let dev_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../assets/services/services.json");
         let content = std::fs::read_to_string(&dev_path)
-            .map_err(|e| format!("Gagal baca services.json (dev fallback, {}): {}", dev_path.display(), e))?;
+            .map_err(|e| format!("Could not read services.json (dev fallback, {}): {}", dev_path.display(), e))?;
         return serde_json::from_str(&content)
-            .map_err(|e| format!("Gagal parse services.json: {}", e));
+            .map_err(|e| format!("Could not parse services.json: {}", e));
     }
 
     let content = std::fs::read_to_string(&resource_path)
-        .map_err(|e| format!("Gagal baca services.json ({}): {}", resource_path.display(), e))?;
+        .map_err(|e| format!("Could not read services.json ({}): {}", resource_path.display(), e))?;
 
-    serde_json::from_str(&content).map_err(|e| format!("Gagal parse services.json: {}", e))
+    serde_json::from_str(&content).map_err(|e| format!("Could not parse services.json: {}", e))
 }
 
 /// Inti services_status tanpa #[tauri::command], bisa dipanggil dari polling.

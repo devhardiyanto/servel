@@ -24,13 +24,13 @@ pub fn dump_command(service_id: &str) -> Option<&'static str> {
         "mysql" => Some(concat!(
             r#"export MYSQL_PWD="${MYSQL_ROOT_PASSWORD:-}"; "#,
             r#"dbs=$(mysql -N -uroot -e 'SHOW DATABASES' | grep -Ev '^(information_schema|performance_schema|mysql|sys)$'); "#,
-            r#"[ -z "$dbs" ] && { echo 'tidak ada database user' >&2; exit 3; }; "#,
+            r#"[ -z "$dbs" ] && { echo 'no user databases' >&2; exit 3; }; "#,
             r#"mysqldump -uroot --single-transaction --routines --events --triggers --databases $dbs"#
         )),
         "postgres" => Some(concat!(
             r#"U="${POSTGRES_USER:-postgres}"; "#,
             r#"dbs=$(psql -U "$U" -d postgres -Atc "SELECT datname FROM pg_database WHERE NOT datistemplate AND datname <> 'postgres'"); "#,
-            r#"[ -z "$dbs" ] && { echo 'tidak ada database user' >&2; exit 3; }; "#,
+            r#"[ -z "$dbs" ] && { echo 'no user databases' >&2; exit 3; }; "#,
             r#"for db in $dbs; do pg_dump -U "$U" -C "$db" || exit 1; done"#
         )),
         _ => None,
@@ -43,25 +43,25 @@ fn emit(app: &AppHandle, source: &str, stream: &str, line: &str) {
 
 pub async fn migrate_from_docker(app: &AppHandle, defs: &[ServiceDef], service_id: &str) -> Result<(), String> {
     if ensure_resolved().await != RuntimeKind::Wslc {
-        return Err("pindahkan engine ke WSL containers dulu (Settings → Container engine)".to_string());
+        return Err("switch the engine to WSL containers first (Settings → Container engine)".to_string());
     }
     let cmd = dump_command(service_id)
-        .ok_or_else(|| format!("migrasi hanya untuk mysql dan postgres, bukan '{}'", service_id))?;
+        .ok_or_else(|| format!("import works for mysql and postgres only, not '{}'", service_id))?;
     let def = defs
         .iter()
         .find(|d| d.id == service_id)
-        .ok_or_else(|| format!("service '{}' tidak dikenal", service_id))?;
+        .ok_or_else(|| format!("unknown service '{}'", service_id))?;
     let name = &def.container_name;
     let source = service_id.to_uppercase();
 
     if !super::docker::is_running().await {
-        return Err("Docker tidak berjalan — start Docker Desktop dulu untuk mengambil data lama".to_string());
+        return Err("Docker is not running. Start Docker Desktop first to read the old data".to_string());
     }
 
-    emit(app, &source, "stdout", &format!("docker start {} (sumber data lama)", name));
+    emit(app, &source, "stdout", &format!("docker start {} (source of the old data)", name));
     let started = silent_command("docker").args(["start", name]).status().await;
     if !matches!(started, Ok(s) if s.success()) {
-        return Err(format!("container Docker {} tidak ditemukan", name));
+        return Err(format!("Docker container {} not found", name));
     }
     // Beri waktu server DB siap di sisi Docker.
     let mut ready = false;
@@ -75,37 +75,37 @@ pub async fn migrate_from_docker(app: &AppHandle, defs: &[ServiceDef], service_i
         }
     }
     if !ready {
-        return Err(format!("{} di Docker belum siap setelah 120 dtk", name));
+        return Err(format!("{} in Docker is not ready after 120 s", name));
     }
 
     let dump_path = std::env::temp_dir().join(format!("servel-migrate-{}.sql", service_id));
-    emit(app, &source, "stdout", &format!("dump dari Docker → {}", dump_path.display()));
+    emit(app, &source, "stdout", &format!("dump from Docker → {}", dump_path.display()));
     let mut child = silent_command("docker")
         .args(["exec", name, "sh", "-c", cmd])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("Gagal menjalankan docker exec: {}", e))?;
-    let mut stdout = child.stdout.take().ok_or("stdout docker tidak tersedia")?;
+        .map_err(|e| format!("Could not run docker exec: {}", e))?;
+    let mut stdout = child.stdout.take().ok_or("docker stdout not available")?;
     let mut file = tokio::fs::File::create(&dump_path)
         .await
-        .map_err(|e| format!("gagal membuat {}: {}", dump_path.display(), e))?;
+        .map_err(|e| format!("could not create {}: {}", dump_path.display(), e))?;
     tokio::io::copy(&mut stdout, &mut file)
         .await
-        .map_err(|e| format!("gagal menulis dump: {}", e))?;
+        .map_err(|e| format!("could not write the dump: {}", e))?;
     file.flush().await.ok();
     drop(file);
-    let out = child.wait_with_output().await.map_err(|e| format!("gagal menunggu docker: {}", e))?;
+    let out = child.wait_with_output().await.map_err(|e| format!("waiting for docker failed: {}", e))?;
     if !out.status.success() {
         let _ = tokio::fs::remove_file(&dump_path).await;
-        return Err(format!("dump gagal: {}", String::from_utf8_lossy(&out.stderr).trim()));
+        return Err(format!("dump failed: {}", String::from_utf8_lossy(&out.stderr).trim()));
     }
 
     let result = super::restore::restore(app, defs, service_id, &dump_path.to_string_lossy()).await;
     // Dump bisa berisi data sensitif — jangan ditinggal di temp.
     let _ = tokio::fs::remove_file(&dump_path).await;
     if result.is_ok() {
-        emit(app, &source, "stdout", "migrasi selesai. Container Docker lama tidak dihapus — hapus manual bila sudah yakin.");
+        emit(app, &source, "stdout", "import finished. The old Docker container was not removed; remove it yourself once you are sure.");
     }
     result
 }

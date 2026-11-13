@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  servel — CLI Servel untuk WSL containers (wslc). Dipasang otomatis oleh installer Windows.
+  servel — Servel CLI for WSL containers (wslc). Installed by the Windows installer.
 
 .DESCRIPTION
   Mengelola service yang sama dengan aplikasi Servel (definisi dari services.json bawaan
@@ -11,10 +11,10 @@
   Kompatibel dengan Windows PowerShell 5.1 dan PowerShell 7+.
 
 .EXAMPLE
-  servel preflight               # cek prasyarat, tidak mengubah apa pun
-  servel up                      # start service pilihan di aplikasi (atau semua bila belum ada)
-  servel up mysql postgres       # hanya sebagian
-  servel down                    # stop semua container servel_*
+  servel preflight               # check prerequisites; changes nothing
+  servel up                      # start the services selected in the app (or all if none are selected)
+  servel up mysql postgres       # only some
+  servel down                    # stop every servel_* container
   servel status
   servel logs mysql -f
   servel shell postgres
@@ -57,7 +57,7 @@ function Write-Fail([string]$Msg) { Write-Host "[servel] $Msg" -ForegroundColor 
 # ---------------------------------------------------------------------------
 function Assert-Wslc {
     if (-not (Get-Command wslc -ErrorAction SilentlyContinue)) {
-        throw 'wslc tidak ditemukan. Jalankan: wsl --update (butuh WSL >= 3.0.1), lalu buka terminal baru.'
+        throw 'wslc not found. Run: wsl --update (needs WSL >= 3.0.1), then open a new terminal.'
     }
 }
 
@@ -103,7 +103,7 @@ function Invoke-WslcLive([string[]]$WslcArgs) {
 # `wslc container list --all --format json` → NDJSON bergaya Docker (terverifikasi WSL 3.0.5).
 function Get-Containers {
     $r = Invoke-Wslc @('container', 'list', '--all', '--format', 'json')
-    if (-not $r.Ok) { throw "wslc container list gagal: $($r.Out)" }
+    if (-not $r.Ok) { throw "wslc container list failed: $($r.Out)" }
     $list = @()
     foreach ($line in ($r.Out -split "`n")) {
         $t = $line.Trim()
@@ -140,13 +140,13 @@ function Get-Container([object[]]$All, [string]$Name) {
 # Definisi service (sumber yang sama dengan aplikasi)
 # ---------------------------------------------------------------------------
 function Get-Defs {
-    if (-not $ServicesJson) { throw "services.json tidak ditemukan di sebelah CLI ($PSScriptRoot). Install ulang Servel." }
+    if (-not $ServicesJson) { throw "services.json not found next to the CLI ($PSScriptRoot). Reinstall Servel." }
     return @(Get-Content $ServicesJson -Raw -Encoding UTF8 | ConvertFrom-Json)
 }
 
 function Resolve-Def([object[]]$Defs, [string]$Id) {
     $d = $Defs | Where-Object { $_.id -eq $Id } | Select-Object -First 1
-    if (-not $d) { throw "service '$Id' tidak dikenal. Pilihan: $(($Defs | ForEach-Object { $_.id }) -join ', ')" }
+    if (-not $d) { throw "unknown service '$Id'. Choices: $(($Defs | ForEach-Object { $_.id }) -join ', ')" }
     return $d
 }
 
@@ -234,7 +234,7 @@ function Read-State {
         try {
             $o = Get-Content $StatePath -Raw -Encoding UTF8 | ConvertFrom-Json
             foreach ($p in $o.PSObject.Properties) { $h[$p.Name] = [string]$p.Value }
-        } catch { Write-Warn "wslc-state.json tidak terbaca, diabaikan." }
+        } catch { Write-Warn "could not read wslc-state.json; ignored." }
     }
     return $h
 }
@@ -258,7 +258,7 @@ function Resolve-Targets([object[]]$Defs, [string[]]$Ids) {
             $cfg = Get-Content $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
             $sel = @($cfg.selectedServiceIds)
             if ($sel.Count -gt 0) {
-                Write-Step "memakai pilihan service dari aplikasi: $($sel -join ', ')"
+                Write-Step "using the services selected in the app: $($sel -join ', ')"
                 return $sel
             }
         } catch { }
@@ -275,7 +275,7 @@ function Test-Elevated {
 
 function Warn-IfElevated {
     if (Test-Elevated) {
-        Write-Warn 'shell ini elevated (Administrator). Sesi WSL containers terpisah per elevation — container dari shell biasa / aplikasi Servel tidak terlihat di sini.'
+        Write-Warn 'this shell is elevated (Administrator). WSL containers sessions are separate per elevation, so containers from a normal shell or the Servel app are not visible here.'
     }
 }
 
@@ -300,12 +300,12 @@ function Invoke-Up([string[]]$Ids) {
             $recorded = $state[$name]
 
             if ($existing -and -not $recorded) {
-                Write-Step "$name sudah ada (dibuat di luar Servel) — dipakai apa adanya"
+                Write-Step "$name already exists (created outside Servel); using it as it is"
             }
             $upToDate = (-not $recorded) -or ($recorded -eq $desired)
 
             if ($existing -and $upToDate) {
-                if ($existing.Running) { Write-Step "$name sudah berjalan"; continue }
+                if ($existing.Running) { Write-Step "$name is already running"; continue }
                 Write-Step "start $name"
                 $r = Invoke-Wslc @('start', $name)
                 if (-not $r.Ok) { throw $r.Out }
@@ -313,7 +313,7 @@ function Invoke-Up([string[]]$Ids) {
             }
 
             if ($existing) {
-                Write-Step "definisi $name berubah — membuat ulang container (data volume tetap)"
+                Write-Step "the definition of $name changed; recreating the container (volume data is kept)"
                 $r = Invoke-Wslc @('remove', '-f', $name)
                 if (-not $r.Ok) { throw $r.Out }
                 $state.Remove($name)
@@ -333,7 +333,7 @@ function Invoke-Up([string[]]$Ids) {
                     $vol = Get-NamedVolume ([string]$v)
                     if ($vol -and ($volumes -notcontains $vol)) {
                         $vc = Invoke-Wslc @('volume', 'create', $vol)
-                        if ($vc.Ok) { Write-Step "volume $vol dibuat" }
+                        if ($vc.Ok) { Write-Step "volume $vol created" }
                         $volumes += $vol
                     }
                 }
@@ -344,7 +344,7 @@ function Invoke-Up([string[]]$Ids) {
             $has = Invoke-Wslc @('image', 'inspect', $img) 1
             if (-not $has.Ok) {
                 Write-Step "pull $img"
-                if ((Invoke-WslcLive @('pull', $img)) -ne 0) { throw "pull $img gagal" }
+                if ((Invoke-WslcLive @('pull', $img)) -ne 0) { throw "pull $img failed" }
             }
 
             Write-Step "run $name ($img)"
@@ -353,14 +353,14 @@ function Invoke-Up([string[]]$Ids) {
             $state[$name] = $desired
         } catch {
             $failed += $id
-            Write-Fail "$id gagal: $($_.Exception.Message)"
+            Write-Fail "$id failed: $($_.Exception.Message)"
         } finally {
             Write-State $state
         }
     }
 
     if ($failed.Count -gt 0) {
-        Write-Warn "gagal: $($failed -join ', '). Service lain tetap berjalan; perbaiki lalu jalankan 'servel up' lagi."
+        Write-Warn "failed: $($failed -join ', '). Other services keep running; fix the problem, then run 'servel up' again."
         exit 1
     }
 }
@@ -381,7 +381,7 @@ function Invoke-Down([string[]]$Ids) {
         if (-not $c -or -not $c.Running) { continue }
         Write-Step "stop $n"
         $r = Invoke-Wslc @('stop', '-t', '30', $n)
-        if (-not $r.Ok) { Write-Fail "stop $n gagal: $($r.Out)" }
+        if (-not $r.Ok) { Write-Fail "stop $n failed: $($r.Out)" }
     }
 }
 
@@ -422,7 +422,7 @@ function Invoke-Logs([string[]]$ArgsIn) {
             default           { if (-not $id) { $id = $ArgsIn[$i] } }
         }
     }
-    if (-not $id) { throw 'pakai: servel logs <service> [-f] [-n 100]' }
+    if (-not $id) { throw 'usage: servel logs <service> [-f] [-n 100]' }
     $name = (Resolve-Def (Get-Defs) $id).containerName
     $a = @('logs', '--tail', $tail)
     if ($follow) { $a += '-f' }
@@ -430,7 +430,7 @@ function Invoke-Logs([string[]]$ArgsIn) {
 }
 
 function Invoke-Shell([string[]]$ArgsIn) {
-    if (-not $ArgsIn -or $ArgsIn.Count -lt 1) { throw 'pakai: servel shell <service> [perintah...]' }
+    if (-not $ArgsIn -or $ArgsIn.Count -lt 1) { throw 'usage: servel shell <service> [command...]' }
     $name = (Resolve-Def (Get-Defs) $ArgsIn[0]).containerName
     $cmd = if ($ArgsIn.Count -gt 1) { $ArgsIn[1..($ArgsIn.Count - 1)] } else { @('sh') }
     exit (Invoke-WslcLive (@('exec', '-it', $name) + $cmd))
@@ -447,7 +447,7 @@ function Send-File([string]$Path, [string]$Name) {
         $mv = Invoke-Wslc @('exec', '-e', "SRC=$leaf", $Name, 'sh', '-c', 'mv -f "/tmp/$SRC" /tmp/restore.sql') 1
         if ($mv.Ok) { return }
     }
-    Write-Warn 'container cp gagal; fallback ke stream via stdin.'
+    Write-Warn 'container cp failed; falling back to a stream over stdin.'
     # ProcessStartInfo.Arguments (string mentah) ada di .NET Framework maupun .NET 8,
     # jadi tidak bergantung pada aturan quoting PowerShell.
     $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -459,11 +459,11 @@ function Send-File([string]$Path, [string]$Name) {
     $fs = [System.IO.File]::OpenRead($Path)
     try { $fs.CopyTo($p.StandardInput.BaseStream) } finally { $fs.Dispose(); $p.StandardInput.Close() }
     $p.WaitForExit()
-    if ($p.ExitCode -ne 0) { throw "stream file ke $Name gagal (exit $($p.ExitCode))." }
+    if ($p.ExitCode -ne 0) { throw "streaming the file to $Name failed (exit $($p.ExitCode))." }
 }
 
 function Invoke-Restore([string[]]$ArgsIn) {
-    if (-not $ArgsIn -or $ArgsIn.Count -lt 2) { throw 'pakai: servel restore <mysql|postgres> <file.sql | folder berisi .sql>' }
+    if (-not $ArgsIn -or $ArgsIn.Count -lt 2) { throw 'usage: servel restore <mysql|postgres> <file.sql | folder of .sql files>' }
     $id = $ArgsIn[0]
     $target = $ArgsIn[1]
     $cmds = @{
@@ -474,30 +474,30 @@ function Invoke-Restore([string[]]$ArgsIn) {
         mysql    = 'MYSQL_PWD="${MYSQL_ROOT_PASSWORD:-}" mysqladmin ping -h 127.0.0.1 -uroot --silent'
         postgres = 'pg_isready -h 127.0.0.1 -U "${POSTGRES_USER:-postgres}" -q'
     }
-    if (-not $cmds.ContainsKey($id)) { throw "restore hanya untuk: $($cmds.Keys -join ', ')" }
-    if (-not (Test-Path $target)) { throw "tidak ada: $target" }
+    if (-not $cmds.ContainsKey($id)) { throw "restore works only for: $($cmds.Keys -join ', ')" }
+    if (-not (Test-Path $target)) { throw "not found: $target" }
     $files = if ((Get-Item $target).PSIsContainer) { @(Get-ChildItem $target -Filter *.sql -File | Sort-Object Name) } else { @(Get-Item $target) }
-    if ($files.Count -eq 0) { throw "tidak ada file .sql di $target" }
+    if ($files.Count -eq 0) { throw "no .sql files in $target" }
 
     Invoke-Up @($id)
     $name = (Resolve-Def (Get-Defs) $id).containerName
 
-    Write-Step "menunggu $name siap (maks 120 dtk)..."
+    Write-Step "waiting for $name to be ready (up to 120 s)..."
     $ok = $false
     for ($i = 0; $i -lt 60; $i++) {
         if ((Invoke-Wslc @('exec', $name, 'sh', '-c', $ready[$id]) 1).Ok) { $ok = $true; break }
         Start-Sleep -Seconds 2
     }
-    if (-not $ok) { throw "$name tidak siap dalam 120 detik. Cek: servel logs $id" }
+    if (-not $ok) { throw "$name was not ready within 120 seconds. Check: servel logs $id" }
 
     foreach ($f in $files) {
         Write-Step "restore $($f.Name) -> $name"
         Send-File $f.FullName $name
         if ((Invoke-WslcLive @('exec', $name, 'sh', '-c', $cmds[$id])) -ne 0) {
-            Write-Fail "restore $($f.Name) gagal (exit $LASTEXITCODE)."
+            Write-Fail "restore $($f.Name) failed (exit $LASTEXITCODE)."
             exit 1
         }
-        Write-Step "selesai $($f.Name)"
+        Write-Step "finished $($f.Name)"
     }
 }
 
@@ -526,16 +526,16 @@ function Test-MiseGlobalSource([string]$Path) {
 }
 
 function Invoke-Use([string[]]$ArgsIn) {
-    if (-not (Get-Command mise -ErrorAction SilentlyContinue)) { throw 'mise tidak ditemukan di PATH.' }
+    if (-not (Get-Command mise -ErrorAction SilentlyContinue)) { throw 'mise not found on PATH.' }
     $global = $false
     $pos = @()
     foreach ($a in $ArgsIn) {
         if ($a -in '-g', '--global') { $global = $true } else { $pos += $a }
     }
-    if ($pos.Count -ne 2) { throw 'pakai: servel use <php|node|tool> <versi> [--global]' }
+    if ($pos.Count -ne 2) { throw 'usage: servel use <php|node|tool> <version> [--global]' }
     $tool = $pos[0]; $version = $pos[1]
-    if ($tool -notmatch '^[a-z0-9][a-z0-9_-]*$') { throw "tool '$tool' tidak valid" }
-    if ($version -notmatch '^\d+(\.\d+){0,2}$') { throw "versi '$version' tidak valid (contoh: 8.3, 22, 22.23.3)" }
+    if ($tool -notmatch '^[a-z0-9][a-z0-9_-]*$') { throw "tool '$tool' is not valid" }
+    if ($version -notmatch '^\d+(\.\d+){0,2}$') { throw "version '$version' is not valid (examples: 8.3, 22, 22.23.3)" }
     $spec = "$tool@$version"
 
     if ($global) {
@@ -552,8 +552,8 @@ function Invoke-Use([string[]]$ArgsIn) {
     $prevEap = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try { $json = (& mise ls --current --json 2>$null | Out-String) } finally { $ErrorActionPreference = $prevEap }
-    if ($LASTEXITCODE -ne 0) { throw "mise ls --current gagal (exit $LASTEXITCODE). Jalankan 'mise ls --current' untuk detailnya (mis. config belum di-trust)." }
-    try { $cur = $json | ConvertFrom-Json } catch { throw "output mise tidak bisa dibaca: $($_.Exception.Message)" }
+    if ($LASTEXITCODE -ne 0) { throw "mise ls --current failed (exit $LASTEXITCODE). Run 'mise ls --current' for details (for example the config is not trusted yet)." }
+    try { $cur = $json | ConvertFrom-Json } catch { throw "could not read the mise output: $($_.Exception.Message)" }
     if ($cur) {
         $projectSources = @()
         foreach ($prop in $cur.PSObject.Properties) {
@@ -582,11 +582,11 @@ function Invoke-NativeLive([string]$Exe, [string[]]$A) {
 }
 
 function Invoke-Projects {
-    if (-not (Test-Path $ConfigPath)) { Write-Step 'belum ada project (config aplikasi belum dibuat).'; return }
+    if (-not (Test-Path $ConfigPath)) { Write-Step 'no projects yet (the app has not created its config).'; return }
     $cfg = Get-Content $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $projects = @()
     if ($cfg.PSObject.Properties.Name -contains 'projects') { $projects = @($cfg.projects) }
-    if ($projects.Count -eq 0) { Write-Step 'belum ada project. Tambahkan di Servel → Settings → Projects.'; return }
+    if ($projects.Count -eq 0) { Write-Step 'no projects yet. Add one in Servel → Settings → Projects.'; return }
     $active = if ($cfg.PSObject.Properties.Name -contains 'activeProjectId') { $cfg.activeProjectId } else { $null }
     $profiles = @{}
     if ($cfg.PSObject.Properties.Name -contains 'profiles') { foreach ($p in @($cfg.profiles)) { $profiles[$p.id] = $p.name } }
@@ -638,15 +638,15 @@ function Show-ProjectStates($Projects) {
 # servel start|stop|restart <project> dan servel ps
 function Invoke-ProjectControl([string]$Action, [string[]]$ArgsIn) {
     $name = (@($ArgsIn) -join ' ').Trim()
-    if ($Action -ne 'status' -and -not $name) { throw "sebutkan nama project: servel $Action <project>" }
+    if ($Action -ne 'status' -and -not $name) { throw "give the project name: servel $Action <project>" }
     $res = Send-Control ("$Action $name".Trim())
     if ($null -eq $res) {
-        throw 'aplikasi Servel tidak berjalan. Buka Servel dulu; dev server project dijalankan oleh aplikasinya.'
+        throw 'the Servel app is not running. Open Servel first; project dev servers are run by the app.'
     }
     if (-not $res.ok) { throw $res.message }
     if ($res.message) { Write-Step $res.message }
     if (@($res.projects).Count -gt 0) { Show-ProjectStates $res.projects }
-    elseif ($Action -eq 'status') { Write-Step 'belum ada project yang punya perintah dev server.' }
+    elseif ($Action -eq 'status') { Write-Step 'no project has a dev server command yet.' }
 }
 
 function Invoke-Preflight {
@@ -666,35 +666,35 @@ function Invoke-Preflight {
                 $l = New-Object System.Net.Sockets.TcpListener([System.Net.IPAddress]::Loopback, $hp)
                 $l.Start(); $l.Stop()
             } catch { $busy = $true }
-            if ($busy) { Write-Warn "port $hp ($($d.id)) sedang dipakai (wajar bila service itu sudah berjalan)." }
+            if ($busy) { Write-Warn "port $hp ($($d.id)) is in use (expected if that service is already running)." }
         }
     }
     if (Get-Command docker -ErrorAction SilentlyContinue) {
-        Write-Warn 'docker.exe masih ada di PATH. Servel (Auto) akan memakai Docker; pilih "WSL containers" di Settings bila perlu.'
+        Write-Warn 'docker.exe is still on PATH. Servel (Auto) will use Docker; choose "WSL containers" in Settings if needed.'
     }
 }
 
 function Show-Help {
     @'
-servel — kelola service Servel lewat WSL containers (wslc)
+servel — manage Servel services through WSL containers (wslc)
 
-  servel preflight                 cek wslc, versi WSL, elevation, port
-  servel list                      daftar service yang tersedia
-  servel up [service...]           start (default: pilihan terakhir di aplikasi)
-  servel down [service...]         stop (default: semua servel_*)
-  servel status                    status semua service
+  servel preflight                 check wslc, WSL version, elevation, ports
+  servel list                      list the available services
+  servel up [service...]           start (default: the last selection in the app)
+  servel down [service...]         stop (default: every servel_*)
+  servel status                    status of every service
   servel logs <service> [-f] [-n N]
-  servel shell <service> [cmd...]  shell / perintah di dalam container
+  servel shell <service> [cmd...]  shell or command inside the container
   servel restore <mysql|postgres> <file.sql | folder>
-  servel use <php|node> <versi> [--global]
-                                   ganti versi lewat mise di folder ini (atau global)
-  servel projects                  daftar project dari aplikasi Servel
-  servel start <project>           jalankan dev server project (aplikasi Servel harus terbuka)
-  servel stop <project>            hentikan dev server project
-  servel restart <project>         hentikan lalu jalankan lagi
-  servel ps                        status dev server semua project
+  servel use <php|node> <version> [--global]
+                                   change the version through mise in this folder (or globally)
+  servel projects                  list the projects from the Servel app
+  servel start <project>           start the project's dev server (the Servel app must be open)
+  servel stop <project>            stop the project's dev server
+  servel restart <project>         stop, then start again
+  servel ps                        dev server status of every project
 
-Definisi service sama dengan aplikasi Servel; aplikasi dan CLI bisa dipakai bergantian.
+Service definitions are the same as in the Servel app; use the app and the CLI interchangeably.
 '@ | Write-Host
 }
 
@@ -718,7 +718,7 @@ try {
         'stop'      { Invoke-ProjectControl 'stop' $Rest; break }
         'restart'   { Invoke-ProjectControl 'restart' $Rest; break }
         'ps'        { Invoke-ProjectControl 'status' $Rest; break }
-        default     { Write-Fail "perintah tidak dikenal: $Command"; Show-Help; exit 2 }
+        default     { Write-Fail "unknown command: $Command"; Show-Help; exit 2 }
     }
 } catch {
     Write-Fail $_.Exception.Message

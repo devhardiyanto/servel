@@ -131,7 +131,7 @@ pub fn run() {
         .setup(move |app| {
             // Tray init — non-fatal: kalau gagal (mis. Linux tanpa appindicator) log warning + lanjut.
             if let Err(e) = tray::init(app.handle()) {
-                eprintln!("[tray] init gagal, skip tray: {}", e);
+                eprintln!("[tray] init failed, skipping tray: {}", e);
             }
 
             runtime::init(app.handle());
@@ -160,7 +160,7 @@ pub fn run() {
                             emit_log_line(
                                 &app_handle,
                                 "SERVEL",
-                                &format!("[polling] gagal load services.json: {}", err),
+                                &format!("[polling] could not load services.json: {}", err),
                             );
                             Vec::new()
                         }
@@ -218,7 +218,7 @@ pub fn run() {
                                     Decision::TimedOut => emit_log_line(
                                         &app_handle,
                                         &s.id.to_uppercase(),
-                                        "readiness check belum lolos setelah 120 dtk \u{2014} dianggap siap (cek kredensial / logs service)",
+                                        "readiness check has not passed after 120 s; treated as ready (check the credentials and the service's logs)",
                                     ),
                                     Decision::Probe => {
                                         let outcome = runtime::probe(&s.id, &s.container_name).await;

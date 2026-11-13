@@ -302,17 +302,17 @@ onUnmounted(() => {
     <div v-if="portConflicts.length > 0" class="port-conflict-banner">
       <span class="pcb-icon">&#9888;</span>
       <div class="pcb-text">
-        <strong>Konflik port terdeteksi</strong>
+        <strong>Port conflict found</strong>
         <span class="pcb-sub">
-          Port berikut sudah dipakai proses lain:
+          These ports are used by another program:
           <template v-for="(c, i) in portConflicts" :key="c.serviceId + ':' + c.port">
             <span class="pcb-port">{{ c.serviceName }} ({{ c.port }})</span><span v-if="i < portConflicts.length - 1">, </span>
           </template>
         </span>
       </div>
       <div class="pcb-actions">
-        <button class="pcb-force" @click="startIgnoringConflicts">Tetap mulai</button>
-        <button class="pcb-dismiss" @click="dismissPortConflicts">Tutup</button>
+        <button class="pcb-force" @click="startIgnoringConflicts">Start anyway</button>
+        <button class="pcb-dismiss" @click="dismissPortConflicts">Close</button>
       </div>
     </div>
 
@@ -362,7 +362,7 @@ onUnmounted(() => {
 
         <div v-if="phpHookStatus === 'not_installed'" class="vp-hook-banner">
           <span class="vp-hook-text">
-            Run <code class="vp-hook-cmd">phpvm hook install</code> di PowerShell untuk PATH integration.
+            Run <code class="vp-hook-cmd">phpvm hook install</code> in PowerShell for PATH integration.
           </span>
           <button class="vp-hook-copy" :title="phpHookCopied ? 'Copied' : 'Copy command'" @click="copyPhpHookCommand">
             {{ phpHookCopied ? '✓ Copied' : 'Copy' }}
@@ -500,11 +500,11 @@ onUnmounted(() => {
         <span class="sw-title">Services</span>
         <span class="sw-counter">{{ runningCount }}/{{ definitions.length }}</span>
         <div v-if="profiles.length > 0" class="sw-profile">
-          <span class="sw-profile__label">profil</span>
+          <span class="sw-profile__label">profile</span>
           <select
             class="sw-profile__select"
             :value="activeProfileId ?? ''"
-            title="Ganti profil aktif"
+            title="Change the active profile"
             @change="onProfileChange"
           >
             <option v-for="p in profiles" :key="p.id" :value="p.id">{{ p.name }}</option>
