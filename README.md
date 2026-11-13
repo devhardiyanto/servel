@@ -126,6 +126,10 @@ servel restore mysql D:\backup\dump.sql   # or a folder of .sql files
 servel use php 8.3               # via mise, in the current project folder
 servel use node 22 --global      # change the global version
 servel projects                  # list projects from the app, with their localhost URLs
+servel start share-api           # start a project's dev server (the Servel app must be open)
+servel stop share-api
+servel restart share-api
+servel ps                        # state and URL of every project
 ```
 
 The app and the CLI share state, so you can use them interchangeably. Open a **new** terminal after installing so it picks up the new PATH. If you previously aliased `servel` in your shell profile, remove that alias; otherwise it shadows the bundled command.

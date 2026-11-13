@@ -38,6 +38,7 @@ $AppId        = 'com.devhardiyanto.servel'
 $AppConfigDir = Join-Path $env:APPDATA $AppId
 $StatePath    = Join-Path $AppConfigDir 'wslc-state.json'
 $ConfigPath   = Join-Path $AppConfigDir 'config.json'
+$ControlPath  = Join-Path $AppConfigDir 'control.json'
 
 # Layout instalasi: <INSTDIR>\cli\servel.ps1 + <INSTDIR>\services\services.json.
 # Layout repo (assets\cli + assets\services) identik, jadi satu path cukup.
@@ -601,6 +602,53 @@ function Invoke-Projects {
     } | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
 }
 
+# Kirim satu perintah ke aplikasi Servel yang sedang berjalan (kanal kontrol
+# lokal, lihat src-tauri/src/control.rs). Mengembalikan objek { ok, message,
+# projects }, atau $null bila aplikasi tidak berjalan.
+function Send-Control([string]$Request) {
+    if (-not (Test-Path $ControlPath)) { return $null }
+    try { $info = Get-Content $ControlPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { return $null }
+    $client = New-Object System.Net.Sockets.TcpClient
+    try {
+        # control.json bisa tertinggal dari sesi yang mati paksa: gagal konek = aplikasi tidak berjalan.
+        try { $client.Connect([System.Net.IPAddress]::Loopback, [int]$info.port) } catch { return $null }
+        $stream = $client.GetStream()
+        $stream.ReadTimeout = 120000
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes("$($info.token) $Request`n")
+        $stream.Write($bytes, 0, $bytes.Length)
+        $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8)
+        $line = $reader.ReadLine()
+        if (-not $line) { return $null }
+        return ($line | ConvertFrom-Json)
+    } finally {
+        $client.Close()
+    }
+}
+
+function Show-ProjectStates($Projects) {
+    @($Projects) | ForEach-Object {
+        [pscustomobject]@{
+            PROJECT = $_.name
+            STATE   = if ($_.state -eq 'exited' -and $null -ne $_.exitCode) { "exited ($($_.exitCode))" } else { $_.state }
+            URL     = if ([int]$_.port -gt 0) { "http://localhost:$($_.port)" } else { '' }
+        }
+    } | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+}
+
+# servel start|stop|restart <project> dan servel ps
+function Invoke-ProjectControl([string]$Action, [string[]]$ArgsIn) {
+    $name = (@($ArgsIn) -join ' ').Trim()
+    if ($Action -ne 'status' -and -not $name) { throw "sebutkan nama project: servel $Action <project>" }
+    $res = Send-Control ("$Action $name".Trim())
+    if ($null -eq $res) {
+        throw 'aplikasi Servel tidak berjalan. Buka Servel dulu; dev server project dijalankan oleh aplikasinya.'
+    }
+    if (-not $res.ok) { throw $res.message }
+    if ($res.message) { Write-Step $res.message }
+    if (@($res.projects).Count -gt 0) { Show-ProjectStates $res.projects }
+    elseif ($Action -eq 'status') { Write-Step 'belum ada project yang punya perintah dev server.' }
+}
+
 function Invoke-Preflight {
     Assert-Wslc
     Write-Step 'wsl --version:'
@@ -641,6 +689,10 @@ servel — kelola service Servel lewat WSL containers (wslc)
   servel use <php|node> <versi> [--global]
                                    ganti versi lewat mise di folder ini (atau global)
   servel projects                  daftar project dari aplikasi Servel
+  servel start <project>           jalankan dev server project (aplikasi Servel harus terbuka)
+  servel stop <project>            hentikan dev server project
+  servel restart <project>         hentikan lalu jalankan lagi
+  servel ps                        status dev server semua project
 
 Definisi service sama dengan aplikasi Servel; aplikasi dan CLI bisa dipakai bergantian.
 '@ | Write-Host
@@ -662,6 +714,10 @@ try {
         'restore'   { Assert-Wslc; Warn-IfElevated; Invoke-Restore $Rest; break }
         'use'       { Invoke-Use $Rest; break }
         'projects'  { Invoke-Projects; break }
+        'start'     { Invoke-ProjectControl 'start' $Rest; break }
+        'stop'      { Invoke-ProjectControl 'stop' $Rest; break }
+        'restart'   { Invoke-ProjectControl 'restart' $Rest; break }
+        'ps'        { Invoke-ProjectControl 'status' $Rest; break }
         default     { Write-Fail "perintah tidak dikenal: $Command"; Show-Help; exit 2 }
     }
 } catch {

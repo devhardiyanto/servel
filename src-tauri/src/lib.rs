@@ -1,5 +1,6 @@
 mod commands;
 mod mise;
+mod control;
 mod php_ext;
 mod sites;
 mod runtime;
@@ -134,6 +135,7 @@ pub fn run() {
             runtime::init(app.handle());
             mise::init(app.handle());
             sites::autostart(app.handle());
+            control::start(app.handle());
 
             let app_handle = app.handle().clone();
             let status_daemon_ready = daemon_ready.clone();
