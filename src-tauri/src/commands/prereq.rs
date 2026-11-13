@@ -242,7 +242,7 @@ pub async fn start_engine() -> Result<(), String> {
         return if crate::runtime::wslc::is_running().await {
             Ok(())
         } else {
-            Err("Sesi WSL containers tidak merespons. Jalankan `wsl --update`, lalu `wsl --shutdown`, dan coba lagi.".to_string())
+            Err("The WSL containers session is not responding. Run `wsl --update`, then `wsl --shutdown`, and try again.".to_string())
         };
     }
     start_docker().await
@@ -261,7 +261,7 @@ async fn start_docker() -> Result<(), String> {
                 .stderr(Stdio::null())
                 .creation_flags(CREATE_NO_WINDOW)
                 .spawn()
-                .map_err(|e| format!("Gagal menjalankan Docker Desktop: {}", e))?;
+                .map_err(|e| format!("Could not start Docker Desktop: {}", e))?;
         } else {
             // Fallback via Start Menu shortcut
             Command::new("cmd")
@@ -270,7 +270,7 @@ async fn start_docker() -> Result<(), String> {
                 .stderr(Stdio::null())
                 .creation_flags(CREATE_NO_WINDOW)
                 .spawn()
-                .map_err(|e| format!("Gagal menjalankan Docker Desktop via Start Menu: {}", e))?;
+                .map_err(|e| format!("Could not start Docker Desktop from the Start Menu: {}", e))?;
         }
 
         Ok(())
@@ -283,14 +283,14 @@ async fn start_docker() -> Result<(), String> {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
-            .map_err(|e| format!("Gagal membuka Docker Desktop: {}", e))?;
+            .map_err(|e| format!("Could not open Docker Desktop: {}", e))?;
 
         Ok(())
     }
 
     #[cfg(target_os = "linux")]
     {
-        Err("Docker daemon harus distart manual via systemctl start docker.".to_string())
+        Err("Start the Docker daemon yourself with systemctl start docker.".to_string())
     }
 }
 

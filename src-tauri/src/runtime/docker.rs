@@ -65,11 +65,11 @@ pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> R
         .stderr(Stdio::piped())
         .output()
         .await
-        .map_err(|e| format!("Gagal menjalankan docker cp: {}", e))?;
+        .map_err(|e| format!("Could not run docker cp: {}", e))?;
     if out.status.success() {
         Ok(())
     } else {
-        Err(format!("docker cp gagal: {}", String::from_utf8_lossy(&out.stderr).trim()))
+        Err(format!("docker cp failed: {}", String::from_utf8_lossy(&out.stderr).trim()))
     }
 }
 
@@ -93,11 +93,11 @@ pub async fn status() -> Result<Vec<ServiceStatus>, String> {
         .stderr(Stdio::piped())
         .output()
         .await
-        .map_err(|e| format!("Gagal jalankan docker ps: {}", e))?;
+        .map_err(|e| format!("Could not run docker ps: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("docker ps gagal: {}", stderr));
+        return Err(format!("docker ps failed: {}", stderr));
     }
 
     Ok(parse_docker_ps_json(&String::from_utf8_lossy(&output.stdout)))
@@ -112,11 +112,11 @@ pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
         .stderr(Stdio::piped())
         .output()
         .await
-        .map_err(|e| format!("Gagal jalankan docker stats: {}", e))?;
+        .map_err(|e| format!("Could not run docker stats: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("docker stats gagal: {}", stderr));
+        return Err(format!("docker stats failed: {}", stderr));
     }
 
     Ok(parse_docker_stats_json(&String::from_utf8_lossy(&output.stdout)))
@@ -126,7 +126,7 @@ fn compose_path_str() -> Result<String, String> {
     compose_path()
         .to_str()
         .map(str::to_string)
-        .ok_or_else(|| "compose path tidak valid UTF-8".to_string())
+        .ok_or_else(|| "compose path is not valid UTF-8".to_string())
 }
 
 pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) -> Result<(), String> {
@@ -142,9 +142,9 @@ pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) ->
     let yaml = generate_compose(defs, &effective);
     let compose_file = compose_path();
     if let Some(parent) = compose_file.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("Gagal buat dir compose: {}", e))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("Could not create the compose folder: {}", e))?;
     }
-    std::fs::write(&compose_file, yaml).map_err(|e| format!("Gagal tulis compose file: {}", e))?;
+    std::fs::write(&compose_file, yaml).map_err(|e| format!("Could not write the compose file: {}", e))?;
 
     let path = compose_path_str()?;
     let mut cmd = silent_command("docker");
@@ -154,7 +154,7 @@ pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) ->
 
 pub async fn stop(app: &AppHandle, services: &[String]) -> Result<(), String> {
     if !compose_path().exists() {
-        return Err("compose file tidak ditemukan, jalankan Start terlebih dahulu".to_string());
+        return Err("compose file not found; run Start first".to_string());
     }
     let path = compose_path_str()?;
     let mut cmd = silent_command("docker");

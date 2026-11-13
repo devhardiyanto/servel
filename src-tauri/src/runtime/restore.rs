@@ -37,10 +37,10 @@ pub fn validate_dump(path: &Path) -> Result<(), String> {
         .and_then(|e| e.to_str())
         .is_some_and(|e| e.eq_ignore_ascii_case("sql"));
     if !is_sql {
-        return Err("file restore harus berekstensi .sql".to_string());
+        return Err("the restore file must end in .sql".to_string());
     }
     if !path.is_file() {
-        return Err(format!("file tidak ditemukan: {}", path.display()));
+        return Err(format!("file not found: {}", path.display()));
     }
     Ok(())
 }
@@ -51,13 +51,13 @@ fn emit(app: &AppHandle, source: &str, stream: &str, line: &str) {
 
 pub async fn restore(app: &AppHandle, defs: &[ServiceDef], service_id: &str, file: &str) -> Result<(), String> {
     let cmd = restore_command(service_id)
-        .ok_or_else(|| format!("restore hanya untuk mysql dan postgres, bukan '{}'", service_id))?;
+        .ok_or_else(|| format!("restore works for mysql and postgres only, not '{}'", service_id))?;
     let path = PathBuf::from(file);
     validate_dump(&path)?;
     let def = defs
         .iter()
         .find(|d| d.id == service_id)
-        .ok_or_else(|| format!("service '{}' tidak dikenal", service_id))?;
+        .ok_or_else(|| format!("unknown service '{}'", service_id))?;
     let source = service_id.to_uppercase();
     let name = def.container_name.clone();
 
@@ -71,25 +71,25 @@ pub async fn restore(app: &AppHandle, defs: &[ServiceDef], service_id: &str, fil
             break;
         }
         if Instant::now() >= deadline {
-            return Err(format!("{} belum siap setelah 120 dtk — cek tab Logs", name));
+            return Err(format!("{} is not ready after 120 s; check the Logs tab", name));
         }
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
 
-    emit(app, &source, "stdout", "menyalin file ke container…");
+    emit(app, &source, "stdout", "copying the file into the container…");
     match ensure_resolved().await {
         RuntimeKind::Wslc => super::wslc::copy_file_into(&name, &path, CONTAINER_FILE).await?,
         RuntimeKind::Docker => super::docker::copy_file_into(&name, &path, CONTAINER_FILE).await?,
     }
 
-    emit(app, &source, "stdout", "menjalankan restore…");
+    emit(app, &source, "stdout", "running the restore…");
     let r = match ensure_resolved().await {
         RuntimeKind::Wslc => super::wslc::exec_streamed(app, &name, &cmd, &source).await,
         RuntimeKind::Docker => super::docker::exec_streamed(app, &name, &cmd).await,
     };
     match &r {
-        Ok(()) => emit(app, &source, "stdout", &format!("restore selesai: {}", path.display())),
-        Err(e) => emit(app, &source, "stderr", &format!("restore gagal: {}", e)),
+        Ok(()) => emit(app, &source, "stdout", &format!("restore finished: {}", path.display())),
+        Err(e) => emit(app, &source, "stderr", &format!("restore failed: {}", e)),
     }
     r
 }

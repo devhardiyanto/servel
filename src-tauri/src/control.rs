@@ -63,7 +63,7 @@ pub fn parse_request(line: &str, token: &str) -> Result<Request, String> {
     let line = line.trim();
     let (given, rest) = line.split_once(' ').unwrap_or((line, ""));
     if !same_token(given, token) {
-        return Err("token tidak cocok".to_string());
+        return Err("token does not match".to_string());
     }
     let rest = rest.trim();
     let (verb, target) = rest.split_once(' ').unwrap_or((rest, ""));
@@ -72,11 +72,11 @@ pub fn parse_request(line: &str, token: &str) -> Result<Request, String> {
         "stop" => Action::Stop,
         "restart" => Action::Restart,
         "status" => Action::Status,
-        other => return Err(format!("aksi tidak dikenal: {}", other)),
+        other => return Err(format!("unknown action: {}", other)),
     };
     let target = target.trim().to_string();
     if action != Action::Status && target.is_empty() {
-        return Err("nama project belum diisi".to_string());
+        return Err("project name is missing".to_string());
     }
     Ok(Request { action, target })
 }
@@ -89,9 +89,9 @@ pub fn find_project<'a>(projects: &'a [Project], target: &str) -> Result<&'a Pro
     }
     let hits: Vec<&Project> = projects.iter().filter(|p| p.name.eq_ignore_ascii_case(target)).collect();
     match hits.len() {
-        0 => Err(format!("project \"{}\" tidak ada", target)),
+        0 => Err(format!("no project named \"{}\"", target)),
         1 => Ok(hits[0]),
-        n => Err(format!("{} project bernama \"{}\"; ganti nama salah satunya", n, target)),
+        n => Err(format!("{} projects are named \"{}\"; rename one of them", n, target)),
     }
 }
 
@@ -130,9 +130,9 @@ async fn handle(app: &AppHandle, line: &str, token: &str) -> Response {
         Err(e) => return fail(e),
     };
     let result = match req.action {
-        Action::Start => crate::sites::start_with_services(app, &project).await.map(|_| "dijalankan"),
-        Action::Restart => crate::sites::restart_with_services(app, &project).await.map(|_| "dijalankan ulang"),
-        Action::Stop => process::stop(app, &project.id).await.map(|_| "dihentikan"),
+        Action::Start => crate::sites::start_with_services(app, &project).await.map(|_| "started"),
+        Action::Restart => crate::sites::restart_with_services(app, &project).await.map(|_| "restarted"),
+        Action::Stop => process::stop(app, &project.id).await.map(|_| "stopped"),
         Action::Status => Ok(""),
     };
     match result {
@@ -147,7 +147,7 @@ async fn handle(app: &AppHandle, line: &str, token: &str) -> Response {
 
 fn new_token() -> Result<String, String> {
     let mut buf = [0u8; 24];
-    getrandom::getrandom(&mut buf).map_err(|e| format!("tidak bisa membuat token: {}", e))?;
+    getrandom::getrandom(&mut buf).map_err(|e| format!("could not create a token: {}", e))?;
     Ok(buf.iter().map(|b| format!("{:02x}", b)).collect())
 }
 
@@ -194,7 +194,7 @@ where
     let got = tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line)).await;
     let response = match got {
         Ok(Ok(n)) if n > 0 => respond(line).await,
-        _ => Response { ok: false, message: "permintaan kosong".to_string(), projects: Vec::new() },
+        _ => Response { ok: false, message: "empty request".to_string(), projects: Vec::new() },
     };
     let mut out = serde_json::to_string(&response).unwrap_or_else(|_| "{\"ok\":false}".to_string());
     out.push('\n');
@@ -221,8 +221,8 @@ mod tests {
         assert!(parse_request("abc124 start x", t).unwrap_err().contains("token"));
         assert!(parse_request("abc start x", t).unwrap_err().contains("token"));
         assert!(parse_request("start x", t).unwrap_err().contains("token"));
-        assert!(parse_request("abc123 delete x", t).unwrap_err().contains("aksi"));
-        assert!(parse_request("abc123 stop", t).unwrap_err().contains("nama project"));
+        assert!(parse_request("abc123 delete x", t).unwrap_err().contains("unknown action"));
+        assert!(parse_request("abc123 stop", t).unwrap_err().contains("project name"));
     }
 
     #[test]
@@ -230,8 +230,8 @@ mod tests {
         let ps = vec![project("1", "share-api"), project("2", "Event"), project("3", "event")];
         assert_eq!(find_project(&ps, "SHARE-API").unwrap().id, "1");
         assert_eq!(find_project(&ps, "2").unwrap().name, "Event");
-        assert!(find_project(&ps, "event").unwrap_err().contains("2 project"));
-        assert!(find_project(&ps, "nope").unwrap_err().contains("tidak ada"));
+        assert!(find_project(&ps, "event").unwrap_err().contains("2 projects"));
+        assert!(find_project(&ps, "nope").unwrap_err().contains("no project named"));
     }
 
     #[test]

@@ -121,16 +121,16 @@ fn client() -> Result<reqwest::Client, String> {
         .connect_timeout(Duration::from_secs(15))
         .timeout(Duration::from_secs(300))
         .build()
-        .map_err(|e| format!("klien unduhan gagal dibuat: {}", e))
+        .map_err(|e| format!("could not set up the download: {}", e))
 }
 
 async fn get_text(c: &reqwest::Client, url: &str) -> Result<Option<String>, String> {
-    let r = c.get(url).send().await.map_err(|e| format!("tidak bisa menghubungi downloads.php.net: {}", e))?;
+    let r = c.get(url).send().await.map_err(|e| format!("could not reach downloads.php.net: {}", e))?;
     if r.status() == reqwest::StatusCode::NOT_FOUND {
         return Ok(None);
     }
     if !r.status().is_success() {
-        return Err(format!("downloads.php.net menjawab {}", r.status()));
+        return Err(format!("downloads.php.net answered {}", r.status()));
     }
     r.text().await.map(Some).map_err(|e| e.to_string())
 }
@@ -149,30 +149,30 @@ async fn fetch(ext: &str, php: &PhpBuild) -> Result<(String, String, Vec<u8>), S
     let c = client()?;
     let index = get_text(&c, &format!("{}/{}/", BASE, ext))
         .await?
-        .ok_or_else(|| format!("extension \"{}\" tidak punya build Windows di downloads.php.net", ext))?;
+        .ok_or_else(|| format!("extension \"{}\" has no Windows build on downloads.php.net", ext))?;
     let versions = stable_versions(&parse_links(&index));
     if versions.is_empty() {
-        return Err(format!("belum ada rilis stabil {} untuk Windows", ext));
+        return Err(format!("{} has no stable release for Windows yet", ext));
     }
     for version in versions.iter().take(MAX_VERSIONS) {
         let Some(listing) = get_text(&c, &format!("{}/{}/{}/", BASE, ext, version)).await? else { continue };
         let Some(file) = pick_build(&parse_links(&listing), ext, version, php) else { continue };
         let url = format!("{}/{}/{}/{}", BASE, ext, version, file);
-        let r = c.get(&url).send().await.map_err(|e| format!("unduhan gagal: {}", e))?;
+        let r = c.get(&url).send().await.map_err(|e| format!("download failed: {}", e))?;
         if !r.status().is_success() {
-            return Err(format!("unduhan {} gagal: {}", file, r.status()));
+            return Err(format!("download of {} failed: {}", file, r.status()));
         }
         if r.content_length().is_some_and(|n| n > MAX_ZIP_BYTES) {
-            return Err(format!("{} terlalu besar", file));
+            return Err(format!("{} is too large", file));
         }
-        let bytes = r.bytes().await.map_err(|e| format!("unduhan terputus: {}", e))?;
+        let bytes = r.bytes().await.map_err(|e| format!("download was interrupted: {}", e))?;
         if bytes.len() as u64 > MAX_ZIP_BYTES {
-            return Err(format!("{} terlalu besar", file));
+            return Err(format!("{} is too large", file));
         }
         return Ok((version.clone(), file, bytes.to_vec()));
     }
     Err(format!(
-        "tidak ada build {} untuk PHP {} {} {} di {} rilis terbaru",
+        "no {} build for PHP {} {} {} in the {} newest releases",
         ext,
         php.minor,
         if php.thread_safe { "TS" } else { "NTS" },
@@ -185,31 +185,31 @@ async fn fetch(ext: &str, php: &PhpBuild) -> Result<(String, String, Vec<u8>), S
 /// ada tidak ditimpa (bisa sedang dipakai, atau milik extension lain).
 pub fn extract(zip: &[u8], ext: &str, ext_dir: &Path, php_dir: &Path) -> Result<usize, String> {
     use std::io::Read;
-    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip)).map_err(|e| format!("arsip rusak: {}", e))?;
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(zip)).map_err(|e| format!("archive is damaged: {}", e))?;
     let mut main: Option<Vec<u8>> = None;
     let mut support: Vec<(String, Vec<u8>)> = Vec::new();
     for i in 0..archive.len() {
-        let mut entry = archive.by_index(i).map_err(|e| format!("arsip rusak: {}", e))?;
+        let mut entry = archive.by_index(i).map_err(|e| format!("archive is damaged: {}", e))?;
         let name = entry.name().to_string();
         let Some(dest) = entry_dest(&name, ext) else { continue };
         let mut data = Vec::new();
-        entry.read_to_end(&mut data).map_err(|e| format!("gagal membaca {}: {}", name, e))?;
+        entry.read_to_end(&mut data).map_err(|e| format!("could not read {}: {}", name, e))?;
         match dest {
             Dest::Ext => main = Some(data),
             Dest::Php => support.push((name, data)),
         }
     }
-    let main = main.ok_or_else(|| format!("arsip tidak berisi php_{}.dll", ext))?;
-    std::fs::create_dir_all(ext_dir).map_err(|e| format!("gagal membuat {}: {}", ext_dir.display(), e))?;
+    let main = main.ok_or_else(|| format!("archive does not contain php_{}.dll", ext))?;
+    std::fs::create_dir_all(ext_dir).map_err(|e| format!("could not create {}: {}", ext_dir.display(), e))?;
     let target: PathBuf = ext_dir.join(format!("php_{}.dll", ext));
-    std::fs::write(&target, main).map_err(|e| format!("gagal menulis {}: {}", target.display(), e))?;
+    std::fs::write(&target, main).map_err(|e| format!("could not write {}: {}", target.display(), e))?;
     let mut written = 0;
     for (name, data) in support {
         let path = php_dir.join(&name);
         if path.exists() {
             continue;
         }
-        std::fs::write(&path, data).map_err(|e| format!("gagal menulis {}: {}", path.display(), e))?;
+        std::fs::write(&path, data).map_err(|e| format!("could not write {}: {}", path.display(), e))?;
         written += 1;
     }
     Ok(written)
@@ -218,7 +218,7 @@ pub fn extract(zip: &[u8], ext: &str, ext_dir: &Path, php_dir: &Path) -> Result<
 /// Unduh dan pasang `ext` untuk build PHP ini.
 pub async fn install(ext: &str, php: &PhpBuild, ext_dir: &Path, php_dir: &Path) -> Result<Installed, String> {
     if !valid_name(ext) {
-        return Err(format!("nama extension tidak valid: {}", ext));
+        return Err(format!("extension name is not valid: {}", ext));
     }
     let (version, file, bytes) = fetch(ext, php).await?;
     let (ext_owned, ext_dir, php_dir) = (ext.to_string(), ext_dir.to_path_buf(), php_dir.to_path_buf());
@@ -342,8 +342,8 @@ mod tests {
             assert!(size > 10_000);
             assert_eq!(got.support_dlls > 0, ext == "imagick");
         }
-        assert!(install("redis", &php("5.2", false), &root, &root).await.unwrap_err().contains("tidak ada build"));
-        assert!(install("no_such_ext_xyz", &php("8.3", false), &root, &root).await.unwrap_err().contains("tidak punya build"));
+        assert!(install("redis", &php("5.2", false), &root, &root).await.unwrap_err().contains("build for PHP"));
+        assert!(install("no_such_ext_xyz", &php("8.3", false), &root, &root).await.unwrap_err().contains("no Windows build"));
         let _ = std::fs::remove_dir_all(&root);
     }
 }

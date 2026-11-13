@@ -280,8 +280,19 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 
 - Tanpa checksum dari sumber; integritas hanya lewat HTTPS ke php.net.
 
+## v2.7.0 — satu bahasa (English)
+
+**Selesai**
+
+- Semua teks yang dibaca pengguna menjadi English: label UI yang masih Indonesia (About/updater, profil, banner konflik port), seluruh pesan log dan error backend (±240 pesan), serta pesan dan bantuan CLI.
+- Komentar kode dan pesan assert di test tetap Indonesia (bukan teks pengguna).
+- Tidak ada perubahan perilaku, format file, atau nama perintah.
+
+**Perlu verifikasi di Windows**
+
+- CLI: `servel help` dan pesan error tampil benar di PowerShell 5.1 (skrip tidak bisa dijalankan di lingkungan pengembangan).
+
 ## Rencana berikutnya
 
-- v2.4.x — patch dari uji lapangan; screenshot baru di `docs/screenshots/` dan bagian code signing di README (hanya dokumen, ikut patch mana pun).
-- v2.7.0 — satu bahasa untuk seluruh label, log, dan pesan error (sekarang campur Inggris/Indonesia). Diff lebar, jadi rilis tersendiri.
+- v2.7.x — patch dari uji lapangan; screenshot baru di `docs/screenshots/` dan bagian code signing di README (hanya dokumen, ikut patch mana pun).
 - Code signing begitu sertifikat tersedia.

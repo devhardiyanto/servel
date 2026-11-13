@@ -40,11 +40,11 @@ pub async fn node_list_installed() -> Result<Vec<NodeVersion>, String> {
         .stderr(Stdio::piped())
         .output()
         .await
-        .map_err(|e| format!("fnm tidak ditemukan di PATH: {}", e))?;
+        .map_err(|e| format!("fnm not found on PATH: {}", e))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("fnm list gagal: {}", stderr.trim()));
+        return Err(format!("fnm list failed: {}", stderr.trim()));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -68,7 +68,7 @@ pub async fn node_get_active() -> Result<Option<String>, String> {
         .stderr(Stdio::piped())
         .output()
         .await
-        .map_err(|e| format!("fnm tidak ditemukan di PATH: {}", e))?;
+        .map_err(|e| format!("fnm not found on PATH: {}", e))?;
 
     if !output.status.success() {
         return Ok(None);
@@ -95,10 +95,10 @@ pub async fn node_switch(window: Window, version: String, scope: Option<String>)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("fnm tidak ditemukan di PATH: {}", e))?;
+        .map_err(|e| format!("fnm not found on PATH: {}", e))?;
 
-    let stdout = child.stdout.take().ok_or("stdout tidak tersedia")?;
-    let stderr = child.stderr.take().ok_or("stderr tidak tersedia")?;
+    let stdout = child.stdout.take().ok_or("stdout not available")?;
+    let stderr = child.stderr.take().ok_or("stderr not available")?;
 
     let window_out = window.clone();
     let stdout_task = tokio::spawn(async move {
@@ -121,10 +121,10 @@ pub async fn node_switch(window: Window, version: String, scope: Option<String>)
     let status = child
         .wait()
         .await
-        .map_err(|e| format!("Gagal menunggu fnm: {}", e))?;
+        .map_err(|e| format!("Waiting for fnm failed: {}", e))?;
 
     if !status.success() {
-        return Err(format!("fnm default {} gagal (exit {})", version, status));
+        return Err(format!("fnm default {} failed (exit {})", version, status));
     }
 
     emit_env_line(&window, &format!("switched node → {} (via fnm)", version));
@@ -153,10 +153,10 @@ pub async fn node_install(window: Window, version: String) -> Result<(), String>
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("fnm tidak ditemukan di PATH: {}", e))?;
+        .map_err(|e| format!("fnm not found on PATH: {}", e))?;
 
-    let stdout = child.stdout.take().ok_or("stdout tidak tersedia")?;
-    let stderr = child.stderr.take().ok_or("stderr tidak tersedia")?;
+    let stdout = child.stdout.take().ok_or("stdout not available")?;
+    let stderr = child.stderr.take().ok_or("stderr not available")?;
 
     let window_out = window.clone();
     let stdout_task = tokio::spawn(async move {
@@ -179,10 +179,10 @@ pub async fn node_install(window: Window, version: String) -> Result<(), String>
     let status = child
         .wait()
         .await
-        .map_err(|e| format!("Gagal menunggu fnm: {}", e))?;
+        .map_err(|e| format!("Waiting for fnm failed: {}", e))?;
 
     if !status.success() {
-        return Err(format!("fnm install {} gagal (exit {})", version, status));
+        return Err(format!("fnm install {} failed (exit {})", version, status));
     }
 
     Ok(())

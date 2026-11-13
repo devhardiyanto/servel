@@ -71,7 +71,7 @@ async function probeInstaller(): Promise<void> {
       updateAvailable.value = true
     }
   } catch (err) {
-    console.warn('[update-check] updater bawaan tidak tersedia:', err)
+    console.warn('[update-check] built-in updater not available:', err)
     canInstall.value = false
   }
 }

@@ -253,18 +253,18 @@ pub fn parse_docker_error(stderr_acc: &str) -> Option<String> {
             let port: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
             if !port.is_empty() {
                 return Some(format!(
-                    "Port {} sudah dipakai aplikasi lain — close dulu sebelum start service ini",
+                    "Port {} is used by another program. Close it before starting this service",
                     port
                 ));
             }
         }
-        return Some("Port conflict — salah satu port service sudah dipakai aplikasi lain".to_string());
+        return Some("Port conflict: one of the service ports is used by another program".to_string());
     }
     if lower.contains("network") && lower.contains("already exists") {
         return Some("Network conflict — restart Docker Desktop".to_string());
     }
     if lower.contains("cannot connect to the docker daemon") {
-        return Some("Docker Desktop tidak running — start Docker dulu".to_string());
+        return Some("Docker Desktop is not running. Start Docker first".to_string());
     }
     None
 }
@@ -275,10 +275,10 @@ pub fn parse_docker_error(stderr_acc: &str) -> Option<String> {
 pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<(), String> {
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
 
-    let mut child = cmd.spawn().map_err(|e| format!("Gagal spawn docker: {}", e))?;
+    let mut child = cmd.spawn().map_err(|e| format!("Could not run docker: {}", e))?;
 
-    let stdout = child.stdout.take().ok_or("stdout tidak tersedia")?;
-    let stderr = child.stderr.take().ok_or("stderr tidak tersedia")?;
+    let stdout = child.stdout.take().ok_or("stdout not available")?;
+    let stderr = child.stderr.take().ok_or("stderr not available")?;
 
     let stderr_buf: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
 
@@ -318,7 +318,7 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
     let status = child
         .wait()
         .await
-        .map_err(|e| format!("Gagal menunggu docker: {}", e))?;
+        .map_err(|e| format!("Waiting for docker failed: {}", e))?;
 
     if !status.success() {
         let acc = stderr_buf
@@ -326,7 +326,7 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
             .map(|b| b.join("\n"))
             .unwrap_or_default();
         let msg = parse_docker_error(&acc)
-            .unwrap_or_else(|| format!("docker compose gagal (exit {})", status));
+            .unwrap_or_else(|| format!("docker compose failed (exit {})", status));
         let _ = app.emit(
             "cmd-output",
             serde_json::json!({ "line": msg, "stream": "stderr", "source": "SERVEL" }),

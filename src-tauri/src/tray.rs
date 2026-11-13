@@ -52,7 +52,7 @@ fn build_version_submenu(
         let empty = MenuItem::with_id(
             app,
             format!("{}_none", kind),
-            "Tidak ada versi terpasang",
+            "No version installed",
             false,
             None::<&str>,
         )?;
@@ -115,7 +115,7 @@ pub(crate) async fn refresh_version_submenus(app: &AppHandle) {
                 let _ = tray.set_menu(Some(menu));
             }
         }
-        Err(e) => emit_log_line(app, "TRAY", &format!("rebuild menu gagal: {}", e)),
+        Err(e) => emit_log_line(app, "TRAY", &format!("rebuilding the menu failed: {}", e)),
     }
 }
 

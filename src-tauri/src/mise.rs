@@ -249,7 +249,7 @@ pub fn validate_version(version: &str) -> Result<(), String> {
     let ok = !version.is_empty()
         && parts.len() <= 3
         && parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()));
-    if ok { Ok(()) } else { Err(format!("versi '{}' tidak valid", version)) }
+    if ok { Ok(()) } else { Err(format!("version '{}' is not valid", version)) }
 }
 
 pub fn use_args(plan: &UsePlan, tool: &str, version: &str) -> Option<Vec<String>> {
@@ -297,7 +297,7 @@ fn map_error(stderr: &str, stdout: &str) -> String {
         .find(|l| l.contains("ERROR"))
         .or_else(|| lines.iter().rev().find(|l| !l.contains("WARN")))
         .copied()
-        .unwrap_or("mise gagal");
+        .unwrap_or("mise failed");
     msg.trim_start_matches("mise ERROR").trim().to_string()
 }
 
@@ -306,7 +306,7 @@ async fn capture(args: &[String], cwd: &Path) -> Result<String, String> {
     let out = tokio::time::timeout(std::time::Duration::from_secs(30), fut)
         .await
         .map_err(|_| format!("mise {} timeout", args.join(" ")))?
-        .map_err(|e| format!("mise tidak bisa dijalankan: {}", e))?;
+        .map_err(|e| format!("could not run mise: {}", e))?;
     if out.status.success() {
         Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     } else {
@@ -317,8 +317,8 @@ async fn capture(args: &[String], cwd: &Path) -> Result<String, String> {
 /// Parse `mise env --json`: objek `{ "NAMA": "nilai", ... }`. Nilai non-string
 /// diabaikan.
 pub fn parse_env(stdout: &str) -> Result<std::collections::HashMap<String, String>, String> {
-    let v: Value = serde_json::from_str(stdout.trim()).map_err(|e| format!("output mise env tidak valid: {}", e))?;
-    let obj = v.as_object().ok_or_else(|| "output mise env bukan objek".to_string())?;
+    let v: Value = serde_json::from_str(stdout.trim()).map_err(|e| format!("mise env output is not valid: {}", e))?;
+    let obj = v.as_object().ok_or_else(|| "mise env output is not an object".to_string())?;
     Ok(obj
         .iter()
         .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
@@ -360,9 +360,9 @@ async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), 
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|e| format!("mise tidak bisa dijalankan: {}", e))?;
-    let stdout = child.stdout.take().ok_or("stdout mise tidak tersedia")?;
-    let stderr = child.stderr.take().ok_or("stderr mise tidak tersedia")?;
+        .map_err(|e| format!("could not run mise: {}", e))?;
+    let stdout = child.stdout.take().ok_or("mise stdout not available")?;
+    let stderr = child.stderr.take().ok_or("mise stderr not available")?;
 
     let app_out = app.clone();
     let out_task = tokio::spawn(async move {
@@ -390,7 +390,7 @@ async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), 
     let status = tokio::time::timeout(std::time::Duration::from_secs(20 * 60), child.wait())
         .await
         .map_err(|_| "mise timeout (20 menit)".to_string())?
-        .map_err(|e| format!("gagal menunggu mise: {}", e))?;
+        .map_err(|e| format!("waiting for mise failed: {}", e))?;
     let _ = out_task.await;
     let err = err_task.await.unwrap_or_default();
     if status.success() {
@@ -473,7 +473,7 @@ pub async fn install_dir(tool: &str, version: &str) -> Result<PathBuf, String> {
     let out = capture(&["where".into(), format!("{}@{}", tool, version)], &home_dir()).await?;
     let dir = out.lines().map(str::trim).rfind(|l| !l.is_empty()).unwrap_or("");
     if dir.is_empty() {
-        return Err(format!("mise tidak menemukan {}@{}", tool, version));
+        return Err(format!("mise could not find {}@{}", tool, version));
     }
     Ok(PathBuf::from(dir))
 }
@@ -575,7 +575,7 @@ pub async fn mise_repair(app: AppHandle, action: String) -> Result<(), String> {
         "reshim" => vec!["reshim".into()],
         "cache-clear" => vec!["cache".into(), "clear".into()],
         "doctor" => vec!["doctor".into()],
-        other => return Err(format!("aksi '{}' tidak dikenal", other)),
+        other => return Err(format!("unknown action '{}'", other)),
     };
     // `doctor` exit non-zero bila menemukan masalah — laporannya tetap di log.
     let r = run_logged(&app, &args, &home_dir()).await;
