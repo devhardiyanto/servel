@@ -97,7 +97,7 @@ function imageTag(def: ServiceDef): string {
   gap: var(--space-3);
   padding: 7px var(--space-4);
   font-family: var(--font-sans);
-  font-size: 12.5px;
+  font-size: var(--text-xs);
   cursor: pointer;
   transition: background 0.18s var(--ease);
 }
@@ -111,7 +111,7 @@ function imageTag(def: ServiceDef): string {
 }
 
 .svc-icon {
-  font-size: 14px;
+  font-size: var(--text-md);
   text-align: center;
   user-select: none;
 }
@@ -133,21 +133,21 @@ function imageTag(def: ServiceDef): string {
 
 .svc-version {
   font-family: var(--font-mono);
-  color: var(--dim);
-  font-size: 10px;
+  color: var(--faint);
+  font-size: var(--text-xs);
 }
 
 .svc-port {
   font-family: var(--font-mono);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .svc-ram {
   font-family: var(--font-mono);
   color: var(--amber);
   text-align: right;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .svc-toggle {
@@ -192,7 +192,7 @@ function imageTag(def: ServiceDef): string {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   letter-spacing: 0.01em;
 }
 
@@ -216,7 +216,7 @@ function imageTag(def: ServiceDef): string {
 
 /* Stopped — dim, subtle slow pulse (idle) */
 .badge-stop {
-  color: var(--dim);
+  color: var(--faint);
 }
 .badge-stop .sdot {
   background: var(--dim);

@@ -41,14 +41,14 @@ defineProps<{
 
 .setting-row__label {
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text);
 }
 
 .setting-row__desc {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
   line-height: 1.4;
 }

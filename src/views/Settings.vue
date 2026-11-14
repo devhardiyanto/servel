@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
+import UiToggle from '@/components/ui/UiToggle.vue'
 import { ref, computed, inject, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
@@ -316,45 +318,21 @@ onMounted(async () => {
               label="Auto-start infra on launch"
               desc="Start saved selection automatically when Servel boots"
             >
-              <button
-                class="toggle"
-                :class="{ 'toggle--on': config.autoStart }"
-                role="switch"
-                :aria-checked="config.autoStart"
-                @click="setAutoStart(!config.autoStart)"
-              >
-                <span class="toggle-knob"></span>
-              </button>
+              <UiToggle label="Auto-start infra on launch" :on="config.autoStart" @click="setAutoStart(!config.autoStart)" />
             </SettingRow>
 
             <SettingRow
               label="Remember last session"
               desc="Persist selected services between launches"
             >
-              <button
-                class="toggle"
-                :class="{ 'toggle--on': config.rememberSession }"
-                role="switch"
-                :aria-checked="config.rememberSession"
-                @click="setRememberSession(!config.rememberSession)"
-              >
-                <span class="toggle-knob"></span>
-              </button>
+              <UiToggle label="Remember last session" :on="config.rememberSession" @click="setRememberSession(!config.rememberSession)" />
             </SettingRow>
 
             <SettingRow
               label="Minimize to tray on close"
               desc="Keep Servel running in system tray instead of quitting on window close"
             >
-              <button
-                class="toggle"
-                :class="{ 'toggle--on': config.minimizeToTray }"
-                role="switch"
-                :aria-checked="config.minimizeToTray"
-                @click="setMinimizeToTray(!config.minimizeToTray)"
-              >
-                <span class="toggle-knob"></span>
-              </button>
+              <UiToggle label="Minimize to tray on close" :on="config.minimizeToTray" @click="setMinimizeToTray(!config.minimizeToTray)" />
             </SettingRow>
           </div>
 
@@ -395,11 +373,10 @@ onMounted(async () => {
                 </span>
                 <span v-else>—</span>
               </span>
-              <button
-                class="action-btn"
+              <UiButton
                 :disabled="checkingEngine"
                 @click="checkEngine"
-              >{{ checkingEngine ? '...' : 'Refresh' }}</button>
+              >{{ checkingEngine ? '...' : 'Refresh' }}</UiButton>
             </SettingRow>
 
             <SettingRow v-if="platform === 'windows'" label="WSL version" desc="Built-in containers need WSL 3.0.1 or newer">
@@ -438,7 +415,7 @@ onMounted(async () => {
               label="Reset all settings"
               desc="Restore defaults and clear saved selection"
             >
-              <button class="action-btn action-btn--red" @click="handleReset">Reset</button>
+              <UiButton variant="danger" @click="handleReset">Reset</UiButton>
             </SettingRow>
           </div>
         </template>
@@ -462,8 +439,8 @@ onMounted(async () => {
                     @keyup.esc="cancelEditProfile"
                   />
                   <div class="profile-actions">
-                    <button class="action-btn" @click="commitEditProfile">Save</button>
-                    <button class="action-btn" @click="cancelEditProfile">Cancel</button>
+                    <UiButton @click="commitEditProfile">Save</UiButton>
+                    <UiButton @click="cancelEditProfile">Cancel</UiButton>
                   </div>
                 </template>
                 <template v-else>
@@ -473,13 +450,13 @@ onMounted(async () => {
                     <span class="profile-count">{{ p.serviceIds.length }} service</span>
                   </div>
                   <div class="profile-actions">
-                    <button class="action-btn" @click="startEditProfile(p.id, p.name)">Rename</button>
-                    <button
-                      class="action-btn action-btn--red"
+                    <UiButton @click="startEditProfile(p.id, p.name)">Rename</UiButton>
+                    <UiButton
+                      variant="danger"
                       :disabled="config.profiles.length <= 1"
                       :title="config.profiles.length <= 1 ? 'At least one profile is needed' : 'Delete profile'"
                       @click="handleDeleteProfile(p.id, p.name)"
-                    >Delete</button>
+                    >Delete</UiButton>
                   </div>
                 </template>
               </div>
@@ -494,11 +471,11 @@ onMounted(async () => {
                 placeholder="New profile name…"
                 @keyup.enter="handleCreateProfile"
               />
-              <button
-                class="action-btn action-btn--accent"
+              <UiButton
+                variant="accent"
                 :disabled="!newProfileName.trim()"
                 @click="handleCreateProfile"
-              >Create from selection</button>
+              >Create from selection</UiButton>
             </div>
           </div>
 
@@ -525,12 +502,11 @@ onMounted(async () => {
             </SettingRow>
 
             <SettingRow label="Dump file" :desc="restoreFile ?? 'No file chosen'">
-              <button class="action-btn" :disabled="restoring" @click="pickRestoreFile">Choose…</button>
-              <button
-                class="action-btn"
+              <UiButton :disabled="restoring" @click="pickRestoreFile">Choose…</UiButton>
+              <UiButton
                 :disabled="!restoreFile || restoring"
                 @click="runRestore"
-              >{{ restoring ? 'Restoring…' : 'Restore' }}</button>
+              >{{ restoring ? 'Restoring…' : 'Restore' }}</UiButton>
             </SettingRow>
 
             <SettingRow
@@ -538,7 +514,7 @@ onMounted(async () => {
               label="Import from Docker"
               desc="Copy databases from your old Docker container (Docker Desktop must be running)"
             >
-              <button class="action-btn" :disabled="restoring" @click="runMigrateFromDocker">Import…</button>
+              <UiButton :disabled="restoring" @click="runMigrateFromDocker">Import…</UiButton>
             </SettingRow>
 
             <p
@@ -586,9 +562,9 @@ onMounted(async () => {
               label="Repair"
               desc="Reshim fixes missing commands; Clear cache refreshes version lists; Doctor writes a report to the log"
             >
-              <button class="action-btn" :disabled="miseBusy" @click="versionCtx.repair('reshim')">Reshim</button>
-              <button class="action-btn" :disabled="miseBusy" @click="versionCtx.repair('cache-clear')">Clear cache</button>
-              <button class="action-btn" :disabled="miseBusy" @click="versionCtx.repair('doctor')">Doctor</button>
+              <UiButton :disabled="miseBusy" @click="versionCtx.repair('reshim')">Reshim</UiButton>
+              <UiButton :disabled="miseBusy" @click="versionCtx.repair('cache-clear')">Clear cache</UiButton>
+              <UiButton :disabled="miseBusy" @click="versionCtx.repair('doctor')">Doctor</UiButton>
             </SettingRow>
 
             <p v-if="miseError" class="section-hint section-hint--note">{{ miseError }}</p>
@@ -638,9 +614,9 @@ onMounted(async () => {
             </p>
 
             <div class="update-row">
-              <button class="update-check-btn" :disabled="checkingUpdate" @click="checkUpdate">
+              <UiButton :disabled="checkingUpdate" @click="checkUpdate">
                 {{ checkingUpdate ? 'Checking…' : 'Check for updates' }}
-              </button>
+              </UiButton>
               <span v-if="!updateAvailable && lastChecked" class="update-uptodate">You have the latest version</span>
             </div>
           </div>
@@ -675,7 +651,7 @@ onMounted(async () => {
   background: transparent;
   border: none;
   color: var(--muted);
-  font-size: 16px;
+  font-size: var(--text-lg);
   cursor: pointer;
   padding: 0 var(--space-2);
   line-height: 1;
@@ -690,7 +666,7 @@ onMounted(async () => {
 
 .app-strip__title {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.1em;
   color: var(--text);
@@ -729,7 +705,7 @@ onMounted(async () => {
   border-left: 2px solid transparent;
   padding: var(--space-2) var(--space-4);
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   letter-spacing: 0.06em;
   color: var(--muted);
   cursor: pointer;
@@ -767,10 +743,10 @@ onMounted(async () => {
 
 .section-title {
   font-family: var(--font-sans);
-  font-size: 10.5px;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.07em;
-  color: var(--dim);
+  color: var(--faint);
   margin-bottom: var(--space-3);
 }
 
@@ -779,38 +755,9 @@ onMounted(async () => {
 }
 
 /* Toggle */
-.toggle {
-  position: relative;
-  width: 36px;
-  height: 20px;
-  border-radius: var(--radius-md);
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  padding: 0;
-  transition: background 0.15s, border-color 0.15s;
-}
 
-.toggle--on {
-  background: color-mix(in srgb, var(--accent) 35%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-}
 
-.toggle-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--muted);
-  transition: transform 0.15s, background 0.15s;
-}
 
-.toggle--on .toggle-knob {
-  transform: translateX(16px);
-  background: var(--accent);
-}
 
 /* Status pill */
 .status-pill {
@@ -820,7 +767,7 @@ onMounted(async () => {
   padding: 3px 10px;
   border-radius: 20px;
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   border: 1px solid;
 }
 
@@ -846,46 +793,12 @@ onMounted(async () => {
 /* Mono value display */
 .setting-value-mono {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
   max-width: 280px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Action buttons */
-.action-btn {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  padding: 4px 12px;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  color: var(--muted);
-  transition: background 0.1s, color 0.1s;
-}
-
-.action-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--surface2) 80%, var(--text) 20%);
-  color: var(--text);
-}
-
-.action-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.action-btn--red {
-  background: color-mix(in srgb, var(--red) 10%, transparent);
-  border-color: color-mix(in srgb, var(--red) 40%, transparent);
-  color: var(--red);
-}
-
-.action-btn--red:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--red) 20%, transparent);
-  border-color: color-mix(in srgb, var(--red) 65%, transparent);
 }
 
 /* About section */
@@ -901,21 +814,21 @@ onMounted(async () => {
 
 .about-name {
   font-family: var(--font-mono);
-  font-size: 18px;
+  font-size: var(--text-lg);
   font-weight: 700;
   color: var(--accent);
 }
 
 .about-desc {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
 .about-version {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
 }
 
 .update-banner {
@@ -932,13 +845,13 @@ onMounted(async () => {
 
 .ub-text {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--text);
 }
 
 .ub-download {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   padding: 4px 12px;
   background: color-mix(in srgb, var(--accent) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
@@ -969,7 +882,7 @@ onMounted(async () => {
 
 .ub-link {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   padding: 4px 8px;
   background: transparent;
   border: none;
@@ -1014,14 +927,14 @@ onMounted(async () => {
 
 .up-text {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
 .update-error {
   margin-top: var(--space-3);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--red);
 }
 
@@ -1032,38 +945,17 @@ onMounted(async () => {
   margin-top: var(--space-3);
 }
 
-.update-check-btn {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  padding: 4px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  color: var(--text);
-  cursor: pointer;
-  transition: border-color 0.1s;
-}
-
-.update-check-btn:hover:not(:disabled) {
-  border-color: var(--dim);
-}
-
-.update-check-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .update-uptodate {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
 /* Placeholder */
 .placeholder-text {
   font-family: var(--font-sans);
-  font-size: 12px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   margin: 0;
   padding: var(--space-4) 0;
 }
@@ -1071,8 +963,8 @@ onMounted(async () => {
 /* Profiles CRUD */
 .section-hint {
   font-family: var(--font-sans);
-  font-size: 11px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   margin: 0 0 var(--space-3);
 }
 
@@ -1095,7 +987,7 @@ onMounted(async () => {
 
 .segmented__item {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   padding: 5px 12px;
   border: none;
   border-radius: var(--radius-sm);
@@ -1145,7 +1037,7 @@ onMounted(async () => {
 
 .profile-name {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1154,7 +1046,7 @@ onMounted(async () => {
 
 .profile-badge {
   font-family: var(--font-sans);
-  font-size: 9px;
+  font-size: var(--text-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 1px 6px;
@@ -1167,8 +1059,8 @@ onMounted(async () => {
 
 .profile-count {
   font-family: var(--font-sans);
-  font-size: 10px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   flex-shrink: 0;
 }
 
@@ -1183,7 +1075,7 @@ onMounted(async () => {
   flex: 1;
   min-width: 0;
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   padding: 5px 8px;
   border-radius: var(--radius-xs);
   border: 1px solid var(--border);
@@ -1202,18 +1094,6 @@ onMounted(async () => {
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-4);
-}
-
-.action-btn--accent {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
-.action-btn--accent:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
 }
 
 .restore-error {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 import { inject, computed, ref, onMounted } from 'vue'
 import { SetViewKey } from '../types/navigation'
 import { usePrereq } from '@/composables/usePrereq'
@@ -312,50 +313,54 @@ const fnmOkDesc = computed<string>(() => {
         <p class="ob-note">Already installed everything? Click Refresh to re-check.</p>
 
         <div class="ob-cta-row">
-          <button
+          <UiButton
+            variant="accent"
+            size="lg"
             v-if="engineInstalledButNotRunning && !isLinux"
-            class="ob-btn ob-btn--primary"
             :disabled="startingEngine"
             @click="startEngine"
           >
             <span v-if="startingEngine" class="ob-spinner"></span>
             <template v-if="isWslc">{{ startingEngine ? 'Connecting...' : 'Retry WSL containers' }}</template>
             <template v-else>{{ startingEngine ? 'Starting Docker...' : 'Start Docker' }}</template>
-          </button>
+          </UiButton>
 
-          <button
+          <UiButton
+            variant="quiet"
+            size="lg"
             v-if="canSwitchToWslc && engineInstalledButNotRunning"
-            class="ob-btn ob-btn--ghost"
             :disabled="switching"
             @click="useEngine('wslc')"
           >
             Use WSL containers instead
-          </button>
+          </UiButton>
 
-          <button
+          <UiButton
+            variant="primary"
+            size="lg"
             v-if="canContinue"
-            class="ob-btn ob-btn--ready"
             @click="setView('dashboard')"
           >
             Continue to Servel &#x2192;
-          </button>
+          </UiButton>
 
-          <button
+          <UiButton
+            size="lg"
             v-if="!canContinue"
-            class="ob-btn ob-btn--disabled"
             disabled
           >
             Continue to Servel &#x2192;
-          </button>
+          </UiButton>
 
-          <button
-            class="ob-btn ob-btn--ghost"
+          <UiButton
+            variant="quiet"
+            size="lg"
             :disabled="checking"
             @click="check"
           >
             <span v-if="checking" class="ob-spinner"></span>
             {{ checking ? 'Checking...' : '&#x21BB; Refresh checks' }}
-          </button>
+          </UiButton>
         </div>
       </div>
     </div>
@@ -416,14 +421,14 @@ const fnmOkDesc = computed<string>(() => {
 }
 
 .ob-heading {
-  font-size: 22px;
+  font-size: var(--text-xl);
   font-weight: 600;
   color: var(--text);
   margin: 0 0 var(--space-2) 0;
 }
 
 .ob-sub {
-  font-size: 14px;
+  font-size: var(--text-md);
   color: var(--muted);
   margin: 0 0 var(--space-6) 0;
 }
@@ -456,7 +461,7 @@ const fnmOkDesc = computed<string>(() => {
 
 .ob-progress-label {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
   flex-shrink: 0;
 }
@@ -499,7 +504,7 @@ const fnmOkDesc = computed<string>(() => {
   background: color-mix(in srgb, var(--red) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--red);
   margin-bottom: var(--space-4);
 }
@@ -520,7 +525,7 @@ const fnmOkDesc = computed<string>(() => {
 }
 
 .ob-instruction__title {
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--amber);
   margin: 0 0 var(--space-2) 0;
@@ -529,7 +534,7 @@ const fnmOkDesc = computed<string>(() => {
 .ob-instruction__cmd {
   display: block;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--text);
   background: var(--surface2);
   padding: var(--space-2) var(--space-3);
@@ -538,13 +543,13 @@ const fnmOkDesc = computed<string>(() => {
 }
 
 .ob-instruction__hint {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--muted);
   margin: 0;
 }
 
 .ob-note {
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--muted);
   margin: 0 0 var(--space-4) 0;
 }
@@ -554,55 +559,6 @@ const fnmOkDesc = computed<string>(() => {
   flex-wrap: wrap;
   gap: var(--space-3);
   align-items: center;
-}
-
-.ob-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-6);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-sans);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: opacity 0.15s, background 0.15s;
-}
-
-.ob-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.ob-btn--primary {
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  color: var(--accent);
-}
-
-.ob-btn--ready {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--bg);
-}
-
-.ob-btn--disabled {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--dim);
-  cursor: not-allowed;
-}
-
-.ob-btn--ghost {
-  background: var(--surface);
-  border-color: var(--border);
-  color: var(--muted);
-}
-
-.ob-btn--ghost:not(:disabled):hover {
-  color: var(--text);
-  border-color: var(--surface2);
 }
 
 .ob-spinner {
