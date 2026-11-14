@@ -127,7 +127,6 @@ pub fn run() {
             commands::services::services_stop,
             commands::services::services_stop_all,
             commands::services::services_restore,
-            commands::services::services_migrate_from_docker,
             commands::compose::get_compose_path,
             commands::config::config_read,
             commands::config::config_write,
@@ -153,9 +152,6 @@ pub fn run() {
             sites::site_stop,
             sites::site_restart,
             sites::site_forget,
-            sites::legacy_status,
-            sites::legacy_cleanup_hosts,
-            sites::legacy_remove_cert,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

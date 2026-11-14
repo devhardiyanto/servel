@@ -29,7 +29,7 @@ No more juggling three terminals every morning.
 - Windows: runs on WSL containers (`wslc`, built into WSL 3.0.1+). No Docker Desktop and no extra Linux distro needed. Docker stays available.
 - A service shows "up" only once it accepts connections.
 - **Connect** on each service shows host, port and credentials, with **Copy .env** (Laravel keys) and **Copy URL**.
-- Service profiles, database restore from a `.sql` dump, and import from an old Docker setup.
+- Service profiles and database restore from a `.sql` dump.
 
 **PHP and Node**
 - With mise: see and switch PHP/Node versions per project, written to the `mise.toml` that actually applies. Go and Python versions can be installed and set in **Settings → Runtimes**. phpvm and fnm are still supported.
@@ -190,7 +190,7 @@ Services listen on `127.0.0.1` with these defaults (for local development only):
 | Mailpit | SMTP 1025, UI 8025 | none |
 | Gotenberg | 3030 | none |
 
-To load data: **Settings → Services → Restore database** (pick a `.sql` dump for MySQL or PostgreSQL). Coming from Docker on Windows: **Import from Docker** copies your databases into WSL containers.
+To load data: **Settings → Services → Restore database** (pick a `.sql` dump for MySQL or PostgreSQL). Coming from Docker on Windows: dump the databases from Docker first (for example `docker exec servel_mysql mysqldump --all-databases > dump.sql`), then restore that file.
 
 ### Projects (Settings → Projects)
 
@@ -273,7 +273,7 @@ Stop the offending process and click Start again. For a project, pick another **
 
 ### Databases are empty after switching to WSL containers
 
-Expected: WSL containers and Docker Desktop have separate storage. Use **Settings → Services → Import from Docker** (Docker must be running), or **Restore database** with a `.sql` dump. You can also switch back to Docker in **Settings → Container engine**.
+Expected: WSL containers and Docker Desktop have separate storage. Dump the databases from Docker to a `.sql` file and use **Restore database**. You can also switch back to Docker in **Settings → Container engine**.
 
 ### "Docker not running" / containers fail to start
 

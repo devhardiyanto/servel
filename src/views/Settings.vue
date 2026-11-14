@@ -176,38 +176,6 @@ async function runRestore(): Promise<void> {
   }
 }
 
-// Migrasi Docker → WSL containers: hanya relevan bila engine aktif WSLC dan
-// Docker masih terpasang (sumber data lama).
-const canMigrateFromDocker = computed(
-  () => engineInfo.value?.engine === 'wslc' && !!engineInfo.value?.docker_available,
-)
-
-async function runMigrateFromDocker(): Promise<void> {
-  if (restoring.value) return
-  const label = restoreService.value === 'mysql' ? 'MySQL' : 'PostgreSQL'
-  let ok = false
-  try {
-    ok = await ask(
-      `Copy ${label} databases from the Docker container into WSL containers? ` +
-        'Docker must be running. The old Docker container is left untouched.',
-      { title: 'Import from Docker', kind: 'info' },
-    )
-  } catch {
-    ok = window.confirm(`Import ${label} from Docker?`)
-  }
-  if (!ok) return
-  restoring.value = true
-  restoreResult.value = null
-  try {
-    await invoke<void>('services_migrate_from_docker', { service: restoreService.value })
-    restoreResult.value = { ok: true, text: `${label} imported from Docker. Details are in the Logs.` }
-  } catch (err) {
-    restoreResult.value = { ok: false, text: String(err) }
-  } finally {
-    restoring.value = false
-  }
-}
-
 async function fetchComposePath(): Promise<void> {
   try {
     composePath.value = await invoke<string>('get_compose_path')
@@ -549,14 +517,6 @@ onMounted(async () => {
                 :disabled="!restoreFile || restoring"
                 @click="runRestore"
               >{{ restoring ? 'Restoring…' : 'Restore' }}</UiButton>
-            </SettingRow>
-
-            <SettingRow
-              v-if="canMigrateFromDocker"
-              label="Import from Docker"
-              desc="Copy databases from your old Docker container (Docker Desktop must be running)"
-            >
-              <UiButton :disabled="restoring" @click="runMigrateFromDocker">Import…</UiButton>
             </SettingRow>
 
             <p

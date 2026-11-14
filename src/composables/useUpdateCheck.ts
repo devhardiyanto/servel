@@ -4,13 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 
 const REPO = 'devhardiyanto/servel'
-const RELEASES_URL = `https://api.github.com/repos/${REPO}/releases/latest`
 const RELEASE_PAGE = `https://github.com/${REPO}/releases/latest`
-
-interface GithubRelease {
-  tag_name: string
-  html_url: string
-}
 
 /**
  * Bandingkan dua versi semver sederhana. Return >0 bila `a` lebih baru dari `b`.
@@ -103,21 +97,13 @@ async function runCheck(): Promise<void> {
     if (!currentVersion.value) {
       currentVersion.value = await getVersion()
     }
-    const res = await fetch(RELEASES_URL, {
-      headers: { Accept: 'application/vnd.github+json' },
-    })
-    // 404 = belum ada rilis stable (semua masih prerelease) → tak ada update.
-    if (!res.ok) {
-      updateAvailable.value = false
-      return
-    }
-    const data = (await res.json()) as GithubRelease
-    latestVersion.value = data.tag_name.replace(/^v/, '')
-    updateAvailable.value = compareSemver(latestVersion.value, currentVersion.value) > 0
+    // v3: hanya updater bawaan (latest.json bertanda tangan). Cadangan lewat
+    // GitHub API dihapus: ia bisa menawarkan versi yang tidak bisa dipasang.
+    updateAvailable.value = false
+    await probeInstaller()
   } catch (err) {
     console.error('[update-check]', err)
   } finally {
-    await probeInstaller()
     checking.value = false
     lastChecked.value = Date.now()
   }
