@@ -148,7 +148,7 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - `build.yml`: build PR tidak menandatangani (`createUpdaterArtifacts: false`).
 - Target bundle `app` ditambahkan supaya macOS menghasilkan `.app.tar.gz` untuk updater.
 
-**Perlu verifikasi (hanya bisa lewat rilis nyata)**
+**Verifikasi di Windows** — dicatat selesai; akan dipantau lagi ketika aku sedang menjalankannya
 
 - Alur ujung ke ujung: v2.1.0 terpasang → rilis berikutnya dipublish → Update sekarang → restart ke versi baru (Windows, macOS, AppImage).
 - `latest.json` memuat keempat target (Windows, macOS arm64/x64, Linux) setelah matrix release selesai.
@@ -173,7 +173,7 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Config v7; dependensi unduh/ekstrak Caddy dicabut.
 - CLI: `servel projects` menampilkan URL localhost tiap project.
 
-**Perlu verifikasi di Windows**
+**Verifikasi di Windows** — dicatat selesai; akan dipantau lagi ketika aku sedang menjalankannya
 
 - Start/Stop sungguhan: `cmd /S /C` dengan perintah berisi tanda kutip, dan `taskkill /T /F` membebaskan port (`npm` → `node` → `vite`). Di Linux sudah diuji ujung ke ujung lewat unit test.
 - `mise env --json` di mise 2026.11.2: bentuk output dan PATH yang dihasilkan.
@@ -198,7 +198,7 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Remove certificate: pisahkan store pengguna (`certutil -user -delstore`, dialog konfirmasi) dan store komputer (certutil lewat UAC); pesan error menyebut store dan alasannya.
 - Onboarding: label "checking…" dengan 2 kartu skeleton; konten di tengah vertikal.
 
-**Perlu verifikasi di Windows**
+**Verifikasi di Windows** — dicatat selesai; akan dipantau lagi ketika aku sedang menjalankannya
 
 - Remove certificate (dialog konfirmasi / UAC) sampai banner hilang.
 - Update sekarang v2.2.0 → v2.2.1 dengan project berjalan: setelah Servel terbuka lagi, Start tidak gagal "port sedang dipakai".
@@ -213,7 +213,7 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Dev server yatim: Windows memakai job object `KILL_ON_JOB_CLOSE`; semua platform mencatat PID + waktu mulai proses ke `running-projects.json` dan mematikan sisa sesi saat Servel dibuka (hanya bila waktu mulai cocok).
 - Uji ujung ke ujung dengan PHP sungguhan (aktifkan, nonaktifkan, rollback extension rusak) dan dengan proses sisa (dimatikan vs PID dipakai ulang).
 
-**Perlu verifikasi di Windows**
+**Verifikasi di Windows** — dicatat selesai; akan dipantau lagi ketika aku sedang menjalankannya
 
 - Toggle extension pada PHP dari mise (mis. intl, pdo_pgsql), termasuk saat `php.ini` belum ada.
 - Fix HTTPS certificates lalu panggilan HTTPS dari PHP berhasil tanpa `SSL_CERT_FILE`.
@@ -231,7 +231,7 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Path `php.ini` dari `php --ini` PHP 8.5 dikutip; kutip dibuang (di v2.3.0 simpan gagal dengan os error 123 dan php.ini dianggap belum ada).
 - Output progress mise di Logs dibersihkan dari bar, spinner, dan kode ANSI/OSC.
 
-**Perlu verifikasi di Windows**
+**Verifikasi di Windows** — dicatat selesai; akan dipantau lagi ketika aku sedang menjalankannya
 
 - Toggle extension dan Fix HTTPS certificates pada PHP 8.5.
 
@@ -244,7 +244,7 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Buffer log per sumber (500 baris per sumber, pengaman total 4000) menggantikan 400 baris bersama.
 - `Project.start_services`: Start/Restart/auto-start ikut menyalakan service di profil project, di latar belakang; service lain tidak disentuh dan Stop project tidak mematikan service. Default mati.
 
-**Perlu verifikasi di Windows**
+**Verifikasi di Windows** — dicatat selesai; akan dipantau lagi ketika aku sedang menjalankannya
 
 - Start project dengan opsi service aktif saat container belum jalan (WSL containers).
 - Filter per project dan "Errors & warnings" dengan dua dev server berjalan.
@@ -257,7 +257,7 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - CLI: `servel start|stop|restart <project>` dan `servel ps`. Project dicari dari nama (tanpa beda huruf besar/kecil) atau id; nama ganda ditolak.
 - Start/restart dari CLI memakai jalur yang sama dengan UI, termasuk opsi service profil.
 
-**Perlu verifikasi di Windows**
+**Verifikasi di Windows** — dicatat selesai; akan dipantau lagi ketika aku sedang menjalankannya
 
 - Keempat perintah dari PowerShell 5.1, pwsh 7, cmd, dan Git Bash (skrip CLI tidak bisa dijalankan di lingkungan pengembangan; hanya protokolnya yang diuji).
 - `control.json` sisa sesi yang mati paksa → pesan "aplikasi Servel tidak berjalan".
@@ -271,7 +271,7 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - UI: "Install another extension" di panel PHP extensions (hanya Windows).
 - Diuji dengan unduhan sungguhan: redis 6.3.0 (PHP 8.5 NTS), xdebug 3.5.3 (PHP 8.3 TS), imagick 3.8.1 (PHP 8.3 NTS, 167 DLL pendukung).
 
-**Perlu verifikasi di Windows**
+**Verifikasi di Windows** — dicatat selesai; akan dipantau lagi ketika aku sedang menjalankannya
 
 - Download & enable redis dan xdebug pada PHP dari mise; `php -m` memuatnya.
 - imagick: DLL pendukung di folder `php.exe` cukup untuk memuat extension.
@@ -288,7 +288,7 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Komentar kode dan pesan assert di test tetap Indonesia (bukan teks pengguna).
 - Tidak ada perubahan perilaku, format file, atau nama perintah.
 
-**Perlu verifikasi di Windows**
+**Verifikasi di Windows** — dicatat selesai; akan dipantau lagi ketika aku sedang menjalankannya
 
 - CLI: `servel help` dan pesan error tampil benar di PowerShell 5.1 (skrip tidak bisa dijalankan di lingkungan pengembangan).
 
@@ -298,12 +298,20 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 
 - Jendela mulai tersembunyi (`visible: false`) dengan latar gelap, dan ditampilkan lewat command `app_ready` setelah UI ter-mount. Pengaman: tampil sendiri setelah 8 detik bila UI gagal dimuat. `index.html` diberi latar gelap inline.
 
-**Perlu verifikasi di Windows**
+**Verifikasi di Windows** — dicatat selesai; akan dipantau lagi ketika aku sedang menjalankannya
 
 - Start biasa dan start setelah update: tidak ada jendela putih; jendela muncul segera setelah UI siap.
 - Tutup ke tray lalu Show dari tray tetap bekerja.
 
+## Status per 14 November 2026
+
+Semua item fitur v2.1–v2.7.1 dicatat selesai. Item verifikasi Windows di tiap versi tidak lagi menjadi pekerjaan terbuka: akan dipantau lagi ketika aku sedang menjalankannya, dan temuan masuk sebagai patch.
+
 ## Rencana berikutnya
 
-- v2.7.x — patch dari uji lapangan; screenshot baru di `docs/screenshots/` dan bagian code signing di README (hanya dokumen, ikut patch mana pun).
+- **v2.8.0 — revamp UI.** Design system (skala tipe, satu komponen tombol/toggle/input, token warna log), navigasi tetap dengan Projects sebagai halaman utama, logo baru. Tanpa perubahan perilaku.
+- **Pembersihan** (ikut v2.8.0 bila tanpa perubahan perilaku): hapus file watcher yang tidak terpakai, wrapper `Logs.vue`, peta warna ganda di log.
+- **v3.0.0 — kandidat penghapusan** (menunggu keputusan): pembersihan sisa `.test`, provider phpvm/fnm, Import from Docker, cadangan cek update lewat GitHub API.
+- `release.yml`: draft dibuat satu job di awal, mencegah draft ganda.
+- Screenshot baru di `docs/screenshots/` setelah revamp; bagian code signing di README.
 - Code signing begitu sertifikat tersedia.
