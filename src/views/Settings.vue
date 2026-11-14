@@ -206,11 +206,11 @@ async function handleReset(): Promise<void> {
   }
   if (!ok) return
   await reset()
-  const { push } = useLogs('SERVEL')
-  push({ ts: new Date().toTimeString().slice(0, 8), src: 'SERVEL', text: 'settings reset to defaults' })
+  const { push } = useLogs('KOVA')
+  push({ ts: new Date().toTimeString().slice(0, 8), src: 'KOVA', text: 'settings reset to defaults' })
 }
 
-// "Start Servel when you sign in" (v2.11): disimpan oleh OS, bukan di config.
+// "Start Kova when you sign in" (v2.11): disimpan oleh OS, bukan di config.
 const autostartOn = ref(false)
 const autostartBusy = ref(false)
 const autostartError = ref('')
@@ -288,11 +288,11 @@ onMounted(async () => {
             <div class="section-title">ON LAUNCH</div>
 
             <SettingRow
-              label="Start Servel when you sign in"
-              :desc="config.minimizeToTray ? 'Opens in the tray, without a window' : 'Opens Servel after you sign in'"
+              label="Start Kova when you sign in"
+              :desc="config.minimizeToTray ? 'Opens in the tray, without a window' : 'Opens Kova after you sign in'"
             >
               <UiToggle
-                label="Start Servel when you sign in"
+                label="Start Kova when you sign in"
                 :on="autostartOn"
                 :disabled="autostartBusy"
                 @click="toggleAutostart"
@@ -302,9 +302,9 @@ onMounted(async () => {
 
             <SettingRow
               label="Start services"
-              desc="Start the saved service selection when Servel opens"
+              desc="Start the saved service selection when Kova opens"
             >
-              <UiToggle label="Start services when Servel opens" :on="config.autoStart" @click="setAutoStart(!config.autoStart)" />
+              <UiToggle label="Start services when Kova opens" :on="config.autoStart" @click="setAutoStart(!config.autoStart)" />
             </SettingRow>
 
             <SettingRow
@@ -316,7 +316,7 @@ onMounted(async () => {
 
             <SettingRow
               label="Projects"
-              desc="Each project has its own &quot;Start this project when Servel opens&quot; option in Projects → Edit"
+              desc="Each project has its own &quot;Start this project when Kova opens&quot; option in Projects → Edit"
             >
               <UiButton variant="quiet" @click="activeNav = 'sites'">Open Projects</UiButton>
             </SettingRow>
@@ -327,7 +327,7 @@ onMounted(async () => {
 
             <SettingRow
               label="Minimize to tray on close"
-              desc="Keep Servel running in the system tray instead of quitting when the window closes"
+              desc="Keep Kova running in the system tray instead of quitting when the window closes"
             >
               <UiToggle label="Minimize to tray on close" :on="config.minimizeToTray" @click="setMinimizeToTray(!config.minimizeToTray)" />
             </SettingRow>
@@ -339,7 +339,7 @@ onMounted(async () => {
             <SettingRow
               v-if="platform === 'windows'"
               label="Engine"
-              desc="Auto uses WSL containers, unless Docker still holds your Servel containers"
+              desc="Auto uses WSL containers, unless Docker still holds your Kova containers"
             >
               <div class="segmented" role="radiogroup" aria-label="Container engine">
                 <button
@@ -383,9 +383,9 @@ onMounted(async () => {
             <SettingRow
               v-if="platform === 'windows'"
               label="Terminal command"
-              desc="Added to your PATH by the installer — servel up · down · status · logs · shell · restore"
+              desc="Added to your PATH by the installer — kova up · down · status · logs · shell · restore (the old servel command still works until v4.0)"
             >
-              <span class="setting-value-mono">servel help</span>
+              <span class="setting-value-mono">kova help</span>
             </SettingRow>
 
             <SettingRow
@@ -400,7 +400,7 @@ onMounted(async () => {
               WSL containers keep their own images and volumes, separate from Docker Desktop.
               Databases created under Docker will not appear here until you restore them.
               <template v-if="engineInfo?.elevated">
-                Servel is running as Administrator, which uses a separate WSL container session.
+                Kova is running as Administrator, which uses a separate WSL container session.
               </template>
             </p>
           </div>
@@ -479,7 +479,7 @@ onMounted(async () => {
           <div class="section-block">
             <div class="section-title">RESTORE DATABASE</div>
             <p class="section-hint">
-              Import a .sql dump into MySQL or PostgreSQL. Servel starts the service, waits until it
+              Import a .sql dump into MySQL or PostgreSQL. Kova starts the service, waits until it
               accepts connections, then runs the dump. Useful after switching engines.
             </p>
 
@@ -556,7 +556,7 @@ onMounted(async () => {
           <div class="section-block">
             <div class="section-title">ABOUT</div>
             <div class="about-block">
-              <span class="about-name">servel</span>
+              <span class="about-name">kova</span>
               <span class="about-desc">Local dev environment manager</span>
               <span class="about-version">v{{ version || '...' }}</span>
             </div>
@@ -583,7 +583,7 @@ onMounted(async () => {
               </div>
               <span class="up-text">
                 {{ installPercent !== null ? `Downloading ${installPercent}%` : 'Downloading…' }}
-                · Servel will close, install, then open again.
+                · Kova will close, install, then open again.
               </span>
             </div>
             <p v-if="installError" class="update-error">

@@ -637,7 +637,7 @@ pub async fn php_ext_fix_https(app: tauri::AppHandle, version: Option<String>) -
                 let target = app
                     .path()
                     .app_data_dir()
-                    .map_err(|e| format!("Servel's data folder is unknown: {}", e))?
+                    .map_err(|e| format!("Kova's data folder is unknown: {}", e))?
                     .join("certs")
                     .join("ca-bundle.pem");
                 export_windows_roots(&target)?;

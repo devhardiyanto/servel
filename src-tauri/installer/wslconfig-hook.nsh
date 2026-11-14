@@ -1,4 +1,4 @@
-; Servel NSIS installer hook
+; Kova NSIS installer hook
 ; Injects %USERPROFILE%\.wslconfig (WSL2 VM limits). Dipakai backend WSL2 Docker Desktop;
 ; untuk WSL containers (v1.6) efeknya ke VM wslc belum terverifikasi — template tetap aman.
 ;
@@ -19,7 +19,7 @@
   ; CLI `servel` (v1.6): tambahkan $INSTDIR\cli\bin ke PATH user. Logika PATH
   ; ada di install-path.ps1 (aman untuk PATH panjang & entri %VAR%, tidak
   ; terkena batas string 1024 karakter NSIS). Gagal = tidak fatal.
-  DetailPrint "Servel: menambahkan perintah 'servel' ke PATH user..."
+  DetailPrint "Kova: menambahkan perintah 'kova' (dan alias 'servel') ke PATH user..."
   nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\cli\install-path.ps1" -Action add -Dir "$INSTDIR\cli\bin"'
   Pop $0
 

@@ -188,14 +188,14 @@ const SERVICE_IDS: &[&str] = &[
 ];
 
 /// Derive log source tag dari docker compose output line.
-/// Scan `servel_<id>` substring — return `<ID>` uppercase. Fallback "SERVEL".
+/// Scan `servel_<id>` substring — return `<ID>` uppercase. Fallback "KOVA".
 pub fn src_from_line(line: &str) -> String {
     for id in SERVICE_IDS {
         if line.contains(&format!("servel_{}", id)) {
             return id.to_uppercase();
         }
     }
-    "SERVEL".to_string()
+    "KOVA".to_string()
 }
 
 /// Parse accumulated stderr dari docker compose untuk pesan error friendly.
@@ -283,7 +283,7 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
             .unwrap_or_else(|| format!("docker compose failed (exit {})", status));
         let _ = app.emit(
             "cmd-output",
-            serde_json::json!({ "line": msg, "stream": "stderr", "source": "SERVEL" }),
+            serde_json::json!({ "line": msg, "stream": "stderr", "source": "KOVA" }),
         );
         return Err(msg);
     }

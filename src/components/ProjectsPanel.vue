@@ -246,7 +246,7 @@ async function handleOpen(p: Project): Promise<void> {
 async function handleRemove(p: Project): Promise<void> {
   let ok = false
   try {
-    ok = await ask(`Remove "${p.name}" from Servel? Files and mise.toml are not touched.`, {
+    ok = await ask(`Remove "${p.name}" from Kova? Files and mise.toml are not touched.`, {
       title: 'Remove project',
       kind: 'warning',
     })
@@ -265,7 +265,7 @@ async function handleRemove(p: Project): Promise<void> {
   <div class="pp">
     <div class="pp-title">PROJECTS</div>
     <p class="pp-hint">
-      Each project is a folder. Servel runs its dev server with the PHP/Node versions from the project's
+      Each project is a folder. Kova runs its dev server with the PHP/Node versions from the project's
       mise.toml and gives it a fixed address on localhost. The same list feeds "Versions for" on the Dashboard.
     </p>
 
@@ -390,13 +390,13 @@ async function handleRemove(p: Project): Promise<void> {
           <label :for="`pp-auto-${p.id}`">On launch</label>
           <label class="pp-check">
             <input :id="`pp-auto-${p.id}`" v-model="form.autoStart" type="checkbox" />
-            Start this project when Servel opens
+            Start this project when Kova opens
           </label>
 
           <p class="pp-form__hint">
             <code>{port}</code> in the command is replaced by the port, and the <code>PORT</code> environment variable
             is set to it. Environment takes one <code>KEY=VALUE</code> per line and overrides values from mise;
-            it applies only to the dev server Servel starts, not to your terminal. Starting services leaves other running services alone and never stops them when the project stops. Leave the command empty to use this project only for versions and services. Changes apply
+            it applies only to the dev server Kova starts, not to your terminal. Starting services leaves other running services alone and never stops them when the project stops. Leave the command empty to use this project only for versions and services. Changes apply
             the next time the project starts.
           </p>
           <p v-if="formError" class="pp-error pp-form__wide">{{ formError }}</p>

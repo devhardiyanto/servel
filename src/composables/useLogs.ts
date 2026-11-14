@@ -19,7 +19,7 @@ export interface CmdOutput {
 // Singleton state — shared across all consumers
 const lines = ref<LogLine[]>([])
 let listenerRegistered = false
-let globalDefaultSrc = 'SERVEL'
+let globalDefaultSrc = 'KOVA'
 
 function timestamp(): string {
   const d = new Date()
@@ -40,7 +40,7 @@ async function registerListener(): Promise<void> {
 
 registerListener()
 
-export function useLogs(defaultSrc = 'SERVEL') {
+export function useLogs(defaultSrc = 'KOVA') {
   globalDefaultSrc = defaultSrc
 
 

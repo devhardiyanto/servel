@@ -428,7 +428,7 @@ pub async fn provider_is_mise() -> bool {
 }
 
 pub const ERR_NO_MISE: &str =
-    "mise is not installed. Install it from the first-run screen or mise.jdx.dev, then restart Servel.";
+    "mise is not installed. Install it from the first-run screen or mise.jdx.dev, then restart Kova.";
 
 pub async fn require_mise() -> Result<(), String> {
     if version().await.is_some() {
@@ -645,7 +645,7 @@ pub async fn mise_install_winget(app: AppHandle) -> Result<String, String> {
     }
     Ok(match version().await {
         Some(v) => format!("mise {v} is installed."),
-        None => "mise is installed. Restart Servel if it is not detected yet.".into(),
+        None => "mise is installed. Restart Kova if it is not detected yet.".into(),
     })
 }
 

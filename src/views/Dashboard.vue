@@ -240,7 +240,7 @@ onUnmounted(() => {
   <div class="view view-dashboard">
     <header class="app-strip">
       <div class="app-strip__brand">
-        <span class="app-strip__name">servel</span>
+        <span class="app-strip__name">kova</span>
         <span class="app-strip__tag">local dev environment</span>
       </div>
       <div class="app-strip__right">

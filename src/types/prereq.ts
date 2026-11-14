@@ -1,4 +1,4 @@
-/** Engine container yang dipakai Servel. Mirror `RuntimeKind` di Rust. */
+/** Engine container yang dipakai Kova. Mirror `RuntimeKind` di Rust. */
 export type EngineKind = 'docker' | 'wslc'
 
 /** Preferensi user di config (`containerRuntime`). */
@@ -16,7 +16,7 @@ export interface PrereqStatus {
   docker_available: boolean
   /** Windows: versi dari `wsl --version`. */
   wsl_version: string | null
-  /** Windows: Servel berjalan elevated — sesi WSLC terpisah dari sesi biasa. */
+  /** Windows: Kova berjalan elevated — sesi WSLC terpisah dari sesi biasa. */
   elevated: boolean
   /** v3: satu-satunya pengelola versi PHP/Node. */
   mise_installed: boolean

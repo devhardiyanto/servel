@@ -199,7 +199,7 @@ const miseInstallCmd = computed<string>(() => {
         </div>
 
         <h1 class="ob-heading">Before we start</h1>
-        <p class="ob-sub">Servel needs a few things installed to work.</p>
+        <p class="ob-sub">Kova needs a few things installed to work.</p>
 
         <div class="ob-progress">
           <div class="ob-progress-track">
@@ -265,9 +265,9 @@ const miseInstallCmd = computed<string>(() => {
         </div>
 
         <div v-if="showElevatedWarning" class="ob-error ob-error--soft">
-          Servel is running as Administrator. WSL containers keep a separate session per
+          Kova is running as Administrator. WSL containers keep a separate session per
           elevation, so containers created from a normal window will not appear here.
-          Restart Servel without "Run as administrator".
+          Restart Kova without "Run as administrator".
         </div>
 
         <div v-if="startEngineError && !isLinux" class="ob-error">
@@ -311,7 +311,7 @@ const miseInstallCmd = computed<string>(() => {
             v-if="canContinue"
             @click="setView('dashboard')"
           >
-            Continue to Servel &#x2192;
+            Continue to Kova &#x2192;
           </UiButton>
 
           <UiButton
@@ -319,7 +319,7 @@ const miseInstallCmd = computed<string>(() => {
             v-if="!canContinue"
             disabled
           >
-            Continue to Servel &#x2192;
+            Continue to Kova &#x2192;
           </UiButton>
 
           <UiButton

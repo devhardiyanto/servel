@@ -8,7 +8,7 @@ export interface BadgeStyle {
 }
 
 export const SOURCE_COLORS: Record<string, string> = {
-  SERVEL: '#7cc7e8',
+  KOVA: '#7cc7e8',
   ENV: '#7cc7e8',
   DOCKER: '#8fb4f0',
   MYSQL: '#f2a97a',

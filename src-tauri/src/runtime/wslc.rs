@@ -746,7 +746,7 @@ async fn start_one(
             app,
             &source,
             "stdout",
-            &format!("{} already exists (created outside Servel); using it as it is", name),
+            &format!("{} already exists (created outside Kova); using it as it is", name),
         );
     }
 
@@ -782,7 +782,7 @@ pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) ->
 
     for id in services {
         let Some(def) = defs.iter().find(|d| &d.id == id) else {
-            emit(app, "SERVEL", "stderr", &format!("unknown service '{}', skipped", id));
+            emit(app, "KOVA", "stderr", &format!("unknown service '{}', skipped", id));
             continue;
         };
         let existing = by_name.get(def.container_name.as_str()).copied();

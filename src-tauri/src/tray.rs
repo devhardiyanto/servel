@@ -16,10 +16,10 @@ fn build_menu(
     php: &[(String, bool)],
     node: &[(String, bool)],
 ) -> tauri::Result<Menu<tauri::Wry>> {
-    let show = MenuItem::with_id(app, "show", "Show Servel", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "show", "Show Kova", true, None::<&str>)?;
     let start_all = MenuItem::with_id(app, "start_all", "Start all selected", true, None::<&str>)?;
     let stop_all = MenuItem::with_id(app, "stop_all", "Stop all", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Servel", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Kova", true, None::<&str>)?;
 
     let php_submenu = build_version_submenu(app, "PHP", "php", php)?;
     let node_submenu = build_version_submenu(app, "Node", "node", node)?;
@@ -131,7 +131,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
 
     TrayIconBuilder::with_id("main")
         .icon(icon)
-        .tooltip("Servel — idle")
+        .tooltip("Kova — idle")
         .menu(&menu)
         .on_menu_event(|app, event| {
             let id = event.id.as_ref();
@@ -229,9 +229,9 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
 pub fn update_tooltip(app: &AppHandle, running_count: usize) {
     if let Some(tray) = app.tray_by_id("main") {
         let text = if running_count > 0 {
-            format!("Servel — {} running", running_count)
+            format!("Kova — {} running", running_count)
         } else {
-            "Servel — idle".to_string()
+            "Kova — idle".to_string()
         };
         let _ = tray.set_tooltip(Some(&text));
     }

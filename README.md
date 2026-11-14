@@ -1,8 +1,10 @@
-# Servel
+# Kova
 
 > **One app. All your local dev environment.**
 
-Servel is a desktop app (Tauri 2 + Vue 3) that runs your local development environment from one window:
+_Kova was called **Servel** up to v2.11. Your services, projects and settings carry over; the `servel` terminal command keeps working until v4.0._
+
+Kova is a desktop app (Tauri 2 + Vue 3) that runs your local development environment from one window:
 
 - **Services**: MySQL, PostgreSQL, Redis and friends in containers (WSL containers on Windows, or Docker).
 - **Projects**: your Laravel, Vite, Nuxt, Node or Go apps, started for you on a fixed `localhost:<port>`.
@@ -17,12 +19,12 @@ No more juggling three terminals every morning.
 ## Features
 
 **Projects**
-- Add a project folder; Servel detects what it is (Laravel, Lumen, WordPress, Drupal, plain PHP, Vite with Vue/React/Svelte, Next, Nuxt, Angular, other Node apps, Go) and suggests the dev-server command and a free port.
+- Add a project folder; Kova detects what it is (Laravel, Lumen, WordPress, Drupal, plain PHP, Vite with Vue/React/Svelte, Next, Nuxt, Angular, other Node apps, Go) and suggests the dev-server command and a free port.
 - Start, Stop, Restart and Open each project at `localhost:<port>`; its output goes to the Logs viewer.
 - The dev server runs with the PHP/Node/Go versions from the project's `mise.toml`, plus any environment variables you set for that project.
-- Optionally start a project when Servel opens, and link it to a service profile.
+- Optionally start a project when Kova opens, and link it to a service profile.
 - **Details** per project: the PHP/Node versions mise resolves for that folder, its service profile, the last lines of output, and shortcuts to open the folder, a terminal there, or VS Code.
-- Dev servers stop when Servel quits, and do not linger if Servel crashes.
+- Dev servers stop when Kova quits, and do not linger if Kova crashes.
 
 **Services**
 - MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg. Toggle what you need, click Start.
@@ -38,7 +40,7 @@ No more juggling three terminals every morning.
 
 **App**
 - In-app updates from Settings → About.
-- System tray, remembered selection, optional start when you sign in (in the tray), and a `servel` terminal command on Windows.
+- System tray, remembered selection, optional start when you sign in (in the tray), and a `kova` terminal command on Windows.
 
 ---
 
@@ -46,20 +48,20 @@ No more juggling three terminals every morning.
 
 Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `2.3.0`).
 
-> Servel ships **unsigned** for Windows and macOS. Workarounds are documented below; see the FAQ for the long-term plan.
+> Kova ships **unsigned** for Windows and macOS. Workarounds are documented below; see the FAQ for the long-term plan.
 
 ### Windows
 
-1. Download `Servel_<version>_x64-setup.exe` from Releases.
+1. Download `Kova_<version>_x64-setup.exe` from Releases.
 2. Run the installer. Windows SmartScreen will warn: *"Windows protected your PC"*. Click **More info** → **Run anyway**.
 3. When prompted about `.wslconfig`, choose:
-   - **Yes (Overwrite)**: replace your existing `%USERPROFILE%\.wslconfig` with the Servel-recommended one (the old file is backed up to `.wslconfig.bak`).
-   - **No (Append)**: append Servel's WSL2 settings to the bottom of your existing file.
+   - **Yes (Overwrite)**: replace your existing `%USERPROFILE%\.wslconfig` with the Kova-recommended one (the old file is backed up to `.wslconfig.bak`).
+   - **No (Append)**: append Kova's WSL2 settings to the bottom of your existing file.
    - **Cancel (Skip)**: leave `.wslconfig` untouched. Recommended if you use WSL containers and already tuned WSL yourself.
-4. The installer also adds the `servel` terminal command to your user PATH (see [`servel` terminal command](#servel-terminal-command-windows)).
-5. Launch Servel from the Start Menu. With WSL 3.0.1+, Servel uses the built-in WSL containers automatically.
+4. The installer also adds the `kova` terminal command to your user PATH (see [`kova` terminal command](#kova-terminal-command-windows)).
+5. Launch Kova from the Start Menu. With WSL 3.0.1+, Kova uses the built-in WSL containers automatically.
 
-**Updating:** from v2.1 on, open **Settings → About → Check for updates → Update now**. Servel stops running projects, installs the new version and reopens. Older versions update by installing the new release manually once.
+**Updating:** from v2.1 on, open **Settings → About → Check for updates → Update now**. Kova stops running projects, installs the new version and reopens. Older versions update by installing the new release manually once.
 
 If you changed `.wslconfig`, restart WSL once so it takes effect:
 
@@ -69,100 +71,100 @@ wsl --shutdown
 
 ### macOS
 
-1. Download `Servel_<version>_aarch64.dmg` (Apple Silicon) or `Servel_<version>_x64.dmg` (Intel) from Releases.
-2. Open the DMG, drag **Servel.app** into your **Applications** folder.
+1. Download `Kova_<version>_aarch64.dmg` (Apple Silicon) or `Kova_<version>_x64.dmg` (Intel) from Releases.
+2. Open the DMG, drag **Kova.app** into your **Applications** folder.
 3. On first launch macOS Gatekeeper blocks the app because it is unsigned. Open Terminal and run:
    ```bash
-   xattr -d com.apple.quarantine /Applications/Servel.app
+   xattr -d com.apple.quarantine /Applications/Kova.app
    ```
-4. Launch Servel from Applications or Spotlight.
+4. Launch Kova from Applications or Spotlight.
 
 ### Linux
 
-1. Download `Servel_<version>_amd64.AppImage` from Releases.
+1. Download `Kova_<version>_amd64.AppImage` from Releases.
 2. Make it executable and run:
    ```bash
-   chmod +x Servel_<version>_amd64.AppImage
-   ./Servel_<version>_amd64.AppImage
+   chmod +x Kova_<version>_amd64.AppImage
+   ./Kova_<version>_amd64.AppImage
    ```
 
 ---
 
 ## Prerequisites
 
-Servel orchestrates external tools — it does not install them for you. Make sure these are available on your PATH before first run.
+Kova orchestrates external tools — it does not install them for you. Make sure these are available on your PATH before first run.
 
 ### Container engine
 
 #### Windows — WSL containers (recommended)
 
-Since v1.6 Servel can run services on **WSL containers** (`wslc.exe`), the container engine that ships with WSL 3.0.1 and newer. You do not need Docker Desktop or a dedicated Linux distro.
+Since v1.6 Kova can run services on **WSL containers** (`wslc.exe`), the container engine that ships with WSL 3.0.1 and newer. You do not need Docker Desktop or a dedicated Linux distro.
 
 ```powershell
 wsl --update
 wsl --version   # WSL version must be 3.0.1 or newer
 ```
 
-Servel picks the engine automatically (**Settings → Container engine → Auto**). Since v2.0, WSL containers are the default on Windows; Servel stays on Docker only when `wslc` is missing or Docker still holds your `servel_*` containers. You can force either one in Settings.
+Kova picks the engine automatically (**Settings → Container engine → Auto**). Since v2.0, WSL containers are the default on Windows; Kova stays on Docker only when `wslc` is missing or Docker still holds your `servel_*` containers. You can force either one in Settings.
 
 Notes:
 
 - WSL containers keep their **own images and volumes**, separate from Docker Desktop. Data in Docker volumes does not move over automatically; restore your database dumps after switching.
-- Run Servel **without** "Run as administrator". WSL containers keep one session per elevation, so containers created from an elevated window are invisible to a normal one, and the reverse.
+- Run Kova **without** "Run as administrator". WSL containers keep one session per elevation, so containers created from an elevated window are invisible to a normal one, and the reverse.
 - Ports are published on `127.0.0.1` only.
-- Containers named `servel_<service>` that already exist (for example, created by a script) are **adopted as-is**: Servel starts and stops them but does not recreate them.
+- Containers named `servel_<service>` that already exist (for example, created by a script) are **adopted as-is**: Kova starts and stops them but does not recreate them.
 
-#### `servel` terminal command (Windows)
+#### `kova` terminal command (Windows)
 
-The Windows installer adds a `servel` command to your user PATH (`%LOCALAPPDATA%\Servel\cli\bin`). It works in PowerShell, cmd, and Git Bash / zsh, and manages the same services as the app through WSL containers:
+The Windows installer adds a `kova` command to your user PATH (`%LOCALAPPDATA%\Kova\cli\bin`). It works in PowerShell, cmd, and Git Bash / zsh, and manages the same services as the app through WSL containers:
 
 ```bash
-servel preflight                 # check wslc, WSL version, elevation, ports
-servel up                        # start the services selected in the app (or all)
-servel up mysql postgres         # only some
-servel down                      # stop every servel_* container
-servel status
-servel logs mysql -f
-servel shell postgres            # shell inside the container
-servel restore mysql D:\backup\dump.sql   # or a folder of .sql files
-servel use php@8.3               # via mise, in the current project folder (servel use php 8.3 also works)
-servel use node@22 --global      # change the global version
-servel service up mysql          # same as servel up mysql
-servel projects                  # list projects from the app, with their localhost URLs
-servel start share-api           # start a project's dev server (the Servel app must be open)
-servel stop share-api
-servel restart share-api
-servel ps                        # state and URL of every project
+kova preflight                 # check wslc, WSL version, elevation, ports
+kova up                        # start the services selected in the app (or all)
+kova up mysql postgres         # only some
+kova down                      # stop every servel_* container
+kova status
+kova logs mysql -f
+kova shell postgres            # shell inside the container
+kova restore mysql D:\backup\dump.sql   # or a folder of .sql files
+kova use php@8.3               # via mise, in the current project folder (kova use php 8.3 also works)
+kova use node@22 --global      # change the global version
+kova service up mysql          # same as kova up mysql
+kova projects                  # list projects from the app, with their localhost URLs
+kova start share-api           # start a project's dev server (the Kova app must be open)
+kova stop share-api
+kova restart share-api
+kova ps                        # state and URL of every project
 ```
 
-The app and the CLI share state, so you can use them interchangeably. Open a **new** terminal after installing so it picks up the new PATH. If you previously aliased `servel` in your shell profile, remove that alias; otherwise it shadows the bundled command.
+The app and the CLI share state, so you can use them interchangeably. Open a **new** terminal after installing so it picks up the new PATH. If you previously aliased `kova` in your shell profile, remove that alias; otherwise it shadows the bundled command.
 
 MSYS2 shells started with `MSYS2_PATH_TYPE=minimal` do not inherit the Windows PATH. Add this line to `~/.bashrc` / `~/.zshrc` instead:
 
 ```bash
-export PATH="$PATH:$(cygpath "$LOCALAPPDATA")/Servel/cli/bin"
+export PATH="$PATH:$(cygpath "$LOCALAPPDATA")/Kova/cli/bin"
 ```
 
 #### Docker
 
-- **Windows / macOS:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) — make sure it is running before starting any service from Servel.
+- **Windows / macOS:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) — make sure it is running before starting any service from Kova.
 - **Linux:** [Docker Engine](https://docs.docker.com/engine/install/) + the Compose v2 plugin. Add your user to the `docker` group so you do not need `sudo`.
 
 ### mise — PHP, Node, Go and Python versions
 
 - Site: [mise.jdx.dev](https://mise.jdx.dev). On Windows, the first-run screen has an **Install mise** button (winget). Otherwise install it, then install the versions you need, for example `mise use -g php@8.3 node@22`.
-- Servel manages PHP/Node versions only through mise (phpvm and fnm were removed in v3). Without mise, services and projects still run, but versions cannot be picked in the app.
-- Versions are resolved per folder, so a `mise.toml` in a project (or one of its parent folders) decides which PHP/Node that project uses, both in Servel and in your terminal.
+- Kova manages PHP/Node versions only through mise (phpvm and fnm were removed in v3). Without mise, services and projects still run, but versions cannot be picked in the app.
+- Versions are resolved per folder, so a `mise.toml` in a project (or one of its parent folders) decides which PHP/Node that project uses, both in Kova and in your terminal.
 
 ---
 
 ## First run
 
-On first launch Servel checks what is installed: the container engine (WSL containers or Docker) and mise. Missing items show what to install. Click **Refresh checks** after installing, then **Continue to Servel**.
+On first launch Kova checks what is installed: the container engine (WSL containers or Docker) and mise. Missing items show what to install. Click **Refresh checks** after installing, then **Continue to Kova**.
 
 ---
 
-## Using Servel
+## Using Kova
 
 ### Services (Dashboard)
 
@@ -187,7 +189,7 @@ To load data: **Settings → Services → Restore database** (pick a `.sql` dump
 
 ### Projects (Settings → Projects)
 
-1. Click **+ Add project folder** and pick the folder. Servel detects the type and opens the form with a suggested **Command** and **Port**.
+1. Click **+ Add project folder** and pick the folder. Kova detects the type and opens the form with a suggested **Command** and **Port**.
 2. Check the form, then **Save & start**.
 3. When the status turns **running**, click `localhost:<port>` to open it.
 
@@ -197,9 +199,9 @@ To load data: **Settings → Services → Restore database** (pick a `.sql` dump
 | **Port** | Fixed port on `localhost` (1024–65535). |
 | **Services** | Service profile applied when you pick this project under **Versions for** on the Dashboard. Tick **Start these services when the project starts** to have Start, Restart and start-on-launch also start that profile's services; running services are left alone and stopping the project stops none. |
 | **Environment** | One `KEY=VALUE` per line, set for this project's dev server on top of mise's environment. Lines copied from a shell (`export KEY='value'`) work as-is. |
-| **On launch** | Start this project when Servel opens. |
+| **On launch** | Start this project when Kova opens. |
 
-Examples of commands Servel suggests:
+Examples of commands Kova suggests:
 
 | Project | Command |
 |---|---|
@@ -222,7 +224,7 @@ Notes:
 ### PHP and Node versions
 
 - **Dashboard → Versions for** picks the context: **Global** or one of your projects. The PHP and Node lists show the versions that apply there and where they come from (project `mise.toml` or global config).
-- Switching a version in a project context writes to that project's `mise.toml`. If the version currently comes from your global config, Servel asks whether to pin it in the project or change it globally.
+- Switching a version in a project context writes to that project's `mise.toml`. If the version currently comes from your global config, Kova asks whether to pin it in the project or change it globally.
 - A `mise.toml` that mise does not trust yet shows a **Trust** button.
 
 ### PHP extensions (Settings → Runtimes)
@@ -231,13 +233,13 @@ Notes:
 2. Turn extensions on or off with their switches. The change goes into that version's `php.ini` and applies to every project and terminal that uses the version. Restart running PHP projects to pick it up.
 3. **Windows:** if **HTTPS certificates** says "Not set", click **Fix HTTPS certificates**. This sets `curl.cainfo` and `openssl.cafile`, which fixes curl error 60.
 
-Before each change Servel backs up `php.ini` next to it (`php.ini.servel-<time>.bak`, last 5 kept). If PHP fails to start afterwards, the old `php.ini` is restored and the reason is shown.
+Before each change Kova backs up `php.ini` next to it (`php.ini.servel-<time>.bak`, last 5 kept). If PHP fails to start afterwards, the old `php.ini` is restored and the reason is shown.
 
-Extensions that are not bundled (redis, xdebug, imagick, mongodb, ...) can be downloaded on Windows: type the name under **Install another extension** and click **Download & enable**. Servel picks the build from downloads.php.net that matches your PHP version, thread safety and architecture, puts the DLL in the `ext` folder (support libraries, as imagick has, go next to `php.exe`) and turns the extension on. If PHP rejects it, the DLL is removed and `php.ini` is put back. The download site publishes no checksums, so the only integrity check is HTTPS to php.net. On macOS and Linux, install extensions with `pecl install`; they then appear in the list.
+Extensions that are not bundled (redis, xdebug, imagick, mongodb, ...) can be downloaded on Windows: type the name under **Install another extension** and click **Download & enable**. Kova picks the build from downloads.php.net that matches your PHP version, thread safety and architecture, puts the DLL in the `ext` folder (support libraries, as imagick has, go next to `php.exe`) and turns the extension on. If PHP rejects it, the DLL is removed and `php.ini` is put back. The download site publishes no checksums, so the only integrity check is HTTPS to php.net. On macOS and Linux, install extensions with `pecl install`; they then appear in the list.
 
 ### Tray menu
 
-Right-click the tray icon for **Show Servel**, the **PHP** and **Node** version submenus, **Start all selected**, **Stop all** and **Quit Servel**. Closing the window keeps Servel in the tray (change it in **Settings → General**). Quitting stops running projects; services keep running until you stop them.
+Right-click the tray icon for **Show Kova**, the **PHP** and **Node** version submenus, **Start all selected**, **Stop all** and **Quit Kova**. Closing the window keeps Kova in the tray (change it in **Settings → General**). Quitting stops running projects; services keep running until you stop them.
 
 ---
 
@@ -245,7 +247,7 @@ Right-click the tray icon for **Show Servel**, the **PHP** and **Node** version 
 
 ### "Port already in use" when starting a service
 
-Another process is bound to the port Servel needs. Find it and stop it:
+Another process is bound to the port Kova needs. Find it and stop it:
 
 ```powershell
 # Windows
@@ -260,7 +262,7 @@ Stop the offending process and click Start again. For a project, pick another **
 ### "WSL containers is not responding" (Windows)
 
 1. Make sure WSL is up to date: `wsl --update`, then `wsl --version` (3.0.1 or newer).
-2. Restart the WSL service: `wsl --shutdown`, then click **Retry** in Servel.
+2. Restart the WSL service: `wsl --shutdown`, then click **Retry** in Kova.
 3. `ERROR_SHARING_VIOLATION` on every command means the WSL container session is locked. `wsl --shutdown` clears it; if it persists, run `Restart-Service WslService -Force` from an elevated PowerShell.
 4. `Too many volumes have been mounted` means the per-session mount limit was hit. `wsl --shutdown` resets it.
 
@@ -270,7 +272,7 @@ Expected: WSL containers and Docker Desktop have separate storage. Dump the data
 
 ### "Docker not running" / containers fail to start
 
-Start Docker Desktop (Windows/macOS) or the Docker daemon (Linux: `sudo systemctl start docker`) before clicking Start in Servel.
+Start Docker Desktop (Windows/macOS) or the Docker daemon (Linux: `sudo systemctl start docker`) before clicking Start in Kova.
 
 ### `.wslconfig` settings not applied (Windows)
 
@@ -280,18 +282,18 @@ WSL only reads `.wslconfig` at startup. After install (or after editing the file
 wsl --shutdown
 ```
 
-Then start Servel (and Docker Desktop, if you use it) again.
+Then start Kova (and Docker Desktop, if you use it) again.
 
 ### Windows SmartScreen blocks the installer
 
-Servel releases are currently **unsigned**, so SmartScreen shows a warning. Click **More info** → **Run anyway**.
+Kova releases are currently **unsigned**, so SmartScreen shows a warning. Click **More info** → **Run anyway**.
 
-### macOS says "Servel is damaged and can't be opened"
+### macOS says "Kova is damaged and can't be opened"
 
 This is Gatekeeper's quarantine attribute on an unsigned app. Remove it:
 
 ```bash
-xattr -d com.apple.quarantine /Applications/Servel.app
+xattr -d com.apple.quarantine /Applications/Kova.app
 ```
 
 Releases are not notarized yet, so this is needed after each manual install.
@@ -302,7 +304,7 @@ PHP on Windows has no certificate list. Open **Settings → Runtimes → PHP ext
 
 ### PHP extension change was undone
 
-PHP printed a startup error with the new setting, so Servel restored `php.ini`; the message shows PHP's own error. Usually the DLL does not match the PHP version, thread safety (TS/NTS) or architecture. Download the matching build and try again.
+PHP printed a startup error with the new setting, so Kova restored `php.ini`; the message shows PHP's own error. Usually the DLL does not match the PHP version, thread safety (TS/NTS) or architecture. Download the matching build and try again.
 
 ### Project shows "port not answering"
 
@@ -310,11 +312,11 @@ The process is running but nothing listens on the project's port. The app probab
 
 ### Old `.test` domains still resolve (upgraded from v2.1 or older)
 
-The `.test` domains feature was removed in v2.2. **Settings → Projects** shows a cleanup box while Servel's hosts-file entries or the old local HTTPS certificate are still present: **Remove from hosts** (asks for admin rights) and **Remove certificate**.
+The `.test` domains feature was removed in v2.2. **Settings → Projects** shows a cleanup box while Kova's hosts-file entries or the old local HTTPS certificate are still present: **Remove from hosts** (asks for admin rights) and **Remove certificate**.
 
 ### Service stays stuck on "starting"
 
-Check the Logs viewer for that service. Common causes: the image is still downloading on first run, a port conflict, or no disk space left. Servel marks a service "up" after 120 seconds even if its health check never passes, and writes a warning to the log.
+Check the Logs viewer for that service. Common causes: the image is still downloading on first run, a port conflict, or no disk space left. Kova marks a service "up" after 120 seconds even if its health check never passes, and writes a warning to the log.
 
 ---
 
@@ -325,7 +327,7 @@ Bug reports, feature requests, and pull requests are welcome.
 - **Issues:** [github.com/devhardiyanto/servel/issues](https://github.com/devhardiyanto/servel/issues)
 - **Discussions:** [github.com/devhardiyanto/servel/discussions](https://github.com/devhardiyanto/servel/discussions)
 
-Please include your OS, Servel version, and relevant log output when filing a bug.
+Please include your OS, Kova version, and relevant log output when filing a bug.
 
 ---
 
@@ -342,7 +344,7 @@ Requirements: Node.js 20 LTS, Rust stable (via [rustup](https://rustup.rs/)), an
 
 ## Privacy policy
 
-Servel does not collect, transmit, or store any personal data. All configuration is saved locally on your machine only. There is no telemetry and no analytics. On launch Servel asks GitHub whether a newer release exists; no data about you or your machine is sent beyond that request. All other network calls are initiated by you (image pulls, version installs, downloading an update).
+Kova does not collect, transmit, or store any personal data. All configuration is saved locally on your machine only. There is no telemetry and no analytics. On launch Kova asks GitHub whether a newer release exists; no data about you or your machine is sent beyond that request. All other network calls are initiated by you (image pulls, version installs, downloading an update).
 
 ---
 

@@ -18,11 +18,11 @@ export interface Project {
   profileId?: string | null
   /** Jenis hasil deteksi (laravel, vite, ...). Hanya label. */
   kind?: string
-  /** Perintah dev server; `{port}` diganti port project. Kosong = tidak dijalankan Servel. */
+  /** Perintah dev server; `{port}` diganti port project. Kosong = tidak dijalankan Kova. */
   command?: string
   /** Port tetap di localhost. 0 = belum ditetapkan. */
   port?: number
-  /** Jalankan otomatis saat Servel dibuka. */
+  /** Jalankan otomatis saat Kova dibuka. */
   autoStart?: boolean
   /** Environment tambahan untuk dev server (v2.2.1), di atas environment mise. */
   env?: Record<string, string>
