@@ -1,7 +1,8 @@
 import type { InjectionKey } from 'vue'
 
-export type ViewName = 'onboarding' | 'dashboard' | 'settings' | 'logs'
+/** v3: navigasi kiri. `dashboard` diterima sebagai alias lama untuk `services`. */
+export type ViewName = 'onboarding' | 'projects' | 'services' | 'runtimes' | 'logs' | 'settings'
 
-export type SetViewFn = (view: ViewName) => void
+export type SetViewFn = (view: ViewName | 'dashboard') => void
 
 export const SetViewKey: InjectionKey<SetViewFn> = Symbol('setView')

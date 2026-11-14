@@ -7,7 +7,6 @@ import { useVersionContext } from '@/composables/useVersionContext'
 import { useLogs } from '@/composables/useLogs'
 import { useServices } from '@/composables/useServices'
 import { useConfig } from '@/composables/useConfig'
-import { useUptime } from '@/composables/useUptime'
 import { useEngineStatus } from '@/composables/useEngineStatus'
 import { SetViewKey } from '@/types/navigation'
 import LogTail from '@/components/LogTail.vue'
@@ -85,7 +84,6 @@ async function trustConfig(): Promise<void> {
 }
 
 const { lines: logLines } = useLogs()
-const { formatted: uptimeFormatted } = useUptime()
 const {
   engineStatus,
   engine,
@@ -238,17 +236,6 @@ onUnmounted(() => {
 
 <template>
   <div class="view view-dashboard">
-    <header class="app-strip">
-      <div class="app-strip__brand">
-        <span class="app-strip__name">kova</span>
-        <span class="app-strip__tag">local dev environment</span>
-      </div>
-      <div class="app-strip__right">
-        <span class="app-strip__uptime">uptime {{ uptimeFormatted }}</span>
-        <button class="app-strip__settings-btn" title="Settings" @click="setView('settings')">&#9881;</button>
-      </div>
-    </header>
-
     <div class="dashboard-content">
     <div v-if="engineStatus === 'down'" class="docker-down-banner">
       <span class="ddb-icon">&#9888;</span>
@@ -322,7 +309,7 @@ onUnmounted(() => {
       </span>
       <span class="ctx-bar__spacer"></span>
       <span class="ctx-bar__hint">mise {{ miseCtx?.miseVersion ?? '' }}</span>
-      <UiButton variant="quiet" @click="setView('settings')">Manage projects</UiButton>
+      <UiButton variant="quiet" @click="setView('projects')">Manage projects</UiButton>
     </div>
 
     <section class="control-strip">
