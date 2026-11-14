@@ -2,6 +2,7 @@ mod commands;
 mod mise;
 mod control;
 mod pecl;
+mod open_in;
 mod php_ext;
 mod sites;
 mod runtime;
@@ -118,6 +119,8 @@ pub fn run() {
             commands::config::config_read,
             commands::config::config_write,
             mise::mise_context,
+            mise::mise_project_tools,
+            open_in::project_open_in,
             mise::mise_trust,
             mise::mise_repair,
             app_ready,

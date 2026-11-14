@@ -13,6 +13,7 @@ import { useEngineStatus } from '@/composables/useEngineStatus'
 import { SetViewKey } from '@/types/navigation'
 import LogTail from '@/components/LogTail.vue'
 import ServiceRow from '@/components/ServiceRow.vue'
+import ServiceConnect from '@/components/ServiceConnect.vue'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 
 const SKELETON_ROW_COUNT = 9
@@ -34,6 +35,12 @@ const {
 } = useNode()
 
 const setView = inject(SetViewKey)!
+
+// Panel Connect (v2.10): satu service terbuka sekaligus.
+const connectId = ref<string | null>(null)
+function toggleConnect(id: string): void {
+  connectId.value = connectId.value === id ? null : id
+}
 
 // --- Konteks versi (mise): Global atau project tertentu -------------------
 const versionCtx = useVersionContext()
@@ -483,23 +490,37 @@ onUnmounted(() => {
       <div class="services-table">
         <template v-if="coreServices.length > 0">
           <div class="svc-group-label">core</div>
-          <ServiceRow
-            v-for="def in coreServices"
-            :key="def.id"
-            :def="def"
-            :state="uiState[def.id]"
-            @toggle="toggle"
-          />
+          <template v-for="def in coreServices" :key="def.id">
+            <ServiceRow
+              :def="def"
+              :state="uiState[def.id]"
+              :connect-open="connectId === def.id"
+              @toggle="toggle"
+              @connect="toggleConnect"
+            />
+            <ServiceConnect
+              v-if="connectId === def.id"
+              :def="def"
+              :running="uiState[def.id]?.status === 'running'"
+            />
+          </template>
         </template>
         <template v-if="additionalServices.length > 0">
           <div class="svc-group-label">additional</div>
-          <ServiceRow
-            v-for="def in additionalServices"
-            :key="def.id"
-            :def="def"
-            :state="uiState[def.id]"
-            @toggle="toggle"
-          />
+          <template v-for="def in additionalServices" :key="def.id">
+            <ServiceRow
+              :def="def"
+              :state="uiState[def.id]"
+              :connect-open="connectId === def.id"
+              @toggle="toggle"
+              @connect="toggleConnect"
+            />
+            <ServiceConnect
+              v-if="connectId === def.id"
+              :def="def"
+              :running="uiState[def.id]?.status === 'running'"
+            />
+          </template>
         </template>
         <template v-if="definitions.length === 0 && !serviceError">
           <div
@@ -1141,7 +1162,7 @@ onUnmounted(() => {
 /* Skeleton row — mirror .svc-row grid sehingga real content tidak shift */
 .svc-row-skeleton {
   display: grid;
-  grid-template-columns: 36px 24px 1fr 100px 68px 80px;
+  grid-template-columns: 36px 24px 1fr 100px 68px 80px 76px;
   align-items: center;
   gap: var(--space-3);
   padding: 5px var(--space-4);
