@@ -307,11 +307,58 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 
 Semua item fitur v2.1–v2.7.1 dicatat selesai. Item verifikasi Windows di tiap versi tidak lagi menjadi pekerjaan terbuka: akan dipantau lagi ketika aku sedang menjalankannya, dan temuan masuk sebagai patch.
 
-## Rencana berikutnya
+## Milestone menuju v3.0.0 (Kova)
 
-- **v2.8.0 — revamp UI.** Design system (skala tipe, satu komponen tombol/toggle/input, token warna log), navigasi tetap dengan Projects sebagai halaman utama, logo baru. Tanpa perubahan perilaku.
-- **Pembersihan** (ikut v2.8.0 bila tanpa perubahan perilaku): hapus file watcher yang tidak terpakai, wrapper `Logs.vue`, peta warna ganda di log.
-- **v3.0.0 — kandidat penghapusan** (menunggu keputusan): pembersihan sisa `.test`, provider phpvm/fnm, Import from Docker, cadangan cek update lewat GitHub API.
-- `release.yml`: draft dibuat satu job di awal, mencegah draft ganda.
-- Screenshot baru di `docs/screenshots/` setelah revamp; bagian code signing di README.
-- Code signing begitu sertifikat tersedia.
+Keputusan 14 November 2026: nama **Kova**, logo tanda K tiga garis, UI di canvas "Servel v3 UI" disetujui, token baru (`faint`, `surface3`, `--src-*`) disetujui, dialog yang belum digambar mengikuti pola modal yang ada, Ctrl K dan CLI lintas platform di v3.1, alias `servel` hidup selama v3.x, "Start Kova when Windows starts" masuk v3.0 (default off), uji v3.0.0-rc oleh pemilik repo. Rencana rinci: PRD dan dokumen Rencana & Milestone (privat).
+
+Urutan: A → B → C → D → E → F → G. Tiap milestone satu PR; tag dan publish oleh pemilik repo. Tampilan tetap Servel sampai E.
+
+### A — v2.8.0: fondasi dan pembersihan aman (PR ini)
+
+- [x] Token baru di `tokens.css`: `--surface3`, `--faint`, skala tipe `--text-xs…xl`, `--dur-fast/base` (+ reduced motion), `--src-*`.
+- [x] Satu peta warna log: `src/utils/logColors.ts` dipakai Logs dan LogTail.
+- [x] Hapus wrapper `src/views/Logs.vue`.
+- [x] Hapus file watcher `.phpvmrc`/`.nvmrc` (`watch_project` tidak pernah dipanggil; banner "Project suggests …" tidak pernah muncul), dependency `notify`.
+- [x] CI: job `test` (vue-tsc + vite build + `cargo test`) sebelum build tiga OS.
+
+### B — v2.9.0: komponen bersama
+
+- [ ] Komponen di `src/components/ui/`: Button (primary/default/quiet/danger, md/sm, loading), Toggle, Input/Select/Textarea, SegmentedControl, Tabs, StatusDot, Chip, Badge, Banner, Toast, Menu ⋯, Modal, Drawer, EmptyState.
+- [ ] Ganti 7 keluarga class tombol dan toggle lokal dengan komponen di atas.
+- [ ] Migrasi 142 `font-size` px ke skala `--text-*`; teks redup pakai `--faint`.
+- [ ] Tanpa perubahan perilaku; screenshot sebelum/sesudah di PR.
+
+### C — v2.10.0: fitur project dan service
+
+- [ ] Panel Connect per service: host, port, user, password, URL; Copy .env (format Laravel dan URL).
+- [ ] RAM per service (dari engine container) di daftar service dan status bar.
+- [ ] Project: Terminal here, Open in VS Code, Open folder.
+- [ ] Panel detail project: runtime, service profil, 20 baris output terakhir.
+
+### D — v2.11.0: runtimes, on launch, CLI
+
+- [ ] Runtimes umum lewat mise: Go dan Python (daftar versi, install, pakai global/per project). Asumsi: deteksi project Python belum masuk (bisa ditambah bila diminta).
+- [ ] Install mise satu klik (`winget install jdx.mise`), dengan jalur gagal bila winget tidak ada.
+- [ ] Pengaturan "On launch" disatukan (auto-start infra, remember last session, start per project, keep in tray) + Start when Windows starts (default off).
+- [ ] CLI: `servel use php@8.4`, alias `servel service up|down`.
+- [ ] `release.yml`: draft dibuat satu job di awal (mencegah draft ganda).
+
+### E — v3.0.0-rc.1: Kova (pra-terbit)
+
+- [ ] Nama Kova di productName, judul jendela, tray, installer, README; bundle id, `servel_*`, kunci updater tetap.
+- [ ] Logo K: ikon aplikasi semua ukuran, tray, favicon.
+- [ ] UI baru sesuai canvas: navigasi kiri (Projects pertama), panel detail kanan, status bar, onboarding baru.
+- [ ] CLI `kova` + alias `servel` dengan pemberitahuan.
+- [ ] Hapus: sisa `.test` (legacy_*, hosts.rs), Import from Docker, cadangan cek update via GitHub API, provider phpvm/fnm.
+- [ ] Uji Windows oleh pemilik: update dari Servel 2.x (build uji khusus, karena `releases/latest` melewati pra-terbit), folder NSIS, Apps & features, PATH CLI, data volume.
+
+### F — v3.0.0: rilis
+
+- [ ] Perbaikan dari uji rc, catatan rilis, screenshot baru di `docs/screenshots/`.
+- [ ] Setelah rilis: ganti nama repo (GitHub mengalihkan URL lama; jangan membuat repo baru bernama `servel`).
+
+### G — v3.1: lanjutan
+
+- [ ] Palet perintah Ctrl K.
+- [ ] CLI lintas platform (macOS/Linux).
+- [ ] Code signing begitu sertifikat tersedia.

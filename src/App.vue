@@ -6,7 +6,7 @@ import type { ViewName } from './types/navigation'
 import Onboarding from './views/Onboarding.vue'
 import Dashboard from './views/Dashboard.vue'
 import Settings from './views/Settings.vue'
-import Logs from './views/Logs.vue'
+import LogsViewer from './views/LogsViewer.vue'
 import { useAutoStart } from './composables/useAutoStart'
 import { useEngineStatus } from './composables/useEngineStatus'
 import { useUpdateCheck } from './composables/useUpdateCheck'
@@ -17,7 +17,7 @@ const viewMap: Record<ViewName, Component> = {
   onboarding: Onboarding,
   dashboard: Dashboard,
   settings: Settings,
-  logs: Logs,
+  logs: LogsViewer,
 }
 
 const viewComponent = computed(() => viewMap[currentView.value])

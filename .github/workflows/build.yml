@@ -11,7 +11,54 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Unit test Rust (deteksi project, parser php.ini, PECL, kanal kontrol, dst).
+  # Satu runner Linux sudah cukup: logika yang diuji tidak bergantung OS,
+  # dan test khusus Windows ditandai cfg(windows).
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      # Type check + build frontend: generate_context! butuh ../dist.
+      - name: Frontend build (vue-tsc + vite)
+        run: |
+          npm ci
+          npm run build
+
+      - name: Setup Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry + target
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: test-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            test-cargo-
+
+      # Test kanal kontrol dan port memakai port lokal; satu thread mencegah
+      # tabrakan port antar test.
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test --locked -- --test-threads=1
+
   build:
+    needs: test
     strategy:
       fail-fast: false
       matrix:

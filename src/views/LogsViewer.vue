@@ -3,6 +3,7 @@ import { ref, computed, watch, nextTick, inject, onMounted, onUnmounted } from '
 import { save } from '@tauri-apps/plugin-dialog'
 import { useLogs } from '@/composables/useLogs'
 import { useLogCopy } from '@/composables/useLogCopy'
+import { badgeStyle } from '@/utils/logColors'
 import { SetViewKey } from '@/types/navigation'
 import { useConfig } from '@/composables/useConfig'
 
@@ -115,47 +116,6 @@ watch(
     }
   },
 )
-
-interface BadgeStyle {
-  color: string
-  border: string
-  background: string
-}
-
-const SOURCE_COLORS: Record<string, string> = {
-  SERVEL: '#7cc7e8',
-  ENV: '#7cc7e8',
-  DOCKER: '#8fb4f0',
-  MYSQL: '#f2a97a',
-  POSTGRES: '#8fb4f0',
-  PGSQL: '#8fb4f0',
-  REDIS: '#f19a9a',
-  MAILPIT: '#c9a3f5',
-  PHPVM: '#a3a8f0',
-  PHP: '#a3a8f0',
-  FNM: '#7fd6a4',
-  NODE: '#7fd6a4',
-  RABBITMQ: '#f2a97a',
-  MONGODB: '#6cc9a1',
-  MINIO: '#e8b45e',
-  GOTENBERG: '#b9a4f2',
-  MISE: '#a3a8f0',
-  UP: '#7fd6a4',
-  DOWN: '#f0c674',
-}
-
-function badgeStyle(src?: string, level?: 'warn' | 'error'): BadgeStyle {
-  const errColor = '#f19a9a'
-  const warnColor = '#f0c674'
-  if (level === 'error') {
-    return { color: errColor, border: errColor + '33', background: errColor + '0d' }
-  }
-  if (level === 'warn') {
-    return { color: warnColor, border: warnColor + '33', background: warnColor + '0d' }
-  }
-  const c = (src && SOURCE_COLORS[src.toUpperCase()]) || '#a1a1aa'
-  return { color: c, border: c + '33', background: c + '0d' }
-}
 
 async function exportLogs(): Promise<void> {
   const content = filteredLines.value

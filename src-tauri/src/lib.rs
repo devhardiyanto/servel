@@ -7,7 +7,6 @@ mod sites;
 mod runtime;
 mod updater;
 mod tray;
-mod watcher;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -89,7 +88,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(watcher::default_watcher_state())
         .manage(Mutex::new(HashMap::<String, bool>::new()))
         .manage(Mutex::new(ConfigState::default()))
         .manage(sites::process::SiteProcs::default())
@@ -117,7 +115,6 @@ pub fn run() {
             commands::services::services_restore,
             commands::services::services_migrate_from_docker,
             commands::compose::get_compose_path,
-            watcher::watch_project,
             commands::config::config_read,
             commands::config::config_write,
             mise::mise_context,

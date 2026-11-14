@@ -1,11 +1,10 @@
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 // invoke langsung (bukan via call()) agar string error dari Rust bisa di-catch untuk php_switch dan php_install
 import { invoke } from '@tauri-apps/api/core'
 import { useTauri } from './useTauri'
 import { useConfig } from './useConfig'
 import { useVersionContext } from './useVersionContext'
 import type { PhpVersion } from '@/types/version'
-import type { VersionFileDetected } from '@/types/watcher'
 
 export function usePhp() {
   const { call, on } = useTauri()
@@ -16,16 +15,7 @@ export function usePhp() {
   const switching = ref(false)
   const installing = ref(false)
   const error = ref<string | null>(null)
-  const suggested = ref<VersionFileDetected | null>(null)
 
-  const suggestedNeedsInstall = computed(() => {
-    if (!suggested.value) return false
-    return !versions.value.some((v) => v.version === suggested.value!.version)
-  })
-
-  function dismissSuggestion(): void {
-    suggested.value = null
-  }
 
   async function load(): Promise<void> {
     const [versionList, activeVersion] = await Promise.all([
@@ -76,10 +66,6 @@ export function usePhp() {
 
   onMounted(async () => {
     await load()
-    await on<VersionFileDetected>('phpvmrc-detected', (payload) => {
-      if (payload.version === active.value) return
-      suggested.value = payload
-    })
     // Quick-switch dari tray menu → reuse switchTo (update active + persist).
     await on<{ kind: string; version: string }>('tray-switch-version', (payload) => {
       if (payload.kind === 'php') void switchTo(payload.version)
@@ -92,11 +78,8 @@ export function usePhp() {
     switching,
     installing,
     error,
-    suggested,
-    suggestedNeedsInstall,
     load,
     switchTo,
     install,
-    dismissSuggestion,
   }
 }
