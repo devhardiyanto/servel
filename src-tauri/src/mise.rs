@@ -420,18 +420,21 @@ pub async fn version() -> Option<String> {
     Some(v)
 }
 
-/// Provider versi aktif: `mise` bila config `versionProvider` = mise, atau
-/// `auto` dan mise terpasang. Selain itu phpvm/fnm (perilaku v1.6).
+/// mise terpasang dan bisa dijalankan.
 pub async fn provider_is_mise() -> bool {
-    let pref = APP
-        .get()
-        .and_then(|a| load_config(a).ok())
-        .map(|c| c.version_provider)
-        .unwrap_or_else(|| "auto".to_string());
-    match pref.as_str() {
-        "legacy" => false,
-        "mise" => true,
-        _ => version().await.is_some(),
+    // v3: mise satu-satunya pengelola versi; `version_provider` di config
+    // tidak dipakai lagi (field dibiarkan untuk kompatibilitas file config).
+    version().await.is_some()
+}
+
+pub const ERR_NO_MISE: &str =
+    "mise is not installed. Install it from the first-run screen or mise.jdx.dev, then restart Servel.";
+
+pub async fn require_mise() -> Result<(), String> {
+    if version().await.is_some() {
+        Ok(())
+    } else {
+        Err(ERR_NO_MISE.to_string())
     }
 }
 

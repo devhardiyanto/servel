@@ -357,7 +357,7 @@ Urutan: A → B → C → D → E → F → G. Tiap milestone satu PR; tag dan p
 - [ ] UI baru sesuai canvas: navigasi kiri (Projects pertama), panel detail kanan, status bar, onboarding baru.
 - [ ] CLI `kova` + alias `servel` dengan pemberitahuan.
 - [x] E1 — hapus sisa `.test` (`hosts.rs`, `legacy_status/cleanup_hosts/remove_cert`, banner di Projects), Import from Docker (`runtime/migrate.rs`, `services_migrate_from_docker`), cadangan cek update via GitHub API (`useUpdateCheck`: hanya updater bawaan). Migrasi config v7 (site lama → project) tetap ada.
-- [ ] E2 — hapus provider phpvm/fnm (mise satu-satunya pengelola versi).
+- [x] E2 — hapus provider phpvm/fnm: `php.rs`/`node.rs` hanya lewat mise (tanpa mise: daftar kosong, switch/install memberi pesan jelas), deteksi phpvm/fnm di prasyarat, kartu onboarding, banner `phpvm hook`, pilihan "Manage PHP & Node with". Field `versionProvider` di config dibiarkan agar file lama tetap terbaca.
 - [ ] Uji Windows oleh pemilik: update dari Servel 2.x (build uji khusus, karena `releases/latest` melewati pra-terbit), folder NSIS, Apps & features, PATH CLI, data volume.
 
 ### F — v3.0.0: rilis

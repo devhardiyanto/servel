@@ -115,7 +115,6 @@ pub fn run() {
             commands::php::php_get_active,
             commands::php::php_switch,
             commands::php::php_install,
-            commands::php::php_hook_status,
             commands::node::node_list_installed,
             commands::node::node_get_active,
             commands::node::node_switch,

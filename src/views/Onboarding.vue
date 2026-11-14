@@ -52,19 +52,16 @@ async function useEngine(kind: 'wslc' | 'docker'): Promise<void> {
   }
 }
 
-// Dengan mise terpasang (v1.7), satu kartu mise menggantikan phpvm + fnm.
+// v3: mise satu-satunya pengelola versi PHP/Node.
 const usesMise = computed<boolean>(() => !!status.value?.mise_installed)
 
 const readyCount = computed<number>(() => {
   if (!status.value) return 0
   const s = status.value
-  const items = usesMise.value
-    ? [engineReady.value, s.mise_installed]
-    : [engineReady.value, s.phpvm_installed, s.fnm_installed]
-  return items.filter(Boolean).length
+  return [engineReady.value, s.mise_installed].filter(Boolean).length
 })
 
-const totalCount = computed<number>(() => (usesMise.value ? 2 : 3))
+const totalCount = computed<number>(() => 2)
 
 const miseOkDesc = computed<string>(() => {
   const v = status.value?.mise_version
@@ -161,32 +158,6 @@ const showElevatedWarning = computed<boolean>(
   () => isWindows.value && isWslc.value && !!status.value?.elevated,
 )
 
-// Perintah install fnm per-OS untuk ditampilkan di code-block prereq card.
-const fnmInstallCmd = computed<string>(() => {
-  switch (platform.value) {
-    case 'macos':
-      return 'brew install fnm'
-    case 'linux':
-      return 'curl -fsSL https://fnm.vercel.app/install | bash'
-    default:
-      return 'winget install Schniz.fnm'
-  }
-})
-
-const phpvmActions = computed<PrereqAction[]>(() => [
-  {
-    label: 'View phpvm on GitHub ↗',
-    onClick: () => openUrl('https://github.com/devhardiyanto/phpvm'),
-  },
-])
-
-const fnmActions = computed<PrereqAction[]>(() => [
-  {
-    label: 'View fnm on GitHub ↗',
-    onClick: () => openUrl('https://github.com/Schniz/fnm'),
-  },
-])
-
 // mise belum ada (v2.11): Windows dipasang satu klik lewat winget; macOS/Linux
 // diberi perintah resminya.
 const installingMise = ref(false)
@@ -215,29 +186,6 @@ const miseInstallCmd = computed<string>(() => {
   if (isWindows.value) return 'winget install jdx.mise'
   if (platform.value === 'macos') return 'brew install mise'
   return 'curl https://mise.run | sh'
-})
-
-// Tanpa phpvm/fnm user tetap bisa lanjut: mise (atau tool lain) bisa mengelola
-// versi PHP/Node. Pesan "opsional" menjelaskan kenapa kartu merah tidak memblokir.
-const optionalHint = computed<string>(() => {
-  const m = status.value?.mise_version
-  return status.value?.mise_installed
-    ? ` Optional — mise${m ? ` v${m}` : ''} detected.`
-    : ' Optional — or install mise to manage PHP and Node per project.'
-})
-
-const phpvmOkDesc = computed<string>(() => {
-  const v = status.value?.phpvm_version
-  return v
-    ? `PHP version manager — v${v} detected`
-    : 'PHP version manager'
-})
-
-const fnmOkDesc = computed<string>(() => {
-  const v = status.value?.fnm_version
-  return v
-    ? `Fast Node version manager — v${v} detected`
-    : 'Fast Node version manager'
 })
 </script>
 
@@ -308,33 +256,12 @@ const fnmOkDesc = computed<string>(() => {
             name="mise"
             :installed="false"
             icon="&#x1F9F0;"
-            not-found-desc="Recommended. Manages PHP, Node, Go and Python per project."
+            not-found-desc="Manages PHP, Node, Go and Python per project. Needed to pick versions; you can continue without it."
             :actions="miseActions"
             :code="miseInstallCmd"
           />
           <p v-if="miseInstallMsg" class="ob-note">{{ miseInstallMsg }}</p>
           <p v-if="miseInstallErr" class="ob-error ob-error--soft">{{ miseInstallErr }}</p>
-
-          <PrereqCard
-            v-if="!usesMise"
-            name="phpvm"
-            :installed="status?.phpvm_installed ?? false"
-            icon="&#x1F418;"
-            :ok-desc="phpvmOkDesc"
-            :not-found-desc="'PHP version manager.' + optionalHint"
-            :actions="phpvmActions"
-          />
-
-          <PrereqCard
-            v-if="!usesMise"
-            name="fnm"
-            :installed="status?.fnm_installed ?? false"
-            icon="&#x26A1;"
-            :ok-desc="fnmOkDesc"
-            :not-found-desc="'Fast Node version manager.' + optionalHint"
-            :actions="fnmActions"
-            :code="fnmInstallCmd"
-          />
         </div>
 
         <div v-if="showElevatedWarning" class="ob-error ob-error--soft">

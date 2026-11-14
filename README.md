@@ -32,7 +32,7 @@ No more juggling three terminals every morning.
 - Service profiles and database restore from a `.sql` dump.
 
 **PHP and Node**
-- With mise: see and switch PHP/Node versions per project, written to the `mise.toml` that actually applies. Go and Python versions can be installed and set in **Settings → Runtimes**. phpvm and fnm are still supported.
+- With mise: see and switch PHP/Node versions per project, written to the `mise.toml` that actually applies. Go and Python versions can be installed and set in **Settings → Runtimes**.
 - PHP extensions: turn bundled extensions on or off per PHP version. `php.ini` is backed up first and the change is undone if PHP no longer starts.
 - Windows: one click fixes HTTPS from PHP (curl error 60).
 
@@ -148,24 +148,17 @@ export PATH="$PATH:$(cygpath "$LOCALAPPDATA")/Servel/cli/bin"
 - **Windows / macOS:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) — make sure it is running before starting any service from Servel.
 - **Linux:** [Docker Engine](https://docs.docker.com/engine/install/) + the Compose v2 plugin. Add your user to the `docker` group so you do not need `sudo`.
 
-### mise — PHP, Node and Go versions (recommended)
+### mise — PHP, Node, Go and Python versions
 
 - Site: [mise.jdx.dev](https://mise.jdx.dev). On Windows, the first-run screen has an **Install mise** button (winget). Otherwise install it, then install the versions you need, for example `mise use -g php@8.3 node@22`.
-- When mise is installed, Servel uses it automatically (**Settings → Runtimes → Manage PHP & Node with → Auto**).
+- Servel manages PHP/Node versions only through mise (phpvm and fnm were removed in v3). Without mise, services and projects still run, but versions cannot be picked in the app.
 - Versions are resolved per folder, so a `mise.toml` in a project (or one of its parent folders) decides which PHP/Node that project uses, both in Servel and in your terminal.
-
-### phpvm and fnm (alternative)
-
-Without mise, Servel switches versions with [phpvm](https://github.com/devhardiyanto/phpvm) and [fnm](https://github.com/Schniz/fnm). Both are optional.
-
-- phpvm: install from its repo, then add the hook to your shell profile with `phpvm hook`.
-- fnm: `winget install Schniz.fnm`, `brew install fnm` or `cargo install fnm`, then add its shell hook as documented in the fnm README.
 
 ---
 
 ## First run
 
-On first launch Servel checks what is installed: the container engine (WSL containers or Docker) and mise (or phpvm + fnm). Missing items show what to install. Click **Refresh checks** after installing, then **Continue to Servel**.
+On first launch Servel checks what is installed: the container engine (WSL containers or Docker) and mise. Missing items show what to install. Click **Refresh checks** after installing, then **Continue to Servel**.
 
 ---
 
@@ -278,10 +271,6 @@ Expected: WSL containers and Docker Desktop have separate storage. Dump the data
 ### "Docker not running" / containers fail to start
 
 Start Docker Desktop (Windows/macOS) or the Docker daemon (Linux: `sudo systemctl start docker`) before clicking Start in Servel.
-
-### `phpvm` hook not installed — PHP version does not change
-
-Make sure your shell profile (`~/.bashrc`, `~/.zshrc`, or PowerShell `$PROFILE`) sources the phpvm hook. Run `phpvm hook` and follow the printed instructions, then restart your shell.
 
 ### `.wslconfig` settings not applied (Windows)
 

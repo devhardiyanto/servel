@@ -1,9 +1,6 @@
-use std::process::Stdio;
-use tokio::io::{AsyncBufReadExt, BufReader};
+//! Versi Node lewat mise (v3: phpvm/fnm dihapus).
 use serde::{Deserialize, Serialize};
-use tauri::{Emitter, Manager, Window};
-
-use super::util::{emit_env_line, extract_semver, silent_command};
+use tauri::{Manager, Window};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -12,309 +9,39 @@ pub struct NodeVersion {
     pub active: bool,
 }
 
-fn emit_line(window: &Window, line: &str, stream: &str) {
-    let _ = window.emit(
-        "cmd-output",
-        serde_json::json!({ "line": line, "stream": stream }),
-    );
-}
-
-/// Run `fnm list` and parse output into a list of installed Node versions.
-/// Output format per line (from fnm):
-///   "* v20.14.0 default (system)"  → active, version = "20.14.0"
-///   "  v18.20.3"                   → inactive
-/// Alias tokens after the version (e.g. "default", "system", "lts/iron") are ignored.
-/// Lines without a recognisable semver are skipped.
+/// Versi terpasang. Tanpa mise: daftar kosong (onboarding menawarkan install).
 #[tauri::command]
 pub async fn node_list_installed() -> Result<Vec<NodeVersion>, String> {
-    if crate::mise::provider_is_mise().await {
-        return Ok(crate::mise::list_installed("node")
-            .await?
-            .into_iter()
-            .map(|v| NodeVersion { version: v.version, active: v.active })
-            .collect());
+    if !crate::mise::provider_is_mise().await {
+        return Ok(Vec::new());
     }
-    let output = build_fnm_command()
-        .args(["list"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .await
-        .map_err(|e| format!("fnm not found on PATH: {}", e))?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("fnm list failed: {}", stderr.trim()));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let versions = parse_fnm_list(&stdout);
-    Ok(versions)
+    Ok(crate::mise::list_installed("node")
+        .await?
+        .into_iter()
+        .map(|v| NodeVersion { version: v.version, active: v.active })
+        .collect())
 }
 
-/// Return the default Node version set via fnm, or `None` if none is set.
-/// Uses `fnm default` (no argument) which prints the current default alias.
-/// This reflects what new shells will use — more reliable than `fnm current`
-/// inside a subprocess that has no shell context.
-/// Prefix `v` is stripped before returning (e.g. `v20.14.0` → `"20.14.0"`).
 #[tauri::command]
 pub async fn node_get_active() -> Result<Option<String>, String> {
-    if crate::mise::provider_is_mise().await {
-        return crate::mise::get_active("node").await;
-    }
-    let output = build_fnm_command()
-        .args(["default"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .await
-        .map_err(|e| format!("fnm not found on PATH: {}", e))?;
-
-    if !output.status.success() {
+    if !crate::mise::provider_is_mise().await {
         return Ok(None);
     }
-
-    let raw = String::from_utf8_lossy(&output.stdout);
-    Ok(parse_current_output(&raw))
+    crate::mise::get_active("node").await
 }
 
-/// Run `fnm default <version>` and stream all stdout/stderr to the frontend
-/// via the `cmd-output` event.
-/// `fnm default` sets the default alias so new shells pick up the version —
-/// unlike `fnm use` which only affects the subprocess that runs it.
+/// `scope`: `None` = otomatis, `"project"` = pin di project aktif,
+/// `"global"` = ubah config global.
 #[tauri::command]
-/// `scope` (mise saja): `None` = otomatis, `"project"` = pin di project aktif,
-/// `"global"` = ubah config global. Diabaikan oleh fnm.
 pub async fn node_switch(window: Window, version: String, scope: Option<String>) -> Result<(), String> {
-    if crate::mise::provider_is_mise().await {
-        crate::mise::validate_version(&version)?;
-        return crate::mise::use_version(window.app_handle(), "node", &version, scope.as_deref()).await;
-    }
-    let mut child = build_fnm_command()
-        .args(["default", &version])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("fnm not found on PATH: {}", e))?;
-
-    let stdout = child.stdout.take().ok_or("stdout not available")?;
-    let stderr = child.stderr.take().ok_or("stderr not available")?;
-
-    let window_out = window.clone();
-    let stdout_task = tokio::spawn(async move {
-        let mut reader = BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
-            emit_line(&window_out, &line, "stdout");
-        }
-    });
-
-    let window_err = window.clone();
-    let stderr_task = tokio::spawn(async move {
-        let mut reader = BufReader::new(stderr).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
-            emit_line(&window_err, &line, "stderr");
-        }
-    });
-
-    let _ = tokio::join!(stdout_task, stderr_task);
-
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Waiting for fnm failed: {}", e))?;
-
-    if !status.success() {
-        return Err(format!("fnm default {} failed (exit {})", version, status));
-    }
-
-    emit_env_line(&window, &format!("switched node → {} (via fnm)", version));
-
-    // Rebuild submenu tray agar ● ikut versi aktif terbaru (apa pun pemicunya).
-    let app = window.app_handle().clone();
-    tauri::async_runtime::spawn(async move {
-        crate::tray::refresh_version_submenus(&app).await;
-    });
-
-    Ok(())
+    crate::mise::require_mise().await?;
+    crate::mise::validate_version(&version)?;
+    crate::mise::use_version(window.app_handle(), "node", &version, scope.as_deref()).await
 }
 
-/// Run `fnm install <version>` and stream output to the frontend.
-/// `install-progress` event is NOT emitted — fnm install output does not
-/// produce a consistent percentage/progress pattern that can be reliably parsed.
-/// Frontend should display indeterminate progress for the duration of this command.
 #[tauri::command]
 pub async fn node_install(window: Window, version: String) -> Result<(), String> {
-    if crate::mise::provider_is_mise().await {
-        crate::mise::validate_version(&version)?;
-        return crate::mise::install(window.app_handle(), "node", &version).await;
-    }
-    let mut child = build_fnm_command()
-        .args(["install", &version])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("fnm not found on PATH: {}", e))?;
-
-    let stdout = child.stdout.take().ok_or("stdout not available")?;
-    let stderr = child.stderr.take().ok_or("stderr not available")?;
-
-    let window_out = window.clone();
-    let stdout_task = tokio::spawn(async move {
-        let mut reader = BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
-            emit_line(&window_out, &line, "stdout");
-        }
-    });
-
-    let window_err = window.clone();
-    let stderr_task = tokio::spawn(async move {
-        let mut reader = BufReader::new(stderr).lines();
-        while let Ok(Some(line)) = reader.next_line().await {
-            emit_line(&window_err, &line, "stderr");
-        }
-    });
-
-    let _ = tokio::join!(stdout_task, stderr_task);
-
-    let status = child
-        .wait()
-        .await
-        .map_err(|e| format!("Waiting for fnm failed: {}", e))?;
-
-    if !status.success() {
-        return Err(format!("fnm install {} failed (exit {})", version, status));
-    }
-
-    Ok(())
-}
-
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-/// Build a `tokio::process::Command` for `fnm`.
-/// fnm is a standalone binary on all platforms — no `cmd /c` wrapping needed.
-fn build_fnm_command() -> tokio::process::Command {
-    silent_command("fnm")
-}
-
-/// Parse `fnm list` output into a `Vec<NodeVersion>`.
-///
-/// Input line formats:
-///   `* v20.14.0 default (system)`  → active, version "20.14.0"
-///   `  v18.20.3`                   → inactive, version "18.20.3"
-///
-/// Rules:
-/// - Leading asterisk `*` = active.
-/// - First token after trimming marker = version token (must start with digit or `v`+digit).
-/// - Strip prefix `v` from version token.
-/// - Remaining alias tokens (default, system, lts/iron, etc.) are discarded.
-/// - Lines where the first non-marker token has no semver (e.g. alias-only) are skipped.
-fn parse_fnm_list(output: &str) -> Vec<NodeVersion> {
-    output
-        .lines()
-        .filter_map(|raw_line| {
-            let line = raw_line.trim();
-            if line.is_empty() {
-                return None;
-            }
-
-            let (active, rest) = if let Some(stripped) = line.strip_prefix('*') {
-                (true, stripped.trim())
-            } else {
-                (false, line)
-            };
-
-            // First whitespace-separated token is the version (e.g. "v20.14.0")
-            let version_token = rest.split_whitespace().next().unwrap_or("");
-            let version = version_token.trim_start_matches('v');
-
-            // Must start with a digit to be a valid semver-like version
-            if version.is_empty() || !version.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) {
-                return None;
-            }
-
-            Some(NodeVersion {
-                version: version.to_string(),
-                active,
-            })
-        })
-        .collect()
-}
-
-/// Parse output of `fnm default` (no-arg).
-/// Returns Some(semver) for recognisable version output, None for empty or alias-only.
-fn parse_current_output(raw: &str) -> Option<String> {
-    extract_semver(raw)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_fnm_list_basic() {
-        let output = "* v20.14.0 default (system)\n  v18.20.3\n  v22.3.0\n";
-        let versions = parse_fnm_list(output);
-        assert_eq!(versions.len(), 3);
-        assert_eq!(versions[0].version, "20.14.0");
-        assert!(versions[0].active);
-        assert_eq!(versions[1].version, "18.20.3");
-        assert!(!versions[1].active);
-        assert_eq!(versions[2].version, "22.3.0");
-        assert!(!versions[2].active);
-    }
-
-    #[test]
-    fn test_parse_fnm_list_strips_v_prefix() {
-        let output = "  v18.20.3\n* v20.14.0\n";
-        let versions = parse_fnm_list(output);
-        assert_eq!(versions[0].version, "18.20.3");
-        assert_eq!(versions[1].version, "20.14.0");
-        assert!(versions[1].active);
-    }
-
-    #[test]
-    fn test_parse_fnm_list_alias_tokens_ignored() {
-        // Aliases after version token must not create separate entries
-        let output = "* v20.14.0 default (system)\n  v18.20.3 lts/hydrogen\n";
-        let versions = parse_fnm_list(output);
-        assert_eq!(versions.len(), 2);
-        assert_eq!(versions[0].version, "20.14.0");
-        assert_eq!(versions[1].version, "18.20.3");
-    }
-
-    #[test]
-    fn test_parse_fnm_list_empty_lines_skipped() {
-        let output = "\n  v18.20.3\n\n* v20.14.0\n\n";
-        let versions = parse_fnm_list(output);
-        assert_eq!(versions.len(), 2);
-    }
-
-    #[test]
-    fn test_parse_fnm_list_alias_only_skipped() {
-        // A line with active marker but only an alias (no semver) must be skipped
-        let output = "* system\n  v18.20.3\n";
-        let versions = parse_fnm_list(output);
-        assert_eq!(versions.len(), 1);
-        assert_eq!(versions[0].version, "18.20.3");
-    }
-
-    #[test]
-    fn test_parse_default_output_semver() {
-        assert_eq!(parse_current_output("v20.14.0\n"), Some("20.14.0".to_string()));
-        assert_eq!(parse_current_output("20.14.0"), Some("20.14.0".to_string()));
-    }
-
-    #[test]
-    fn test_parse_default_output_empty_returns_none() {
-        assert_eq!(parse_current_output(""), None);
-        assert_eq!(parse_current_output("\n"), None);
-    }
-
-    #[test]
-    fn test_parse_default_output_alias_only_returns_none() {
-        assert_eq!(parse_current_output("lts/iron"), None);
-        assert_eq!(parse_current_output("default"), None);
-    }
+    crate::mise::require_mise().await?;
+    crate::mise::validate_version(&version)?;
+    crate::mise::install(window.app_handle(), "node", &version).await
 }

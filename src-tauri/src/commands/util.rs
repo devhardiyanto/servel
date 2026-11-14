@@ -1,6 +1,6 @@
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Emitter, Window};
+use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
@@ -20,8 +20,8 @@ pub fn silent_command(program: &str) -> Command {
     }
 
     // GUI-launched apps (AppImage / .app dari launcher) TIDAK mewarisi PATH shell
-    // interaktif, jadi tool yang di-install via shell rc (fnm, phpvm → ~/.local/bin,
-    // ~/.fnm, dll.) tak ketemu. Inject PATH hasil resolusi login-shell + dir umum.
+    // interaktif, jadi tool yang di-install via shell rc (mise → ~/.local/bin,
+    // dll.) tak ketemu. Inject PATH hasil resolusi login-shell + dir umum.
     #[cfg(not(target_os = "windows"))]
     {
         cmd.env("PATH", resolved_path());
@@ -104,52 +104,6 @@ fn capture_login_shell_path() -> Option<String> {
         }
         _ => None,
     }
-}
-
-/// Build a PowerShell command that executes `script_body` as a `-Command` string.
-/// Flags: -NoProfile -NoLogo -NonInteractive -ExecutionPolicy Bypass.
-/// Stdout/stderr default to null; caller overrides before spawning.
-///
-/// Use on Windows only — wrap phpvm.ps1 invocations to avoid
-/// "CantActivateDocumentInPipeline" when Tauri spawns outside PowerShell context.
-#[cfg(target_os = "windows")]
-pub fn silent_powershell_command(script_body: &str) -> Command {
-    let wrapped = format!(
-        "$ErrorActionPreference='Stop'; $env:Path='C:\\Windows\\System32;C:\\Windows;' + $env:Path; {}",
-        script_body
-    );
-
-    let mut cmd = Command::new("powershell.exe");
-    cmd.args([
-        "-NoProfile",
-        "-NoLogo",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        &wrapped,
-    ])
-    .stdout(Stdio::null())
-    .stderr(Stdio::null());
-
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-    cmd.creation_flags(CREATE_NO_WINDOW);
-
-    cmd
-}
-
-/// Emit a synthesized ENV-level log line to the frontend via `cmd-output`.
-/// Use for success milestones: switch, init, ready.
-/// `source: "ENV"` signals the frontend to render with the ENV tag style.
-pub fn emit_env_line(window: &Window, message: &str) {
-    let _ = window.emit(
-        "cmd-output",
-        serde_json::json!({
-            "line": message,
-            "stream": "stdout",
-            "source": "ENV",
-        }),
-    );
 }
 
 /// Emit a log line dengan source tag arbitrary ke frontend via `cmd-output`.

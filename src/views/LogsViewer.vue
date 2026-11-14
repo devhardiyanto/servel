@@ -21,8 +21,8 @@ const TAB_SRC: Record<string, string[]> = {
   MySQL: ['MYSQL'],
   PostgreSQL: ['POSTGRES', 'PGSQL'],
   Redis: ['REDIS'],
-  PHP: ['PHP', 'PHPVM'],
-  Node: ['NODE', 'FNM'],
+  PHP: ['PHP'],
+  Node: ['NODE'],
   mise: ['MISE'],
 }
 
