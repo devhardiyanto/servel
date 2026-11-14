@@ -756,7 +756,19 @@ mod tests {
         std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755)).unwrap();
         let install = PhpInstall { version: "test".into(), binary: wrapper };
 
-        let st = status_of(&install).await.unwrap();
+        let st = match status_of(&install).await {
+            Ok(st) => st,
+            Err(e) => {
+                let ini_out = std::process::Command::new(&install.binary).arg("--ini").output().unwrap();
+                let ver = std::process::Command::new("php").arg("-v").output().unwrap();
+                panic!(
+                    "status_of: {e}\nphp -v: {}\n--ini stdout: {}\n--ini stderr: {}",
+                    String::from_utf8_lossy(&ver.stdout),
+                    String::from_utf8_lossy(&ini_out.stdout),
+                    String::from_utf8_lossy(&ini_out.stderr)
+                );
+            }
+        };
         assert_eq!(PathBuf::from(&st.ini_path), ini);
         let cal = st.extensions.iter().find(|e| e.name == "calendar").unwrap();
         assert!(cal.available && !cal.loaded && !cal.builtin);
