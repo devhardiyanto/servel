@@ -12,6 +12,7 @@ import { useLogs } from '@/composables/useLogs'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
 import ProjectsPanel from '@/components/ProjectsPanel.vue'
 import PhpExtensionsPanel from '@/components/PhpExtensionsPanel.vue'
+import RuntimesPanel from '@/components/RuntimesPanel.vue'
 import SettingRow from '@/components/SettingRow.vue'
 import { ENGINE_LABEL, type EnginePreference, type PrereqStatus } from '@/types/prereq'
 import { useEngineStatus } from '@/composables/useEngineStatus'
@@ -254,7 +255,24 @@ async function handleReset(): Promise<void> {
   push({ ts: new Date().toTimeString().slice(0, 8), src: 'SERVEL', text: 'settings reset to defaults' })
 }
 
+// "Start Servel when you sign in" (v2.11): disimpan oleh OS, bukan di config.
+const autostartOn = ref(false)
+const autostartBusy = ref(false)
+const autostartError = ref('')
+async function toggleAutostart(): Promise<void> {
+  autostartBusy.value = true
+  autostartError.value = ''
+  try {
+    autostartOn.value = await invoke<boolean>('autostart_set', { enabled: !autostartOn.value })
+  } catch (err) {
+    autostartError.value = String(err)
+  } finally {
+    autostartBusy.value = false
+  }
+}
+
 onMounted(async () => {
+  invoke<boolean>('autostart_get').then((v) => (autostartOn.value = v)).catch(() => {})
   if (!loaded.value) await load()
   try {
     platform.value = await invoke<string>('get_platform')
@@ -301,7 +319,7 @@ onMounted(async () => {
           class="snav-item"
           :class="{ 'snav-item--active': activeNav === 'php_node' }"
           @click="activeNav = 'php_node'"
-        >PHP &amp; Node</button>
+        >Runtimes</button>
         <button
           class="snav-item"
           :class="{ 'snav-item--active': activeNav === 'about' }"
@@ -312,25 +330,49 @@ onMounted(async () => {
       <main class="settings-content">
         <template v-if="activeNav === 'general'">
           <div class="section-block">
-            <div class="section-title">GENERAL</div>
+            <div class="section-title">ON LAUNCH</div>
 
             <SettingRow
-              label="Auto-start infra on launch"
-              desc="Start saved selection automatically when Servel boots"
+              label="Start Servel when you sign in"
+              :desc="config.minimizeToTray ? 'Opens in the tray, without a window' : 'Opens Servel after you sign in'"
             >
-              <UiToggle label="Auto-start infra on launch" :on="config.autoStart" @click="setAutoStart(!config.autoStart)" />
+              <UiToggle
+                label="Start Servel when you sign in"
+                :on="autostartOn"
+                :disabled="autostartBusy"
+                @click="toggleAutostart"
+              />
+            </SettingRow>
+            <p v-if="autostartError" class="settings-error">{{ autostartError }}</p>
+
+            <SettingRow
+              label="Start services"
+              desc="Start the saved service selection when Servel opens"
+            >
+              <UiToggle label="Start services when Servel opens" :on="config.autoStart" @click="setAutoStart(!config.autoStart)" />
             </SettingRow>
 
             <SettingRow
               label="Remember last session"
-              desc="Persist selected services between launches"
+              desc="Keep the selected services between launches"
             >
               <UiToggle label="Remember last session" :on="config.rememberSession" @click="setRememberSession(!config.rememberSession)" />
             </SettingRow>
 
             <SettingRow
+              label="Projects"
+              desc="Each project has its own &quot;Start this project when Servel opens&quot; option in Projects → Edit"
+            >
+              <UiButton variant="quiet" @click="activeNav = 'sites'">Open Projects</UiButton>
+            </SettingRow>
+          </div>
+
+          <div class="section-block">
+            <div class="section-title">WINDOW</div>
+
+            <SettingRow
               label="Minimize to tray on close"
-              desc="Keep Servel running in system tray instead of quitting on window close"
+              desc="Keep Servel running in the system tray instead of quitting when the window closes"
             >
               <UiToggle label="Minimize to tray on close" :on="config.minimizeToTray" @click="setMinimizeToTray(!config.minimizeToTray)" />
             </SettingRow>
@@ -568,6 +610,11 @@ onMounted(async () => {
             </SettingRow>
 
             <p v-if="miseError" class="section-hint section-hint--note">{{ miseError }}</p>
+          </div>
+
+          <div v-if="versionCtx.isMise.value" class="section-block">
+            <div class="section-title">OTHER RUNTIMES</div>
+            <RuntimesPanel />
           </div>
 
           <div class="section-block">
@@ -1099,5 +1146,10 @@ onMounted(async () => {
 .restore-error {
   color: var(--red);
   background: color-mix(in srgb, var(--red) 8%, var(--surface));
+}
+.settings-error {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--red);
 }
 </style>

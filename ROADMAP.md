@@ -338,11 +338,12 @@ Urutan: A → B → C → D → E → F → G. Tiap milestone satu PR; tag dan p
 
 ### D — v2.11.0: runtimes, on launch, CLI
 
-- [ ] Runtimes umum lewat mise: Go dan Python (daftar versi, install, pakai global/per project). Asumsi: deteksi project Python belum masuk (bisa ditambah bila diminta).
-- [ ] Install mise satu klik (`winget install jdx.mise`), dengan jalur gagal bila winget tidak ada.
-- [ ] Pengaturan "On launch" disatukan (auto-start infra, remember last session, start per project, keep in tray) + Start when Windows starts (default off).
-- [ ] CLI: `servel use php@8.4`, alias `servel service up|down`.
-- [ ] `release.yml`: draft dibuat satu job di awal (mencegah draft ganda).
+- [x] Go dan Python lewat mise di Settings → Runtimes (versi berlaku, versi terpasang, Install, Use globally / Use in project). Command `runtime_versions/install/use` dengan allowlist tool. Deteksi project Python belum masuk (asumsi; bisa ditambah bila diminta).
+- [x] Install mise satu klik di onboarding (Windows, `winget install --id jdx.mise --exact`); folder shim winget ditambahkan ke PATH proses supaya mise langsung terdeteksi. macOS/Linux: perintah resmi (`brew install mise` / `curl https://mise.run | sh`).
+- [x] Settings → General disusun ulang: bagian **On launch** (Start Servel when you sign in, Start services, Remember last session, tautan ke opsi per project) dan **Window** (Minimize to tray). Start when you sign in: registry Run (Windows), LaunchAgent (macOS), autostart .desktop (Linux), default off; dibuka dengan `--hidden` sehingga tetap di tray bila tray tersedia. Ditulis tanpa tauri-plugin-autostart karena plugin itu menuntut upgrade tauri/wry.
+- [x] CLI: `servel use php@8.4` (bentuk lama tetap jalan), alias `servel service up|down|status|list|logs|shell`.
+- [x] `release.yml`: draft dibuat satu kali di job awal (`gh release create --draft`), job build mengunggah ke `releaseId` itu. Re-run memakai draft yang sudah ada.
+- Nav "PHP & Node" berganti nama menjadi "Runtimes".
 
 ### E — v3.0.0-rc.1: Kova (pra-terbit)
 

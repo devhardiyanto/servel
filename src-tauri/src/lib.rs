@@ -3,6 +3,7 @@ mod mise;
 mod control;
 mod pecl;
 mod open_in;
+mod autostart;
 mod php_ext;
 mod sites;
 mod runtime;
@@ -56,8 +57,20 @@ static WINDOW_SHOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBo
 /// Tampilkan jendela utama sekali saja saat start. Setelah itu tidak
 /// berpengaruh, supaya jendela yang sengaja disembunyikan ke tray tidak
 /// muncul sendiri oleh pengaman batas waktu.
+/// Tray berhasil dibuat; tanpa tray jendela tidak boleh disembunyikan saat start.
+static TRAY_OK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Dibuka oleh autostart saat login (`--hidden`) dan tray tersedia: tetap di tray.
+fn started_hidden() -> bool {
+    TRAY_OK.load(std::sync::atomic::Ordering::SeqCst)
+        && std::env::args().any(|a| a == autostart::HIDDEN_ARG)
+}
+
 fn show_main_window(app: &tauri::AppHandle) {
     use tauri::Manager;
+    if started_hidden() {
+        return;
+    }
     if WINDOW_SHOWN.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return;
     }
@@ -120,7 +133,13 @@ pub fn run() {
             commands::config::config_write,
             mise::mise_context,
             mise::mise_project_tools,
+            mise::mise_install_winget,
+            mise::runtime_versions,
+            mise::runtime_install,
+            mise::runtime_use,
             open_in::project_open_in,
+            autostart::autostart_get,
+            autostart::autostart_set,
             mise::mise_trust,
             mise::mise_repair,
             app_ready,
@@ -153,8 +172,9 @@ pub fn run() {
         })
         .setup(move |app| {
             // Tray init — non-fatal: kalau gagal (mis. Linux tanpa appindicator) log warning + lanjut.
-            if let Err(e) = tray::init(app.handle()) {
-                eprintln!("[tray] init failed, skipping tray: {}", e);
+            match tray::init(app.handle()) {
+                Ok(_) => TRAY_OK.store(true, std::sync::atomic::Ordering::SeqCst),
+                Err(e) => eprintln!("[tray] init failed, skipping tray: {}", e),
             }
 
             runtime::init(app.handle());

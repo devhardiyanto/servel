@@ -14,6 +14,7 @@ jobs:
     outputs:
       changelog: ${{ steps.gen.outputs.changelog }}
       prerelease: ${{ steps.flag.outputs.prerelease }}
+      release_id: ${{ steps.draft.outputs.release_id }}
     steps:
       - name: Checkout (full history)
         uses: actions/checkout@v5
@@ -68,6 +69,40 @@ jobs:
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
+
+      # Draft dibuat SEKALI di sini. Sebelumnya tiap job matrix membuatnya
+      # sendiri, dan job yang start bersamaan menghasilkan draft ganda
+      # (kasus v2.5.0). Job build hanya mengunggah ke release_id ini.
+      - name: Create draft release
+        id: draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTES: |
+            ${{ steps.gen.outputs.changelog }}
+
+            ## Install
+
+            - **Windows:** download `.exe` (NSIS installer), run, follow prompts.
+            - **macOS:** download `.dmg`, open, drag Servel.app to Applications.
+            - **Linux:** download `.AppImage`, `chmod +x`, run.
+
+            See [README](https://github.com/${{ github.repository }}#readme) for prerequisites (Windows: WSL 3.0.1+ for built-in WSL containers, or Docker Desktop; macOS/Linux: Docker).
+        run: |
+          set -e
+          TAG="${GITHUB_REF_NAME}"
+          # Re-run workflow: pakai draft yang sudah ada untuk tag ini.
+          ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=50" \
+            --jq "[.[] | select(.tag_name == \"${TAG}\")][0].id // empty")"
+          if [ -z "$ID" ]; then
+            PRE=""
+            if [ "${{ steps.flag.outputs.prerelease }}" = "true" ]; then PRE="--prerelease"; fi
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft $PRE \
+              --title "Servel ${TAG}" --notes "$NOTES" --verify-tag
+            ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=50" \
+              --jq "[.[] | select(.tag_name == \"${TAG}\")][0].id")"
+          fi
+          echo "release_id=${ID}" >> "$GITHUB_OUTPUT"
 
   release:
     needs: changelog
@@ -137,18 +172,5 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Servel ${{ github.ref_name }}'
-          releaseBody: |
-            ${{ needs.changelog.outputs.changelog }}
-
-            ## Install
-
-            - **Windows:** download `.exe` (NSIS installer), run, follow prompts.
-            - **macOS:** download `.dmg`, open, drag Servel.app to Applications.
-            - **Linux:** download `.AppImage`, `chmod +x`, run.
-
-            See [README](https://github.com/${{ github.repository }}#readme) for prerequisites (Windows: WSL 3.0.1+ for built-in WSL containers, or Docker Desktop; macOS/Linux: Docker).
-          releaseDraft: true
-          prerelease: ${{ needs.changelog.outputs.prerelease }}
+          releaseId: ${{ needs.changelog.outputs.release_id }}
           args: --target ${{ matrix.rust-target }}
