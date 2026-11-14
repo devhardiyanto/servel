@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { ServiceDef, ServiceUiState } from '@/types/service'
+import UiButton from '@/components/ui/UiButton.vue'
 
 const props = defineProps<{
   def: ServiceDef
   state: ServiceUiState
+  connectOpen?: boolean
 }>()
 
 const ramDisplay = computed(() => {
@@ -17,6 +19,7 @@ const ramDisplay = computed(() => {
 
 const emit = defineEmits<{
   toggle: [id: string]
+  connect: [id: string]
 }>()
 
 const SERVICE_ICONS: Record<string, string> = {
@@ -86,13 +89,20 @@ function imageTag(def: ServiceDef): string {
         <span class="sdot"></span>off
       </span>
     </div>
+    <UiButton
+      variant="quiet"
+      class="svc-connect"
+      :aria-expanded="connectOpen"
+      :title="`Connection details for ${def.name}`"
+      @click.stop="emit('connect', def.id)"
+    >Connect</UiButton>
   </div>
 </template>
 
 <style scoped>
 .svc-row {
   display: grid;
-  grid-template-columns: 36px 24px 1fr 100px 68px 80px;
+  grid-template-columns: 36px 24px 1fr 100px 68px 80px 76px;
   align-items: center;
   gap: var(--space-3);
   padding: 7px var(--space-4);
@@ -259,5 +269,9 @@ function imageTag(def: ServiceDef): string {
 @keyframes heartbeat-active {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.8); }
+}
+.svc-connect {
+  justify-self: end;
+  padding: 2px 10px;
 }
 </style>

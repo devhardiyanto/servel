@@ -21,12 +21,14 @@ No more juggling three terminals every morning.
 - Start, Stop, Restart and Open each project at `localhost:<port>`; its output goes to the Logs viewer.
 - The dev server runs with the PHP/Node/Go versions from the project's `mise.toml`, plus any environment variables you set for that project.
 - Optionally start a project when Servel opens, and link it to a service profile.
+- **Details** per project: the PHP/Node versions mise resolves for that folder, its service profile, the last lines of output, and shortcuts to open the folder, a terminal there, or VS Code.
 - Dev servers stop when Servel quits, and do not linger if Servel crashes.
 
 **Services**
 - MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg. Toggle what you need, click Start.
 - Windows: runs on WSL containers (`wslc`, built into WSL 3.0.1+). No Docker Desktop and no extra Linux distro needed. Docker stays available.
 - A service shows "up" only once it accepts connections.
+- **Connect** on each service shows host, port and credentials, with **Copy .env** (Laravel keys) and **Copy URL**.
 - Service profiles, database restore from a `.sql` dump, and import from an old Docker setup.
 
 **PHP and Node**

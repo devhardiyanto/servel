@@ -530,6 +530,18 @@ pub struct MiseContext {
     pub error: Option<String>,
 }
 
+/// Versi tool yang berlaku di folder project (v2.10): dipakai panel detail
+/// project. Kosong bila mise tidak ada atau folder tidak ditemukan.
+#[tauri::command]
+pub async fn mise_project_tools(path: String) -> Result<Vec<ToolCurrent>, String> {
+    let dir = PathBuf::from(&path);
+    if !dir.is_dir() {
+        return Err(format!("Folder not found: {path}"));
+    }
+    let out = capture(&["ls".into(), "--current".into(), "--json".into()], &dir).await?;
+    Ok(parse_current(&out, &global_config_roots(&env_lookup)))
+}
+
 #[tauri::command]
 pub async fn mise_context() -> MiseContext {
     let mise_version = version().await;

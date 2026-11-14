@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue'
+import ProjectDetail from '@/components/ProjectDetail.vue'
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog'
@@ -23,6 +24,8 @@ const projects = computed<Project[]>(() => config.value.projects)
 const errors = ref<Record<string, string>>({})
 const busy = ref<Record<string, boolean>>({})
 const panelError = ref('')
+// Panel detail (v2.10): satu project terbuka sekaligus.
+const detailId = ref<string | null>(null)
 
 const STATE_LABEL: Record<SiteState, string> = {
   stopped: 'stopped',
@@ -356,6 +359,12 @@ onMounted(() => {
                 @click="handleRestart(p)"
               >Restart</UiButton>
             </template>
+            <UiButton
+              v-if="p.path"
+              variant="quiet"
+              :aria-expanded="detailId === p.id"
+              @click="detailId = detailId === p.id ? null : p.id"
+            >Details</UiButton>
             <UiButton variant="quiet" v-if="p.path" @click="editingId === p.id ? cancelEdit() : startEdit(p)">
               Edit
             </UiButton>
@@ -372,6 +381,8 @@ onMounted(() => {
           The process is running but nothing answers on port {{ p.port }}. The app may be listening on a different
           port; check the Logs, then set that port in Edit.
         </p>
+
+        <ProjectDetail v-if="detailId === p.id && p.path" :project="p" />
 
         <div v-if="editingId === p.id" class="pp-form">
           <label :for="`pp-name-${p.id}`">Name</label>

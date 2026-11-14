@@ -331,10 +331,10 @@ Urutan: A → B → C → D → E → F → G. Tiap milestone satu PR; tag dan p
 
 ### C — v2.10.0: fitur project dan service
 
-- [ ] Panel Connect per service: host, port, user, password, URL; Copy .env (format Laravel dan URL).
-- [ ] RAM per service (dari engine container) di daftar service dan status bar.
-- [ ] Project: Terminal here, Open in VS Code, Open folder.
-- [ ] Panel detail project: runtime, service profil, 20 baris output terakhir.
+- [x] Panel Connect per service (`ServiceConnect.vue`, `utils/connect.ts`): host, port, database, user, password, URL; Copy .env (key Laravel), Copy URL, Open web UI (RabbitMQ, MinIO, Mailpit).
+- [x] RAM per service: sudah tampil di daftar service sejak v1.x (angka live saat running, estimasi saat off). Ringkasan di status bar ikut layar baru di E.
+- [x] Project: Open folder, Terminal here (Windows Terminal, cadangan PowerShell), Open in VS Code (`open_in.rs`; path selalu jadi current_dir/argumen utuh, tidak pernah masuk string shell).
+- [x] Panel Details project (`ProjectDetail.vue`): versi runtime dari mise untuk folder itu (`mise_project_tools`), profil service, 20 baris output terakhir.
 
 ### D — v2.11.0: runtimes, on launch, CLI
 
