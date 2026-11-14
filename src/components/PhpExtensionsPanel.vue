@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
+import UiToggle from '@/components/ui/UiToggle.vue'
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -183,12 +185,11 @@ onMounted(async () => {
             Not set. PHP on Windows ships without a certificate list, so HTTPS calls from curl fail with error 60.
           </span>
         </div>
-        <button
-          class="px-btn"
-          :class="{ 'px-btn--accent': !status.https.ok }"
+        <UiButton
+          :variant="status.https.ok ? 'default' : 'accent'"
           :disabled="busy !== null"
           @click="fixHttps"
-        >{{ busy === '__https' ? 'Setting…' : status.https.ok ? 'Set again' : 'Fix HTTPS certificates' }}</button>
+        >{{ busy === '__https' ? 'Setting…' : status.https.ok ? 'Set again' : 'Fix HTTPS certificates' }}</UiButton>
       </div>
 
       <div class="px-toolbar">
@@ -206,17 +207,13 @@ onMounted(async () => {
       <div class="px-grid">
         <div v-for="ext in toggleable" :key="ext.name" class="px-item">
           <span class="px-name">{{ ext.name }}</span>
-          <button
-            class="px-toggle"
-            :class="{ 'px-toggle--on': ext.loaded }"
-            role="switch"
-            :aria-checked="ext.loaded"
-            :aria-label="`${ext.loaded ? 'Disable' : 'Enable'} ${ext.name}`"
+          <UiToggle
+            size="sm"
+            :on="ext.loaded"
+            :label="`${ext.loaded ? 'Disable' : 'Enable'} ${ext.name}`"
             :disabled="busy !== null"
             @click="toggle(ext)"
-          >
-            <span class="px-knob"></span>
-          </button>
+          />
         </div>
         <p v-if="toggleable.length === 0" class="px-hint">No extension matches "{{ filter }}".</p>
       </div>
@@ -244,9 +241,9 @@ onMounted(async () => {
           <datalist id="px-install-list">
             <option v-for="n in SUGGESTED" :key="n" :value="n" />
           </datalist>
-          <button class="px-btn px-btn--accent" :disabled="busy !== null || !installName.trim()" @click="installExt">
+          <UiButton variant="accent" :disabled="busy !== null || !installName.trim()" @click="installExt">
             {{ busy === '__install' ? 'Downloading…' : 'Download & enable' }}
-          </button>
+          </UiButton>
         </div>
         <p class="px-hint">
           Downloads the build that matches PHP {{ status.version }} from downloads.php.net, puts it in
@@ -279,17 +276,17 @@ onMounted(async () => {
 
 .px-title {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.12em;
-  color: var(--dim);
+  color: var(--faint);
 }
 
 .px-hint,
 .px-notice,
 .px-error {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.55;
   color: var(--muted);
   margin: 0;
@@ -297,7 +294,7 @@ onMounted(async () => {
 
 .px-hint code {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
 
@@ -315,8 +312,8 @@ onMounted(async () => {
   flex-wrap: wrap;
   gap: var(--space-2) var(--space-4);
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   min-width: 0;
 }
 
@@ -351,7 +348,7 @@ onMounted(async () => {
   min-width: 0;
   flex: 1 1 260px;
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -373,7 +370,7 @@ onMounted(async () => {
 .px-input,
 .px-select {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   padding: 5px 10px;
   background: var(--bg);
   border: 1px solid var(--border-strong);
@@ -388,8 +385,8 @@ onMounted(async () => {
 
 .px-count {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
 }
 
 .px-grid {
@@ -412,76 +409,12 @@ onMounted(async () => {
 
 .px-name {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.px-toggle {
-  position: relative;
-  flex: none;
-  width: 32px;
-  height: 18px;
-  border-radius: var(--radius-md);
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  padding: 0;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.px-toggle:disabled {
-  cursor: wait;
-  opacity: 0.6;
-}
-
-.px-toggle--on {
-  background: color-mix(in srgb, var(--accent) 35%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-}
-
-.px-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--muted);
-  transition: transform 0.15s, background 0.15s;
-}
-
-.px-toggle--on .px-knob {
-  transform: translateX(14px);
-  background: var(--accent);
-}
-
-.px-btn {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  padding: 4px 12px;
-  background: var(--surface2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xs);
-  color: var(--text);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.px-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.px-btn--accent {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  color: var(--accent);
-}
-
-.px-btn:focus-visible,
-.px-toggle:focus-visible,
 .px-input:focus-visible,
 .px-select:focus-visible {
   outline: 2px solid var(--accent);
@@ -498,7 +431,7 @@ onMounted(async () => {
 
 .px-install__label {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--text);
 }
@@ -511,7 +444,7 @@ onMounted(async () => {
 
 .px-builtin {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -522,8 +455,8 @@ onMounted(async () => {
 .px-builtin p {
   margin: var(--space-2) 0 0;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   line-height: 1.6;
-  color: var(--dim);
+  color: var(--faint);
 }
 </style>

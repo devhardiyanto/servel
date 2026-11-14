@@ -279,7 +279,7 @@ function triggerDownload(text: string, filename: string): void {
   background: transparent;
   border: none;
   color: var(--muted);
-  font-size: 16px;
+  font-size: var(--text-lg);
   cursor: pointer;
   padding: 2px 4px;
   line-height: 1;
@@ -293,7 +293,7 @@ function triggerDownload(text: string, filename: string): void {
 
 .lv-title {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.1em;
   color: var(--muted);
@@ -315,7 +315,7 @@ function triggerDownload(text: string, filename: string): void {
   align-items: center;
   gap: 6px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   padding: 2px 10px;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -360,7 +360,7 @@ function triggerDownload(text: string, filename: string): void {
 
 .lv-tab {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   padding: 4px 10px;
   background: transparent;
   border: none;
@@ -389,7 +389,7 @@ function triggerDownload(text: string, filename: string): void {
 
 .lv-btn {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   padding: 3px 10px;
   border-radius: var(--radius-xs);
   cursor: pointer;
@@ -410,7 +410,7 @@ function triggerDownload(text: string, filename: string): void {
 .lv-btn--autoscroll {
   background: transparent;
   border: 1px solid var(--border);
-  color: var(--dim);
+  color: var(--faint);
 }
 
 .lv-btn--autoscroll-on {
@@ -443,7 +443,7 @@ function triggerDownload(text: string, filename: string): void {
   align-items: center;
   gap: var(--space-2);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   line-height: 1.65;
   color: var(--text);
   word-break: break-all;
@@ -459,7 +459,7 @@ function triggerDownload(text: string, filename: string): void {
 }
 
 .lv-ts {
-  color: var(--dim);
+  color: var(--faint);
   flex-shrink: 0;
   min-width: 56px;
 }
@@ -470,7 +470,7 @@ function triggerDownload(text: string, filename: string): void {
   padding: 1px 6px;
   border: 1px solid;
   border-radius: var(--radius-xs);
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   flex-shrink: 0;
@@ -484,8 +484,8 @@ function triggerDownload(text: string, filename: string): void {
 
 .lv-empty {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   padding: var(--space-3) 0;
 }
 
@@ -503,7 +503,7 @@ function triggerDownload(text: string, filename: string): void {
 
 .lv-footer__stats {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -512,6 +512,6 @@ function triggerDownload(text: string, filename: string): void {
 }
 
 .lv-footer__ok {
-  color: var(--dim);
+  color: var(--faint);
 }
 </style>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 import { onMounted, onUnmounted, computed, inject, ref, watch } from 'vue'
 import { usePhp } from '@/composables/usePhp'
 import { usePhpHookStatus } from '@/composables/usePhpHookStatus'
@@ -313,7 +314,7 @@ onUnmounted(() => {
         <strong>mise does not trust this config yet</strong>
         <span class="ctx-banner__path">{{ untrustedPath }}</span>
       </div>
-      <button class="ctx-btn ctx-btn--primary" :disabled="versionBusy" @click="trustConfig">Trust</button>
+      <UiButton variant="accent" :disabled="versionBusy" @click="trustConfig">Trust</UiButton>
     </div>
 
     <div v-if="versionError" class="ctx-banner ctx-banner--error">
@@ -321,7 +322,7 @@ onUnmounted(() => {
         <strong>Version switch failed</strong>
         <span class="ctx-banner__path">{{ versionError }}</span>
       </div>
-      <button class="ctx-btn" @click="versionError = null">Dismiss</button>
+      <UiButton variant="quiet" @click="versionError = null">Dismiss</UiButton>
     </div>
 
     <div v-if="isMise" class="ctx-bar">
@@ -339,7 +340,7 @@ onUnmounted(() => {
       </span>
       <span class="ctx-bar__spacer"></span>
       <span class="ctx-bar__hint">mise {{ miseCtx?.miseVersion ?? '' }}</span>
-      <button class="ctx-btn" @click="setView('settings')">Manage projects</button>
+      <UiButton variant="quiet" @click="setView('settings')">Manage projects</UiButton>
     </div>
 
     <section class="control-strip">
@@ -463,20 +464,20 @@ onUnmounted(() => {
           </select>
         </div>
         <div class="sw-actions">
-          <button
-            class="sw-btn sw-btn--stop"
+          <UiButton
+            variant="danger"
             :disabled="hasStopping || runningCount === 0"
             @click="stopAll"
           >
             &#9632; Stop all
-          </button>
-          <button
-            class="sw-btn sw-btn--start"
+          </UiButton>
+          <UiButton
+            variant="success"
             :disabled="hasStarting"
             @click="start()"
           >
             &#9654; Start selected
-          </button>
+          </UiButton>
         </div>
       </header>
       <div class="services-table">
@@ -547,7 +548,7 @@ onUnmounted(() => {
           <span>Change global version</span>
           <small>affects every project without its own pin</small>
         </button>
-        <button class="ctx-btn scope-cancel" @click="scopeRequest = null">Cancel</button>
+        <UiButton variant="quiet" class="scope-cancel" @click="scopeRequest = null">Cancel</UiButton>
       </div>
     </div>
   </div>
@@ -582,7 +583,7 @@ onUnmounted(() => {
 
 .app-strip__name {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 700;
   color: var(--accent);
   letter-spacing: 0.02em;
@@ -590,8 +591,8 @@ onUnmounted(() => {
 
 .app-strip__tag {
   font-family: var(--font-sans);
-  font-size: 10px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   letter-spacing: 0.04em;
 }
 
@@ -603,15 +604,15 @@ onUnmounted(() => {
 
 .app-strip__uptime {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
 }
 
 .app-strip__settings-btn {
   background: transparent;
   border: none;
-  color: var(--dim);
-  font-size: 13px;
+  color: var(--faint);
+  font-size: var(--text-sm);
   cursor: pointer;
   padding: 2px 4px;
   border-radius: var(--radius-xs);
@@ -659,7 +660,7 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--space-2);
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -671,7 +672,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 400;
   letter-spacing: 0.04em;
 }
@@ -697,15 +698,15 @@ onUnmounted(() => {
 
 .ver-tag {
   font-family: var(--font-mono);
-  font-size: 22px;
+  font-size: var(--text-xl);
   font-weight: 400;
   line-height: 1;
 }
 
 .ver-patch {
   font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--dim);
+  font-size: var(--text-md);
+  color: var(--faint);
 }
 
 .ver-spacer {
@@ -722,7 +723,7 @@ onUnmounted(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius-xs);
   color: var(--text);
-  font-size: 16px;
+  font-size: var(--text-lg);
   cursor: pointer;
   padding: 0;
   line-height: 1;
@@ -746,7 +747,7 @@ onUnmounted(() => {
 
 .ver-chip {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-xs);
   padding: 3px 10px;
   border-radius: var(--radius-xs);
   border: 1px solid var(--border);
@@ -771,8 +772,8 @@ onUnmounted(() => {
 
 .ver-empty {
   font-family: var(--font-sans);
-  font-size: 11px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
 }
 
 .vp-hook-banner {
@@ -789,7 +790,7 @@ onUnmounted(() => {
 
 .vp-hook-text {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
   flex: 1;
   min-width: 0;
@@ -797,7 +798,7 @@ onUnmounted(() => {
 
 .vp-hook-cmd {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   padding: 1px 5px;
   background: var(--surface2);
   border-radius: var(--radius-xs);
@@ -806,7 +807,7 @@ onUnmounted(() => {
 
 .vp-hook-copy {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   padding: 3px 8px;
   background: var(--surface2);
   border: 1px solid var(--border);
@@ -836,7 +837,7 @@ onUnmounted(() => {
 
 .stat-val {
   font-family: var(--font-sans);
-  font-size: 18px;
+  font-size: var(--text-lg);
   font-weight: 400;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -847,13 +848,13 @@ onUnmounted(() => {
 .stat-val--dim   { color: var(--muted); }
 
 .stat-val--small {
-  font-size: 14px;
+  font-size: var(--text-md);
 }
 
 .stat-label {
   font-family: var(--font-sans);
-  font-size: 10px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -870,7 +871,7 @@ onUnmounted(() => {
 }
 
 .ddb-icon {
-  font-size: 18px;
+  font-size: var(--text-lg);
   color: var(--red);
   line-height: 1;
   flex-shrink: 0;
@@ -886,14 +887,14 @@ onUnmounted(() => {
 
 .ddb-text strong {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--red);
 }
 
 .ddb-sub {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -902,7 +903,7 @@ onUnmounted(() => {
 
 .ddb-retry {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   padding: 4px 12px;
   background: color-mix(in srgb, var(--red) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
@@ -921,7 +922,7 @@ onUnmounted(() => {
 
 .ddb-sub code {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: var(--text-xs);
   padding: 1px 5px;
   border-radius: var(--radius-xs);
   background: var(--surface2);
@@ -950,7 +951,7 @@ onUnmounted(() => {
 }
 
 .pcb-icon {
-  font-size: 18px;
+  font-size: var(--text-lg);
   color: var(--amber);
   line-height: 1;
   flex-shrink: 0;
@@ -966,14 +967,14 @@ onUnmounted(() => {
 
 .pcb-text strong {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--amber);
 }
 
 .pcb-sub {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -991,7 +992,7 @@ onUnmounted(() => {
 .pcb-force,
 .pcb-dismiss {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   padding: 4px 12px;
   border-radius: var(--radius-xs);
   cursor: pointer;
@@ -1028,7 +1029,7 @@ onUnmounted(() => {
   border-radius: var(--radius-xs);
   color: var(--red);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-xs);
   flex-shrink: 0;
 }
 
@@ -1057,7 +1058,7 @@ onUnmounted(() => {
 
 .sw-title {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1066,8 +1067,8 @@ onUnmounted(() => {
 
 .sw-counter {
   font-family: var(--font-sans);
-  font-size: 11px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   margin-right: auto;
 }
 
@@ -1080,16 +1081,16 @@ onUnmounted(() => {
 
 .sw-profile__label {
   font-family: var(--font-sans);
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--dim);
+  color: var(--faint);
 }
 
 .sw-profile__select {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   padding: 3px 8px;
   border-radius: var(--radius-xs);
   border: 1px solid var(--border);
@@ -1109,43 +1110,6 @@ onUnmounted(() => {
   gap: var(--space-2);
 }
 
-.sw-btn {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  padding: 3px 10px;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  transition: background 0.1s, border-color 0.1s, opacity 0.1s;
-  border: 1px solid;
-}
-
-.sw-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.sw-btn--start {
-  background: color-mix(in srgb, var(--green) 15%, transparent);
-  color: var(--green);
-  border-color: color-mix(in srgb, var(--green) 45%, transparent);
-}
-
-.sw-btn--start:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--green) 25%, transparent);
-  border-color: color-mix(in srgb, var(--green) 70%, transparent);
-}
-
-.sw-btn--stop {
-  background: color-mix(in srgb, var(--red) 12%, transparent);
-  color: var(--red);
-  border-color: color-mix(in srgb, var(--red) 35%, transparent);
-}
-
-.sw-btn--stop:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--red) 20%, transparent);
-  border-color: color-mix(in srgb, var(--red) 60%, transparent);
-}
-
 .services-table {
   padding: var(--space-2) 0;
   flex: 1;
@@ -1155,11 +1119,11 @@ onUnmounted(() => {
 
 .svc-group-label {
   font-family: var(--font-sans);
-  font-size: 10.5px;
+  font-size: var(--text-xs);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--dim);
+  color: var(--faint);
   padding: var(--space-2) var(--space-4) var(--space-1);
 }
 
@@ -1170,8 +1134,8 @@ onUnmounted(() => {
   height: 100%;
   min-height: 60px;
   font-family: var(--font-sans);
-  font-size: 12px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
 }
 
 /* Skeleton row — mirror .svc-row grid sehingga real content tidak shift */
@@ -1206,19 +1170,19 @@ onUnmounted(() => {
 
 .log-wrap__label {
   font-family: var(--font-sans);
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.1em;
-  color: var(--dim);
+  color: var(--faint);
   text-transform: uppercase;
 }
 
 .log-wrap__expand-btn {
   font-family: var(--font-sans);
-  font-size: 10px;
+  font-size: var(--text-xs);
   background: transparent;
   border: none;
-  color: var(--dim);
+  color: var(--faint);
   cursor: pointer;
   padding: 0;
   transition: color 0.1s;
@@ -1237,46 +1201,29 @@ onUnmounted(() => {
   border-radius: var(--radius-md);
   background: var(--surface);
   border: 1px solid var(--border);
-  font-size: 12px;
+  font-size: var(--text-xs);
   flex-shrink: 0;
 }
 .ctx-bar__label { color: var(--muted); }
 .ctx-bar__path {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
 .ctx-bar__spacer { flex: 1; }
-.ctx-bar__hint { color: var(--dim); font-size: 11px; white-space: nowrap; }
+.ctx-bar__hint { color: var(--faint); font-size: var(--text-xs); white-space: nowrap; }
 .ctx-select {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   padding: 4px 8px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
   background: var(--surface2);
   color: var(--text);
-}
-.ctx-btn {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  padding: 4px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.ctx-btn:hover:not(:disabled) { color: var(--text); }
-.ctx-btn--primary {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  color: var(--accent);
 }
 .ctx-banner {
   display: flex;
@@ -1294,12 +1241,12 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--red) 9%, transparent);
   border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
 }
-.ctx-banner__text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; font-size: 12px; }
+.ctx-banner__text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; font-size: var(--text-xs); }
 .ctx-banner--warn strong { color: var(--amber); }
 .ctx-banner--error strong { color: var(--red); }
 .ctx-banner__path {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1308,8 +1255,8 @@ onUnmounted(() => {
 .ver-source {
   margin-top: var(--space-2);
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1334,8 +1281,8 @@ onUnmounted(() => {
   border: 1px solid var(--border-strong);
   box-shadow: var(--shadow-md);
 }
-.scope-dialog__title { font-size: 14px; font-weight: 600; color: var(--text); }
-.scope-dialog__body { font-size: 12.5px; color: var(--muted); line-height: 1.55; }
+.scope-dialog__title { font-size: var(--text-md); font-weight: 600; color: var(--text); }
+.scope-dialog__body { font-size: var(--text-xs); color: var(--muted); line-height: 1.55; }
 .scope-option {
   display: flex;
   flex-direction: column;
@@ -1347,14 +1294,14 @@ onUnmounted(() => {
   background: var(--surface2);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--text-sm);
   text-align: left;
   cursor: pointer;
 }
 .scope-option small {
   font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   word-break: break-all;
 }
 .scope-option--primary {

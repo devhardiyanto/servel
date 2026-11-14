@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 import { ref } from 'vue'
 
 export interface PrereqAction {
@@ -71,16 +72,16 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
 
     <template v-if="!installed">
       <div v-if="actions && actions.length > 0" class="prereq-card__actions">
-        <button
+        <UiButton
+          size="md"
           v-for="(action, i) in actions"
           :key="i"
-          class="prereq-card__action-btn"
-          :class="action.primary ? 'prereq-card__action-btn--primary' : 'prereq-card__action-btn--outline'"
+          :variant="action.primary ? 'primary' : 'quiet'"
           @click="handleAction(action)"
         >
           <span v-if="action.icon">{{ action.icon }}</span>
           {{ action.label }}
-        </button>
+        </UiButton>
       </div>
 
       <div v-if="code" class="prereq-card__code-block">
@@ -130,13 +131,13 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
 }
 
 .prereq-card__icon-emoji {
-  font-size: 18px;
+  font-size: var(--text-lg);
   line-height: 1;
 }
 
 .prereq-card__icon-default {
-  font-size: 14px;
-  color: var(--dim);
+  font-size: var(--text-md);
+  color: var(--faint);
 }
 
 .prereq-card__body {
@@ -153,21 +154,21 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
 
 .prereq-card__name {
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--text);
 }
 
 .prereq-card__desc {
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--muted);
   line-height: 1.5;
 }
 
 .prereq-badge {
   font-family: var(--font-sans);
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 400;
   letter-spacing: 0.05em;
   padding: 2px 6px;
@@ -202,41 +203,6 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
   border-top: 1px solid var(--border);
 }
 
-.prereq-card__action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-sans);
-  font-size: 13px;
-  font-weight: 500;
-  padding: 6px 14px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background 0.15s, opacity 0.15s;
-  border: 1px solid;
-}
-
-.prereq-card__action-btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--bg);
-}
-
-.prereq-card__action-btn--primary:hover {
-  opacity: 0.88;
-}
-
-.prereq-card__action-btn--outline {
-  background: transparent;
-  border-color: var(--border);
-  color: var(--text);
-}
-
-.prereq-card__action-btn--outline:hover {
-  border-color: var(--surface2);
-  background: color-mix(in srgb, var(--text) 5%, transparent);
-}
-
 .prereq-card__code-block {
   display: flex;
   align-items: center;
@@ -250,14 +216,14 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
 
 .prereq-card__code-prefix {
   font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   flex-shrink: 0;
 }
 
 .prereq-card__code-text {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--text);
   flex: 1;
   min-width: 0;
@@ -265,7 +231,7 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
 
 .prereq-card__copy-btn {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
   background: transparent;
   border: none;

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiButton from '@/components/ui/UiButton.vue'
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog'
@@ -301,15 +302,15 @@ onMounted(() => {
       <div class="pp-legacy__head">Left over from the removed .test domains</div>
       <div v-if="legacy.hostsBlock" class="pp-legacy__row">
         <span>Your hosts file still has Servel's .test entries.</span>
-        <button class="pp-btn" :disabled="legacyBusy" @click="cleanup('legacy_cleanup_hosts')">
+        <UiButton :disabled="legacyBusy" @click="cleanup('legacy_cleanup_hosts')">
           Remove from hosts
-        </button>
+        </UiButton>
       </div>
       <div v-if="legacy.cert" class="pp-legacy__row">
         <span>The local HTTPS certificate is still trusted.</span>
-        <button class="pp-btn" :disabled="legacyBusy" @click="cleanup('legacy_remove_cert')">
+        <UiButton :disabled="legacyBusy" @click="cleanup('legacy_remove_cert')">
           Remove certificate
-        </button>
+        </UiButton>
       </div>
       <p v-if="legacyError" class="pp-error">{{ legacyError }}</p>
     </div>
@@ -339,28 +340,26 @@ onMounted(() => {
           </template>
 
           <div class="pp-actions">
-            <button v-if="!p.path" class="pp-btn pp-btn--accent" @click="handleChooseFolder(p)">Choose folder</button>
+            <UiButton variant="accent" v-if="!p.path" @click="handleChooseFolder(p)">Choose folder</UiButton>
             <template v-else-if="canRun(p)">
-              <button
+              <UiButton
                 v-if="isActive(stateOf(p.id))"
-                class="pp-btn"
                 :disabled="busy[p.id]"
                 @click="handleStop(p)"
-              >Stop</button>
-              <button v-else class="pp-btn pp-btn--accent" :disabled="busy[p.id]" @click="handleStart(p)">
+              >Stop</UiButton>
+              <UiButton variant="accent" v-else :disabled="busy[p.id]" @click="handleStart(p)">
                 Start
-              </button>
-              <button
-                class="pp-btn"
+              </UiButton>
+              <UiButton
                 :disabled="busy[p.id] || !isActive(stateOf(p.id))"
                 :title="isActive(stateOf(p.id)) ? 'Stop, then start again' : 'Project is not running'"
                 @click="handleRestart(p)"
-              >Restart</button>
+              >Restart</UiButton>
             </template>
-            <button v-if="p.path" class="pp-btn pp-btn--ghost" @click="editingId === p.id ? cancelEdit() : startEdit(p)">
+            <UiButton variant="quiet" v-if="p.path" @click="editingId === p.id ? cancelEdit() : startEdit(p)">
               Edit
-            </button>
-            <button class="pp-btn pp-btn--ghost pp-btn--red" @click="handleRemove(p)">Remove</button>
+            </UiButton>
+            <UiButton variant="danger" @click="handleRemove(p)">Remove</UiButton>
           </div>
         </div>
 
@@ -387,7 +386,7 @@ onMounted(() => {
               placeholder="e.g. npm run dev -- --port {port}"
               spellcheck="false"
             />
-            <button class="pp-btn" @click="redetect(p)">Detect</button>
+            <UiButton @click="redetect(p)">Detect</UiButton>
           </div>
 
           <label :for="`pp-port-${p.id}`">Port</label>
@@ -440,13 +439,13 @@ onMounted(() => {
           </p>
           <p v-if="formError" class="pp-error pp-form__wide">{{ formError }}</p>
           <div class="pp-form__actions">
-            <button class="pp-btn pp-btn--ghost" @click="cancelEdit">Cancel</button>
-            <button class="pp-btn" @click="saveEdit(p)">Save</button>
-            <button
+            <UiButton variant="quiet" @click="cancelEdit">Cancel</UiButton>
+            <UiButton @click="saveEdit(p)">Save</UiButton>
+            <UiButton
+              variant="accent"
               v-if="!isActive(stateOf(p.id))"
-              class="pp-btn pp-btn--accent"
               @click="saveEdit(p, true)"
-            >Save &amp; start</button>
+            >Save &amp; start</UiButton>
           </div>
         </div>
       </div>
@@ -455,7 +454,7 @@ onMounted(() => {
     </div>
 
     <p v-if="panelError" class="pp-error">{{ panelError }}</p>
-    <div><button class="pp-btn pp-btn--accent" @click="handleAdd">+ Add project folder</button></div>
+    <div><UiButton variant="accent" @click="handleAdd">+ Add project folder</UiButton></div>
   </div>
 </template>
 
@@ -468,16 +467,16 @@ onMounted(() => {
 
 .pp-title {
   font-family: var(--font-sans);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.12em;
-  color: var(--dim);
+  color: var(--faint);
 }
 
 .pp-hint,
 .pp-note {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.55;
   color: var(--muted);
   margin: 0;
@@ -489,7 +488,7 @@ onMounted(() => {
 
 .pp-error {
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--red);
   margin: 0;
   overflow-wrap: anywhere;
@@ -497,7 +496,7 @@ onMounted(() => {
 
 .pp-error--mono {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .pp-list {
@@ -534,14 +533,14 @@ onMounted(() => {
   align-items: center;
   gap: var(--space-2);
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text);
 }
 
 .pp-kind {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 400;
   padding: 1px 8px;
   border-radius: 999px;
@@ -551,8 +550,8 @@ onMounted(() => {
 
 .pp-path {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -560,7 +559,7 @@ onMounted(() => {
 
 .pp-url {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--accent);
   background: none;
   border: none;
@@ -573,7 +572,7 @@ onMounted(() => {
 }
 
 .pp-url--off {
-  color: var(--dim);
+  color: var(--faint);
   text-decoration: none;
   cursor: default;
 }
@@ -583,9 +582,9 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   white-space: nowrap;
-  color: var(--dim);
+  color: var(--faint);
 }
 
 .pp-state::before {
@@ -615,49 +614,10 @@ onMounted(() => {
   gap: 6px;
 }
 
-.pp-btn {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  padding: 4px 12px;
-  background: var(--surface2);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xs);
-  color: var(--text);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: border-color 0.1s, background 0.1s;
-}
-
-.pp-btn:hover:not(:disabled) {
-  border-color: var(--dim);
-}
-
-.pp-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.pp-btn:focus-visible,
 .pp-url:focus-visible,
 .pp-input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
-}
-
-.pp-btn--accent {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-  color: var(--accent);
-}
-
-.pp-btn--ghost {
-  background: transparent;
-  color: var(--muted);
-}
-
-.pp-btn--red:hover:not(:disabled) {
-  color: var(--red);
-  border-color: color-mix(in srgb, var(--red) 45%, transparent);
 }
 
 .pp-form {
@@ -668,8 +628,8 @@ onMounted(() => {
   padding-top: var(--space-3);
   border-top: 1px solid var(--border);
   font-family: var(--font-sans);
-  font-size: 12px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
 }
 
 .pp-inline {
@@ -682,7 +642,7 @@ onMounted(() => {
   flex: 1;
   min-width: 0;
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   padding: 5px 10px;
   background: var(--bg);
   border: 1px solid var(--border-strong);
@@ -692,7 +652,7 @@ onMounted(() => {
 
 .pp-input--mono {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 .pp-textarea {
@@ -730,12 +690,12 @@ onMounted(() => {
 .pp-form__hint {
   margin: 0;
   line-height: 1.55;
-  color: var(--dim);
+  color: var(--faint);
 }
 
 .pp-form__hint code {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 
@@ -753,7 +713,7 @@ onMounted(() => {
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-md);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 

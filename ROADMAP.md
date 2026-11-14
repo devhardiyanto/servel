@@ -323,10 +323,11 @@ Urutan: A → B → C → D → E → F → G. Tiap milestone satu PR; tag dan p
 
 ### B — v2.9.0: komponen bersama
 
-- [ ] Komponen di `src/components/ui/`: Button (primary/default/quiet/danger, md/sm, loading), Toggle, Input/Select/Textarea, SegmentedControl, Tabs, StatusDot, Chip, Badge, Banner, Toast, Menu ⋯, Modal, Drawer, EmptyState.
-- [ ] Ganti 7 keluarga class tombol dan toggle lokal dengan komponen di atas.
-- [ ] Migrasi 142 `font-size` px ke skala `--text-*`; teks redup pakai `--faint`.
-- [ ] Tanpa perubahan perilaku; screenshot sebelum/sesudah di PR.
+- [x] `src/components/ui/UiButton.vue`: varian default/accent/primary/success/danger/quiet, ukuran sm/md/lg, loading. Menggantikan 8 keluarga class tombol (`pp-btn`, `px-btn`, `action-btn`, `update-check-btn`, `sw-btn`, `ctx-btn`, `ob-btn`, `prereq-card__action-btn`) di 6 file.
+- [x] `src/components/ui/UiToggle.vue` (role="switch", label aksesibel) menggantikan switch di Settings dan PHP extensions.
+- [x] 131 `font-size` px dipetakan ke skala `--text-*` (9–12.5 px → 12, 13 → 13, 14 → 14, 16/18 → 17, 22 → 22).
+- [x] Teks redup memakai `--faint` (kontras 5.1–5.6:1) menggantikan `--dim` (3.5–3.8:1).
+- Dipindah ke E (belum ada pemakainya sekarang, dibuat bersama layar baru): Input/Select, SegmentedControl, Tabs, StatusDot, Chip/Badge, Banner, Toast, Menu ⋯, Modal, Drawer, EmptyState. Tombol log (`lv-btn`) dan pemilih service (`svc-toggle`) ikut diganti di E karena layarnya dirancang ulang.
 
 ### C — v2.10.0: fitur project dan service
 

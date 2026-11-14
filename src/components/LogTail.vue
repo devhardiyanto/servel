@@ -95,7 +95,7 @@ onUnmounted(() => {
   align-items: center;
   gap: var(--space-2);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.65;
   color: var(--text);
   word-break: break-all;
@@ -111,9 +111,9 @@ onUnmounted(() => {
 }
 
 .log-ts {
-  color: var(--dim);
+  color: var(--faint);
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: var(--text-xs);
   min-width: 56px;
 }
 
@@ -123,7 +123,7 @@ onUnmounted(() => {
   padding: 1px 6px;
   border: 1px solid;
   border-radius: var(--radius-xs);
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.02em;
   flex-shrink: 0;
@@ -137,8 +137,8 @@ onUnmounted(() => {
 
 .log-empty {
   font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--dim);
+  font-size: var(--text-xs);
+  color: var(--faint);
   padding: var(--space-2) 0;
 }
 </style>
