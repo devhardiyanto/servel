@@ -91,17 +91,27 @@ jobs:
         run: |
           set -e
           TAG="${GITHUB_REF_NAME}"
-          # Re-run workflow: pakai draft yang sudah ada untuk tag ini.
-          ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=50" \
-            --jq "[.[] | select(.tag_name == \"${TAG}\")][0].id // empty")"
+          # Re-run workflow: pakai rilis yang sudah ada untuk tag ini.
+          # (Endpoint per-tag tidak melihat draft, jadi cari di daftar.)
+          ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+            --jq "map(select(.tag_name == \"${TAG}\")) | .[0].id // empty")"
           if [ -z "$ID" ]; then
-            PRE=""
-            if [ "${{ steps.flag.outputs.prerelease }}" = "true" ]; then PRE="--prerelease"; fi
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft $PRE \
-              --title "Servel ${TAG}" --notes "$NOTES" --verify-tag
-            ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=50" \
-              --jq "[.[] | select(.tag_name == \"${TAG}\")][0].id")"
+            # ID diambil dari respons pembuatan. Daftar rilis bisa belum
+            # memuat draft yang baru dibuat (v2.11.0: release_id kosong,
+            # tauri-action melewati semua upload).
+            ID="$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases" \
+              -f tag_name="$TAG" \
+              -f name="Servel ${TAG}" \
+              -f body="$NOTES" \
+              -F draft=true \
+              -F prerelease=${{ steps.flag.outputs.prerelease }} \
+              --jq .id)"
           fi
+          if ! [[ "$ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::Could not get a release id for ${TAG} (got '${ID}')."
+            exit 1
+          fi
+          echo "Release id for ${TAG}: ${ID}"
           echo "release_id=${ID}" >> "$GITHUB_OUTPUT"
 
   release:
