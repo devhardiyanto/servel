@@ -295,8 +295,21 @@ async fn run(binary: &Path, args: &[&str]) -> Result<(String, String, bool), Str
 
 /// `php.ini` yang dipakai, atau lokasi yang akan dibuat bila belum ada.
 async fn ini_path(install: &PhpInstall) -> Result<PathBuf, String> {
-    let (out, _, _) = run(&install.binary, &["--ini"]).await?;
-    if let Some(p) = ini_field(&out, "Loaded Configuration File") {
+    // Utamakan fungsi PHP: tidak bergantung pada format `php --ini`, yang
+    // berubah di PHP 8.5 (path dikutip; `--ini` bisa ditolak dengan
+    // "Unknown argument for --ini"). `--ini` tetap jadi cadangan.
+    let (out, _, ok) = run(&install.binary, &["-r", INI_PROBE]).await?;
+    let (loaded, config_dir) = if ok { parse_ini_probe(&out) } else { (None, None) };
+    let (loaded, config_dir) = if loaded.is_none() && config_dir.is_none() {
+        let (out, _, _) = run(&install.binary, &["--ini"]).await?;
+        (
+            ini_field(&out, "Loaded Configuration File"),
+            ini_field(&out, "Configuration File (php.ini) Path"),
+        )
+    } else {
+        (loaded, config_dir)
+    };
+    if let Some(p) = loaded {
         return Ok(PathBuf::from(p));
     }
     // Windows mencari php.ini di samping php.exe; di Unix pakai folder
@@ -306,9 +319,19 @@ async fn ini_path(install: &PhpInstall) -> Result<PathBuf, String> {
             return Ok(dir.join("php.ini"));
         }
     }
-    let dir = ini_field(&out, "Configuration File (php.ini) Path")
-        .ok_or_else(|| "php.ini location is unknown".to_string())?;
+    let dir = config_dir.ok_or_else(|| "php.ini location is unknown".to_string())?;
     Ok(PathBuf::from(dir).join("php.ini"))
+}
+
+/// Baris 1: php.ini yang dimuat (kosong bila tidak ada); baris 2: folder
+/// konfigurasi bawaan PHP.
+const INI_PROBE: &str = "echo php_ini_loaded_file() ?: '', PHP_EOL, PHP_CONFIG_FILE_PATH, PHP_EOL;";
+
+fn parse_ini_probe(out: &str) -> (Option<String>, Option<String>) {
+    let mut lines = out.lines().map(|l| l.trim().to_string());
+    let loaded = lines.next().filter(|l| !l.is_empty());
+    let dir = lines.next().filter(|l| !l.is_empty());
+    (loaded, dir)
 }
 
 /// Folder extension yang benar-benar dipakai. Di Windows `extension_dir`
@@ -728,6 +751,16 @@ mod tests {
     /// `php` dibungkus skrip yang memakai php.ini dan folder extension
     /// sementara, jadi konfigurasi PHP sistem tidak tersentuh.
     #[cfg(unix)]
+    #[test]
+    fn ini_probe_output() {
+        assert_eq!(
+            parse_ini_probe("/etc/php/8.5/cli/php.ini\n/etc/php/8.5/cli\n"),
+            (Some("/etc/php/8.5/cli/php.ini".into()), Some("/etc/php/8.5/cli".into()))
+        );
+        assert_eq!(parse_ini_probe("\r\nC:\\php\r\n"), (None, Some("C:\\php".into())));
+        assert_eq!(parse_ini_probe(""), (None, None));
+    }
+
     #[tokio::test]
     async fn real_php_enable_disable_and_rollback() {
         use std::os::unix::fs::PermissionsExt;
