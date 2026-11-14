@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue'
 import { inject, computed, ref, onMounted } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { SetViewKey } from '../types/navigation'
 import { usePrereq } from '@/composables/usePrereq'
 import { useTauri } from '@/composables/useTauri'
@@ -186,6 +187,36 @@ const fnmActions = computed<PrereqAction[]>(() => [
   },
 ])
 
+// mise belum ada (v2.11): Windows dipasang satu klik lewat winget; macOS/Linux
+// diberi perintah resminya.
+const installingMise = ref(false)
+const miseInstallMsg = ref('')
+const miseInstallErr = ref('')
+async function installMise(): Promise<void> {
+  installingMise.value = true
+  miseInstallErr.value = ''
+  miseInstallMsg.value = ''
+  try {
+    miseInstallMsg.value = await invoke<string>('mise_install_winget')
+    await check()
+  } catch (err) {
+    miseInstallErr.value = String(err)
+  } finally {
+    installingMise.value = false
+  }
+}
+const miseActions = computed<PrereqAction[]>(() => [
+  ...(isWindows.value
+    ? [{ label: installingMise.value ? 'Installing…' : 'Install mise', primary: true, onClick: () => void installMise() }]
+    : []),
+  { label: 'mise.jdx.dev ↗', onClick: () => openUrl('https://mise.jdx.dev/getting-started.html') },
+])
+const miseInstallCmd = computed<string>(() => {
+  if (isWindows.value) return 'winget install jdx.mise'
+  if (platform.value === 'macos') return 'brew install mise'
+  return 'curl https://mise.run | sh'
+})
+
 // Tanpa phpvm/fnm user tetap bisa lanjut: mise (atau tool lain) bisa mengelola
 // versi PHP/Node. Pesan "opsional" menjelaskan kenapa kartu merah tidak memblokir.
 const optionalHint = computed<string>(() => {
@@ -271,6 +302,18 @@ const fnmOkDesc = computed<string>(() => {
             icon="&#x1F9F0;"
             :ok-desc="miseOkDesc"
           />
+
+          <PrereqCard
+            v-if="!usesMise"
+            name="mise"
+            :installed="false"
+            icon="&#x1F9F0;"
+            not-found-desc="Recommended. Manages PHP, Node, Go and Python per project."
+            :actions="miseActions"
+            :code="miseInstallCmd"
+          />
+          <p v-if="miseInstallMsg" class="ob-note">{{ miseInstallMsg }}</p>
+          <p v-if="miseInstallErr" class="ob-error ob-error--soft">{{ miseInstallErr }}</p>
 
           <PrereqCard
             v-if="!usesMise"

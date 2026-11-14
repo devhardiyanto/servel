@@ -32,13 +32,13 @@ No more juggling three terminals every morning.
 - Service profiles, database restore from a `.sql` dump, and import from an old Docker setup.
 
 **PHP and Node**
-- With mise: see and switch PHP/Node versions per project, written to the `mise.toml` that actually applies. phpvm and fnm are still supported.
+- With mise: see and switch PHP/Node versions per project, written to the `mise.toml` that actually applies. Go and Python versions can be installed and set in **Settings → Runtimes**. phpvm and fnm are still supported.
 - PHP extensions: turn bundled extensions on or off per PHP version. `php.ini` is backed up first and the change is undone if PHP no longer starts.
 - Windows: one click fixes HTTPS from PHP (curl error 60).
 
 **App**
 - In-app updates from Settings → About.
-- System tray, remembered selection, and a `servel` terminal command on Windows.
+- System tray, remembered selection, optional start when you sign in (in the tray), and a `servel` terminal command on Windows.
 
 ---
 
@@ -125,8 +125,9 @@ servel status
 servel logs mysql -f
 servel shell postgres            # shell inside the container
 servel restore mysql D:\backup\dump.sql   # or a folder of .sql files
-servel use php 8.3               # via mise, in the current project folder
-servel use node 22 --global      # change the global version
+servel use php@8.3               # via mise, in the current project folder (servel use php 8.3 also works)
+servel use node@22 --global      # change the global version
+servel service up mysql          # same as servel up mysql
 servel projects                  # list projects from the app, with their localhost URLs
 servel start share-api           # start a project's dev server (the Servel app must be open)
 servel stop share-api
@@ -149,8 +150,8 @@ export PATH="$PATH:$(cygpath "$LOCALAPPDATA")/Servel/cli/bin"
 
 ### mise — PHP, Node and Go versions (recommended)
 
-- Site: [mise.jdx.dev](https://mise.jdx.dev). Install it, then install the versions you need, for example `mise use -g php@8.3 node@22`.
-- When mise is installed, Servel uses it automatically (**Settings → PHP & Node → Manage PHP & Node with → Auto**).
+- Site: [mise.jdx.dev](https://mise.jdx.dev). On Windows, the first-run screen has an **Install mise** button (winget). Otherwise install it, then install the versions you need, for example `mise use -g php@8.3 node@22`.
+- When mise is installed, Servel uses it automatically (**Settings → Runtimes → Manage PHP & Node with → Auto**).
 - Versions are resolved per folder, so a `mise.toml` in a project (or one of its parent folders) decides which PHP/Node that project uses, both in Servel and in your terminal.
 
 ### phpvm and fnm (alternative)
@@ -231,7 +232,7 @@ Notes:
 - Switching a version in a project context writes to that project's `mise.toml`. If the version currently comes from your global config, Servel asks whether to pin it in the project or change it globally.
 - A `mise.toml` that mise does not trust yet shows a **Trust** button.
 
-### PHP extensions (Settings → PHP & Node)
+### PHP extensions (Settings → Runtimes)
 
 1. Pick the PHP version at the top of **PHP extensions**.
 2. Turn extensions on or off with their switches. The change goes into that version's `php.ini` and applies to every project and terminal that uses the version. Restart running PHP projects to pick it up.
@@ -308,7 +309,7 @@ Releases are not notarized yet, so this is needed after each manual install.
 
 ### PHP: `cURL error 60: SSL certificate problem`
 
-PHP on Windows has no certificate list. Open **Settings → PHP & Node → PHP extensions** and click **Fix HTTPS certificates** for the PHP version you use. For a single project only, you can instead add `SSL_CERT_FILE=<path to ca-bundle.crt>` to its **Environment**.
+PHP on Windows has no certificate list. Open **Settings → Runtimes → PHP extensions** and click **Fix HTTPS certificates** for the PHP version you use. For a single project only, you can instead add `SSL_CERT_FILE=<path to ca-bundle.crt>` to its **Environment**.
 
 ### PHP extension change was undone
 

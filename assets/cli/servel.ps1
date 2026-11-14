@@ -532,7 +532,9 @@ function Invoke-Use([string[]]$ArgsIn) {
     foreach ($a in $ArgsIn) {
         if ($a -in '-g', '--global') { $global = $true } else { $pos += $a }
     }
-    if ($pos.Count -ne 2) { throw 'usage: servel use <php|node|tool> <version> [--global]' }
+    # Terima juga bentuk mise: `servel use php@8.4` (v2.11).
+    if ($pos.Count -eq 1 -and $pos[0] -match '^([^@]+)@(.+)$') { $pos = @($Matches[1], $Matches[2]) }
+    if ($pos.Count -ne 2) { throw 'usage: servel use <tool>@<version> [--global]  (or: servel use <tool> <version>)' }
     $tool = $pos[0]; $version = $pos[1]
     if ($tool -notmatch '^[a-z0-9][a-z0-9_-]*$') { throw "tool '$tool' is not valid" }
     if ($version -notmatch '^\d+(\.\d+){0,2}$') { throw "version '$version' is not valid (examples: 8.3, 22, 22.23.3)" }
@@ -686,13 +688,16 @@ servel — manage Servel services through WSL containers (wslc)
   servel logs <service> [-f] [-n N]
   servel shell <service> [cmd...]  shell or command inside the container
   servel restore <mysql|postgres> <file.sql | folder>
-  servel use <php|node> <version> [--global]
-                                   change the version through mise in this folder (or globally)
+  servel use <tool>@<version> [--global]
+                                   change the version through mise in this folder (or globally),
+                                   e.g. servel use php@8.4 (servel use php 8.4 also works)
   servel projects                  list the projects from the Servel app
   servel start <project>           start the project's dev server (the Servel app must be open)
   servel stop <project>            stop the project's dev server
   servel restart <project>         stop, then start again
   servel ps                        dev server status of every project
+  servel service <up|down|status|list|logs|shell> ...
+                                   same as the service commands above
 
 Service definitions are the same as in the Servel app; use the app and the CLI interchangeably.
 '@ | Write-Host
@@ -713,6 +718,22 @@ try {
         'shell'     { Assert-Wslc; Invoke-Shell $Rest; break }
         'restore'   { Assert-Wslc; Warn-IfElevated; Invoke-Restore $Rest; break }
         'use'       { Invoke-Use $Rest; break }
+        # Alias gaya kata benda (v2.11): servel service up|down|status|list|logs|shell
+        'service'   {
+            if ($Rest.Count -eq 0) { throw 'usage: servel service <up|down|status|list|logs|shell> [args...]' }
+            $sub = $Rest[0].ToLowerInvariant()
+            $more = @($Rest | Select-Object -Skip 1)
+            switch ($sub) {
+                'up'     { Assert-Wslc; Warn-IfElevated; Invoke-Up $more; break }
+                'down'   { Assert-Wslc; Warn-IfElevated; Invoke-Down $more; break }
+                'status' { Assert-Wslc; Warn-IfElevated; Invoke-Status; break }
+                'list'   { Invoke-List; break }
+                'logs'   { Assert-Wslc; Invoke-Logs $more; break }
+                'shell'  { Assert-Wslc; Invoke-Shell $more; break }
+                default  { throw "unknown service command: $sub" }
+            }
+            break
+        }
         'projects'  { Invoke-Projects; break }
         'start'     { Invoke-ProjectControl 'start' $Rest; break }
         'stop'      { Invoke-ProjectControl 'stop' $Rest; break }

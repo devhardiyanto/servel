@@ -530,6 +530,122 @@ pub struct MiseContext {
     pub error: Option<String>,
 }
 
+// ---------------------------------------------------------------------------
+// Runtimes lain lewat mise (v2.11): Go dan Python
+// ---------------------------------------------------------------------------
+
+/// Tool yang boleh diatur dari panel Runtimes. PHP/Node punya panel sendiri.
+pub const RUNTIME_TOOLS: &[&str] = &["go", "python"];
+
+pub fn check_runtime_tool(tool: &str) -> Result<(), String> {
+    if RUNTIME_TOOLS.contains(&tool) {
+        Ok(())
+    } else {
+        Err(format!("'{tool}' is not a supported runtime"))
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeVersions {
+    pub tool: String,
+    pub installed: Vec<InstalledVersion>,
+    /// Versi yang berlaku di konteks aktif (project terpilih atau global).
+    pub current: Option<ToolCurrent>,
+}
+
+#[tauri::command]
+pub async fn runtime_versions(tool: String) -> Result<RuntimeVersions, String> {
+    check_runtime_tool(&tool)?;
+    let installed = list_installed(&tool).await?;
+    let current = current_tools(active_project().as_ref()).await?.into_iter().find(|t| t.tool == tool);
+    Ok(RuntimeVersions { tool, installed, current })
+}
+
+#[tauri::command]
+pub async fn runtime_install(app: AppHandle, tool: String, version: String) -> Result<(), String> {
+    check_runtime_tool(&tool)?;
+    validate_version(&version)?;
+    install(&app, &tool, &version).await
+}
+
+/// `scope`: `global` atau `project` (project yang dipilih di "Versions for").
+#[tauri::command]
+pub async fn runtime_use(app: AppHandle, tool: String, version: String, scope: String) -> Result<(), String> {
+    check_runtime_tool(&tool)?;
+    validate_version(&version)?;
+    if scope != "global" && scope != "project" {
+        return Err(format!("scope '{scope}' is not valid"));
+    }
+    use_version(&app, &tool, &version, Some(&scope)).await
+}
+
+/// Argumen winget untuk memasang mise tanpa dialog (v2.11).
+pub fn winget_install_args() -> Vec<&'static str> {
+    vec![
+        "install",
+        "--id",
+        "jdx.mise",
+        "--exact",
+        "--source",
+        "winget",
+        "--accept-source-agreements",
+        "--accept-package-agreements",
+        "--disable-interactivity",
+    ]
+}
+
+/// Pasang mise satu klik lewat winget (Windows). Output masuk ke Logs
+/// (sumber MISE). Setelah berhasil, folder shim winget ditambahkan ke PATH
+/// proses ini supaya mise langsung terdeteksi tanpa restart.
+#[tauri::command]
+pub async fn mise_install_winget(app: AppHandle) -> Result<String, String> {
+    if !cfg!(windows) {
+        return Err("One-click install is available on Windows only. See mise.jdx.dev for macOS and Linux.".into());
+    }
+    let emit = |line: &str| {
+        let _ = app.emit("cmd-output", serde_json::json!({ "line": line, "stream": "stdout", "source": "MISE" }));
+    };
+    let args = winget_install_args();
+    emit(&format!("winget {}", args.join(" ")));
+    let mut cmd = crate::commands::util::silent_command("winget");
+    cmd.args(&args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    let out = tokio::time::timeout(std::time::Duration::from_secs(600), cmd.output())
+        .await
+        .map_err(|_| "winget did not finish within 10 minutes".to_string())?
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                "winget is not available on this PC. Install \"App Installer\" from the Microsoft Store, or install mise from mise.jdx.dev.".to_string()
+            } else {
+                format!("could not run winget: {e}")
+            }
+        })?;
+    let text = format!("{}\n{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+    for l in text.lines().filter_map(clean_log_line) {
+        emit(&l);
+    }
+    // winget memberi kode bukan nol bila paket sudah terpasang; anggap sukses.
+    let already = text.contains("already installed") || text.contains("No newer package");
+    if !out.status.success() && !already {
+        return Err(format!("winget failed (exit {}). See Logs for details.", out.status.code().unwrap_or(-1)));
+    }
+    if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+        let links = PathBuf::from(local).join("Microsoft").join("WinGet").join("Links");
+        let cur = std::env::var_os("PATH").unwrap_or_default();
+        let mut parts: Vec<PathBuf> = std::env::split_paths(&cur).collect();
+        if !parts.contains(&links) {
+            parts.insert(0, links);
+            if let Ok(joined) = std::env::join_paths(parts) {
+                std::env::set_var("PATH", joined);
+            }
+        }
+    }
+    Ok(match version().await {
+        Some(v) => format!("mise {v} is installed."),
+        None => "mise is installed. Restart Servel if it is not detected yet.".into(),
+    })
+}
+
 /// Versi tool yang berlaku di folder project (v2.10): dipakai panel detail
 /// project. Kosong bila mise tidak ada atau folder tidak ditemukan.
 #[tauri::command]
@@ -596,6 +712,22 @@ pub async fn mise_repair(app: AppHandle, action: String) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn runtime_tools_are_allowlisted() {
+        assert!(check_runtime_tool("go").is_ok());
+        assert!(check_runtime_tool("python").is_ok());
+        assert!(check_runtime_tool("php").is_err());
+        assert!(check_runtime_tool("--yes").is_err());
+    }
+
+    #[test]
+    fn winget_installs_exact_mise_without_prompts() {
+        let a = winget_install_args();
+        assert_eq!(&a[..4], &["install", "--id", "jdx.mise", "--exact"]);
+        assert!(a.contains(&"--disable-interactivity"));
+        assert!(a.contains(&"--accept-package-agreements"));
+    }
+
     use super::*;
 
     fn win_env(k: &str) -> Option<String> {
