@@ -750,7 +750,7 @@ mod tests {
         let wrapper = root.join("php");
         std::fs::write(
             &wrapper,
-            format!("#!/bin/sh\nexec php -n -c '{}' -d extension_dir='{}' \"$@\"\n", ini.display(), ext.display()),
+            format!("#!/bin/sh\nexport PHP_INI_SCAN_DIR=\nexec php -c '{}' -d extension_dir='{}' \"$@\"\n", ini.display(), ext.display()),
         )
         .unwrap();
         std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755)).unwrap();
