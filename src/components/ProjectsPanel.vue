@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue'
 import ProjectDetail from '@/components/ProjectDetail.vue'
-import { ref, computed, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { ref, computed } from 'vue'
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useConfig } from '@/composables/useConfig'
@@ -10,7 +9,6 @@ import { useVersionContext } from '@/composables/useVersionContext'
 import {
   useProjectRuntime,
   isActive,
-  type LegacyStatus,
   type SiteState,
 } from '@/composables/useProjectRuntime'
 import type { Project } from '@/types/mise'
@@ -261,36 +259,6 @@ async function handleRemove(p: Project): Promise<void> {
   await forget(p.id)
   await versionCtx.refresh()
 }
-
-// --- Sisa fitur domain .test -----------------------------------------------
-const legacy = ref<LegacyStatus>({ hostsBlock: false, cert: false })
-const legacyBusy = ref(false)
-const legacyError = ref('')
-
-async function refreshLegacy(): Promise<void> {
-  try {
-    legacy.value = await invoke<LegacyStatus>('legacy_status')
-  } catch (err) {
-    console.error('[legacy_status]', err)
-  }
-}
-
-async function cleanup(command: 'legacy_cleanup_hosts' | 'legacy_remove_cert'): Promise<void> {
-  legacyBusy.value = true
-  legacyError.value = ''
-  try {
-    await invoke<void>(command)
-  } catch (err) {
-    legacyError.value = String(err)
-  } finally {
-    await refreshLegacy()
-    legacyBusy.value = false
-  }
-}
-
-onMounted(() => {
-  void refreshLegacy()
-})
 </script>
 
 <template>
@@ -300,23 +268,6 @@ onMounted(() => {
       Each project is a folder. Servel runs its dev server with the PHP/Node versions from the project's
       mise.toml and gives it a fixed address on localhost. The same list feeds "Versions for" on the Dashboard.
     </p>
-
-    <div v-if="legacy.hostsBlock || legacy.cert" class="pp-legacy">
-      <div class="pp-legacy__head">Left over from the removed .test domains</div>
-      <div v-if="legacy.hostsBlock" class="pp-legacy__row">
-        <span>Your hosts file still has Servel's .test entries.</span>
-        <UiButton :disabled="legacyBusy" @click="cleanup('legacy_cleanup_hosts')">
-          Remove from hosts
-        </UiButton>
-      </div>
-      <div v-if="legacy.cert" class="pp-legacy__row">
-        <span>The local HTTPS certificate is still trusted.</span>
-        <UiButton :disabled="legacyBusy" @click="cleanup('legacy_remove_cert')">
-          Remove certificate
-        </UiButton>
-      </div>
-      <p v-if="legacyError" class="pp-error">{{ legacyError }}</p>
-    </div>
 
     <div class="pp-list">
       <div v-for="p in projects" :key="p.id" class="pp-card">
@@ -716,28 +667,4 @@ onMounted(() => {
   gap: 6px;
 }
 
-.pp-legacy {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-4);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-md);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--muted);
-}
-
-.pp-legacy__head {
-  font-weight: 600;
-  color: var(--text);
-}
-
-.pp-legacy__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
 </style>

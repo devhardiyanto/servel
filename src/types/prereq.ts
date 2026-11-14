@@ -18,11 +18,7 @@ export interface PrereqStatus {
   wsl_version: string | null
   /** Windows: Servel berjalan elevated — sesi WSLC terpisah dari sesi biasa. */
   elevated: boolean
-  phpvm_installed: boolean
-  fnm_installed: boolean
-  phpvm_version: string | null
-  fnm_version: string | null
-  /** v1.6: hanya deteksi. phpvm/fnm opsional; integrasi mise di v1.7. */
+  /** v3: satu-satunya pengelola versi PHP/Node. */
   mise_installed: boolean
   mise_version: string | null
 }

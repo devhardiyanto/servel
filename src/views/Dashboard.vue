@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue'
-import { onMounted, onUnmounted, computed, inject, ref, watch } from 'vue'
+import { onMounted, onUnmounted, computed, inject, ref } from 'vue'
 import { usePhp } from '@/composables/usePhp'
-import { usePhpHookStatus } from '@/composables/usePhpHookStatus'
 import { useNode } from '@/composables/useNode'
 import { useVersionContext } from '@/composables/useVersionContext'
 import { useLogs } from '@/composables/useLogs'
@@ -83,19 +82,6 @@ async function trustConfig(): Promise<void> {
   if (!untrustedPath.value) return
   await versionCtx.trust(untrustedPath.value)
   await Promise.all([loadPhp(), loadNode()])
-}
-const { status: phpHookStatus, refresh: refreshPhpHookStatus } = usePhpHookStatus()
-
-const phpHookCommand = 'phpvm hook install'
-const phpHookCopied = ref(false)
-async function copyPhpHookCommand(): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(phpHookCommand)
-    phpHookCopied.value = true
-    setTimeout(() => { phpHookCopied.value = false }, 1500)
-  } catch {
-    // clipboard tidak available — silent
-  }
 }
 
 const { lines: logLines } = useLogs()
@@ -226,18 +212,9 @@ function nodeIdx(): number {
   return nodeVersions.value.findIndex((v) => v.version === nodeActive.value)
 }
 
-const handleWindowFocus = (): void => {
-  void refreshPhpHookStatus()
-}
-
-watch(phpActive, () => {
-  void refreshPhpHookStatus()
-})
-
 onMounted(async () => {
   void versionCtx.refresh()
   await loadServices()
-  void refreshPhpHookStatus()
   await useConfig().load()
 
   const cfg = useConfig().config.value
@@ -253,11 +230,9 @@ onMounted(async () => {
   // ulang selection dari running state (menyembuhkan config yang hilang).
   reconcileSelectedWithRunning()
 
-  window.addEventListener('focus', handleWindowFocus)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('focus', handleWindowFocus)
 })
 </script>
 
@@ -360,14 +335,6 @@ onUnmounted(() => {
           </span>
         </div>
 
-        <div v-if="phpHookStatus === 'not_installed'" class="vp-hook-banner">
-          <span class="vp-hook-text">
-            Run <code class="vp-hook-cmd">phpvm hook install</code> in PowerShell for PATH integration.
-          </span>
-          <button class="vp-hook-copy" :title="phpHookCopied ? 'Copied' : 'Copy command'" @click="copyPhpHookCommand">
-            {{ phpHookCopied ? '✓ Copied' : 'Copy' }}
-          </button>
-        </div>
 
 
         <div class="ver-row">
@@ -795,53 +762,6 @@ onUnmounted(() => {
   font-family: var(--font-sans);
   font-size: var(--text-xs);
   color: var(--faint);
-}
-
-.vp-hook-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  background: color-mix(in srgb, var(--muted) 8%, transparent);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-}
-
-.vp-hook-text {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--muted);
-  flex: 1;
-  min-width: 0;
-}
-
-.vp-hook-cmd {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  padding: 1px 5px;
-  background: var(--surface2);
-  border-radius: var(--radius-xs);
-  color: var(--text);
-}
-
-.vp-hook-copy {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  padding: 3px 8px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  color: var(--muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.1s, color 0.1s;
-}
-
-.vp-hook-copy:hover {
-  background: var(--dim);
-  color: var(--text);
 }
 
 .stat-grid {

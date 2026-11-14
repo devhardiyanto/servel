@@ -13,7 +13,6 @@
 //! [`resolve`]. Resolusi ulang terjadi saat config dibaca/ditulis.
 
 pub mod docker;
-pub mod migrate;
 pub mod readiness;
 pub mod restore;
 pub mod wslc;
@@ -81,7 +80,7 @@ impl RuntimePreference {
 ///   diam-diam akan membuat database user tampak kosong.
 ///   `docker_has_data == None` (daemon mati / tak bisa ditanya, mis. sisa
 ///   `docker.exe` tanpa Docker Desktop) → WSLC; data yang mungkin masih ada di
-///   Docker tetap utuh dan bisa diambil lewat "Import from Docker".
+///   Docker tetap utuh (pindahkan lewat dump .sql + Restore).
 pub fn resolve(
     pref: RuntimePreference,
     is_windows: bool,

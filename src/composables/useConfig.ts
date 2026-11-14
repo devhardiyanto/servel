@@ -23,6 +23,7 @@ export interface ConfigState {
   // Engine container: 'auto' | 'docker' | 'wslc' (v1.6, config v5).
   containerRuntime: EnginePreference
   // Version manager PHP/Node: 'auto' (mise bila terpasang) | 'mise' | 'legacy' (phpvm/fnm). v1.7, config v6.
+  /** Tidak dipakai sejak v3 (mise satu-satunya); disimpan agar config tetap utuh. */
   versionProvider: 'auto' | 'mise' | 'legacy'
   projects: Project[]
   // Konteks versi Dashboard; null = Global.
@@ -153,11 +154,6 @@ export function useConfig() {
     await writeNow()
   }
 
-  async function setVersionProvider(value: ConfigState['versionProvider']): Promise<void> {
-    config.value.versionProvider = value
-    await writeNow()
-  }
-
   // Tulis segera (bukan debounce): backend me-resolve ulang engine saat
   // config_write, dan caller langsung re-probe status sesudahnya.
   async function setContainerRuntime(value: EnginePreference): Promise<void> {
@@ -265,7 +261,6 @@ export function useConfig() {
     updateProject,
     setActiveProject,
     setProjectProfile,
-    setVersionProvider,
     updateSelectedServices,
     applySelection,
     createProfile,

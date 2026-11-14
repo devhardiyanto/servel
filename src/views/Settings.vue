@@ -29,7 +29,6 @@ const {
   setRememberSession,
   setMinimizeToTray,
   setContainerRuntime,
-  setVersionProvider,
   createProfile,
   renameProfile,
   deleteProfile,
@@ -117,18 +116,6 @@ const { refresh: refreshEngineBanner } = useEngineStatus()
 // --- Version manager (mise) & projects -------------------------------------
 const versionCtx = useVersionContext()
 const { ctx: miseCtx, busy: miseBusy, lastError: miseError } = versionCtx
-const PROVIDER_OPTIONS: { value: 'auto' | 'mise' | 'legacy'; label: string }[] = [
-  { value: 'auto', label: 'Auto' },
-  { value: 'mise', label: 'mise' },
-  { value: 'legacy', label: 'phpvm + fnm' },
-]
-
-async function chooseProvider(value: 'auto' | 'mise' | 'legacy'): Promise<void> {
-  if (config.value.versionProvider === value) return
-  await setVersionProvider(value)
-  await versionCtx.refresh()
-}
-
 // --- Restore database (v1.8) ---------------------------------------------
 const restoreService = ref<'mysql' | 'postgres'>('mysql')
 const restoreFile = ref<string | null>(null)
@@ -169,38 +156,6 @@ async function runRestore(): Promise<void> {
   try {
     await invoke<void>('services_restore', { service: restoreService.value, file: restoreFile.value })
     restoreResult.value = { ok: true, text: 'Restore finished. Details are in the Logs.' }
-  } catch (err) {
-    restoreResult.value = { ok: false, text: String(err) }
-  } finally {
-    restoring.value = false
-  }
-}
-
-// Migrasi Docker → WSL containers: hanya relevan bila engine aktif WSLC dan
-// Docker masih terpasang (sumber data lama).
-const canMigrateFromDocker = computed(
-  () => engineInfo.value?.engine === 'wslc' && !!engineInfo.value?.docker_available,
-)
-
-async function runMigrateFromDocker(): Promise<void> {
-  if (restoring.value) return
-  const label = restoreService.value === 'mysql' ? 'MySQL' : 'PostgreSQL'
-  let ok = false
-  try {
-    ok = await ask(
-      `Copy ${label} databases from the Docker container into WSL containers? ` +
-        'Docker must be running. The old Docker container is left untouched.',
-      { title: 'Import from Docker', kind: 'info' },
-    )
-  } catch {
-    ok = window.confirm(`Import ${label} from Docker?`)
-  }
-  if (!ok) return
-  restoring.value = true
-  restoreResult.value = null
-  try {
-    await invoke<void>('services_migrate_from_docker', { service: restoreService.value })
-    restoreResult.value = { ok: true, text: `${label} imported from Docker. Details are in the Logs.` }
   } catch (err) {
     restoreResult.value = { ok: false, text: String(err) }
   } finally {
@@ -551,14 +506,6 @@ onMounted(async () => {
               >{{ restoring ? 'Restoring…' : 'Restore' }}</UiButton>
             </SettingRow>
 
-            <SettingRow
-              v-if="canMigrateFromDocker"
-              label="Import from Docker"
-              desc="Copy databases from your old Docker container (Docker Desktop must be running)"
-            >
-              <UiButton :disabled="restoring" @click="runMigrateFromDocker">Import…</UiButton>
-            </SettingRow>
-
             <p
               v-if="restoreResult"
               class="section-hint section-hint--note"
@@ -576,25 +523,8 @@ onMounted(async () => {
             <div class="section-title">VERSION MANAGER</div>
 
             <SettingRow
-              label="Manage PHP & Node with"
-              desc="Auto uses mise when it is installed, otherwise phpvm and fnm"
-            >
-              <div class="segmented" role="radiogroup" aria-label="Version manager">
-                <button
-                  v-for="opt in PROVIDER_OPTIONS"
-                  :key="opt.value"
-                  class="segmented__item"
-                  :class="{ 'segmented__item--on': config.versionProvider === opt.value }"
-                  role="radio"
-                  :aria-checked="config.versionProvider === opt.value"
-                  @click="chooseProvider(opt.value)"
-                >{{ opt.label }}</button>
-              </div>
-            </SettingRow>
-
-            <SettingRow
               label="mise"
-              :desc="miseCtx?.provider === 'mise' ? 'Active — versions resolve per project folder' : 'Not in use'"
+              :desc="miseCtx?.provider === 'mise' ? 'Manages PHP, Node, Go and Python per project folder' : 'Not installed. PHP and Node versions need mise.'"
             >
               <span class="setting-value-mono">{{ miseCtx?.miseVersion ? `v${miseCtx.miseVersion}` : 'not installed' }}</span>
             </SettingRow>

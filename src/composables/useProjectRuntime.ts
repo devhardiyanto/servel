@@ -20,11 +20,6 @@ export interface ProjectSuggestion {
   port: number
 }
 
-export interface LegacyStatus {
-  hostsBlock: boolean
-  cert: boolean
-}
-
 // Singleton: status dev server dibagi ke semua konsumen (Settings, Dashboard).
 const runtime = ref<Record<string, SiteRuntime>>({})
 let listening = false
