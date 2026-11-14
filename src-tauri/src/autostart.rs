@@ -15,7 +15,10 @@ pub const HIDDEN_ARG: &str = "--hidden";
 #[cfg(any(windows, test))]
 const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 #[cfg(any(windows, test))]
-const VALUE_NAME: &str = "Servel";
+const VALUE_NAME: &str = "Kova";
+/// Nama nilai sebelum rebrand (v2.11); dihapus saat pengaturan diubah.
+#[cfg(windows)]
+const LEGACY_VALUE_NAME: &str = "Servel";
 #[cfg(any(target_os = "macos", test))]
 const LABEL: &str = "com.devhardiyanto.servel";
 
@@ -28,7 +31,7 @@ fn program() -> Result<String, String> {
     }
     std::env::current_exe()
         .map(|p| p.to_string_lossy().into_owned())
-        .map_err(|e| format!("could not find the Servel program: {e}"))
+        .map_err(|e| format!("could not find the Kova program: {e}"))
 }
 
 #[allow(dead_code)]
@@ -65,7 +68,7 @@ pub fn desktop_entry(program: &str) -> String {
         q.push(c);
     }
     format!(
-        "[Desktop Entry]\nType=Application\nName=Servel\nExec=\"{q}\" {HIDDEN_ARG}\nX-GNOME-Autostart-enabled=true\nNoDisplay=true\n"
+        "[Desktop Entry]\nType=Application\nName=Kova\nExec=\"{q}\" {HIDDEN_ARG}\nX-GNOME-Autostart-enabled=true\nNoDisplay=true\n"
     )
 }
 
@@ -142,6 +145,9 @@ pub fn set_enabled(enabled: bool) -> Result<(), String> {
             }
             vec!["delete".into(), RUN_KEY.into(), "/v".into(), VALUE_NAME.into(), "/f".into()]
         };
+        // Bersihkan entri lama "Servel" agar tidak ada dua entri startup.
+        let legacy: Vec<String> = vec!["delete".into(), RUN_KEY.into(), "/v".into(), LEGACY_VALUE_NAME.into(), "/f".into()];
+        let _ = reg(&legacy);
         if reg(&args)? {
             Ok(())
         } else {
@@ -185,9 +191,9 @@ mod tests {
 
     #[test]
     fn windows_value_quotes_the_program_and_adds_hidden() {
-        let a = reg_add_args(r"C:\Program Files\Servel\servel.exe");
+        let a = reg_add_args(r"C:\Program Files\Kova\servel.exe");
         assert_eq!(a[1], RUN_KEY);
-        assert_eq!(a[7], r#""C:\Program Files\Servel\servel.exe" --hidden"#);
+        assert_eq!(a[7], r#""C:\Program Files\Kova\servel.exe" --hidden"#);
         assert_eq!(a.last().unwrap(), "/f");
     }
 

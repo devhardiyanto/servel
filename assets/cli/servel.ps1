@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-  servel — Servel CLI for WSL containers (wslc). Installed by the Windows installer.
+  kova — Kova CLI for WSL containers (wslc). Installed by the Windows installer.
 
 .DESCRIPTION
-  Mengelola service yang sama dengan aplikasi Servel (definisi dari services.json bawaan
+  Mengelola service yang sama dengan aplikasi Kova (definisi dari services.json bawaan
   aplikasi) lewat wslc.exe. Container yang dibuat CLI dicatat di state yang sama dengan
   aplikasi (%APPDATA%\com.devhardiyanto.servel\wslc-state.json), jadi aplikasi dan CLI
   bisa dipakai bergantian.
@@ -11,14 +11,14 @@
   Kompatibel dengan Windows PowerShell 5.1 dan PowerShell 7+.
 
 .EXAMPLE
-  servel preflight               # check prerequisites; changes nothing
-  servel up                      # start the services selected in the app (or all if none are selected)
-  servel up mysql postgres       # only some
-  servel down                    # stop every servel_* container
-  servel status
-  servel logs mysql -f
-  servel shell postgres
-  servel restore mysql D:\backup\dump.sql
+  kova preflight               # check prerequisites; changes nothing
+  kova up                      # start the services selected in the app (or all if none are selected)
+  kova up mysql postgres       # only some
+  kova down                    # stop every servel_* container
+  kova status
+  kova logs mysql -f
+  kova shell postgres
+  kova restore mysql D:\backup\dump.sql
 #>
 param(
     [Parameter(Position = 0)]
@@ -29,6 +29,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Perintah lama `servel` (alias selama v3.x): shim-nya memasang KOVA_CLI_ALIAS.
+if ($env:KOVA_CLI_ALIAS -eq 'servel') {
+    [Console]::Error.WriteLine("[kova] 'servel' is now 'kova'. The servel command keeps working until v4.0.")
+}
 Set-StrictMode -Version 2.0
 
 # ---------------------------------------------------------------------------
@@ -48,9 +53,9 @@ if (-not (Test-Path $ServicesJson)) { $ServicesJson = $null }
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
-function Write-Step([string]$Msg) { Write-Host "[servel] $Msg" -ForegroundColor Cyan }
-function Write-Warn([string]$Msg) { Write-Host "[servel] $Msg" -ForegroundColor Yellow }
-function Write-Fail([string]$Msg) { Write-Host "[servel] $Msg" -ForegroundColor Red }
+function Write-Step([string]$Msg) { Write-Host "[kova] $Msg" -ForegroundColor Cyan }
+function Write-Warn([string]$Msg) { Write-Host "[kova] $Msg" -ForegroundColor Yellow }
+function Write-Fail([string]$Msg) { Write-Host "[kova] $Msg" -ForegroundColor Red }
 
 # ---------------------------------------------------------------------------
 # wslc
@@ -73,7 +78,7 @@ function ConvertTo-NativeArgs([string[]]$A) {
 }
 
 # Jalankan wslc, tangkap output (stdout+stderr sebagai string). Error transien
-# WSLC (sesi dipakai proses lain, mis. aplikasi Servel yang sedang polling)
+# WSLC (sesi dipakai proses lain, mis. aplikasi Kova yang sedang polling)
 # di-retry. Return @{ Ok; Code; Out }.
 function Invoke-Wslc([string[]]$WslcArgs, [int]$Attempts = 4) {
     for ($i = 1; $i -le $Attempts; $i++) {
@@ -140,7 +145,7 @@ function Get-Container([object[]]$All, [string]$Name) {
 # Definisi service (sumber yang sama dengan aplikasi)
 # ---------------------------------------------------------------------------
 function Get-Defs {
-    if (-not $ServicesJson) { throw "services.json not found next to the CLI ($PSScriptRoot). Reinstall Servel." }
+    if (-not $ServicesJson) { throw "services.json not found next to the CLI ($PSScriptRoot). Reinstall Kova." }
     return @(Get-Content $ServicesJson -Raw -Encoding UTF8 | ConvertFrom-Json)
 }
 
@@ -275,7 +280,7 @@ function Test-Elevated {
 
 function Warn-IfElevated {
     if (Test-Elevated) {
-        Write-Warn 'this shell is elevated (Administrator). WSL containers sessions are separate per elevation, so containers from a normal shell or the Servel app are not visible here.'
+        Write-Warn 'this shell is elevated (Administrator). WSL containers sessions are separate per elevation, so containers from a normal shell or the Kova app are not visible here.'
     }
 }
 
@@ -300,7 +305,7 @@ function Invoke-Up([string[]]$Ids) {
             $recorded = $state[$name]
 
             if ($existing -and -not $recorded) {
-                Write-Step "$name already exists (created outside Servel); using it as it is"
+                Write-Step "$name already exists (created outside Kova); using it as it is"
             }
             $upToDate = (-not $recorded) -or ($recorded -eq $desired)
 
@@ -360,7 +365,7 @@ function Invoke-Up([string[]]$Ids) {
     }
 
     if ($failed.Count -gt 0) {
-        Write-Warn "failed: $($failed -join ', '). Other services keep running; fix the problem, then run 'servel up' again."
+        Write-Warn "failed: $($failed -join ', '). Other services keep running; fix the problem, then run 'kova up' again."
         exit 1
     }
 }
@@ -397,7 +402,7 @@ function Invoke-Status {
             STATE   = if ($c) { $c.State } else { '-' }
             STATUS  = if ($c) { $c.Status } else { 'not created' }
             PORTS   = $ports
-            OWNER   = if (-not $c) { '' } elseif ($state.ContainsKey($d.containerName)) { 'servel' } else { 'adopted' }
+            OWNER   = if (-not $c) { '' } elseif ($state.ContainsKey($d.containerName)) { 'kova' } else { 'adopted' }
         }
     }
     $rows | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
@@ -422,7 +427,7 @@ function Invoke-Logs([string[]]$ArgsIn) {
             default           { if (-not $id) { $id = $ArgsIn[$i] } }
         }
     }
-    if (-not $id) { throw 'usage: servel logs <service> [-f] [-n 100]' }
+    if (-not $id) { throw 'usage: kova logs <service> [-f] [-n 100]' }
     $name = (Resolve-Def (Get-Defs) $id).containerName
     $a = @('logs', '--tail', $tail)
     if ($follow) { $a += '-f' }
@@ -430,7 +435,7 @@ function Invoke-Logs([string[]]$ArgsIn) {
 }
 
 function Invoke-Shell([string[]]$ArgsIn) {
-    if (-not $ArgsIn -or $ArgsIn.Count -lt 1) { throw 'usage: servel shell <service> [command...]' }
+    if (-not $ArgsIn -or $ArgsIn.Count -lt 1) { throw 'usage: kova shell <service> [command...]' }
     $name = (Resolve-Def (Get-Defs) $ArgsIn[0]).containerName
     $cmd = if ($ArgsIn.Count -gt 1) { $ArgsIn[1..($ArgsIn.Count - 1)] } else { @('sh') }
     exit (Invoke-WslcLive (@('exec', '-it', $name) + $cmd))
@@ -463,7 +468,7 @@ function Send-File([string]$Path, [string]$Name) {
 }
 
 function Invoke-Restore([string[]]$ArgsIn) {
-    if (-not $ArgsIn -or $ArgsIn.Count -lt 2) { throw 'usage: servel restore <mysql|postgres> <file.sql | folder of .sql files>' }
+    if (-not $ArgsIn -or $ArgsIn.Count -lt 2) { throw 'usage: kova restore <mysql|postgres> <file.sql | folder of .sql files>' }
     $id = $ArgsIn[0]
     $target = $ArgsIn[1]
     $cmds = @{
@@ -488,7 +493,7 @@ function Invoke-Restore([string[]]$ArgsIn) {
         if ((Invoke-Wslc @('exec', $name, 'sh', '-c', $ready[$id]) 1).Ok) { $ok = $true; break }
         Start-Sleep -Seconds 2
     }
-    if (-not $ok) { throw "$name was not ready within 120 seconds. Check: servel logs $id" }
+    if (-not $ok) { throw "$name was not ready within 120 seconds. Check: kova logs $id" }
 
     foreach ($f in $files) {
         Write-Step "restore $($f.Name) -> $name"
@@ -532,9 +537,9 @@ function Invoke-Use([string[]]$ArgsIn) {
     foreach ($a in $ArgsIn) {
         if ($a -in '-g', '--global') { $global = $true } else { $pos += $a }
     }
-    # Terima juga bentuk mise: `servel use php@8.4` (v2.11).
+    # Terima juga bentuk mise: `kova use php@8.4` (v2.11).
     if ($pos.Count -eq 1 -and $pos[0] -match '^([^@]+)@(.+)$') { $pos = @($Matches[1], $Matches[2]) }
-    if ($pos.Count -ne 2) { throw 'usage: servel use <tool>@<version> [--global]  (or: servel use <tool> <version>)' }
+    if ($pos.Count -ne 2) { throw 'usage: kova use <tool>@<version> [--global]  (or: kova use <tool> <version>)' }
     $tool = $pos[0]; $version = $pos[1]
     if ($tool -notmatch '^[a-z0-9][a-z0-9_-]*$') { throw "tool '$tool' is not valid" }
     if ($version -notmatch '^\d+(\.\d+){0,2}$') { throw "version '$version' is not valid (examples: 8.3, 22, 22.23.3)" }
@@ -588,7 +593,7 @@ function Invoke-Projects {
     $cfg = Get-Content $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $projects = @()
     if ($cfg.PSObject.Properties.Name -contains 'projects') { $projects = @($cfg.projects) }
-    if ($projects.Count -eq 0) { Write-Step 'no projects yet. Add one in Servel → Settings → Projects.'; return }
+    if ($projects.Count -eq 0) { Write-Step 'no projects yet. Add one in Kova → Settings → Projects.'; return }
     $active = if ($cfg.PSObject.Properties.Name -contains 'activeProjectId') { $cfg.activeProjectId } else { $null }
     $profiles = @{}
     if ($cfg.PSObject.Properties.Name -contains 'profiles') { foreach ($p in @($cfg.profiles)) { $profiles[$p.id] = $p.name } }
@@ -604,7 +609,7 @@ function Invoke-Projects {
     } | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
 }
 
-# Kirim satu perintah ke aplikasi Servel yang sedang berjalan (kanal kontrol
+# Kirim satu perintah ke aplikasi Kova yang sedang berjalan (kanal kontrol
 # lokal, lihat src-tauri/src/control.rs). Mengembalikan objek { ok, message,
 # projects }, atau $null bila aplikasi tidak berjalan.
 function Send-Control([string]$Request) {
@@ -637,13 +642,13 @@ function Show-ProjectStates($Projects) {
     } | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
 }
 
-# servel start|stop|restart <project> dan servel ps
+# kova start|stop|restart <project> dan kova ps
 function Invoke-ProjectControl([string]$Action, [string[]]$ArgsIn) {
     $name = (@($ArgsIn) -join ' ').Trim()
-    if ($Action -ne 'status' -and -not $name) { throw "give the project name: servel $Action <project>" }
+    if ($Action -ne 'status' -and -not $name) { throw "give the project name: kova $Action <project>" }
     $res = Send-Control ("$Action $name".Trim())
     if ($null -eq $res) {
-        throw 'the Servel app is not running. Open Servel first; project dev servers are run by the app.'
+        throw 'the Kova app is not running. Open Kova first; project dev servers are run by the app.'
     }
     if (-not $res.ok) { throw $res.message }
     if ($res.message) { Write-Step $res.message }
@@ -672,34 +677,34 @@ function Invoke-Preflight {
         }
     }
     if (Get-Command docker -ErrorAction SilentlyContinue) {
-        Write-Warn 'docker.exe is still on PATH. Servel (Auto) will use Docker; choose "WSL containers" in Settings if needed.'
+        Write-Warn 'docker.exe is still on PATH. Kova (Auto) will use Docker; choose "WSL containers" in Settings if needed.'
     }
 }
 
 function Show-Help {
     @'
-servel — manage Servel services through WSL containers (wslc)
+kova — manage Kova services through WSL containers (wslc)
 
-  servel preflight                 check wslc, WSL version, elevation, ports
-  servel list                      list the available services
-  servel up [service...]           start (default: the last selection in the app)
-  servel down [service...]         stop (default: every servel_*)
-  servel status                    status of every service
-  servel logs <service> [-f] [-n N]
-  servel shell <service> [cmd...]  shell or command inside the container
-  servel restore <mysql|postgres> <file.sql | folder>
-  servel use <tool>@<version> [--global]
+  kova preflight                 check wslc, WSL version, elevation, ports
+  kova list                      list the available services
+  kova up [service...]           start (default: the last selection in the app)
+  kova down [service...]         stop (default: every servel_*)
+  kova status                    status of every service
+  kova logs <service> [-f] [-n N]
+  kova shell <service> [cmd...]  shell or command inside the container
+  kova restore <mysql|postgres> <file.sql | folder>
+  kova use <tool>@<version> [--global]
                                    change the version through mise in this folder (or globally),
-                                   e.g. servel use php@8.4 (servel use php 8.4 also works)
-  servel projects                  list the projects from the Servel app
-  servel start <project>           start the project's dev server (the Servel app must be open)
-  servel stop <project>            stop the project's dev server
-  servel restart <project>         stop, then start again
-  servel ps                        dev server status of every project
-  servel service <up|down|status|list|logs|shell> ...
+                                   e.g. kova use php@8.4 (kova use php 8.4 also works)
+  kova projects                  list the projects from the Kova app
+  kova start <project>           start the project's dev server (the Kova app must be open)
+  kova stop <project>            stop the project's dev server
+  kova restart <project>         stop, then start again
+  kova ps                        dev server status of every project
+  kova service <up|down|status|list|logs|shell> ...
                                    same as the service commands above
 
-Service definitions are the same as in the Servel app; use the app and the CLI interchangeably.
+Service definitions are the same as in the Kova app; use the app and the CLI interchangeably.
 '@ | Write-Host
 }
 
@@ -718,9 +723,9 @@ try {
         'shell'     { Assert-Wslc; Invoke-Shell $Rest; break }
         'restore'   { Assert-Wslc; Warn-IfElevated; Invoke-Restore $Rest; break }
         'use'       { Invoke-Use $Rest; break }
-        # Alias gaya kata benda (v2.11): servel service up|down|status|list|logs|shell
+        # Alias gaya kata benda (v2.11): kova service up|down|status|list|logs|shell
         'service'   {
-            if ($Rest.Count -eq 0) { throw 'usage: servel service <up|down|status|list|logs|shell> [args...]' }
+            if ($Rest.Count -eq 0) { throw 'usage: kova service <up|down|status|list|logs|shell> [args...]' }
             $sub = $Rest[0].ToLowerInvariant()
             $more = @($Rest | Select-Object -Skip 1)
             switch ($sub) {

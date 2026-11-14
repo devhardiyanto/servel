@@ -366,7 +366,7 @@ pub async fn cleanup_leftovers<R: Runtime>(app: &AppHandle<R>) -> usize {
         if process_started(rec.pid).await.as_deref() == Some(rec.started.as_str()) {
             kill_tree(rec.pid).await;
             killed += 1;
-            emit_log(app, "SERVEL", &format!("stopping a dev server left from the previous session (project {}, pid {})", id, rec.pid), Some("warn"));
+            emit_log(app, "KOVA", &format!("stopping a dev server left from the previous session (project {}, pid {})", id, rec.pid), Some("warn"));
         }
     }
     killed
@@ -460,7 +460,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     if let Some(pid) = pid {
         #[cfg(target_os = "windows")]
         if let Err(e) = job::assign(pid) {
-            emit_log(app, &source, &format!("{}; the process may be left running if Servel crashes", e), Some("warn"));
+            emit_log(app, &source, &format!("{}; the process may be left running if Kova crashes", e), Some("warn"));
         }
         if let Some(started) = process_started(pid).await {
             procs.records.lock().unwrap().insert(site.id.clone(), Record { pid, started });

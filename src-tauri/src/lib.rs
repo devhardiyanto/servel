@@ -195,7 +195,7 @@ pub fn run() {
                 let engine = runtime::ensure_resolved().await;
                 emit_log_line(
                     &app_handle,
-                    "SERVEL",
+                    "KOVA",
                     &format!("container engine: {}", engine.label()),
                 );
 
@@ -206,7 +206,7 @@ pub fn run() {
                         Err(err) => {
                             emit_log_line(
                                 &app_handle,
-                                "SERVEL",
+                                "KOVA",
                                 &format!("[polling] could not load services.json: {}", err),
                             );
                             Vec::new()
@@ -244,7 +244,7 @@ pub fn run() {
                                 );
                                 emit_log_line(
                                     &app_handle,
-                                    "SERVEL",
+                                    "KOVA",
                                     &format!("[polling] {} recovered", runtime::active().label()),
                                 );
                             }
@@ -303,7 +303,7 @@ pub fn run() {
                                 );
                                 emit_log_line(
                                     &app_handle,
-                                    "SERVEL",
+                                    "KOVA",
                                     &format!(
                                         "[polling] {} not reachable \u{2014} backing off",
                                         runtime::active().label()

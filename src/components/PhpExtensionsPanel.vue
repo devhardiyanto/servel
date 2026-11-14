@@ -165,7 +165,7 @@ onMounted(async () => {
     </div>
     <p class="px-hint">
       Extensions are set in php.ini for one PHP version, so a change applies to every project and terminal that uses
-      that version. Servel backs up php.ini first and undoes the change if PHP no longer starts.
+      that version. Kova backs up php.ini first and undoes the change if PHP no longer starts.
     </p>
 
     <p v-if="loading && !status" class="px-hint">Reading PHP…</p>

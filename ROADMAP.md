@@ -352,10 +352,10 @@ Urutan: A → B → C → D → E → F → G. Tiap milestone satu PR; tag dan p
 
 ### E — v3.0.0-rc.1: Kova (pra-terbit)
 
-- [ ] Nama Kova di productName, judul jendela, tray, installer, README; bundle id, `servel_*`, kunci updater tetap.
-- [ ] Logo K: ikon aplikasi semua ukuran, tray, favicon.
+- [x] E3 — nama Kova di productName, judul jendela, tray, installer hook, README, sumber log `KOVA`, judul rilis; bundle id, `servel_*`, kunci updater tetap. Versi 3.0.0-rc.1.
+- [x] Logo K: ikon aplikasi semua ukuran (`tauri icon` dari SVG proposal); tray memakai ikon jendela.
 - [ ] UI baru sesuai canvas: navigasi kiri (Projects pertama), panel detail kanan, status bar, onboarding baru.
-- [ ] CLI `kova` + alias `servel` dengan pemberitahuan.
+- [x] CLI `kova` (shim baru) + alias `servel` (shim memasang `KOVA_CLI_ALIAS`, skrip menulis pemberitahuan ke stderr).
 - [x] E1 — hapus sisa `.test` (`hosts.rs`, `legacy_status/cleanup_hosts/remove_cert`, banner di Projects), Import from Docker (`runtime/migrate.rs`, `services_migrate_from_docker`), cadangan cek update via GitHub API (`useUpdateCheck`: hanya updater bawaan). Migrasi config v7 (site lama → project) tetap ada.
 - [x] E2 — hapus provider phpvm/fnm: `php.rs`/`node.rs` hanya lewat mise (tanpa mise: daftar kosong, switch/install memberi pesan jelas), deteksi phpvm/fnm di prasyarat, kartu onboarding, banner `phpvm hook`, pilihan "Manage PHP & Node with". Field `versionProvider` di config dibiarkan agar file lama tetap terbaca.
 - [ ] Uji Windows oleh pemilik: update dari Servel 2.x (build uji khusus, karena `releases/latest` melewati pra-terbit), folder NSIS, Apps & features, PATH CLI, data volume.
