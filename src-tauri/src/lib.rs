@@ -51,6 +51,28 @@ fn suppress_windows_error_popups() {
     }
 }
 
+static WINDOW_SHOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Tampilkan jendela utama sekali saja saat start. Setelah itu tidak
+/// berpengaruh, supaya jendela yang sengaja disembunyikan ke tray tidak
+/// muncul sendiri oleh pengaman batas waktu.
+fn show_main_window(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    if WINDOW_SHOWN.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+/// Dipanggil frontend setelah UI ter-mount.
+#[tauri::command]
+fn app_ready(app: tauri::AppHandle) {
+    show_main_window(&app);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "windows")]
@@ -101,6 +123,7 @@ pub fn run() {
             mise::mise_context,
             mise::mise_trust,
             mise::mise_repair,
+            app_ready,
             php_ext::php_ext_status,
             php_ext::php_ext_set,
             php_ext::php_ext_install,
@@ -138,6 +161,15 @@ pub fn run() {
             mise::init(app.handle());
             sites::autostart(app.handle());
             control::start(app.handle());
+
+            // Jendela mulai tersembunyi dan ditampilkan frontend lewat
+            // `app_ready` setelah UI ter-mount (tanpa kilatan putih). Pengaman:
+            // kalau UI gagal dimuat, jendela tetap muncul setelah batas waktu.
+            let fallback = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(8)).await;
+                show_main_window(&fallback);
+            });
 
             let app_handle = app.handle().clone();
             let status_daemon_ready = daemon_ready.clone();
