@@ -15,13 +15,15 @@
   --bg-sunken: #111216;
   --surface:   #1e2025;
   --surface2:  #2a2d34;
+  --surface3:  #30353f; /* v2.8: hover/pressed di atas surface2 */
   --border:        rgba(255, 255, 255, 0.07);
   --border-strong: rgba(255, 255, 255, 0.12);
 
   /* Text */
   --text:  #e9eaee;
   --muted: #a2a6b2;
-  --dim:   #6f7482;
+  --dim:   #6f7482; /* hanya untuk dekorasi/ikon: kontras 3.5–3.8:1, terlalu rendah untuk teks */
+  --faint: #8b909d; /* v2.8: teks redup yang tetap terbaca (5.6:1 di atas --bg, 5.1:1 di atas --surface) */
 
   /* Accents (pastel) */
   --accent: #7cc7e8;
@@ -32,6 +34,15 @@
   /* Typography */
   --font-sans: 'Inter', system-ui, sans-serif;
   --font-mono: 'Space Mono', monospace;
+
+  /* Type scale (v2.8) — lima ukuran; ukuran lain dimigrasikan bertahap */
+  --text-xs: 12px; /* label kecil, badge, metadata */
+  --text-sm: 13px; /* teks bawaan UI */
+  --text-md: 14px; /* teks utama panel */
+  --text-lg: 17px; /* judul panel */
+  --text-xl: 22px; /* judul halaman */
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
 
   /* Radius scale */
   --radius-xs: 6px;
@@ -45,6 +56,8 @@
 
   /* Motion */
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 120ms; /* hover, fokus, toggle */
+  --dur-base: 200ms; /* panel, drawer, modal */
 
   /* Spacing */
   --space-1: 4px;
@@ -54,4 +67,26 @@
   --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+
+  /* Log sources (v2.8) — sama dengan SOURCE_COLORS di src/utils/logColors.ts */
+  --src-servel:    #7cc7e8;
+  --src-docker:    #8fb4f0;
+  --src-mysql:     #f2a97a;
+  --src-postgres:  #8fb4f0;
+  --src-redis:     #f19a9a;
+  --src-mailpit:   #c9a3f5;
+  --src-php:       #a3a8f0;
+  --src-node:      #7fd6a4;
+  --src-rabbitmq:  #f2a97a;
+  --src-mongodb:   #6cc9a1;
+  --src-minio:     #e8b45e;
+  --src-gotenberg: #b9a4f2;
+  --src-mise:      #a3a8f0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+  }
 }

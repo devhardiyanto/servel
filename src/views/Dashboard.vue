@@ -21,11 +21,7 @@ const {
   active: phpActive,
   switching: phpSwitching,
   switchTo: switchPhp,
-  install: installPhp,
   load: loadPhp,
-  suggested: phpSuggested,
-  suggestedNeedsInstall: phpSuggestedNeedsInstall,
-  dismissSuggestion: dismissPhpSuggestion,
 } = usePhp()
 
 const {
@@ -33,11 +29,7 @@ const {
   active: nodeActive,
   switching: nodeSwitching,
   switchTo: switchNode,
-  install: installNode,
   load: loadNode,
-  suggested: nodeSuggested,
-  suggestedNeedsInstall: nodeSuggestedNeedsInstall,
-  dismissSuggestion: dismissNodeSuggestion,
 } = useNode()
 
 const setView = inject(SetViewKey)!
@@ -369,26 +361,6 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div v-if="phpSuggested" class="vp-suggest-banner">
-          <span class="vp-suggest-text">
-            Project suggests PHP <strong>{{ phpSuggested.version }}</strong>
-          </span>
-          <div class="vp-suggest-actions">
-            <button
-              v-if="!phpSuggestedNeedsInstall"
-              class="vp-suggest-btn"
-              :disabled="phpSwitching"
-              @click="switchPhp(phpSuggested.version)"
-            >Switch</button>
-            <button
-              v-else
-              class="vp-suggest-btn"
-              :disabled="phpSwitching"
-              @click="installPhp(phpSuggested.version)"
-            >Install + Switch</button>
-            <button class="vp-suggest-dismiss" @click="dismissPhpSuggestion">&times;</button>
-          </div>
-        </div>
 
         <div class="ver-row">
           <span class="ver-tag" :style="{ color: phpAccent }">{{ phpSplit.major }}</span>
@@ -423,26 +395,6 @@ onUnmounted(() => {
           </span>
         </div>
 
-        <div v-if="nodeSuggested" class="vp-suggest-banner">
-          <span class="vp-suggest-text">
-            Project suggests Node <strong>{{ nodeSuggested.version }}</strong>
-          </span>
-          <div class="vp-suggest-actions">
-            <button
-              v-if="!nodeSuggestedNeedsInstall"
-              class="vp-suggest-btn"
-              :disabled="nodeSwitching"
-              @click="switchNode(nodeSuggested.version)"
-            >Switch</button>
-            <button
-              v-else
-              class="vp-suggest-btn"
-              :disabled="nodeSwitching"
-              @click="installNode(nodeSuggested.version)"
-            >Install + Switch</button>
-            <button class="vp-suggest-dismiss" @click="dismissNodeSuggestion">&times;</button>
-          </div>
-        </div>
 
         <div class="ver-row">
           <span class="ver-tag" :style="{ color: nodeAccent }">{{ nodeSplit.major }}</span>
@@ -823,18 +775,6 @@ onUnmounted(() => {
   color: var(--dim);
 }
 
-.vp-suggest-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  background: color-mix(in srgb, var(--amber) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
-  border-radius: var(--radius-xs);
-}
-
 .vp-hook-banner {
   display: flex;
   align-items: center;
@@ -879,68 +819,6 @@ onUnmounted(() => {
 
 .vp-hook-copy:hover {
   background: var(--dim);
-  color: var(--text);
-}
-
-.vp-suggest-text {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  color: var(--amber);
-  flex: 1;
-  min-width: 0;
-}
-
-.vp-suggest-text strong {
-  font-family: var(--font-mono);
-  font-weight: 600;
-}
-
-.vp-suggest-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  flex-shrink: 0;
-}
-
-.vp-suggest-btn {
-  font-family: var(--font-sans);
-  font-size: 11px;
-  padding: 3px 8px;
-  background: color-mix(in srgb, var(--amber) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
-  border-radius: var(--radius-xs);
-  color: var(--amber);
-  cursor: pointer;
-  transition: background 0.1s;
-}
-
-.vp-suggest-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--amber) 25%, transparent);
-}
-
-.vp-suggest-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.vp-suggest-dismiss {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-size: 14px;
-  cursor: pointer;
-  line-height: 1;
-  padding: 0;
-  border-radius: var(--radius-xs);
-  transition: color 0.1s;
-}
-
-.vp-suggest-dismiss:hover {
   color: var(--text);
 }
 
