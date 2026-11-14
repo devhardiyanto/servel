@@ -292,6 +292,17 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 
 - CLI: `servel help` dan pesan error tampil benar di PowerShell 5.1 (skrip tidak bisa dijalankan di lingkungan pengembangan).
 
+## v2.7.1 — jendela putih saat start
+
+**Selesai**
+
+- Jendela mulai tersembunyi (`visible: false`) dengan latar gelap, dan ditampilkan lewat command `app_ready` setelah UI ter-mount. Pengaman: tampil sendiri setelah 8 detik bila UI gagal dimuat. `index.html` diberi latar gelap inline.
+
+**Perlu verifikasi di Windows**
+
+- Start biasa dan start setelah update: tidak ada jendela putih; jendela muncul segera setelah UI siap.
+- Tutup ke tray lalu Show dari tray tetap bekerja.
+
 ## Rencana berikutnya
 
 - v2.7.x — patch dari uji lapangan; screenshot baru di `docs/screenshots/` dan bagian code signing di README (hanya dokumen, ikut patch mana pun).
