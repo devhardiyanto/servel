@@ -345,6 +345,11 @@ Urutan: A → B → C → D → E → F → G. Tiap milestone satu PR; tag dan p
 - [x] `release.yml`: draft dibuat satu kali di job awal (`gh release create --draft`), job build mengunggah ke `releaseId` itu. Re-run memakai draft yang sudah ada.
 - Nav "PHP & Node" berganti nama menjadi "Runtimes".
 
+### D.1 — v2.11.1: perbaikan workflow rilis
+
+- [x] v2.11.0 terbit tanpa aset: `release_id` kosong karena draft baru belum muncul di daftar rilis. ID kini diambil dari respons `POST /releases`; job gagal bila ID bukan angka.
+- [x] v2.10.0: build sukses, tetapi pembuatan rilis ditolak GitHub (403, workflow lama per-job). Tidak diterbitkan ulang; isinya tercakup di v2.11.x.
+
 ### E — v3.0.0-rc.1: Kova (pra-terbit)
 
 - [ ] Nama Kova di productName, judul jendela, tray, installer, README; bundle id, `servel_*`, kunci updater tetap.
