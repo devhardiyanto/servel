@@ -44,7 +44,7 @@ No more juggling three terminals every morning.
 - One window with five screens: **Projects**, **Services**, **Runtimes**, **Logs**, **Settings**. The status bar shows the container engine, running services, memory and version.
 - **Command palette** (`Ctrl K`, `⌘K` on macOS): jump to a screen, start or stop a service, start, stop, restart or open a project, all from the keyboard.
 - In-app updates from Settings → About.
-- System tray, remembered selection, optional start when you sign in (in the tray), and a `kova` terminal command on Windows.
+- System tray, remembered selection, optional start when you sign in (in the tray), and a `kova` terminal command on Windows, macOS and Linux.
 
 ---
 
@@ -84,6 +84,7 @@ wsl --shutdown
    xattr -d com.apple.quarantine /Applications/Kova.app
    ```
 4. Launch Kova from Applications or Spotlight.
+5. Optional: add the `kova` terminal command from **Settings → General → Terminal** (see [`kova` terminal command](#kova-terminal-command-macos-and-linux)).
 
 ### Linux
 
@@ -93,6 +94,7 @@ wsl --shutdown
    chmod +x Kova_<version>_amd64.AppImage
    ./Kova_<version>_amd64.AppImage
    ```
+3. Optional: add the `kova` terminal command from **Settings → General → Terminal** (see [`kova` terminal command](#kova-terminal-command-macos-and-linux)).
 
 ---
 
@@ -150,6 +152,27 @@ MSYS2 shells started with `MSYS2_PATH_TYPE=minimal` do not inherit the Windows P
 ```bash
 export PATH="$PATH:$(cygpath "$LOCALAPPDATA")/Kova/cli/bin"
 ```
+
+#### `kova` terminal command (macOS and Linux)
+
+Open **Settings → General → Terminal** and click **Install**. Kova copies the command to `~/.local/bin/kova`; if that folder is not on your PATH, the same screen shows the line to add to your shell profile. After a Kova update, the button reads **Update** when the installed command is older.
+
+```bash
+kova up                        # start the services selected in the app
+kova up mysql postgres         # only some
+kova down                      # stop every service (or name some)
+kova status
+kova logs mysql -f
+kova shell postgres
+kova use php@8.3               # via mise, in the current project folder
+kova start share-api           # start a project's dev server
+kova stop share-api
+kova restart share-api
+kova ps                        # state and URL of every project
+kova preflight                 # check Docker, mise and whether the app is open
+```
+
+How it differs from Windows: `up`, `down` and the project commands are carried out by the Kova app, so **the app must be open** (it may sit in the tray). `status`, `logs` and `shell` talk to Docker directly and work without the app. Restoring a database dump is done in the app (**Settings → Services**).
 
 #### Docker
 

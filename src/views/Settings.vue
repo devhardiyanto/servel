@@ -229,7 +229,32 @@ async function toggleAutostart(): Promise<void> {
   }
 }
 
+// Perintah terminal `kova` (macOS/Linux): disalin ke ~/.local/bin atas permintaan.
+interface CliStatus { supported: boolean; installed: boolean; outdated: boolean; path: string; onPath: boolean }
+const cli = ref<CliStatus | null>(null)
+const cliBusy = ref(false)
+const cliError = ref('')
+const cliDesc = computed(() => {
+  const c = cli.value
+  if (!c) return ''
+  if (!c.installed) return `Copies the kova command to ${c.path}`
+  if (c.outdated) return `Installed at ${c.path}, from an older Kova version`
+  return `Installed at ${c.path}`
+})
+async function installCli(): Promise<void> {
+  cliBusy.value = true
+  cliError.value = ''
+  try {
+    cli.value = await invoke<CliStatus>('cli_install')
+  } catch (err) {
+    cliError.value = String(err)
+  } finally {
+    cliBusy.value = false
+  }
+}
+
 onMounted(async () => {
+  invoke<CliStatus>('cli_status').then((v) => (cli.value = v)).catch(() => {})
   invoke<boolean>('autostart_get').then((v) => (autostartOn.value = v)).catch(() => {})
   if (!loaded.value) await load()
   try {
@@ -318,6 +343,21 @@ onMounted(async () => {
             >
               <UiToggle label="Minimize to tray on close" :on="config.minimizeToTray" @click="setMinimizeToTray(!config.minimizeToTray)" />
             </SettingRow>
+          </div>
+
+          <div v-if="cli?.supported" class="section-block">
+            <div class="section-title">TERMINAL</div>
+
+            <SettingRow label="kova command" :desc="cliDesc">
+              <UiButton :loading="cliBusy" :disabled="cliBusy || (cli.installed && !cli.outdated)" @click="installCli">
+                {{ cli.installed ? (cli.outdated ? 'Update' : 'Installed') : 'Install' }}
+              </UiButton>
+            </SettingRow>
+            <p v-if="cli.installed && !cli.onPath" class="settings-note">
+              The folder is not on your PATH yet. Add this line to your shell profile, then open a new terminal:
+              <code>export PATH="$HOME/.local/bin:$PATH"</code>
+            </p>
+            <p v-if="cliError" class="settings-error">{{ cliError }}</p>
           </div>
 
           <div class="section-block">
@@ -1065,6 +1105,19 @@ onMounted(async () => {
 .restore-error {
   color: var(--red);
   background: color-mix(in srgb, var(--red) 8%, var(--surface));
+}
+.settings-note {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--muted);
+  line-height: 1.6;
+}
+.settings-note code {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  color: var(--text);
+  user-select: text;
 }
 .settings-error {
   margin: 0 0 var(--space-2);
