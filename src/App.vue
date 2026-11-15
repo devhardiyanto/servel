@@ -10,12 +10,15 @@ import LogsViewer from './views/LogsViewer.vue'
 import ProjectsView from './views/ProjectsView.vue'
 import NavRail from './components/shell/NavRail.vue'
 import StatusBar from './components/shell/StatusBar.vue'
+import CommandPalette from './components/CommandPalette.vue'
 import { useAutoStart } from './composables/useAutoStart'
 import { useEngineStatus } from './composables/useEngineStatus'
 import { useUpdateCheck } from './composables/useUpdateCheck'
 import { useServices } from './composables/useServices'
+import { useConfig } from './composables/useConfig'
 
 const currentView = ref<ViewName>('onboarding')
+const palette = ref<InstanceType<typeof CommandPalette> | null>(null)
 
 // Settings dipakai dua kali: halaman Settings dan halaman Runtimes.
 const RuntimesView: Component = { render: () => h(Settings, { mode: 'runtimes' }) }
@@ -42,23 +45,36 @@ provide(SetViewKey, setView)
 const { runAutoStartOnce } = useAutoStart()
 const { refresh: refreshEngineStatus } = useEngineStatus()
 const { check: checkUpdate } = useUpdateCheck()
-const { load: loadServices } = useServices()
+const { load: loadServices, setSelectedIds, reconcileSelectedWithRunning } = useServices()
+
+// Pilihan service dipulihkan di sini juga, bukan hanya saat layar Services
+// dibuka: palet perintah bisa menyalakan service dari layar mana pun.
+async function restoreServiceSelection(): Promise<void> {
+  await loadServices()
+  const cfg = useConfig()
+  if (!cfg.loaded.value) await cfg.load()
+  const ids = cfg.config.value.selectedServiceIds
+  if (ids.length > 0) setSelectedIds(ids)
+  reconcileSelectedWithRunning()
+}
+
 onMounted(() => {
   void runAutoStartOnce()
   void refreshEngineStatus()
   void checkUpdate()
-  void loadServices()
+  void restoreServiceSelection()
 })
 </script>
 
 <template>
   <Onboarding v-if="currentView === 'onboarding'" />
   <div v-else class="shell">
-    <NavRail :current="currentView" @go="setView" />
+    <NavRail :current="currentView" @go="setView" @palette="palette?.show()" />
     <main class="shell-main">
       <component :is="viewComponent" />
     </main>
     <StatusBar class="shell-status" />
+    <CommandPalette ref="palette" @go="setView" />
   </div>
 </template>
 
