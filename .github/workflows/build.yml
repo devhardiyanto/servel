@@ -57,8 +57,11 @@ jobs:
         working-directory: src-tauri
         run: cargo test --locked -- --test-threads=1
 
+  # Build installer 3 OS hanya di PR (cek sebelum merge). Push ke main cukup
+  # job test; installer rilis dibuild release.yml saat tag di-push.
   build:
     needs: test
+    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:
