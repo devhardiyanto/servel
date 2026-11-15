@@ -10,6 +10,11 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import { invoke } from '@tauri-apps/api/core'
+import { installWebviewGuards } from './utils/webviewGuards'
+
+// Pintasan browser bawaan webview dimatikan di build rilis saja, supaya
+// muat ulang dan devtools tetap ada saat pengembangan.
+if (import.meta.env.PROD) installWebviewGuards()
 
 const app = createApp(App)
 app.use(createPinia())

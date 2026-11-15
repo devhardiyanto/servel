@@ -247,7 +247,7 @@ Examples of commands Kova suggests:
 | Node backend | `npm run dev` (reads `PORT`) |
 | Go | `go run .` or `air` (reads `PORT`) |
 
-`npm` becomes `pnpm`, `yarn` or `bun` when that lockfile is present. **Restart** stops the project, waits for the port to be free and starts it again. Output shows under **Logs → Projects**. There, pick a project chip to see only its output, or **Errors & warnings** to hide everything else; each project keeps its own last 500 lines.
+`npm` becomes `pnpm`, `yarn` or `bun` when that lockfile is present. **Restart** stops the project, waits for the port to be free and starts it again. Output shows under **Logs → Projects**. There, pick a project chip to see only its output, or **Errors & warnings** to hide everything else; each project keeps its own last 500 lines. **Filter lines** (or `Ctrl F`) narrows the list to lines containing the words you type. When a project exits or stops answering, **View log** on its card opens this view for that project.
 
 Notes:
 
