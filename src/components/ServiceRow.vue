@@ -274,4 +274,10 @@ function imageTag(def: ServiceDef): string {
   justify-self: end;
   padding: 2px 10px;
 }
+/* Tabel sempit (mis. panel Connect terbuka di jendela kecil): port tampil di
+   panel Connect, jadi kolom port disembunyikan agar nama tidak terpotong. */
+@container (max-width: 620px) {
+  .svc-row { grid-template-columns: 36px 24px minmax(0, 1fr) 68px 56px 76px; }
+  .svc-port { display: none; }
+}
 </style>

@@ -33,6 +33,10 @@ async function copy(kind: 'env' | 'url'): Promise<void> {
       </template>
     </dl>
     <code class="sc-url">{{ info.url }}</code>
+    <div v-if="info.env" class="sc-env">
+      <div class="sc-env__label">.env</div>
+      <pre class="sc-env__code" tabindex="0" aria-label=".env lines">{{ info.env }}</pre>
+    </div>
     <div class="sc-actions">
       <span v-if="!running" class="sc-note">Not running. Start it to connect.</span>
       <UiButton v-if="info.webUrl" variant="quiet" @click="openUrl(info.webUrl)">Open web UI</UiButton>
@@ -69,6 +73,23 @@ async function copy(kind: 'env' | 'url'): Promise<void> {
   user-select: text;
   overflow-wrap: anywhere;
 }
+.sc-env { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sc-env__label { font-size: var(--text-xs); color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; }
+.sc-env__code {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--text);
+  white-space: pre;
+  overflow-x: auto;
+  user-select: text;
+}
+.sc-env__code:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .sc-actions {
   grid-column: 1 / -1;
   display: flex;

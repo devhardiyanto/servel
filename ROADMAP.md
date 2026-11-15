@@ -361,6 +361,14 @@ Urutan: A → B → C → D → E → F → G. Tiap milestone satu PR; tag dan p
 - [x] E2 — hapus provider phpvm/fnm: `php.rs`/`node.rs` hanya lewat mise (tanpa mise: daftar kosong, switch/install memberi pesan jelas), deteksi phpvm/fnm di prasyarat, kartu onboarding, banner `phpvm hook`, pilihan "Manage PHP & Node with". Field `versionProvider` di config dibiarkan agar file lama tetap terbaca.
 - [ ] Uji Windows oleh pemilik: update dari Servel 2.x (build uji khusus, karena `releases/latest` melewati pra-terbit), folder NSIS, Apps & features, PATH CLI, data volume.
 
+### F0 — v3.0.0-rc.2: perbaikan dari uji rc.1
+
+- [x] Uji Windows rc.1: 18 lulus, 1 dilewati, 0 gagal (checklist interaktif).
+- [x] Installer mencopot Servel 2.x diam-diam (`NSIS_HOOK_PREINSTALL`); data dan `servel_*` tetap.
+- [x] `mainBinaryName: "kova"`; entri start saat login ditulis ulang saat start bila aktif.
+- [x] Preview `.env` di Connect; tab Logs membungkus; kolom port disembunyikan saat tabel Services sempit (container query).
+- [x] Pesan container adopsi sekali per sesi.
+
 ### F — v3.0.0: rilis
 
 - [ ] Perbaikan dari uji rc, catatan rilis, screenshot baru di `docs/screenshots/`.

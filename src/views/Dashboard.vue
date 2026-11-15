@@ -597,6 +597,7 @@ onUnmounted(() => {
 }
 
 .services-table {
+  container-type: inline-size;
   padding: var(--space-2) 0;
   flex: 1;
   overflow-y: auto;
@@ -679,7 +680,7 @@ onUnmounted(() => {
 }
 
 .svc-detail {
-  width: 320px;
+  width: 300px;
   flex-shrink: 0;
   overflow-y: auto;
   padding: var(--space-5);

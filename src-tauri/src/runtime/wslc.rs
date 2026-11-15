@@ -728,6 +728,16 @@ async fn ensure_volumes(app: &AppHandle, def: &ServiceDef, known: &mut Option<Ha
     }
 }
 
+/// `true` hanya pada pemanggilan pertama untuk `name` dalam sesi aplikasi ini.
+fn first_adoption_notice(name: &str) -> bool {
+    use std::sync::{Mutex, OnceLock};
+    static SEEN: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    SEEN.get_or_init(|| Mutex::new(HashSet::new()))
+        .lock()
+        .map(|mut seen| seen.insert(name.to_string()))
+        .unwrap_or(true)
+}
+
 async fn start_one(
     app: &AppHandle,
     def: &ServiceDef,
@@ -741,12 +751,17 @@ async fn start_one(
     let recorded = state.get(name).map(String::as_str);
     let action = plan_start(existing, recorded, &desired);
 
-    if existing.is_some() && recorded.is_none() {
+    // Container adopsi (tidak tercatat di wslc-state.json): beri tahu sekali per
+    // sesi saja, bukan di setiap start.
+    if existing.is_some() && recorded.is_none() && first_adoption_notice(name) {
         emit(
             app,
             &source,
             "stdout",
-            &format!("{} already exists (created outside Kova); using it as it is", name),
+            &format!(
+                "{} was not created by Kova; using it as it is (changes to the service definition are not applied to it)",
+                name
+            ),
         );
     }
 
@@ -960,6 +975,13 @@ mod tests {
         assert_eq!(named_volume("./data:/data"), None);
         assert_eq!(named_volume("/abs:/data"), None);
         assert_eq!(named_volume(r"C:\data:/data"), None);
+    }
+
+    #[test]
+    fn adoption_notice_once_per_name() {
+        assert!(first_adoption_notice("servel_test_a"));
+        assert!(!first_adoption_notice("servel_test_a"));
+        assert!(first_adoption_notice("servel_test_b"));
     }
 
     #[test]

@@ -173,6 +173,17 @@ pub fn set_enabled(enabled: bool) -> Result<(), String> {
     }
 }
 
+/// Dipanggil saat start: bila start saat login aktif, tulis ulang entrinya
+/// supaya menunjuk ke program yang sedang berjalan. Perlu setelah update yang
+/// mengganti nama atau lokasi program (v3: servel.exe → kova.exe).
+pub fn refresh_if_enabled() {
+    if is_enabled() {
+        if let Err(e) = set_enabled(true) {
+            eprintln!("[autostart] refresh failed: {e}");
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn autostart_get() -> bool {
     tokio::task::spawn_blocking(is_enabled).await.unwrap_or(false)
@@ -191,9 +202,9 @@ mod tests {
 
     #[test]
     fn windows_value_quotes_the_program_and_adds_hidden() {
-        let a = reg_add_args(r"C:\Program Files\Kova\servel.exe");
+        let a = reg_add_args(r"C:\Program Files\Kova\kova.exe");
         assert_eq!(a[1], RUN_KEY);
-        assert_eq!(a[7], r#""C:\Program Files\Kova\servel.exe" --hidden"#);
+        assert_eq!(a[7], r#""C:\Program Files\Kova\kova.exe" --hidden"#);
         assert_eq!(a.last().unwrap(), "/f");
     }
 
