@@ -224,7 +224,7 @@ To load data: **Settings → Services → Restore database** (pick a `.sql` dump
 ### Projects
 
 1. Click **+ Add project folder** and pick the folder. Kova detects the type and opens the form with a suggested **Command** and **Port**.
-2. Check the form, then **Save & start**.
+2. Check the **Project settings** panel that opens on the right, then **Save & start**. Open it again later from the **⋯** menu on the project's card; the same menu has Open folder, Terminal here, Open in VS Code, Copy URL and Remove project.
 3. When the status turns **running**, click `localhost:<port>` to open it.
 
 | Field | What it does |
@@ -291,7 +291,7 @@ netstat -ano | findstr :3306
 lsof -i :3306
 ```
 
-Stop the offending process and click Start again. For a project, pick another **Port** in its Edit form.
+Stop the offending process and click Start again. For a project, pick another **Port** in **⋯ → Project settings**.
 
 ### "WSL containers is not responding" (Windows)
 
@@ -342,7 +342,7 @@ PHP printed a startup error with the new setting, so Kova restored `php.ini`; th
 
 ### Project shows "port not answering"
 
-The process is running but nothing listens on the project's port. The app probably uses its own port: check **Logs → Projects** for the address it prints, then set that port in Edit (or make the app read `PORT`).
+The process is running but nothing listens on the project's port. The app probably uses its own port: check **Logs → Projects** for the address it prints, then set that port in **⋯ → Project settings** (or make the app read `PORT`). **View log** on the project's card opens that log directly.
 
 ### Old `.test` domains still resolve (upgraded from v2.1 or older)
 

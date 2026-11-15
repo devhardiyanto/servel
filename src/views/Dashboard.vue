@@ -10,6 +10,7 @@ import LogTail from '@/components/LogTail.vue'
 import ServiceRow from '@/components/ServiceRow.vue'
 import ServiceConnect from '@/components/ServiceConnect.vue'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
+import UiBanner from '@/components/ui/UiBanner.vue'
 
 const SKELETON_ROW_COUNT = 9
 
@@ -111,50 +112,30 @@ onUnmounted(() => {
 <template>
   <div class="view view-dashboard">
     <div class="dashboard-content">
-    <div v-if="engineStatus === 'down'" class="docker-down-banner">
-      <span class="ddb-icon">&#9888;</span>
-      <div class="ddb-text">
-        <strong>{{ engineLabel }} is not responding</strong>
-        <span class="ddb-sub">
-          <template v-if="engine === 'wslc'">Run <code>wsl --update</code>, then Retry.</template>
-          <template v-else-if="canSwitchToWslc">Start Docker Desktop, or switch to the built-in WSL containers.</template>
-          <template v-else>Start Docker Desktop to use services.</template>
-          <span v-if="engineLastError"> ({{ engineLastError }})</span>
-        </span>
-      </div>
-      <button
-        v-if="canSwitchToWslc"
-        class="ddb-retry ddb-retry--primary"
-        :disabled="refreshingEngine"
-        @click="switchToWslc"
-      >
-        Use WSL containers
-      </button>
-      <button class="ddb-retry" :disabled="refreshingEngine" @click="handleEngineRefresh">
-        {{ refreshingEngine ? '...' : 'Retry' }}
-      </button>
-    </div>
+    <UiBanner v-if="engineStatus === 'down'" tone="err" :title="`${engineLabel} is not responding`">
+      <template v-if="engine === 'wslc'">Run <code>wsl --update</code>, then Retry.</template>
+      <template v-else-if="canSwitchToWslc">Start Docker Desktop, or switch to the built-in WSL containers.</template>
+      <template v-else>Start Docker Desktop to use services.</template>
+      <span v-if="engineLastError"> ({{ engineLastError }})</span>
+      <template #actions>
+        <UiButton v-if="canSwitchToWslc" variant="accent" :disabled="refreshingEngine" @click="switchToWslc">
+          Use WSL containers
+        </UiButton>
+        <UiButton :loading="refreshingEngine" @click="handleEngineRefresh">Retry</UiButton>
+      </template>
+    </UiBanner>
 
-    <div v-if="portConflicts.length > 0" class="port-conflict-banner">
-      <span class="pcb-icon">&#9888;</span>
-      <div class="pcb-text">
-        <strong>Port conflict found</strong>
-        <span class="pcb-sub">
-          These ports are used by another program:
-          <template v-for="(c, i) in portConflicts" :key="c.serviceId + ':' + c.port">
-            <span class="pcb-port">{{ c.serviceName }} ({{ c.port }})</span><span v-if="i < portConflicts.length - 1">, </span>
-          </template>
-        </span>
-      </div>
-      <div class="pcb-actions">
-        <button class="pcb-force" @click="startIgnoringConflicts">Start anyway</button>
-        <button class="pcb-dismiss" @click="dismissPortConflicts">Close</button>
-      </div>
-    </div>
+    <UiBanner v-if="portConflicts.length > 0" tone="warn" title="A port is used by another program">
+      <template v-for="(c, i) in portConflicts" :key="c.serviceId + ':' + c.port">
+        {{ c.serviceName }} ({{ c.port }})<span v-if="i < portConflicts.length - 1">, </span>
+      </template>
+      <template #actions>
+        <UiButton @click="startIgnoringConflicts">Start anyway</UiButton>
+        <UiButton variant="quiet" @click="dismissPortConflicts">Close</UiButton>
+      </template>
+    </UiBanner>
 
-    <p v-if="serviceError" class="dash-error">
-      {{ serviceError }}
-    </p>
+    <UiBanner v-if="serviceError" tone="err" title="A service did not start">{{ serviceError }}</UiBanner>
 
     <section class="services-wrap">
       <header class="sw-header">
@@ -343,180 +324,6 @@ onUnmounted(() => {
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
-}
-
-.docker-down-banner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: color-mix(in srgb, var(--red) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-
-.ddb-icon {
-  font-size: var(--text-lg);
-  color: var(--red);
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.ddb-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.ddb-text strong {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--red);
-}
-
-.ddb-sub {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.ddb-retry {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 4px 12px;
-  background: color-mix(in srgb, var(--red) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
-  border-radius: var(--radius-xs);
-  color: var(--red);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.1s, border-color 0.1s;
-}
-
-.ddb-retry--primary {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  color: var(--accent);
-}
-
-.ddb-sub code {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  padding: 1px 5px;
-  border-radius: var(--radius-xs);
-  background: var(--surface2);
-  color: var(--text);
-}
-
-.ddb-retry:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--red) 28%, transparent);
-  border-color: color-mix(in srgb, var(--red) 65%, transparent);
-}
-
-.ddb-retry:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.port-conflict-banner {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  background: color-mix(in srgb, var(--amber) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
-  border-radius: var(--radius-sm);
-  flex-shrink: 0;
-}
-
-.pcb-icon {
-  font-size: var(--text-lg);
-  color: var(--amber);
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.pcb-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.pcb-text strong {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--amber);
-}
-
-.pcb-sub {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--muted);
-}
-
-.pcb-port {
-  font-family: var(--font-mono);
-  color: var(--text);
-}
-
-.pcb-actions {
-  display: flex;
-  gap: var(--space-2);
-  flex-shrink: 0;
-}
-
-.pcb-force,
-.pcb-dismiss {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 4px 12px;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  transition: background 0.1s, border-color 0.1s;
-}
-
-.pcb-force {
-  background: color-mix(in srgb, var(--amber) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--amber) 45%, transparent);
-  color: var(--amber);
-}
-
-.pcb-force:hover {
-  background: color-mix(in srgb, var(--amber) 28%, transparent);
-  border-color: color-mix(in srgb, var(--amber) 65%, transparent);
-}
-
-.pcb-dismiss {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-}
-
-.pcb-dismiss:hover {
-  color: var(--text);
-  border-color: var(--dim);
-}
-
-.dash-error {
-  margin: 0;
-  padding: var(--space-2) var(--space-3);
-  background: color-mix(in srgb, var(--red) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
-  border-radius: var(--radius-xs);
-  color: var(--red);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  flex-shrink: 0;
 }
 
 .services-wrap {

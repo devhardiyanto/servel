@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue'
+import UiMenu, { type MenuItem } from '@/components/ui/UiMenu.vue'
+import UiModal from '@/components/ui/UiModal.vue'
+import UiDrawer from '@/components/ui/UiDrawer.vue'
+import UiInput from '@/components/ui/UiInput.vue'
+import UiBanner from '@/components/ui/UiBanner.vue'
+import UiChip from '@/components/ui/UiChip.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import StatusDot from '@/components/ui/StatusDot.vue'
+import { invoke } from '@tauri-apps/api/core'
+import { useToast } from '@/composables/useToast'
 import { ref, computed, inject } from 'vue'
-import { ask, open as openDialog } from '@tauri-apps/plugin-dialog'
+import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useConfig } from '@/composables/useConfig'
 import { useVersionContext } from '@/composables/useVersionContext'
@@ -40,14 +50,14 @@ const STATE_LABEL: Record<SiteState, string> = {
   stopped: 'stopped',
   starting: 'starting',
   running: 'running',
-  unresponsive: 'running, port not answering',
+  unresponsive: 'not answering',
   exited: 'stopped',
 }
 
 function stateLabel(p: Project): string {
   const info = infoOf(p.id)
   if (info?.state === 'exited') {
-    return info.exitCode !== null ? `exited (code ${info.exitCode})` : 'exited'
+    return info.exitCode !== null ? `exited (${info.exitCode})` : 'exited'
   }
   return STATE_LABEL[stateOf(p.id)]
 }
@@ -254,21 +264,72 @@ async function handleOpen(p: Project): Promise<void> {
   }
 }
 
-async function handleRemove(p: Project): Promise<void> {
-  let ok = false
+// --- Hapus: dialog konfirmasi, fokus awal di Cancel -------------------------
+const removing = ref<Project | null>(null)
+const removeBusy = ref(false)
+
+async function confirmRemove(): Promise<void> {
+  const p = removing.value
+  if (!p) return
+  removeBusy.value = true
   try {
-    ok = await ask(`Remove "${p.name}" from Kova? Files and mise.toml are not touched.`, {
-      title: 'Remove project',
-      kind: 'warning',
-    })
-  } catch {
-    ok = window.confirm(`Remove "${p.name}"?`)
+    if (isActive(stateOf(p.id))) await stop(p.id)
+    await removeProject(p.id)
+    await forget(p.id)
+    await versionCtx.refresh()
+    if (editingId.value === p.id) cancelEdit()
+    removing.value = null
+  } catch (err) {
+    errors.value = { ...errors.value, [p.id]: String(err) }
+    removing.value = null
+  } finally {
+    removeBusy.value = false
   }
-  if (!ok) return
-  if (isActive(stateOf(p.id))) await stop(p.id)
-  await removeProject(p.id)
-  await forget(p.id)
-  await versionCtx.refresh()
+}
+
+// --- Menu ⋯ ------------------------------------------------------------------
+const toast = useToast()
+
+function menuItems(p: Project): MenuItem[] {
+  const hasFolder = !!p.path
+  const items: MenuItem[] = [
+    { id: 'folder', label: 'Open folder', disabled: !hasFolder },
+    { id: 'terminal', label: 'Terminal here', disabled: !hasFolder },
+    { id: 'vscode', label: 'Open in VS Code', disabled: !hasFolder },
+  ]
+  if ((p.port ?? 0) > 0) items.push({ id: 'copy-url', label: 'Copy URL', hint: `:${p.port}` })
+  items.push({ id: 'settings', label: 'Project settings…', separator: true, disabled: !hasFolder })
+  items.push({ id: 'remove', label: 'Remove project…', separator: true, danger: true })
+  return items
+}
+
+async function onMenu(p: Project, id: string): Promise<void> {
+  errors.value = { ...errors.value, [p.id]: '' }
+  try {
+    if (id === 'folder' || id === 'terminal' || id === 'vscode') {
+      await invoke('project_open_in', { target: id, path: p.path })
+    } else if (id === 'copy-url') {
+      await navigator.clipboard.writeText(url(p))
+      toast.show(`Copied ${url(p)}`)
+    } else if (id === 'settings') {
+      startEdit(p)
+    } else if (id === 'remove') {
+      removing.value = p
+    }
+  } catch (err) {
+    errors.value = { ...errors.value, [p.id]: String(err) }
+  }
+}
+
+const editingPath = computed({ get: () => editing.value?.path ?? '', set: () => {} })
+const editing = computed(() => projects.value.find((p) => p.id === editingId.value) ?? null)
+const profileOptions = computed(() => [
+  { value: '', label: 'No service profile' },
+  ...config.value.profiles.map((pr) => ({ value: pr.id, label: `Profile: ${pr.name}` })),
+])
+
+function dotState(p: Project): SiteState {
+  return stateOf(p.id)
 }
 </script>
 
@@ -280,7 +341,14 @@ async function handleRemove(p: Project): Promise<void> {
       mise.toml and gives it a fixed address on localhost. The same list feeds "Versions for" on Runtimes.
     </p>
 
-    <div class="pp-list">
+    <EmptyState v-if="projects.length === 0" title="No projects yet" icon="folder">
+      Add a project folder. Kova detects how to run it.
+      <template #actions>
+        <UiButton variant="primary" size="md" @click="handleAdd">Add project</UiButton>
+      </template>
+    </EmptyState>
+
+    <div v-else class="pp-list">
       <div
         v-for="p in projects"
         :key="p.id"
@@ -292,9 +360,9 @@ async function handleRemove(p: Project): Promise<void> {
           <div class="pp-who">
             <div class="pp-name">
               {{ p.name }}
-              <span v-if="p.kind" class="pp-kind">{{ p.kind }}</span>
-              <span v-if="p.autoStart" class="pp-kind">auto-start</span>
-              <span v-if="p.startServices && p.profileId" class="pp-kind">+ services</span>
+              <UiChip v-if="p.kind">{{ p.kind }}</UiChip>
+              <UiChip v-if="p.autoStart">auto-start</UiChip>
+              <UiChip v-if="p.startServices && p.profileId">+ services</UiChip>
             </div>
             <div class="pp-path" :title="p.path">{{ p.path || 'Folder not chosen yet (from an old .test site)' }}</div>
           </div>
@@ -304,13 +372,13 @@ async function handleRemove(p: Project): Promise<void> {
               v-if="stateOf(p.id) === 'running' || stateOf(p.id) === 'unresponsive'"
               class="pp-url"
               :title="`Open ${url(p)}`"
-              @click="handleOpen(p)"
+              @click.stop="handleOpen(p)"
             >localhost:{{ p.port }}</button>
             <span v-else class="pp-url pp-url--off">localhost:{{ p.port }}</span>
-            <span class="pp-state" :class="`pp-state--${stateOf(p.id)}`">{{ stateLabel(p) }}</span>
+            <StatusDot class="pp-state" :state="dotState(p)" :label="stateLabel(p)" />
           </template>
 
-          <div class="pp-actions">
+          <div class="pp-actions" @click.stop>
             <UiButton variant="accent" v-if="!p.path" @click="handleChooseFolder(p)">Choose folder</UiButton>
             <template v-else-if="canRun(p)">
               <UiButton
@@ -318,7 +386,7 @@ async function handleRemove(p: Project): Promise<void> {
                 :disabled="busy[p.id]"
                 @click="handleStop(p)"
               >Stop</UiButton>
-              <UiButton variant="accent" v-else :disabled="busy[p.id]" @click="handleStart(p)">
+              <UiButton variant="accent" v-else :loading="busy[p.id]" @click="handleStart(p)">
                 Start
               </UiButton>
               <UiButton
@@ -327,111 +395,116 @@ async function handleRemove(p: Project): Promise<void> {
                 @click="handleRestart(p)"
               >Restart</UiButton>
             </template>
-            <UiButton variant="quiet" v-if="p.path" @click="editingId === p.id ? cancelEdit() : startEdit(p)">
-              Edit
-            </UiButton>
-            <UiButton variant="danger" @click="handleRemove(p)">Remove</UiButton>
+            <UiMenu :items="menuItems(p)" :label="`More actions for ${p.name}`" @select="onMenu(p, $event)" />
           </div>
         </div>
 
-        <p v-if="!canRun(p) && editingId !== p.id" class="pp-note">{{ missing(p) }}</p>
-        <p v-if="errors[p.id]" class="pp-error">{{ errors[p.id] }}</p>
-        <p v-else-if="infoOf(p.id)?.state === 'exited' && infoOf(p.id)?.lastLine" class="pp-error pp-error--mono">
-          {{ infoOf(p.id)?.lastLine }}
-          <button class="pp-link" @click.stop="viewLog(p)">View log</button>
+        <p v-if="!canRun(p)" class="pp-note">
+          {{ missing(p) }}
+          <button v-if="p.path" class="pp-link" @click.stop="startEdit(p)">Project settings</button>
         </p>
-        <p v-else-if="stateOf(p.id) === 'unresponsive'" class="pp-note">
-          The process is running but nothing answers on port {{ p.port }}. The app may be listening on a different
-          port; check the log, then set that port in Edit.
-          <button class="pp-link" @click.stop="viewLog(p)">View log</button>
-        </p>
-
-        <div v-if="editingId === p.id" class="pp-form">
-          <label :for="`pp-name-${p.id}`">Name</label>
-          <input :id="`pp-name-${p.id}`" v-model="form.name" class="pp-input" />
-
-          <label :for="`pp-cmd-${p.id}`">Command</label>
-          <div class="pp-inline">
-            <input
-              :id="`pp-cmd-${p.id}`"
-              v-model="form.command"
-              class="pp-input pp-input--mono"
-              placeholder="e.g. npm run dev -- --port {port}"
-              spellcheck="false"
-            />
-            <UiButton @click="redetect(p)">Detect</UiButton>
-          </div>
-
-          <label :for="`pp-port-${p.id}`">Port</label>
-          <input
-            :id="`pp-port-${p.id}`"
-            v-model="form.port"
-            class="pp-input pp-input--mono pp-input--port"
-            inputmode="numeric"
-            placeholder="8000"
-          />
-
-          <label :for="`pp-profile-${p.id}`">Services</label>
-          <select :id="`pp-profile-${p.id}`" v-model="form.profileId" class="pp-input">
-            <option value="">No service profile</option>
-            <option v-for="pr in config.profiles" :key="pr.id" :value="pr.id">Profile: {{ pr.name }}</option>
-          </select>
-
-          <span></span>
-          <label class="pp-check" :class="{ 'pp-check--off': !form.profileId }">
-            <input
-              :id="`pp-svc-${p.id}`"
-              v-model="form.startServices"
-              type="checkbox"
-              :disabled="!form.profileId"
-            />
-            Start these services when the project starts
-          </label>
-
-          <label :for="`pp-env-${p.id}`" class="pp-label-top">Environment</label>
-          <textarea
-            :id="`pp-env-${p.id}`"
-            v-model="form.env"
-            class="pp-input pp-input--mono pp-textarea"
-            rows="3"
-            spellcheck="false"
-            placeholder="SSL_CERT_FILE=C:\ssl\ca-bundle.crt&#10;NODE_OPTIONS=--max-old-space-size=4096"
-          ></textarea>
-
-          <label :for="`pp-auto-${p.id}`">On launch</label>
-          <label class="pp-check">
-            <input :id="`pp-auto-${p.id}`" v-model="form.autoStart" type="checkbox" />
-            Start this project when Kova opens
-          </label>
-
-          <p class="pp-form__hint">
-            <code>{port}</code> in the command is replaced by the port, and the <code>PORT</code> environment variable
-            is set to it. Environment takes one <code>KEY=VALUE</code> per line and overrides values from mise;
-            it applies only to the dev server Kova starts, not to your terminal. Starting services leaves other running services alone and never stops them when the project stops. Leave the command empty to use this project only for versions and services. Changes apply
-            the next time the project starts.
-          </p>
-          <p v-if="formError" class="pp-error pp-form__wide">{{ formError }}</p>
-          <div class="pp-form__actions">
-            <UiButton variant="quiet" @click="cancelEdit">Cancel</UiButton>
-            <UiButton @click="saveEdit(p)">Save</UiButton>
-            <UiButton
-              variant="accent"
-              v-if="!isActive(stateOf(p.id))"
-              @click="saveEdit(p, true)"
-            >Save &amp; start</UiButton>
-          </div>
-        </div>
+        <UiBanner v-if="errors[p.id]" tone="err" title="That did not work">{{ errors[p.id] }}</UiBanner>
+        <UiBanner
+          v-else-if="infoOf(p.id)?.state === 'exited' && infoOf(p.id)?.lastLine"
+          tone="err"
+          :title="infoOf(p.id)?.exitCode != null ? `Stopped with exit code ${infoOf(p.id)?.exitCode}` : 'Stopped'"
+        >
+          <code class="pp-lastline">{{ infoOf(p.id)?.lastLine }}</code>
+          <template #actions><UiButton @click.stop="viewLog(p)">View log</UiButton></template>
+        </UiBanner>
+        <UiBanner
+          v-else-if="stateOf(p.id) === 'unresponsive'"
+          tone="warn"
+          :title="`Running, but nothing answers on :${p.port}`"
+        >
+          The app may be listening on a different port. Check the log, then set that port in Project settings.
+          <template #actions>
+            <UiButton @click.stop="viewLog(p)">View log</UiButton>
+            <UiButton @click.stop="startEdit(p)">Settings</UiButton>
+          </template>
+        </UiBanner>
       </div>
-
-      <p v-if="projects.length === 0" class="pp-hint">No projects yet. Add a folder to get started.</p>
     </div>
 
-    <p v-if="panelError" class="pp-error">{{ panelError }}</p>
-    <div><UiButton variant="accent" @click="handleAdd">+ Add project folder</UiButton></div>
+    <UiBanner v-if="panelError" tone="err" title="Could not add the project">{{ panelError }}</UiBanner>
+    <div v-if="projects.length > 0"><UiButton variant="accent" @click="handleAdd">+ Add project folder</UiButton></div>
+
+    <UiDrawer :open="!!editing" :title="editing ? `Project settings · ${editing.name}` : 'Project settings'" @close="cancelEdit">
+      <template v-if="editing">
+        <UiInput v-model="form.name" label="Name" />
+        <UiInput v-model="editingPath" label="Folder" mono readonly />
+        <div class="pp-cmd">
+          <UiInput
+            v-model="form.command"
+            label="Command"
+            mono
+            placeholder="e.g. npm run dev -- --port {port}"
+            help="{port} is replaced by the port, and the PORT variable is set to it. Leave empty to use this project only for versions and services."
+          />
+          <UiButton class="pp-cmd__detect" @click="redetect(editing)">Detect</UiButton>
+        </div>
+        <UiInput v-model="form.port" label="Port" mono placeholder="8000" width="120px" />
+        <UiInput v-model="form.profileId" label="Services" as="select" :options="profileOptions" />
+        <label class="pp-check" :class="{ 'pp-check--off': !form.profileId }">
+          <input v-model="form.startServices" type="checkbox" :disabled="!form.profileId" />
+          Start these services when the project starts
+        </label>
+        <UiInput
+          v-model="form.env"
+          label="Environment"
+          as="textarea"
+          mono
+          :rows="4"
+          placeholder="SSL_CERT_FILE=C:\ssl\ca-bundle.crt&#10;NODE_OPTIONS=--max-old-space-size=4096"
+          help="One KEY=VALUE per line. Overrides values from mise, for the dev server Kova starts only."
+        />
+        <label class="pp-check">
+          <input v-model="form.autoStart" type="checkbox" />
+          Start this project when Kova opens
+        </label>
+        <p class="pp-form__hint">
+          Starting services leaves other running services alone and never stops them when the project stops.
+          Changes apply the next time the project starts.
+        </p>
+        <UiBanner v-if="formError" tone="err" title="Check the form">{{ formError }}</UiBanner>
+      </template>
+      <template v-if="editing" #footer>
+        <UiButton
+          variant="primary"
+          size="md"
+          v-if="!isActive(stateOf(editing.id))"
+          @click="saveEdit(editing, true)"
+        >Save &amp; start</UiButton>
+        <UiButton size="md" @click="saveEdit(editing)">Save</UiButton>
+        <UiButton variant="quiet" size="md" @click="cancelEdit">Cancel</UiButton>
+      </template>
+    </UiDrawer>
+
+    <UiModal
+      :open="!!removing"
+      :title="removing ? `Remove ${removing.name} from Kova?` : ''"
+      size="sm"
+      danger
+      @close="removing = null"
+    >
+      <p class="pp-modal-text">
+        The project leaves the list and its dev server is stopped. The folder, its files and mise.toml are not touched.
+      </p>
+      <template #footer>
+        <UiButton size="md" data-autofocus @click="removing = null">Cancel</UiButton>
+        <UiButton variant="danger" size="md" :loading="removeBusy" @click="confirmRemove">Remove project</UiButton>
+      </template>
+    </UiModal>
   </div>
 </template>
 
 <style scoped>
+.pp-lastline { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--red); }
+.pp-cmd { display: flex; align-items: flex-start; gap: var(--space-2); }
+.pp-cmd > :first-child { flex: 1; }
+.pp-cmd__detect { margin-top: 22px; height: 32px; }
+.pp-modal-text { margin: 0; }
+
 .pp-link {
   margin-left: var(--space-2);
   padding: 0;
@@ -528,16 +601,6 @@ async function handleRemove(p: Project): Promise<void> {
   color: var(--text);
 }
 
-.pp-kind {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: 400;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: var(--surface2);
-  color: var(--muted);
-}
-
 .pp-path {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -567,97 +630,15 @@ async function handleRemove(p: Project): Promise<void> {
   cursor: default;
 }
 
-.pp-state {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  white-space: nowrap;
-  color: var(--faint);
-}
-
-.pp-state::before {
-  content: '';
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.pp-state--running {
-  color: var(--green);
-}
-
-.pp-state--starting,
-.pp-state--unresponsive {
-  color: var(--amber);
-}
-
-.pp-state--exited {
-  color: var(--red);
-}
-
 .pp-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.pp-url:focus-visible,
-.pp-input:focus-visible {
+.pp-url:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
-}
-
-.pp-form {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: var(--space-2) var(--space-3);
-  align-items: center;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--faint);
-}
-
-.pp-inline {
-  display: flex;
-  gap: 6px;
-  min-width: 0;
-}
-
-.pp-input {
-  flex: 1;
-  min-width: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 5px 10px;
-  background: var(--bg);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xs);
-  color: var(--text);
-}
-
-.pp-input--mono {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-
-.pp-textarea {
-  resize: vertical;
-  min-height: 56px;
-  line-height: 1.5;
-}
-
-.pp-label-top {
-  align-self: start;
-  padding-top: 6px;
-}
-
-.pp-input--port {
-  max-width: 120px;
 }
 
 .pp-check--off {
@@ -668,17 +649,15 @@ async function handleRemove(p: Project): Promise<void> {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  font-size: var(--text-sm);
   color: var(--text);
 }
-
-.pp-form__hint,
-.pp-form__wide,
-.pp-form__actions {
-  grid-column: 1 / -1;
-}
+.pp-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.pp-state { flex: none; }
 
 .pp-form__hint {
   margin: 0;
+  font-size: var(--text-xs);
   line-height: 1.55;
   color: var(--faint);
 }
@@ -687,12 +666,6 @@ async function handleRemove(p: Project): Promise<void> {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--muted);
-}
-
-.pp-form__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
 }
 
 </style>

@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import UiTabs from '@/components/ui/UiTabs.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import UiButton from '@/components/ui/UiButton.vue'
 import { useLogFocus } from '@/composables/useLogFocus'
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -194,15 +197,13 @@ function triggerDownload(text: string, filename: string): void {
       <div class="lv-header__left">
         <span class="lv-title">LOGS</span>
       </div>
-      <nav class="lv-tabs">
-        <button
-          v-for="tab in TABS"
-          :key="tab"
-          class="lv-tab"
-          :class="{ 'lv-tab--active': activeTab === tab }"
-          @click="activeTab = tab"
-        >{{ tab }}</button>
-      </nav>
+      <UiTabs
+        class="lv-tabs"
+        label="Log source"
+        :model-value="activeTab"
+        :tabs="TABS.map((t) => ({ value: t, label: t }))"
+        @update:model-value="activeTab = $event as Tab"
+      />
       <div class="lv-header__right">
         <input
           ref="filterEl"
@@ -269,11 +270,15 @@ function triggerDownload(text: string, filename: string): void {
         >{{ line.src }}</span>
         <span class="lv-text">{{ line.text }}</span>
       </div>
-      <div v-if="tabLines.length === 0" class="lv-empty">no logs — output will appear here</div>
-      <p v-if="filteredLines.length === 0 && tabLines.length > 0" class="lv-none">
-        No lines match the current filter.
-        <button class="lv-none__clear" @click="textFilter = ''; problemsOnly = false">Clear filter</button>
-      </p>
+      <EmptyState v-if="tabLines.length === 0" title="No output yet" icon="lines">
+        Lines appear here when a service or project writes to its log.
+      </EmptyState>
+      <EmptyState v-else-if="filteredLines.length === 0" title="No lines match" icon="search">
+        Nothing in this view matches the current filter.
+        <template #actions>
+          <UiButton @click="textFilter = ''; problemsOnly = false">Clear filter</UiButton>
+        </template>
+      </EmptyState>
     </div>
 
     <!-- Bottom status bar -->
@@ -394,36 +399,7 @@ function triggerDownload(text: string, filename: string): void {
   outline-offset: 1px;
 }
 
-.lv-tabs {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 2px;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.lv-tab {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  padding: 4px 10px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 0.1s, border-color 0.1s;
-  line-height: 1.4;
-}
-
-.lv-tab:hover:not(.lv-tab--active) {
-  color: var(--text);
-}
-
-.lv-tab--active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-}
+.lv-tabs { flex: 1 1 auto; }
 
 .lv-header__right {
   display: flex;
@@ -431,19 +407,6 @@ function triggerDownload(text: string, filename: string): void {
   gap: var(--space-2);
   flex-shrink: 0;
 }
-
-.lv-none { margin: var(--space-4); font-size: var(--text-sm); color: var(--faint); }
-.lv-none__clear {
-  margin-left: var(--space-2);
-  padding: 0;
-  background: none;
-  border: 0;
-  font: inherit;
-  color: var(--accent);
-  text-decoration: underline;
-  cursor: pointer;
-}
-.lv-none__clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .lv-filter {
   width: 160px;
@@ -498,6 +461,8 @@ function triggerDownload(text: string, filename: string): void {
 /* Log area */
 .lv-area {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow-y: auto;
   padding: var(--space-3) var(--space-4);
   min-height: 0;
@@ -551,13 +516,6 @@ function triggerDownload(text: string, filename: string): void {
 .lv-text {
   flex: 1;
   user-select: text;
-}
-
-.lv-empty {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--faint);
-  padding: var(--space-3) 0;
 }
 
 /* Footer */

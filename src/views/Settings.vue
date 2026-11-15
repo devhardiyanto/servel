@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
+import UiSegmented from '@/components/ui/UiSegmented.vue'
+import { useToast } from '@/composables/useToast'
 import { ref, computed, inject, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
@@ -246,6 +248,7 @@ async function installCli(): Promise<void> {
   cliError.value = ''
   try {
     cli.value = await invoke<CliStatus>('cli_install')
+    useToast().show(`Installed the kova command at ${cli.value.path}`)
   } catch (err) {
     cliError.value = String(err)
   } finally {
@@ -368,18 +371,12 @@ onMounted(async () => {
               label="Engine"
               desc="Auto uses WSL containers, unless Docker still holds your Kova containers"
             >
-              <div class="segmented" role="radiogroup" aria-label="Container engine">
-                <button
-                  v-for="opt in ENGINE_OPTIONS"
-                  :key="opt.value"
-                  class="segmented__item"
-                  :class="{ 'segmented__item--on': config.containerRuntime === opt.value }"
-                  role="radio"
-                  :aria-checked="config.containerRuntime === opt.value"
-                  :disabled="switchingEngine"
-                  @click="chooseEngine(opt.value)"
-                >{{ opt.label }}</button>
-              </div>
+              <UiSegmented
+                label="Container engine"
+                :model-value="config.containerRuntime"
+                :options="ENGINE_OPTIONS.map((o) => ({ value: o.value, label: o.label, disabled: switchingEngine }))"
+                @update:model-value="chooseEngine($event as EnginePreference)"
+              />
             </SettingRow>
 
             <SettingRow
@@ -511,18 +508,14 @@ onMounted(async () => {
             </p>
 
             <SettingRow label="Service">
-              <div class="segmented" role="radiogroup" aria-label="Restore target">
-                <button
-                  v-for="opt in [{ v: 'mysql', l: 'MySQL' }, { v: 'postgres', l: 'PostgreSQL' }]"
-                  :key="opt.v"
-                  class="segmented__item"
-                  :class="{ 'segmented__item--on': restoreService === opt.v }"
-                  role="radio"
-                  :aria-checked="restoreService === opt.v"
-                  :disabled="restoring"
-                  @click="restoreService = opt.v as 'mysql' | 'postgres'"
-                >{{ opt.l }}</button>
-              </div>
+              <UiSegmented
+                v-model="restoreService"
+                label="Restore target"
+                :options="[
+                  { value: 'mysql', label: 'MySQL', disabled: restoring },
+                  { value: 'postgres', label: 'PostgreSQL', disabled: restoring },
+                ]"
+              />
             </SettingRow>
 
             <SettingRow label="Dump file" :desc="restoreFile ?? 'No file chosen'">
@@ -983,39 +976,6 @@ onMounted(async () => {
   line-height: 1.6;
 }
 
-.segmented {
-  display: inline-flex;
-  padding: 3px;
-  gap: 2px;
-  border-radius: var(--radius-md);
-  background: var(--surface2);
-}
-
-.segmented__item {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 5px 12px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.segmented__item:hover:not(:disabled) {
-  color: var(--text);
-}
-
-.segmented__item--on {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: var(--shadow-sm);
-}
-
-.segmented__item:disabled {
-  cursor: progress;
-}
 
 .profile-list {
   display: flex;
