@@ -45,12 +45,10 @@ async function copy(kind: 'env' | 'url'): Promise<void> {
 <style scoped>
 .sc {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: var(--space-2) var(--space-4);
-  align-items: center;
-  margin: 0 var(--space-4) var(--space-2) 76px;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: var(--bg-sunken);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
@@ -75,8 +73,8 @@ async function copy(kind: 'env' | 'url'): Promise<void> {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
-.sc-note { margin-right: auto; font-size: var(--text-xs); color: var(--amber); }
+.sc-note { flex-basis: 100%; font-size: var(--text-xs); color: var(--amber); }
 </style>

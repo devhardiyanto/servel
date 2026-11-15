@@ -96,9 +96,6 @@ onMounted(loadTools)
 
 <style scoped>
 .pd {
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);

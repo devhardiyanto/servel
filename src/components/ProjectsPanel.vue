@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue'
-import ProjectDetail from '@/components/ProjectDetail.vue'
 import { ref, computed } from 'vue'
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -22,8 +21,9 @@ const projects = computed<Project[]>(() => config.value.projects)
 const errors = ref<Record<string, string>>({})
 const busy = ref<Record<string, boolean>>({})
 const panelError = ref('')
-// Panel detail (v2.10): satu project terbuka sekaligus.
-const detailId = ref<string | null>(null)
+// v3: daftar di kiri, detail project terpilih ditampilkan ProjectsView di kanan.
+defineProps<{ selectedId?: string | null }>()
+const emit = defineEmits<{ select: [id: string] }>()
 
 const STATE_LABEL: Record<SiteState, string> = {
   stopped: 'stopped',
@@ -266,11 +266,17 @@ async function handleRemove(p: Project): Promise<void> {
     <div class="pp-title">PROJECTS</div>
     <p class="pp-hint">
       Each project is a folder. Kova runs its dev server with the PHP/Node versions from the project's
-      mise.toml and gives it a fixed address on localhost. The same list feeds "Versions for" on Services.
+      mise.toml and gives it a fixed address on localhost. The same list feeds "Versions for" on Runtimes.
     </p>
 
     <div class="pp-list">
-      <div v-for="p in projects" :key="p.id" class="pp-card">
+      <div
+        v-for="p in projects"
+        :key="p.id"
+        class="pp-card"
+        :class="{ 'pp-card--selected': selectedId === p.id }"
+        @click="emit('select', p.id)"
+      >
         <div class="pp-row">
           <div class="pp-who">
             <div class="pp-name">
@@ -310,12 +316,6 @@ async function handleRemove(p: Project): Promise<void> {
                 @click="handleRestart(p)"
               >Restart</UiButton>
             </template>
-            <UiButton
-              v-if="p.path"
-              variant="quiet"
-              :aria-expanded="detailId === p.id"
-              @click="detailId = detailId === p.id ? null : p.id"
-            >Details</UiButton>
             <UiButton variant="quiet" v-if="p.path" @click="editingId === p.id ? cancelEdit() : startEdit(p)">
               Edit
             </UiButton>
@@ -332,8 +332,6 @@ async function handleRemove(p: Project): Promise<void> {
           The process is running but nothing answers on port {{ p.port }}. The app may be listening on a different
           port; check the Logs, then set that port in Edit.
         </p>
-
-        <ProjectDetail v-if="detailId === p.id && p.path" :project="p" />
 
         <div v-if="editingId === p.id" class="pp-form">
           <label :for="`pp-name-${p.id}`">Name</label>
@@ -476,6 +474,10 @@ async function handleRemove(p: Project): Promise<void> {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
 }
+
+.pp-card { cursor: pointer; transition: border-color var(--dur-fast) var(--ease); }
+.pp-card:hover { border-color: var(--border-strong); }
+.pp-card--selected { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
 
 .pp-row {
   display: flex;

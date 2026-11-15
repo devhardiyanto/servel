@@ -34,7 +34,7 @@ No more juggling three terminals every morning.
 - Service profiles and database restore from a `.sql` dump.
 
 **PHP and Node**
-- With mise: see and switch PHP/Node versions per project, written to the `mise.toml` that actually applies. Go and Python versions can be installed and set in **Settings → Runtimes**.
+- With mise: see and switch PHP/Node versions per project, written to the `mise.toml` that actually applies. Go and Python versions can be installed and set in **Runtimes**.
 - PHP extensions: turn bundled extensions on or off per PHP version. `php.ini` is backed up first and the change is undone if PHP no longer starts.
 - Windows: one click fixes HTTPS from PHP (curl error 60).
 
@@ -166,7 +166,7 @@ On first launch Kova checks what is installed: the container engine (WSL contain
 
 ## Using Kova
 
-### Services (Dashboard)
+### Services
 
 1. Toggle the services you need. The selection is saved as a **profile**; create more profiles in **Settings → Services**.
 2. Click **Start selected**. Each service shows "starting" until it accepts connections, then "up".
@@ -187,7 +187,7 @@ Services listen on `127.0.0.1` with these defaults (for local development only):
 
 To load data: **Settings → Services → Restore database** (pick a `.sql` dump for MySQL or PostgreSQL). Coming from Docker on Windows: dump the databases from Docker first (for example `docker exec servel_mysql mysqldump --all-databases > dump.sql`), then restore that file.
 
-### Projects (Settings → Projects)
+### Projects
 
 1. Click **+ Add project folder** and pick the folder. Kova detects the type and opens the form with a suggested **Command** and **Port**.
 2. Check the form, then **Save & start**.
@@ -197,7 +197,7 @@ To load data: **Settings → Services → Restore database** (pick a `.sql` dump
 |---|---|
 | **Command** | Any command, run in the project folder. `{port}` is replaced by the port, and the `PORT` variable is set to it. **Detect** fills it in again. Leave it empty to use the project only for versions and services. |
 | **Port** | Fixed port on `localhost` (1024–65535). |
-| **Services** | Service profile applied when you pick this project under **Versions for** on the Dashboard. Tick **Start these services when the project starts** to have Start, Restart and start-on-launch also start that profile's services; running services are left alone and stopping the project stops none. |
+| **Services** | Service profile applied when you pick this project under **Versions for** on Runtimes. Tick **Start these services when the project starts** to have Start, Restart and start-on-launch also start that profile's services; running services are left alone and stopping the project stops none. |
 | **Environment** | One `KEY=VALUE` per line, set for this project's dev server on top of mise's environment. Lines copied from a shell (`export KEY='value'`) work as-is. |
 | **On launch** | Start this project when Kova opens. |
 
@@ -223,11 +223,11 @@ Notes:
 
 ### PHP and Node versions
 
-- **Dashboard → Versions for** picks the context: **Global** or one of your projects. The PHP and Node lists show the versions that apply there and where they come from (project `mise.toml` or global config).
+- **Runtimes → Versions for** picks the context: **Global** or one of your projects. The PHP and Node lists show the versions that apply there and where they come from (project `mise.toml` or global config).
 - Switching a version in a project context writes to that project's `mise.toml`. If the version currently comes from your global config, Kova asks whether to pin it in the project or change it globally.
 - A `mise.toml` that mise does not trust yet shows a **Trust** button.
 
-### PHP extensions (Settings → Runtimes)
+### PHP extensions (Runtimes)
 
 1. Pick the PHP version at the top of **PHP extensions**.
 2. Turn extensions on or off with their switches. The change goes into that version's `php.ini` and applies to every project and terminal that uses the version. Restart running PHP projects to pick it up.
@@ -300,7 +300,7 @@ Releases are not notarized yet, so this is needed after each manual install.
 
 ### PHP: `cURL error 60: SSL certificate problem`
 
-PHP on Windows has no certificate list. Open **Settings → Runtimes → PHP extensions** and click **Fix HTTPS certificates** for the PHP version you use. For a single project only, you can instead add `SSL_CERT_FILE=<path to ca-bundle.crt>` to its **Environment**.
+PHP on Windows has no certificate list. Open **Runtimes → PHP extensions** and click **Fix HTTPS certificates** for the PHP version you use. For a single project only, you can instead add `SSL_CERT_FILE=<path to ca-bundle.crt>` to its **Environment**.
 
 ### PHP extension change was undone
 
@@ -312,7 +312,7 @@ The process is running but nothing listens on the project's port. The app probab
 
 ### Old `.test` domains still resolve (upgraded from v2.1 or older)
 
-The `.test` domains feature was removed in v2.2. **Settings → Projects** shows a cleanup box while Kova's hosts-file entries or the old local HTTPS certificate are still present: **Remove from hosts** (asks for admin rights) and **Remove certificate**.
+The `.test` domains feature was removed in v2.2, and the cleanup buttons were removed in v3. Delete the lines between the Servel markers in your hosts file (as administrator) and remove the "Caddy Local Authority" certificate in `certmgr.msc` (Trusted Root Certification Authorities).
 
 ### Service stays stuck on "starting"
 

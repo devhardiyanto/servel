@@ -86,7 +86,7 @@ onMounted(() => TOOLS.forEach((t) => void load(t.id)))
     <p class="rt-hint">
       Versions come from mise, like PHP and Node.
       <template v-if="project">"Use in {{ project.name }}" writes to that project's mise.toml.</template>
-      <template v-else>Pick a project in "Versions for" on Services to set a version for one project.</template>
+      <template v-else>Pick a project in "Versions for" above to set a version for one project.</template>
     </p>
 
     <div v-for="t in TOOLS" :key="t.id" class="rt-row">
