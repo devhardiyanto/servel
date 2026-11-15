@@ -12,7 +12,9 @@ Kova is a desktop app (Tauri 2 + Vue 3) that runs your local development environ
 
 No more juggling three terminals every morning.
 
-![Dashboard](docs/screenshots/dashboard-running.png)
+![Projects](docs/screenshots/projects.png)
+
+![Services](docs/screenshots/services.png)
 
 ---
 

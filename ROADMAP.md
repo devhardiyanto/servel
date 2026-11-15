@@ -371,7 +371,10 @@ Urutan: A → B → C → D → E → F → G. Tiap milestone satu PR; tag dan p
 
 ### F — v3.0.0: rilis
 
-- [ ] Perbaikan dari uji rc, catatan rilis, screenshot baru di `docs/screenshots/`.
+- [x] Uji Windows rc.2: installer mencopot Servel, alias, `kova.exe`, entri start saat login, tampilan lulus; folder instalasi lama tertinggal karena `hosts-backups`.
+- [x] Installer menghapus `hosts-backups\hosts.servel.*.bak` lalu folder Servel lama (tanpa hapus rekursif).
+- [x] Pesan container adopsi sekali per container (`wslc-adopted.json`).
+- [x] Catatan rilis `v3.0.0.md`, screenshot baru di `docs/screenshots/`.
 - [ ] Setelah rilis: ganti nama repo (GitHub mengalihkan URL lama; jangan membuat repo baru bernama `servel`).
 
 ### G — v3.1: lanjutan

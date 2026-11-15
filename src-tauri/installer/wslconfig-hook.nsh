@@ -22,6 +22,15 @@
 ; dan container/volume servel_* tidak disentuh. Uninstaller lama sekaligus
 ; menghapus folder CLI lamanya dari PATH dan entri Run "Servel".
 ; ---------------------------------------------------------------------------
+; Sisa di folder install Servel lama yang tidak dikenal uninstaller: cadangan
+; file hosts dari fitur domain .test (dihapus di v2.2.0). Hanya pola file yang
+; dikenal yang dihapus; RMDir tanpa /r, jadi folder berisi file lain dibiarkan.
+!macro KOVA_REMOVE_SERVEL_LEFTOVERS DIR
+  Delete "${DIR}\hosts-backups\hosts.servel.*.bak"
+  RMDir "${DIR}\hosts-backups"
+  RMDir "${DIR}"
+!macroend
+
 !macro NSIS_HOOK_PREINSTALL
   Push $R0
   Push $R1
@@ -41,8 +50,14 @@
       DetailPrint "Kova: old Servel uninstaller finished (exit $R2)."
       ; Dengan _?= uninstaller tidak menghapus dirinya sendiri.
       Delete "$R0\uninstall.exe"
-      RMDir "$R0"
+      !insertmacro KOVA_REMOVE_SERVEL_LEFTOVERS "$R0"
     ${EndIf}
+  ${EndIf}
+  ; Lokasi bawaan: bersihkan juga sisa dari install rc sebelumnya, saat
+  ; uninstaller lama sudah jalan tapi foldernya tertinggal.
+  ${If} "$LOCALAPPDATA\Servel" != $INSTDIR
+  ${AndIfNot} ${FileExists} "$LOCALAPPDATA\Servel\servel.exe"
+    !insertmacro KOVA_REMOVE_SERVEL_LEFTOVERS "$LOCALAPPDATA\Servel"
   ${EndIf}
   Pop $R2
   Pop $R1
