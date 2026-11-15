@@ -351,10 +351,10 @@ function triggerDownload(text: string, filename: string): void {
 .lv-tabs {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 2px;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-  overflow-x: auto;
 }
 
 .lv-tab {

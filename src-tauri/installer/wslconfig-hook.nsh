@@ -15,6 +15,40 @@
 !include "LogicLib.nsh"
 !include "WordFunc.nsh"
 
+; ---------------------------------------------------------------------------
+; v3 (Kova): Servel lama terpasang sebagai produk terpisah (nama produk berbeda
+; = kunci uninstall dan folder berbeda). Copot diam-diam sebelum memasang Kova.
+; /S tidak menampilkan kotak "hapus data", jadi %APPDATA%\com.devhardiyanto.servel
+; dan container/volume servel_* tidak disentuh. Uninstaller lama sekaligus
+; menghapus folder CLI lamanya dari PATH dan entri Run "Servel".
+; ---------------------------------------------------------------------------
+!macro NSIS_HOOK_PREINSTALL
+  Push $R0
+  Push $R1
+  Push $R2
+  ReadRegStr $R0 HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Servel" "InstallLocation"
+  ${If} $R0 != ""
+    ; Nilai ditulis dengan tanda kutip: "C:\...\Servel".
+    StrCpy $R1 $R0 1
+    ${If} $R1 == '"'
+      StrCpy $R0 $R0 "" 1
+      StrCpy $R0 $R0 -1
+    ${EndIf}
+    ${If} $R0 != $INSTDIR
+    ${AndIf} ${FileExists} "$R0\uninstall.exe"
+      DetailPrint "Kova: removing the old Servel install at $R0 (your data stays)..."
+      ExecWait '"$R0\uninstall.exe" /S _?=$R0' $R2
+      DetailPrint "Kova: old Servel uninstaller finished (exit $R2)."
+      ; Dengan _?= uninstaller tidak menghapus dirinya sendiri.
+      Delete "$R0\uninstall.exe"
+      RMDir "$R0"
+    ${EndIf}
+  ${EndIf}
+  Pop $R2
+  Pop $R1
+  Pop $R0
+!macroend
+
 !macro NSIS_HOOK_POSTINSTALL
   ; CLI `servel` (v1.6): tambahkan $INSTDIR\cli\bin ke PATH user. Logika PATH
   ; ada di install-path.ps1 (aman untuk PATH panjang & entri %VAR%, tidak
@@ -23,7 +57,7 @@
   nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\cli\install-path.ps1" -Action add -Dir "$INSTDIR\cli\bin"'
   Pop $0
 
-  DetailPrint "Servel: configuring WSL2 (.wslconfig)..."
+  DetailPrint "Kova: configuring WSL2 (.wslconfig)..."
   Push $0   ; target path
   Push $1   ; file handle / aux
   Push $2   ; whole-file buffer / aux
@@ -34,22 +68,22 @@
 
   ${If} ${FileExists} "$0"
     MessageBox MB_YESNOCANCEL|MB_ICONQUESTION \
-      "Servel ingin menulis konfigurasi WSL2 ke:$\r$\n$0$\r$\n$\r$\n\
+      "Kova ingin menulis konfigurasi WSL2 ke:$\r$\n$0$\r$\n$\r$\n\
 File sudah ada.$\r$\n$\r$\n\
 [Yes]    = Overwrite (file lama dibackup ke .wslconfig.bak)$\r$\n\
 [No]     = Append (tambah section [wsl2]/[experimental] kalau belum ada)$\r$\n\
 [Cancel] = Skip (jangan ubah)" \
       /SD IDCANCEL IDYES servel_wsl_overwrite IDNO servel_wsl_append
 
-    DetailPrint "Servel: .wslconfig skipped by user."
+    DetailPrint "Kova: .wslconfig skipped by user."
     Goto servel_wsl_done
 
     servel_wsl_overwrite:
-      DetailPrint "Servel: backing up existing .wslconfig to .wslconfig.bak"
+      DetailPrint "Kova: backing up existing .wslconfig to .wslconfig.bak"
       Delete "$0.bak"
       Rename "$0" "$0.bak"
       Call ServelWriteWslConfigTemplate
-      DetailPrint "Servel: .wslconfig overwritten."
+      DetailPrint "Kova: .wslconfig overwritten."
       Goto servel_wsl_done
 
     servel_wsl_append:
@@ -57,7 +91,7 @@ File sudah ada.$\r$\n$\r$\n\
       ClearErrors
       FileOpen $1 "$0" r
       ${If} ${Errors}
-        DetailPrint "Servel: gagal buka .wslconfig untuk append; skipped."
+        DetailPrint "Kova: gagal buka .wslconfig untuk append; skipped."
         Goto servel_wsl_done
       ${EndIf}
       StrCpy $2 ""
@@ -79,20 +113,20 @@ File sudah ada.$\r$\n$\r$\n\
         ClearErrors
         FileOpen $1 "$0" a
         ${If} ${Errors}
-          DetailPrint "Servel: gagal append .wslconfig; skipped."
+          DetailPrint "Kova: gagal append .wslconfig; skipped."
           Goto servel_wsl_done
         ${EndIf}
         FileSeek $1 0 END
         FileWrite $1 "$\r$\n"
         Call ServelWriteWslConfigBody
         FileClose $1
-        DetailPrint "Servel: .wslconfig appended with [wsl2] section."
+        DetailPrint "Kova: .wslconfig appended with [wsl2] section."
       ${Else}
-        DetailPrint "Servel: section [wsl2] sudah ada; append dilewati."
+        DetailPrint "Kova: section [wsl2] sudah ada; append dilewati."
       ${EndIf}
       Goto servel_wsl_done
   ${Else}
-    DetailPrint "Servel: writing fresh .wslconfig template."
+    DetailPrint "Kova: writing fresh .wslconfig template."
     Call ServelWriteWslConfigTemplate
   ${EndIf}
 
@@ -108,10 +142,10 @@ File sudah ada.$\r$\n$\r$\n\
 ; Uninstall: JANGAN hapus .wslconfig — preserve user data.
 ; ---------------------------------------------------------------------------
 !macro NSIS_HOOK_PREUNINSTALL
-  DetailPrint "Servel: menghapus perintah 'servel' dari PATH user..."
+  DetailPrint "Kova: menghapus perintah 'kova' dan 'servel' dari PATH user..."
   nsExec::ExecToLog 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\cli\install-path.ps1" -Action remove -Dir "$INSTDIR\cli\bin"'
   Pop $0
-  DetailPrint "Servel: uninstall — .wslconfig dipertahankan (user data)."
+  DetailPrint "Kova: uninstall — .wslconfig dipertahankan (user data)."
 !macroend
 
 ; ---------------------------------------------------------------------------
@@ -122,7 +156,7 @@ Function ServelWriteWslConfigTemplate
   ClearErrors
   FileOpen $1 "$PROFILE\.wslconfig" w
   ${If} ${Errors}
-    DetailPrint "Servel: gagal buat .wslconfig (permission?)."
+    DetailPrint "Kova: gagal buat .wslconfig (permission?)."
     Return
   ${EndIf}
   Call ServelWriteWslConfigBody

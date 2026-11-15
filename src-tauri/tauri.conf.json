@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Kova",
-  "version": "3.0.0-rc.1",
+  "mainBinaryName": "kova",
+  "version": "3.0.0-rc.2",
   "identifier": "com.devhardiyanto.servel",
   "build": {
     "beforeDevCommand": "npm run dev",

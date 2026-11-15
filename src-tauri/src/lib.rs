@@ -167,6 +167,9 @@ pub fn run() {
         })
         .setup(move |app| {
             // Tray init — non-fatal: kalau gagal (mis. Linux tanpa appindicator) log warning + lanjut.
+            // Start saat login menunjuk ke program ini (nama/lokasi bisa berubah setelah update).
+            std::thread::spawn(autostart::refresh_if_enabled);
+
             match tray::init(app.handle()) {
                 Ok(_) => TRAY_OK.store(true, std::sync::atomic::Ordering::SeqCst),
                 Err(e) => eprintln!("[tray] init failed, skipping tray: {}", e),
