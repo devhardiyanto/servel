@@ -52,7 +52,7 @@ No more juggling three terminals every morning.
 
 Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `3.0.0`).
 
-> Kova ships **unsigned** for Windows and macOS. Workarounds are documented below; see the FAQ for the long-term plan.
+> Kova ships **unsigned** for Windows and macOS. Workarounds are documented below; see [Code signing](#code-signing) for the plan.
 
 ### Windows
 
@@ -297,7 +297,7 @@ Then start Kova (and Docker Desktop, if you use it) again.
 
 ### Windows SmartScreen blocks the installer
 
-Kova releases are currently **unsigned**, so SmartScreen shows a warning. Click **More info** → **Run anyway**.
+Kova releases are currently **unsigned**, so SmartScreen shows a warning. Click **More info** → **Run anyway**. The warning appears once, on install; in-app updates are not affected. See [Code signing](#code-signing).
 
 ### macOS says "Kova is damaged and can't be opened"
 
@@ -359,14 +359,11 @@ Kova does not collect, transmit, or store any personal data. All configuration i
 
 ---
 
-## Code signing policy
+## Code signing
 
-Free code signing on Windows provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+Kova releases are **not code-signed** on Windows or macOS, which is why SmartScreen and Gatekeeper warn on install (see the FAQ for the workarounds). Update packages are signed with Kova's own updater key and verified by the app before they are installed.
 
-- Committers and reviewers: [@devhardiyanto](https://github.com/devhardiyanto)
-- Approvers: [@devhardiyanto](https://github.com/devhardiyanto)
-
-This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+An application to the SignPath Foundation open-source program was declined in June 2026 because the project is still young; it will be submitted again once Kova has more public adoption.
 
 ---
 

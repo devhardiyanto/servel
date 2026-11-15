@@ -391,7 +391,7 @@ Penomoran: v3.x menambah fitur tanpa memutus apa pun dari Servel. **v4.0 adalah 
 
 - [x] G1 — Palet perintah Ctrl K / ⌘K (`CommandPalette.vue`, `utils/palette.ts`): pindah layar; start/stop service (sama dengan switch: start ikut memilih, stop melepas pilihan), Start selected, Stop all; project Start / Open / Restart / Stop sesuai keadaan. Tombol "Commands" di navigasi kiri. Pilihan service kini dipulihkan saat aplikasi dibuka, bukan saat layar Services dibuka.
 - [ ] G2 — CLI lintas platform (macOS/Linux).
-- [ ] G3 — Code signing begitu sertifikat tersedia (boleh menyusul di rilis terpisah).
+- G3 — Code signing: **ditunda**. SignPath Foundation menolak pengajuan (Juni 2026: proyek belum punya cukup adopsi publik). Diajukan ulang setelah ada adopsi, atau dibuka lagi bila ada pengguna yang terhalang peringatan SmartScreen. Pilihan berbayar (Certum Open Source, Azure Trusted Signing, SignPath berlangganan) belum diperiksa syarat dan harganya.
 
 ### v3.x — kandidat, belum diputuskan
 
