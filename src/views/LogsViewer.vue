@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, inject, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { save } from '@tauri-apps/plugin-dialog'
 import { useLogs } from '@/composables/useLogs'
 import { useLogCopy } from '@/composables/useLogCopy'
 import { badgeStyle } from '@/utils/logColors'
-import { SetViewKey } from '@/types/navigation'
 import { useConfig } from '@/composables/useConfig'
 
-const setView = inject(SetViewKey)!
 const { lines, clear } = useLogs()
 
 const TABS = ['All', 'Projects', 'MySQL', 'PostgreSQL', 'Redis', 'PHP', 'Node', 'mise'] as const
@@ -161,7 +159,6 @@ function triggerDownload(text: string, filename: string): void {
     <!-- Sub-header bar -->
     <header class="lv-header">
       <div class="lv-header__left">
-        <button class="lv-back-btn" @click="setView('dashboard')">&#8592;</button>
         <span class="lv-title">LOGS</span>
       </div>
       <nav class="lv-tabs">
@@ -260,12 +257,13 @@ function triggerDownload(text: string, filename: string): void {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 var(--space-4);
-  height: 40px;
+  flex-wrap: wrap;
+  padding: var(--space-1) var(--space-4);
+  min-height: 40px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  gap: var(--space-4);
+  gap: var(--space-2) var(--space-4);
 }
 
 .lv-header__left {
@@ -355,7 +353,8 @@ function triggerDownload(text: string, filename: string): void {
   align-items: center;
   gap: 2px;
   flex: 1;
-  justify-content: center;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .lv-tab {

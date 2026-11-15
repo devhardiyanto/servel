@@ -10,7 +10,6 @@ import { SetViewKey } from '@/types/navigation'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
-import ProjectsPanel from '@/components/ProjectsPanel.vue'
 import PhpExtensionsPanel from '@/components/PhpExtensionsPanel.vue'
 import RuntimesPanel from '@/components/RuntimesPanel.vue'
 import SettingRow from '@/components/SettingRow.vue'
@@ -35,7 +34,10 @@ const {
   reset,
 } = useConfig()
 
-const activeNav = ref<SettingsNav>('general')
+// v3: Settings tampil sebagai dua halaman di navigasi kiri: "settings"
+// (General, Services, About) dan "runtimes" (PHP/Node, runtime lain, extension).
+const props = withDefaults(defineProps<{ mode?: 'settings' | 'runtimes' }>(), { mode: 'settings' })
+const activeNav = ref<SettingsNav>(props.mode === 'runtimes' ? 'php_node' : 'general')
 
 // --- Profiles CRUD ---
 const newProfileName = ref('')
@@ -247,14 +249,8 @@ onMounted(async () => {
 
 <template>
   <div class="view view-settings">
-    <header class="app-strip">
-      <button class="app-strip__back" @click="setView('dashboard')">&#8592;</button>
-      <span class="app-strip__title">SETTINGS</span>
-      <span class="app-strip__spacer"></span>
-    </header>
-
     <div class="settings-body">
-      <nav class="settings-nav">
+      <nav v-if="props.mode === 'settings'" class="settings-nav">
         <button
           class="snav-item"
           :class="{ 'snav-item--active': activeNav === 'general' }"
@@ -265,16 +261,6 @@ onMounted(async () => {
           :class="{ 'snav-item--active': activeNav === 'services' }"
           @click="activeNav = 'services'"
         >Services</button>
-        <button
-          class="snav-item"
-          :class="{ 'snav-item--active': activeNav === 'sites' }"
-          @click="activeNav = 'sites'"
-        >Projects</button>
-        <button
-          class="snav-item"
-          :class="{ 'snav-item--active': activeNav === 'php_node' }"
-          @click="activeNav = 'php_node'"
-        >Runtimes</button>
         <button
           class="snav-item"
           :class="{ 'snav-item--active': activeNav === 'about' }"
@@ -318,7 +304,7 @@ onMounted(async () => {
               label="Projects"
               desc="Each project has its own &quot;Start this project when Kova opens&quot; option in Projects → Edit"
             >
-              <UiButton variant="quiet" @click="activeNav = 'sites'">Open Projects</UiButton>
+              <UiButton variant="quiet" @click="setView('projects')">Open Projects</UiButton>
             </SettingRow>
           </div>
 
@@ -421,7 +407,7 @@ onMounted(async () => {
           <div class="section-block">
             <div class="section-title">PROFILES</div>
             <p class="section-hint">
-              Saved sets of services. Change the active profile with the switcher on the Dashboard.
+              Saved sets of services. Change the active profile with the switcher on Services.
             </p>
 
             <div class="profile-list">
@@ -514,9 +500,6 @@ onMounted(async () => {
           </div>
         </template>
 
-        <template v-else-if="activeNav === 'sites'">
-          <ProjectsPanel />
-        </template>
 
         <template v-else-if="activeNav === 'php_node'">
           <div class="section-block">

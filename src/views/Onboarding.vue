@@ -309,7 +309,7 @@ const miseInstallCmd = computed<string>(() => {
             variant="primary"
             size="lg"
             v-if="canContinue"
-            @click="setView('dashboard')"
+            @click="setView('projects')"
           >
             Continue to Kova &#x2192;
           </UiButton>

@@ -266,7 +266,7 @@ async function handleRemove(p: Project): Promise<void> {
     <div class="pp-title">PROJECTS</div>
     <p class="pp-hint">
       Each project is a folder. Kova runs its dev server with the PHP/Node versions from the project's
-      mise.toml and gives it a fixed address on localhost. The same list feeds "Versions for" on the Dashboard.
+      mise.toml and gives it a fixed address on localhost. The same list feeds "Versions for" on Services.
     </p>
 
     <div class="pp-list">
