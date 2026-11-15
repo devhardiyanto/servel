@@ -12,6 +12,7 @@ import { useLogs } from '@/composables/useLogs'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
 import PhpExtensionsPanel from '@/components/PhpExtensionsPanel.vue'
 import RuntimesPanel from '@/components/RuntimesPanel.vue'
+import VersionsPanel from '@/components/VersionsPanel.vue'
 import SettingRow from '@/components/SettingRow.vue'
 import { ENGINE_LABEL, type EnginePreference, type PrereqStatus } from '@/types/prereq'
 import { useEngineStatus } from '@/composables/useEngineStatus'
@@ -502,6 +503,11 @@ onMounted(async () => {
 
 
         <template v-else-if="activeNav === 'php_node'">
+          <div class="section-block">
+            <div class="section-title">PHP &amp; NODE</div>
+            <VersionsPanel />
+          </div>
+
           <div class="section-block">
             <div class="section-title">VERSION MANAGER</div>
 

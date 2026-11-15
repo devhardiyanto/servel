@@ -9,6 +9,7 @@ import { useConfig } from '@/composables/useConfig'
 import PrereqCard from '@/components/PrereqCard.vue'
 import type { PrereqAction } from '@/components/PrereqCard.vue'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
+import KovaMark from '@/components/shell/KovaMark.vue'
 
 const setView = inject(SetViewKey)!
 
@@ -194,12 +195,14 @@ const miseInstallCmd = computed<string>(() => {
     <div class="ob-main">
       <div class="ob-inner">
         <div class="ob-mark">
-          <span class="ob-mark-sq ob-mark-sq--filled"></span>
-          <span class="ob-mark-sq ob-mark-sq--outline"></span>
+          <KovaMark :size="40" />
         </div>
 
-        <h1 class="ob-heading">Before we start</h1>
-        <p class="ob-sub">Kova needs a few things installed to work.</p>
+        <h1 class="ob-heading">Welcome to Kova</h1>
+        <p class="ob-sub">
+          Every local project, running in one click. Kova checks two things first: a container engine for
+          your services, and mise for PHP, Node, Go and Python versions.
+        </p>
 
         <div class="ob-progress">
           <div class="ob-progress-track">
@@ -374,20 +377,6 @@ const miseInstallCmd = computed<string>(() => {
   gap: 6px;
   align-items: center;
   margin-bottom: var(--space-6);
-}
-
-.ob-mark-sq {
-  width: 14px;
-  height: 14px;
-  border-radius: var(--radius-xs);
-}
-
-.ob-mark-sq--filled {
-  background: var(--accent);
-}
-
-.ob-mark-sq--outline {
-  border: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .ob-heading {
