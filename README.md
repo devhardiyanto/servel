@@ -32,15 +32,17 @@ No more juggling three terminals every morning.
 - MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg. Toggle what you need, click Start.
 - Windows: runs on WSL containers (`wslc`, built into WSL 3.0.1+). No Docker Desktop and no extra Linux distro needed. Docker stays available.
 - A service shows "up" only once it accepts connections.
-- **Connect** on each service shows host, port and credentials, with **Copy .env** (Laravel keys) and **Copy URL**.
+- **Connect** on each service opens a side panel with host, port and credentials, a preview of the `.env` lines, **Copy .env** (Laravel keys) and **Copy URL**.
 - Service profiles and database restore from a `.sql` dump.
 
-**PHP and Node**
+**Runtimes**
 - With mise: see and switch PHP/Node versions per project, written to the `mise.toml` that actually applies. Go and Python versions can be installed and set in **Runtimes**.
 - PHP extensions: turn bundled extensions on or off per PHP version. `php.ini` is backed up first and the change is undone if PHP no longer starts.
 - Windows: one click fixes HTTPS from PHP (curl error 60).
 
 **App**
+- One window with five screens: **Projects**, **Services**, **Runtimes**, **Logs**, **Settings**. The status bar shows the container engine, running services, memory and version.
+- **Command palette** (`Ctrl K`, `⌘K` on macOS): jump to a screen, start or stop a service, start, stop, restart or open a project, all from the keyboard.
 - In-app updates from Settings → About.
 - System tray, remembered selection, optional start when you sign in (in the tray), and a `kova` terminal command on Windows.
 
@@ -48,9 +50,9 @@ No more juggling three terminals every morning.
 
 ## Install
 
-Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `2.3.0`).
+Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `3.0.0`).
 
-> Kova ships **unsigned** for Windows and macOS. Workarounds are documented below; see the FAQ for the long-term plan.
+> Kova ships **unsigned** for Windows and macOS. Workarounds are documented below; see [Code signing](#code-signing) for the plan.
 
 ### Windows
 
@@ -62,6 +64,8 @@ Download the installer for your OS from the [Releases page](https://github.com/d
    - **Cancel (Skip)**: leave `.wslconfig` untouched. Recommended if you use WSL containers and already tuned WSL yourself.
 4. The installer also adds the `kova` terminal command to your user PATH (see [`kova` terminal command](#kova-terminal-command-windows)).
 5. Launch Kova from the Start Menu. With WSL 3.0.1+, Kova uses the built-in WSL containers automatically.
+
+**Upgrading from Servel 2.x:** use **Check for updates** in Servel, or run the Kova installer. The installer removes the old Servel app for you. Projects, profiles, settings and database volumes are kept: the data folder (`com.devhardiyanto.servel`) and the `servel_*` containers keep their names on purpose. In the terminal, `servel` still works until v4.0 and prints a one-line reminder to use `kova`.
 
 **Updating:** from v2.1 on, open **Settings → About → Check for updates → Update now**. Kova stops running projects, installs the new version and reopens. Older versions update by installing the new release manually once.
 
@@ -168,11 +172,16 @@ On first launch Kova checks what is installed: the container engine (WSL contain
 
 ## Using Kova
 
+Kova opens on **Projects**. The left rail switches between Projects, Services, Runtimes, Logs and Settings; the numbers next to them count running projects, running services and log errors.
+
+Press `Ctrl K` (`⌘K` on macOS) anywhere to open the command palette: type part of a screen, project or service name, pick with the arrow keys and press Enter. The commands follow the current state, so a running project offers Open, Restart and Stop, and a stopped one offers Start.
+
 ### Services
 
 1. Toggle the services you need. The selection is saved as a **profile**; create more profiles in **Settings → Services**.
 2. Click **Start selected**. Each service shows "starting" until it accepts connections, then "up".
 3. **Stop all** stops every service; the data stays in volumes.
+4. **Connect** on a row opens a panel with the connection details and the `.env` lines to copy into your project.
 
 Services listen on `127.0.0.1` with these defaults (for local development only):
 
@@ -288,7 +297,7 @@ Then start Kova (and Docker Desktop, if you use it) again.
 
 ### Windows SmartScreen blocks the installer
 
-Kova releases are currently **unsigned**, so SmartScreen shows a warning. Click **More info** → **Run anyway**.
+Kova releases are currently **unsigned**, so SmartScreen shows a warning. Click **More info** → **Run anyway**. The warning appears once, on install; in-app updates are not affected. See [Code signing](#code-signing).
 
 ### macOS says "Kova is damaged and can't be opened"
 
@@ -350,14 +359,11 @@ Kova does not collect, transmit, or store any personal data. All configuration i
 
 ---
 
-## Code signing policy
+## Code signing
 
-Free code signing on Windows provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
+Kova releases are **not code-signed** on Windows or macOS, which is why SmartScreen and Gatekeeper warn on install (see the FAQ for the workarounds). Update packages are signed with Kova's own updater key and verified by the app before they are installed.
 
-- Committers and reviewers: [@devhardiyanto](https://github.com/devhardiyanto)
-- Approvers: [@devhardiyanto](https://github.com/devhardiyanto)
-
-This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+An application to the SignPath Foundation open-source program was declined in June 2026 because the project is still young; it will be submitted again once Kova has more public adoption.
 
 ---
 

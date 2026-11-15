@@ -9,7 +9,9 @@ import { useLogs } from '@/composables/useLogs'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
 
 defineProps<{ current: ViewName }>()
-const emit = defineEmits<{ go: [view: ViewName] }>()
+const emit = defineEmits<{ go: [view: ViewName]; palette: [] }>()
+
+const isMac = /mac/i.test(navigator.platform)
 
 const { definitions, runningCount } = useServices()
 const { config } = useConfig()
@@ -53,6 +55,10 @@ const items = computed(() => [
       <span v-if="it.dot" class="rail-dot" title="Update available"></span>
       <span v-if="it.badge" class="rail-badge" :class="{ 'rail-badge--alert': it.alert }">{{ it.badge }}</span>
     </button>
+    <button class="rail-cmd" aria-label="Open the command palette" @click="emit('palette')">
+      <span class="rail-label">Commands</span>
+      <kbd>{{ isMac ? '⌘K' : 'Ctrl K' }}</kbd>
+    </button>
   </nav>
 </template>
 
@@ -93,6 +99,22 @@ const items = computed(() => [
 .rail-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .rail-item--on { background: var(--surface2); color: var(--text); }
 .rail-label { flex: 1; }
+.rail-cmd {
+  display: flex;
+  align-items: center;
+  margin-top: auto;
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--faint);
+  font-size: var(--text-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.rail-cmd:hover { color: var(--text); border-color: var(--border-strong); }
+.rail-cmd:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rail-cmd kbd { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--faint); }
 .rail-badge {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
