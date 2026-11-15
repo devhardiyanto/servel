@@ -8,6 +8,9 @@
 //!   `control.json` (`port`, `token`, `pid`) ke folder data aplikasi.
 //! - Satu koneksi = satu baris permintaan `<token> <aksi> [nama project]`,
 //!   dibalas satu baris JSON `{ ok, message, projects }`.
+//! - Sejak v3.1: `<token> plain <aksi> ...` dibalas teks baris-per-baris (lihat
+//!   [`to_plain`]) untuk CLI shell di macOS/Linux, dan aksi service
+//!   `up [id...]`, `down [id...]`, `services`.
 //! - Token acak per sesi; hanya proses yang bisa membaca folder data pengguna
 //!   yang bisa memerintah. Tidak ada aksi selain yang sudah ada di UI.
 
@@ -27,13 +30,21 @@ pub enum Action {
     Stop,
     Restart,
     Status,
+    /// Service: start `target` (id dipisah spasi; kosong = pilihan tersimpan).
+    Up,
+    /// Service: stop `target` (kosong = semua).
+    Down,
+    /// Service: daftar status.
+    Services,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Request {
     pub action: Action,
-    /// Nama atau id project; kosong hanya untuk `status`.
+    /// Nama atau id project; kosong hanya untuk `status` dan aksi service.
     pub target: String,
+    /// Balasan teks, bukan JSON.
+    pub plain: bool,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -50,6 +61,44 @@ pub struct Response {
     pub ok: bool,
     pub message: String,
     pub projects: Vec<ProjectStatus>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub services: Vec<ServiceRow>,
+}
+
+#[derive(Serialize, Debug, PartialEq)]
+pub struct ServiceRow {
+    pub id: String,
+    pub state: String,
+}
+
+impl Response {
+    fn fail(message: String) -> Self {
+        Response { ok: false, message, projects: Vec::new(), services: Vec::new() }
+    }
+}
+
+fn one_line(s: &str) -> String {
+    s.replace(['\n', '\r', '\t'], " ")
+}
+
+/// Balasan untuk klien shell: baris 1 `ok` atau `error`, baris 2 pesan (boleh
+/// kosong), lalu satu baris per entri dengan kolom dipisah tab:
+/// `project<TAB>nama<TAB>status<TAB>url` atau `service<TAB>id<TAB>status`.
+pub fn to_plain(r: &Response) -> String {
+    let mut out = format!("{}\n{}\n", if r.ok { "ok" } else { "error" }, one_line(&r.message));
+    for p in &r.projects {
+        let state = serde_json::to_value(p.state).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
+        let state = match p.exit_code {
+            Some(code) if state == "exited" => format!("exited ({})", code),
+            _ => state,
+        };
+        let url = if p.port > 0 { format!("http://localhost:{}", p.port) } else { String::new() };
+        out.push_str(&format!("project\t{}\t{}\t{}\n", one_line(&p.name), state, url));
+    }
+    for s in &r.services {
+        out.push_str(&format!("service\t{}\t{}\n", one_line(&s.id), one_line(&s.state)));
+    }
+    out
 }
 
 /// Bandingkan tanpa berhenti di byte pertama yang beda, supaya lama
@@ -66,19 +115,28 @@ pub fn parse_request(line: &str, token: &str) -> Result<Request, String> {
         return Err("token does not match".to_string());
     }
     let rest = rest.trim();
+    let (plain, rest) = match rest.split_once(' ') {
+        Some(("plain", more)) => (true, more.trim()),
+        _ if rest == "plain" => (true, ""),
+        _ => (false, rest),
+    };
     let (verb, target) = rest.split_once(' ').unwrap_or((rest, ""));
     let action = match verb {
         "start" => Action::Start,
         "stop" => Action::Stop,
         "restart" => Action::Restart,
         "status" => Action::Status,
+        "up" => Action::Up,
+        "down" => Action::Down,
+        "services" => Action::Services,
         other => return Err(format!("unknown action: {}", other)),
     };
     let target = target.trim().to_string();
-    if action != Action::Status && target.is_empty() {
+    let needs_project = matches!(action, Action::Start | Action::Stop | Action::Restart);
+    if needs_project && target.is_empty() {
         return Err("project name is missing".to_string());
     }
-    Ok(Request { action, target })
+    Ok(Request { action, target, plain })
 }
 
 /// Cari project dari nama (tanpa beda huruf besar/kecil) atau id. Nama yang
@@ -112,36 +170,92 @@ fn statuses(app: &AppHandle, projects: &[Project]) -> Vec<ProjectStatus> {
         .collect()
 }
 
-async fn handle(app: &AppHandle, line: &str, token: &str) -> Response {
-    let fail = |message: String| Response { ok: false, message, projects: Vec::new() };
-    let req = match parse_request(line, token) {
-        Ok(r) => r,
-        Err(e) => return fail(e),
+async fn service_rows() -> Result<Vec<ServiceRow>, String> {
+    let mut rows: Vec<ServiceRow> = crate::runtime::status()
+        .await?
+        .into_iter()
+        .map(|s| ServiceRow { id: s.id, state: s.state })
+        .collect();
+    rows.sort_by(|a, b| a.id.cmp(&b.id));
+    Ok(rows)
+}
+
+/// Id service dari `target`; id yang tidak dikenal ditolak dengan daftar yang ada.
+pub fn service_ids(target: &str, known: &[String]) -> Result<Vec<String>, String> {
+    let ids: Vec<String> = target.split_whitespace().map(|s| s.to_ascii_lowercase()).collect();
+    if let Some(bad) = ids.iter().find(|id| !known.contains(id)) {
+        return Err(format!("no service named \"{}\" (available: {})", bad, known.join(", ")));
+    }
+    Ok(ids)
+}
+
+async fn handle_services(app: &AppHandle, req: &Request) -> Result<Response, String> {
+    use crate::commands::services::{services_start, services_stop, services_stop_all};
+    let message = match req.action {
+        Action::Services => String::new(),
+        Action::Up | Action::Down => {
+            let defs = crate::commands::services::load_services(app.clone()).await?;
+            let known: Vec<String> = defs.iter().map(|d| d.id.clone()).collect();
+            let mut ids = service_ids(&req.target, &known)?;
+            if req.action == Action::Up {
+                if ids.is_empty() {
+                    ids = load_config(app)?.selected_service_ids;
+                }
+                if ids.is_empty() {
+                    return Err("no services are selected in Kova; name them: kova up mysql redis".to_string());
+                }
+                services_start(app.clone(), ids.clone()).await?;
+                format!("started {}", ids.join(", "))
+            } else if ids.is_empty() {
+                services_stop_all(app.clone()).await?;
+                "stopped every service".to_string()
+            } else {
+                services_stop(app.clone(), ids.clone()).await?;
+                format!("stopped {}", ids.join(", "))
+            }
+        }
+        _ => unreachable!("handle_services is only called for service actions"),
     };
+    Ok(Response { ok: true, message, projects: Vec::new(), services: service_rows().await? })
+}
+
+async fn handle(app: &AppHandle, req: &Request) -> Response {
+    if matches!(req.action, Action::Up | Action::Down | Action::Services) {
+        return handle_services(app, req).await.unwrap_or_else(Response::fail);
+    }
     let cfg = match load_config(app) {
         Ok(c) => c,
-        Err(e) => return fail(e),
+        Err(e) => return Response::fail(e),
     };
     if req.action == Action::Status && req.target.is_empty() {
-        return Response { ok: true, message: String::new(), projects: statuses(app, &cfg.projects) };
+        return Response { ok: true, message: String::new(), projects: statuses(app, &cfg.projects), services: Vec::new() };
     }
     let project = match find_project(&cfg.projects, &req.target) {
         Ok(p) => p.clone(),
-        Err(e) => return fail(e),
+        Err(e) => return Response::fail(e),
     };
     let result = match req.action {
         Action::Start => crate::sites::start_with_services(app, &project).await.map(|_| "started"),
         Action::Restart => crate::sites::restart_with_services(app, &project).await.map(|_| "restarted"),
         Action::Stop => process::stop(app, &project.id).await.map(|_| "stopped"),
-        Action::Status => Ok(""),
+        _ => Ok(""),
     };
     match result {
         Ok(what) => Response {
             ok: true,
             message: if what.is_empty() { String::new() } else { format!("{} {}", project.name, what) },
             projects: statuses(app, std::slice::from_ref(&project)),
+            services: Vec::new(),
         },
-        Err(e) => fail(format!("{}: {}", project.name, e)),
+        Err(e) => Response::fail(format!("{}: {}", project.name, e)),
+    }
+}
+
+/// Parse lalu jalankan; mengembalikan balasan dan apakah klien minta teks.
+async fn respond(app: &AppHandle, line: &str, token: &str) -> (Response, bool) {
+    match parse_request(line, token) {
+        Ok(req) => (handle(app, &req).await, req.plain),
+        Err(e) => (Response::fail(e), false),
     }
 }
 
@@ -176,28 +290,33 @@ async fn serve(app: AppHandle) -> Result<(), String> {
         let app = app.clone();
         let token = token.clone();
         tauri::async_runtime::spawn(async move {
-            answer(stream, |line| async move { handle(&app, &line, &token).await }).await;
+            answer(stream, |line| async move { respond(&app, &line, &token).await }).await;
         });
     }
 }
 
 /// Baca satu baris permintaan (dibatasi panjang dan waktunya), balas satu
-/// baris JSON, lalu tutup koneksi.
+/// baris JSON (atau teks bila diminta), lalu tutup koneksi.
 async fn answer<F, Fut>(stream: tokio::net::TcpStream, respond: F)
 where
     F: FnOnce(String) -> Fut,
-    Fut: std::future::Future<Output = Response>,
+    Fut: std::future::Future<Output = (Response, bool)>,
 {
     let (read, mut write) = stream.into_split();
     let mut line = String::new();
     let mut reader = BufReader::new(read).take(MAX_LINE as u64);
     let got = tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line)).await;
-    let response = match got {
+    let (response, plain) = match got {
         Ok(Ok(n)) if n > 0 => respond(line).await,
-        _ => Response { ok: false, message: "empty request".to_string(), projects: Vec::new() },
+        _ => (Response::fail("empty request".to_string()), false),
     };
-    let mut out = serde_json::to_string(&response).unwrap_or_else(|_| "{\"ok\":false}".to_string());
-    out.push('\n');
+    let out = if plain {
+        to_plain(&response)
+    } else {
+        let mut json = serde_json::to_string(&response).unwrap_or_else(|_| "{\"ok\":false}".to_string());
+        json.push('\n');
+        json
+    };
     let _ = write.write_all(out.as_bytes()).await;
     let _ = write.shutdown().await;
 }
@@ -215,9 +334,25 @@ mod tests {
         let t = "abc123";
         assert_eq!(
             parse_request("abc123 start share api\n", t),
-            Ok(Request { action: Action::Start, target: "share api".into() })
+            Ok(Request { action: Action::Start, target: "share api".into(), plain: false })
         );
-        assert_eq!(parse_request("abc123 status", t), Ok(Request { action: Action::Status, target: String::new() }));
+        assert_eq!(
+            parse_request("abc123 status", t),
+            Ok(Request { action: Action::Status, target: String::new(), plain: false })
+        );
+        assert_eq!(
+            parse_request("abc123 plain up mysql redis", t),
+            Ok(Request { action: Action::Up, target: "mysql redis".into(), plain: true })
+        );
+        assert_eq!(
+            parse_request("abc123 plain services", t),
+            Ok(Request { action: Action::Services, target: String::new(), plain: true })
+        );
+        assert_eq!(parse_request("abc123 down", t), Ok(Request { action: Action::Down, target: String::new(), plain: false }));
+        // Project bernama "plain" tetap bisa dituju lewat JSON.
+        assert_eq!(parse_request("abc123 start plain", t).unwrap().target, "plain");
+        assert!(parse_request("abc123 plain", t).unwrap_err().contains("unknown action"));
+        assert!(parse_request("abc123 plain stop", t).unwrap_err().contains("project name"));
         assert!(parse_request("abc124 start x", t).unwrap_err().contains("token"));
         assert!(parse_request("abc start x", t).unwrap_err().contains("token"));
         assert!(parse_request("start x", t).unwrap_err().contains("token"));
@@ -232,6 +367,32 @@ mod tests {
         assert_eq!(find_project(&ps, "2").unwrap().name, "Event");
         assert!(find_project(&ps, "event").unwrap_err().contains("2 projects"));
         assert!(find_project(&ps, "nope").unwrap_err().contains("no project named"));
+    }
+
+    #[test]
+    fn plain_reply_is_tab_separated_lines() {
+        let r = Response {
+            ok: true,
+            message: "started\nmysql".into(),
+            projects: vec![
+                ProjectStatus { name: "share api".into(), state: SiteState::Running, port: 8001, exit_code: None },
+                ProjectStatus { name: "lib".into(), state: SiteState::Exited, port: 0, exit_code: Some(1) },
+            ],
+            services: vec![ServiceRow { id: "mysql".into(), state: "running".into() }],
+        };
+        assert_eq!(
+            to_plain(&r),
+            "ok\nstarted mysql\nproject\tshare api\trunning\thttp://localhost:8001\nproject\tlib\texited (1)\t\nservice\tmysql\trunning\n"
+        );
+        assert_eq!(to_plain(&Response::fail("nope".into())), "error\nnope\n");
+    }
+
+    #[test]
+    fn service_ids_are_validated() {
+        let known = vec!["mysql".to_string(), "redis".to_string()];
+        assert_eq!(service_ids("MySQL  redis", &known).unwrap(), vec!["mysql", "redis"]);
+        assert!(service_ids("", &known).unwrap().is_empty());
+        assert!(service_ids("mysql nope", &known).unwrap_err().contains("available: mysql, redis"));
     }
 
     #[test]
@@ -250,12 +411,16 @@ mod tests {
             let (stream, _) = listener.accept().await.unwrap();
             answer(stream, |line| async move {
                 match parse_request(&line, "tok") {
-                    Ok(r) => Response {
-                        ok: true,
-                        message: format!("{:?} {}", r.action, r.target),
-                        projects: vec![ProjectStatus { name: r.target, state: SiteState::Running, port: 8001, exit_code: None }],
-                    },
-                    Err(e) => Response { ok: false, message: e, projects: Vec::new() },
+                    Ok(r) => (
+                        Response {
+                            ok: true,
+                            message: format!("{:?} {}", r.action, r.target),
+                            projects: vec![ProjectStatus { name: r.target, state: SiteState::Running, port: 8001, exit_code: None }],
+                            services: Vec::new(),
+                        },
+                        r.plain,
+                    ),
+                    Err(e) => (Response::fail(e), false),
                 }
             })
             .await;

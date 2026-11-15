@@ -390,7 +390,7 @@ Penomoran: v3.x menambah fitur tanpa memutus apa pun dari Servel. **v4.0 adalah 
 ### G — v3.1: lanjutan
 
 - [x] G1 — Palet perintah Ctrl K / ⌘K (`CommandPalette.vue`, `utils/palette.ts`): pindah layar; start/stop service (sama dengan switch: start ikut memilih, stop melepas pilihan), Start selected, Stop all; project Start / Open / Restart / Stop sesuai keadaan. Tombol "Commands" di navigasi kiri. Pilihan service kini dipulihkan saat aplikasi dibuka, bukan saat layar Services dibuka.
-- [ ] G2 — CLI lintas platform (macOS/Linux).
+- [x] G2 — CLI `kova` untuk macOS dan Linux (`assets/cli/kova.sh`, POSIX sh). Dipasang dari Settings → General → Terminal ke `~/.local/bin/kova` (`cli_install.rs`; skrip ditanam di biner, file asing bernama `kova` tidak ditimpa). `up`/`down` dan perintah project dijalankan aplikasi lewat kanal kontrol (aksi baru `up`, `down`, `services`, dan balasan teks `plain`); `status`/`logs`/`shell` langsung ke Docker. Tidak ada `restore` dan `list` di CLI ini. Belum diuji di macOS/Linux sungguhan.
 - G3 — Code signing: **ditunda**. SignPath Foundation menolak pengajuan (Juni 2026: proyek belum punya cukup adopsi publik). Diajukan ulang setelah ada adopsi, atau dibuka lagi bila ada pengguna yang terhalang peringatan SmartScreen. Pilihan berbayar (Certum Open Source, Azure Trusted Signing, SignPath berlangganan) belum diperiksa syarat dan harganya.
 
 ### v3.x — kandidat, belum diputuskan

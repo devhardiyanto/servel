@@ -4,6 +4,7 @@ mod control;
 mod pecl;
 mod open_in;
 mod autostart;
+mod cli_install;
 mod php_ext;
 mod sites;
 mod runtime;
@@ -138,6 +139,8 @@ pub fn run() {
             open_in::project_open_in,
             autostart::autostart_get,
             autostart::autostart_set,
+            cli_install::cli_status,
+            cli_install::cli_install,
             mise::mise_trust,
             mise::mise_repair,
             app_ready,
