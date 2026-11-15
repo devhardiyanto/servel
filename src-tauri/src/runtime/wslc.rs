@@ -728,6 +728,32 @@ async fn ensure_volumes(app: &AppHandle, def: &ServiceDef, known: &mut Option<Ha
     }
 }
 
+/// Container adopsi yang sudah pernah diberitahukan (`wslc-adopted.json`), supaya
+/// pemberitahuannya muncul sekali saja, bukan di setiap sesi. Sengaja terpisah
+/// dari `wslc-state.json`: entri di sana berarti "dibuat Kova" dan bisa memicu recreate.
+fn adopted_path(app: &AppHandle) -> Option<PathBuf> {
+    app.path().app_config_dir().ok().map(|d| d.join("wslc-adopted.json"))
+}
+
+/// `true` bila `name` belum tercatat; mencatatnya sekaligus.
+fn record_adoption(path: &std::path::Path, name: &str) -> bool {
+    let mut names: Vec<String> = std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+    if names.iter().any(|n| n == name) {
+        return false;
+    }
+    names.push(name.to_string());
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Ok(json) = serde_json::to_string_pretty(&names) {
+        let _ = std::fs::write(path, json);
+    }
+    true
+}
+
 /// `true` hanya pada pemanggilan pertama untuk `name` dalam sesi aplikasi ini.
 fn first_adoption_notice(name: &str) -> bool {
     use std::sync::{Mutex, OnceLock};
@@ -751,9 +777,13 @@ async fn start_one(
     let recorded = state.get(name).map(String::as_str);
     let action = plan_start(existing, recorded, &desired);
 
-    // Container adopsi (tidak tercatat di wslc-state.json): beri tahu sekali per
-    // sesi saja, bukan di setiap start.
-    if existing.is_some() && recorded.is_none() && first_adoption_notice(name) {
+    // Container adopsi (tidak tercatat di wslc-state.json): beri tahu sekali saja
+    // (dicatat di wslc-adopted.json), bukan di setiap start atau setiap sesi.
+    if existing.is_some()
+        && recorded.is_none()
+        && first_adoption_notice(name)
+        && adopted_path(app).is_none_or(|p| record_adoption(&p, name))
+    {
         emit(
             app,
             &source,
@@ -982,6 +1012,18 @@ mod tests {
         assert!(first_adoption_notice("servel_test_a"));
         assert!(!first_adoption_notice("servel_test_a"));
         assert!(first_adoption_notice("servel_test_b"));
+    }
+
+    #[test]
+    fn adoption_is_recorded_once_across_sessions() {
+        let dir = std::env::temp_dir().join(format!("kova-adopt-{}", std::process::id()));
+        let path = dir.join("wslc-adopted.json");
+        let _ = std::fs::remove_file(&path);
+        assert!(record_adoption(&path, "servel_mysql"));
+        assert!(!record_adoption(&path, "servel_mysql"));
+        assert!(record_adoption(&path, "servel_redis"));
+        assert!(!record_adoption(&path, "servel_mysql"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
