@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useLogFocus } from '@/composables/useLogFocus'
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { save } from '@tauri-apps/plugin-dialog'
 import { useLogs } from '@/composables/useLogs'
@@ -79,7 +80,31 @@ const tabLines = computed(() => {
   })
 })
 
-const filteredLines = computed(() => (problemsOnly.value ? tabLines.value.filter(isProblem) : tabLines.value))
+// Filter teks (v3.2): tiap kata harus ada di teks atau sumber baris.
+const textFilter = ref('')
+const filterEl = ref<HTMLInputElement | null>(null)
+const filterWords = computed(() => textFilter.value.toLowerCase().split(/\s+/).filter(Boolean))
+
+const filteredLines = computed(() => {
+  let out = problemsOnly.value ? tabLines.value.filter(isProblem) : tabLines.value
+  const words = filterWords.value
+  if (words.length > 0) {
+    out = out.filter((l) => {
+      const hay = `${l.src} ${l.text}`.toLowerCase()
+      return words.every((w) => hay.includes(w))
+    })
+  }
+  return out
+})
+
+// Ctrl F memfokuskan filter (cari bawaan webview dimatikan di webviewGuards).
+function handleFindKey(e: KeyboardEvent): void {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
+    e.preventDefault()
+    filterEl.value?.focus()
+    filterEl.value?.select()
+  }
+}
 
 const errorCount = computed(
   () => filteredLines.value.filter((l) => l.level === 'error').length,
@@ -94,6 +119,13 @@ function scrollToBottom(): void {
 const { handleKeydown, handleCopy, focusContainer } = useLogCopy(logAreaRef, filteredLines)
 
 onMounted(async () => {
+  // Dibuka dari "View log" di kartu project: langsung ke output project itu.
+  const wanted = useLogFocus().take()
+  if (wanted && projectNames.value.includes(wanted)) {
+    activeTab.value = 'Projects'
+    projectFilter.value = wanted
+  }
+  document.addEventListener('keydown', handleFindKey)
   document.addEventListener('keydown', handleKeydown)
   logAreaRef.value?.addEventListener('copy', handleCopy)
   await nextTick()
@@ -101,12 +133,13 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  document.removeEventListener('keydown', handleFindKey)
   document.removeEventListener('keydown', handleKeydown)
   logAreaRef.value?.removeEventListener('copy', handleCopy)
 })
 
 watch(
-  () => [lines.value.length, activeTab.value, projectFilter.value, problemsOnly.value],
+  () => [lines.value.length, activeTab.value, projectFilter.value, problemsOnly.value, textFilter.value],
   async () => {
     if (autoScroll.value) {
       await nextTick()
@@ -171,6 +204,17 @@ function triggerDownload(text: string, filename: string): void {
         >{{ tab }}</button>
       </nav>
       <div class="lv-header__right">
+        <input
+          ref="filterEl"
+          v-model="textFilter"
+          class="lv-filter"
+          type="search"
+          placeholder="Filter lines"
+          aria-label="Filter log lines by text"
+          spellcheck="false"
+          autocomplete="off"
+          @keydown.esc="textFilter = ''"
+        />
         <button
           class="lv-btn lv-btn--outline"
           :class="{ 'lv-btn--problems-on': problemsOnly }"
@@ -225,15 +269,17 @@ function triggerDownload(text: string, filename: string): void {
         >{{ line.src }}</span>
         <span class="lv-text">{{ line.text }}</span>
       </div>
-      <div v-if="filteredLines.length === 0" class="lv-empty">
-        {{ problemsOnly && tabLines.length > 0 ? 'no errors or warnings in these logs' : 'no logs — output will appear here' }}
-      </div>
+      <div v-if="tabLines.length === 0" class="lv-empty">no logs — output will appear here</div>
+      <p v-if="filteredLines.length === 0 && tabLines.length > 0" class="lv-none">
+        No lines match the current filter.
+        <button class="lv-none__clear" @click="textFilter = ''; problemsOnly = false">Clear filter</button>
+      </p>
     </div>
 
     <!-- Bottom status bar -->
     <footer class="lv-footer">
       <span class="lv-footer__stats">
-        {{ filteredLines.length }} lines
+        {{ filteredLines.length }}<template v-if="filterWords.length > 0 || problemsOnly"> of {{ tabLines.length }}</template> lines
         <span v-if="errorCount > 0" class="lv-footer__errors">&nbsp;· {{ errorCount }} errors</span>
         <span v-else class="lv-footer__ok">&nbsp;· 0 errors</span>
       </span>
@@ -385,6 +431,32 @@ function triggerDownload(text: string, filename: string): void {
   gap: var(--space-2);
   flex-shrink: 0;
 }
+
+.lv-none { margin: var(--space-4); font-size: var(--text-sm); color: var(--faint); }
+.lv-none__clear {
+  margin-left: var(--space-2);
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.lv-none__clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.lv-filter {
+  width: 160px;
+  padding: 3px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.lv-filter::placeholder { color: var(--faint); }
+.lv-filter:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
 
 .lv-btn {
   font-family: var(--font-mono);

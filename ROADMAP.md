@@ -393,10 +393,25 @@ Penomoran: v3.x menambah fitur tanpa memutus apa pun dari Servel. **v4.0 adalah 
 - [x] G2 — CLI `kova` untuk macOS dan Linux (`assets/cli/kova.sh`, POSIX sh). Dipasang dari Settings → General → Terminal ke `~/.local/bin/kova` (`cli_install.rs`; skrip ditanam di biner, file asing bernama `kova` tidak ditimpa). `up`/`down` dan perintah project dijalankan aplikasi lewat kanal kontrol (aksi baru `up`, `down`, `services`, dan balasan teks `plain`); `status`/`logs`/`shell` langsung ke Docker. Tidak ada `restore` dan `list` di CLI ini. Belum diuji di macOS/Linux sungguhan.
 - G3 — Code signing: **ditunda**. SignPath Foundation menolak pengajuan (Juni 2026: proyek belum punya cukup adopsi publik). Diajukan ulang setelah ada adopsi, atau dibuka lagi bila ada pengguna yang terhalang peringatan SmartScreen. Pilihan berbayar (Certum Open Source, Azure Trusted Signing, SignPath berlangganan) belum diperiksa syarat dan harganya.
 
+### H — v3.2.0: kelengkapan UI dari canvas
+
+Dua PR menuju satu rilis. Versi dinaikkan di PR 2.
+
+PR 1:
+
+- [x] Pintasan browser bawaan webview dimatikan di build rilis (`utils/webviewGuards.ts`): cetak, muat ulang, cari di halaman, lihat sumber, simpan, zoom (tombol dan Ctrl + roda), devtools, riwayat (Alt ←/→, tombol mouse), F3/F5/F7/F12, menu konteks di luar kolom teks, seret-lepas file, klik tengah. Hanya perilaku bawaan yang dimatikan; Ctrl K, salin/tempel, dan Ctrl A di area log tetap bekerja. Belum diverifikasi di WebView2 sungguhan.
+- [x] "View log" di kartu project yang gagal atau tidak menjawab: membuka Logs → Projects dengan filter project itu.
+- [x] Filter teks di Logs (tiap kata harus ada di baris atau sumbernya), Ctrl F memfokuskannya, Esc mengosongkan; footer menampilkan "N of M lines".
+
+PR 2:
+
+- [ ] Komponen bersama: Input/Select, SegmentedControl, Tabs, StatusDot, Chip/Badge, Banner, Toast, Menu ⋯, Modal, Drawer, EmptyState.
+- [ ] Menu ⋯, drawer, toast dipakai di layar.
+- [ ] State kosong/memuat/error dicocokkan dengan canvas.
+
 ### v3.x — kandidat, belum diputuskan
 
 - Deteksi project Python (saat ini hanya kelola versi).
-- Komponen bersama yang belum dibuat (Tabs, Menu ⋯, Toast, EmptyState) saat ada layar yang memerlukannya.
 
 ### v4.0 — pemutusan kompatibilitas Servel (belum dijadwalkan)
 

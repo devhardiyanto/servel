@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue'
-import { ref, computed } from 'vue'
+import { ref, computed, inject } from 'vue'
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useConfig } from '@/composables/useConfig'
@@ -12,6 +12,17 @@ import {
 } from '@/composables/useProjectRuntime'
 import type { Project } from '@/types/mise'
 import { parseEnvText, envToText } from '@/utils/envText'
+import { useLogFocus } from '@/composables/useLogFocus'
+import { SetViewKey } from '@/types/navigation'
+
+const setView = inject(SetViewKey, () => {})
+const logFocus = useLogFocus()
+
+/** Buka Logs → Projects dengan filter project ini. */
+function viewLog(p: Project): void {
+  logFocus.focusProject(p.name)
+  setView('logs')
+}
 
 const { config, addProject, removeProject, updateProject } = useConfig()
 const versionCtx = useVersionContext()
@@ -327,10 +338,12 @@ async function handleRemove(p: Project): Promise<void> {
         <p v-if="errors[p.id]" class="pp-error">{{ errors[p.id] }}</p>
         <p v-else-if="infoOf(p.id)?.state === 'exited' && infoOf(p.id)?.lastLine" class="pp-error pp-error--mono">
           {{ infoOf(p.id)?.lastLine }}
+          <button class="pp-link" @click.stop="viewLog(p)">View log</button>
         </p>
         <p v-else-if="stateOf(p.id) === 'unresponsive'" class="pp-note">
           The process is running but nothing answers on port {{ p.port }}. The app may be listening on a different
-          port; check the Logs, then set that port in Edit.
+          port; check the log, then set that port in Edit.
+          <button class="pp-link" @click.stop="viewLog(p)">View log</button>
         </p>
 
         <div v-if="editingId === p.id" class="pp-form">
@@ -419,6 +432,19 @@ async function handleRemove(p: Project): Promise<void> {
 </template>
 
 <style scoped>
+.pp-link {
+  margin-left: var(--space-2);
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-family: var(--font-sans, inherit);
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.pp-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 .pp {
   display: flex;
   flex-direction: column;
