@@ -5,6 +5,9 @@
 //! `~/.local/bin/kova` atas permintaan pengguna (Settings → General). Skrip
 //! ditanam di biner (`include_str!`), jadi berlaku juga untuk AppImage.
 
+// Di Windows hanya `cli_status` (supported: false) yang terpakai.
+#![cfg_attr(not(unix), allow(dead_code, unused_imports))]
+
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
