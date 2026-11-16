@@ -4,6 +4,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiInput from '@/components/ui/UiInput.vue'
 import { useVersionContext } from '@/composables/useVersionContext'
 import type { ToolCurrent } from '@/types/mise'
 
@@ -99,27 +100,27 @@ onMounted(() => TOOLS.forEach((t) => void load(t.id)))
       </div>
 
       <div class="rt-controls">
-        <select
+        <UiInput
           v-model="picked[t.id]"
-          class="rt-select"
+          as="select"
+          width="150px"
           :aria-label="`${t.label} version`"
           :disabled="!data[t.id]?.installed.length"
-        >
-          <option v-if="!data[t.id]?.installed.length" value="">none installed</option>
-          <option v-for="v in data[t.id]?.installed ?? []" :key="v.version" :value="v.version">{{ v.version }}</option>
-        </select>
+          :options="data[t.id]?.installed.length
+            ? data[t.id]!.installed.map((v) => ({ value: v.version, label: v.version }))
+            : [{ value: '', label: 'none installed' }]"
+        />
         <UiButton :disabled="busy !== null || !picked[t.id]" @click="use(t.id, 'global')">Use globally</UiButton>
         <UiButton v-if="project" variant="accent" :disabled="busy !== null || !picked[t.id]" @click="use(t.id, 'project')">
           Use in {{ project.name }}
         </UiButton>
 
         <span class="rt-sep"></span>
-        <input
+        <UiInput
           v-model="newVersion[t.id]"
-          class="rt-input"
+          width="120px"
           :placeholder="`e.g. ${t.example}`"
           :aria-label="`${t.label} version to install`"
-          spellcheck="false"
           @keydown.enter="install(t.id)"
         />
         <UiButton :loading="busy === t.id" :disabled="busy !== null" @click="install(t.id)">Install</UiButton>
@@ -139,18 +140,5 @@ onMounted(() => TOOLS.forEach((t) => void load(t.id)))
 .rt-dim { color: var(--faint); }
 .rt-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .rt-sep { flex: 1; }
-.rt-select,
-.rt-input {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  padding: 4px 8px;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xs);
-  color: var(--text);
-}
-.rt-input { width: 110px; }
-.rt-select:focus-visible,
-.rt-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .rt-error { margin: var(--space-2) 0 0; font-size: var(--text-xs); color: var(--red); }
 </style>

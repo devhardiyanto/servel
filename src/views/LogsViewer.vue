@@ -2,6 +2,7 @@
 import UiTabs from '@/components/ui/UiTabs.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiInput from '@/components/ui/UiInput.vue'
 import { useLogFocus } from '@/composables/useLogFocus'
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -85,7 +86,7 @@ const tabLines = computed(() => {
 
 // Filter teks (v3.2): tiap kata harus ada di teks atau sumber baris.
 const textFilter = ref('')
-const filterEl = ref<HTMLInputElement | null>(null)
+const filterEl = ref<InstanceType<typeof UiInput> | null>(null)
 const filterWords = computed(() => textFilter.value.toLowerCase().split(/\s+/).filter(Boolean))
 
 const filteredLines = computed(() => {
@@ -205,38 +206,39 @@ function triggerDownload(text: string, filename: string): void {
         @update:model-value="activeTab = $event as Tab"
       />
       <div class="lv-header__right">
-        <input
+        <UiInput
           ref="filterEl"
           v-model="textFilter"
-          class="lv-filter"
           type="search"
+          width="180px"
           placeholder="Filter lines"
           aria-label="Filter log lines by text"
-          spellcheck="false"
-          autocomplete="off"
           @keydown.esc="textFilter = ''"
         />
-        <button
-          class="lv-btn lv-btn--outline"
-          :class="{ 'lv-btn--problems-on': problemsOnly }"
+        <UiButton
+          :variant="problemsOnly ? 'accent' : 'default'"
           :aria-pressed="problemsOnly"
           title="Show only lines marked as error or warning"
           @click="problemsOnly = !problemsOnly"
-        >Errors &amp; warnings</button>
-        <button class="lv-btn lv-btn--outline" @click="clear">Clear</button>
-        <button
-          class="lv-btn lv-btn--autoscroll"
-          :class="{ 'lv-btn--autoscroll-on': autoScroll }"
+        >Errors &amp; warnings</UiButton>
+        <UiButton @click="clear">Clear</UiButton>
+        <UiButton
+          :variant="autoScroll ? 'accent' : 'default'"
+          :aria-pressed="autoScroll"
+          title="Keep the newest line in view"
           @click="autoScroll = !autoScroll"
-        >
-          &#8595; Auto-scroll {{ autoScroll ? 'ON' : 'OFF' }}
-        </button>
+        >Auto-scroll</UiButton>
       </div>
     </header>
 
     <!-- Filter per project -->
     <div v-if="activeTab === 'Projects' && projectChips.length > 1" class="lv-chips">
-      <button class="lv-chip" :class="{ 'lv-chip--active': projectFilter === '' }" @click="projectFilter = ''">
+      <button
+        class="lv-chip"
+        :class="{ 'lv-chip--active': projectFilter === '' }"
+        :aria-pressed="projectFilter === ''"
+        @click="projectFilter = ''"
+      >
         All projects
       </button>
       <button
@@ -244,6 +246,7 @@ function triggerDownload(text: string, filename: string): void {
         :key="c.name"
         class="lv-chip"
         :class="{ 'lv-chip--active': projectFilter === c.name }"
+        :aria-pressed="projectFilter === c.name"
         @click="projectFilter = c.name"
       >
         {{ c.name }}<span v-if="c.errors > 0" class="lv-chip__err">{{ c.errors }}</span>
@@ -288,7 +291,7 @@ function triggerDownload(text: string, filename: string): void {
         <span v-if="errorCount > 0" class="lv-footer__errors">&nbsp;· {{ errorCount }} errors</span>
         <span v-else class="lv-footer__ok">&nbsp;· 0 errors</span>
       </span>
-      <button class="lv-btn lv-btn--outline" @click="exportLogs">Export Logs</button>
+      <UiButton @click="exportLogs">Export logs</UiButton>
     </footer>
   </div>
 </template>
@@ -388,12 +391,6 @@ function triggerDownload(text: string, filename: string): void {
   font-weight: 700;
 }
 
-.lv-btn--problems-on {
-  color: var(--red);
-  border-color: color-mix(in srgb, var(--red) 50%, transparent);
-  background: color-mix(in srgb, var(--red) 10%, transparent);
-}
-
 .lv-chip:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -406,56 +403,6 @@ function triggerDownload(text: string, filename: string): void {
   align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
-}
-
-.lv-filter {
-  width: 160px;
-  padding: 3px 8px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-.lv-filter::placeholder { color: var(--faint); }
-.lv-filter:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: transparent; }
-
-.lv-btn {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  padding: 3px 10px;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  transition: background 0.1s, border-color 0.1s, color 0.1s;
-}
-
-.lv-btn--outline {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--muted);
-}
-
-.lv-btn--outline:hover {
-  border-color: var(--dim);
-  color: var(--text);
-}
-
-.lv-btn--autoscroll {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--faint);
-}
-
-.lv-btn--autoscroll-on {
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-}
-
-.lv-btn--autoscroll:hover {
-  border-color: var(--muted);
-  color: var(--text);
 }
 
 /* Log area */

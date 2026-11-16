@@ -3,6 +3,7 @@
 // halaman Runtimes di v3.
 import { computed, inject, onMounted } from 'vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiInput from '@/components/ui/UiInput.vue'
 import UiModal from '@/components/ui/UiModal.vue'
 import { usePhp } from '@/composables/usePhp'
 import { useNode } from '@/composables/useNode'
@@ -138,14 +139,14 @@ onMounted(() => {
 
     <div v-if="isMise" class="ctx-bar">
       <span class="ctx-bar__label">Versions for</span>
-      <select
-        class="ctx-select"
-        :value="activeProjectId ?? ''"
-        @change="onContextChange(($event.target as HTMLSelectElement).value)"
-      >
-        <option value="">Global</option>
-        <option v-for="p in projects.filter((x) => x.path)" :key="p.id" :value="p.id">{{ p.name }}</option>
-      </select>
+      <UiInput
+        as="select"
+        width="180px"
+        aria-label="Versions for"
+        :model-value="activeProjectId ?? ''"
+        :options="[{ value: '', label: 'Global' }, ...projects.filter((x) => x.path).map((p) => ({ value: p.id, label: p.name }))]"
+        @update:model-value="onContextChange"
+      />
       <span v-if="miseCtx?.project" class="ctx-bar__path" :title="miseCtx.project.path">
         {{ miseCtx.project.path }}<template v-if="miseCtx.projectMissing"> — folder not found</template>
       </span>
@@ -392,15 +393,6 @@ onMounted(() => {
 }
 .ctx-bar__spacer { flex: 1; }
 .ctx-bar__hint { color: var(--faint); font-size: var(--text-xs); white-space: nowrap; }
-.ctx-select {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 4px 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  background: var(--surface2);
-  color: var(--text);
-}
 .ctx-banner {
   display: flex;
   align-items: center;

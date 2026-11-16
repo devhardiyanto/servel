@@ -55,7 +55,7 @@ const items = computed(() => [
       <span v-if="it.dot" class="rail-dot" title="Update available"></span>
       <span v-if="it.badge" class="rail-badge" :class="{ 'rail-badge--alert': it.alert }">{{ it.badge }}</span>
     </button>
-    <button class="rail-cmd" aria-label="Open the command palette" @click="emit('palette')">
+    <button class="rail-cmd" title="Open the command palette" @click="emit('palette')">
       <span class="rail-label">Commands</span>
       <kbd>{{ isMac ? '⌘K' : 'Ctrl K' }}</kbd>
     </button>
