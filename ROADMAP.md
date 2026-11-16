@@ -418,9 +418,18 @@ PR 2:
 - [x] Kova yang dibuka kedua kali meminta instance pertama menampilkan jendelanya (aksi `show` di kanal kontrol), lalu keluar. Dicek paling awal di `run()`, sebelum Tauri dibangun. Start saat login (`--hidden`) hanya memeriksa, tanpa memunculkan jendela. `control.json` dihapus sebelum restart setelah update supaya proses baru tidak menyerahkan diri ke proses lama.
 - [x] v3.2.0: `latest.json` terbit dengan 4 dari 8 platform karena job build menulisnya bergantian; diganti manual di rilis. Workflow belum diperbaiki.
 
+### I — v3.3.0: Python, CLI Unix, komponen bersama, aksesibilitas
+
+- [x] Deteksi project Python: Django, FastAPI, Flask, skrip biasa; interpreter mengikuti uv, poetry, pipenv, atau `.venv`.
+- [x] `kova list` dan `kova restore` di macOS/Linux (aksi `list` baru di kanal kontrol).
+- [x] Sisa kolom isian (Runtimes, PHP extensions, profil, filter log), tombol log, kartu prasyarat, dan saklar service dipindah ke komponen bersama.
+- [x] Audit aksesibilitas WCAG 2.1 A/AA dengan axe-core di 12 layar: tanpa temuan setelah perbaikan kontras `--faint`, saklar service, pemilihan project lewat keyboard, dan nama aksesibel.
+- [x] Workflow rilis: tag dicek terhadap versi, "Run workflow" membuat tag, `latest.json` disusun sekali.
+- [ ] Uji di perangkat nyata: v3.2.x dan v3.3.0 di Windows; build dan CLI di macOS/Linux.
+
 ### v3.x — kandidat, belum diputuskan
 
-- Deteksi project Python (saat ini hanya kelola versi).
+- Belum ada kandidat terbuka. Usulan baru dicatat di sini.
 
 ### v4.0 — pemutusan kompatibilitas Servel (belum dijadwalkan)
 
