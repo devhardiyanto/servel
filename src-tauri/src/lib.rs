@@ -92,6 +92,13 @@ pub fn run() {
     #[cfg(target_os = "windows")]
     suppress_windows_error_popups();
 
+    // Satu Kova saja: bila sudah ada yang berjalan, minta ia menampilkan
+    // jendelanya lalu keluar. Tanpa ini tiap klik ikon membuat proses, ikon
+    // tray, dan dev server kedua.
+    if control::hand_off_to_running_instance(std::env::args().any(|a| a == autostart::HIDDEN_ARG)) {
+        return;
+    }
+
     // Dishare antar loop polling + shutdown callback.
     let daemon_ready = Arc::new(AtomicBool::new(false));
     let shutting_down = Arc::new(AtomicBool::new(false));

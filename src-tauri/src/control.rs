@@ -36,6 +36,9 @@ pub enum Action {
     Down,
     /// Service: daftar status.
     Services,
+    /// Tampilkan jendela utama. Dikirim oleh Kova yang dibuka kedua kali,
+    /// supaya hanya ada satu Kova yang berjalan (v3.2.1).
+    Show,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -129,6 +132,7 @@ pub fn parse_request(line: &str, token: &str) -> Result<Request, String> {
         "up" => Action::Up,
         "down" => Action::Down,
         "services" => Action::Services,
+        "show" => Action::Show,
         other => return Err(format!("unknown action: {}", other)),
     };
     let target = target.trim().to_string();
@@ -220,6 +224,14 @@ async fn handle_services(app: &AppHandle, req: &Request) -> Result<Response, Str
 }
 
 async fn handle(app: &AppHandle, req: &Request) -> Response {
+    if req.action == Action::Show {
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = w.unminimize();
+            let _ = w.show();
+            let _ = w.set_focus();
+        }
+        return Response { ok: true, message: "shown".to_string(), projects: Vec::new(), services: Vec::new() };
+    }
     if matches!(req.action, Action::Up | Action::Down | Action::Services) {
         return handle_services(app, req).await.unwrap_or_else(Response::fail);
     }
@@ -256,6 +268,67 @@ async fn respond(app: &AppHandle, line: &str, token: &str) -> (Response, bool) {
     match parse_request(line, token) {
         Ok(req) => (handle(app, &req).await, req.plain),
         Err(e) => (Response::fail(e), false),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Satu instance: Kova yang dibuka kedua kali menyerahkan diri ke yang pertama
+// ---------------------------------------------------------------------------
+
+/// Folder data aplikasi tanpa `AppHandle` (dipakai sebelum Tauri dibangun).
+/// Sama dengan `app_data_dir()` untuk identifier ini.
+fn data_dir_early() -> Option<std::path::PathBuf> {
+    const ID: &str = "com.devhardiyanto.servel";
+    #[cfg(windows)]
+    let base = std::env::var_os("APPDATA").map(std::path::PathBuf::from);
+    #[cfg(target_os = "macos")]
+    let base = std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join("Library/Application Support"));
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let base = std::env::var_os("XDG_DATA_HOME")
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".local/share")));
+    base.map(|b| b.join(ID))
+}
+
+/// Kirim satu permintaan ke Kova di `port`; `true` hanya bila ia menjawab
+/// `ok`. Token yang cocok membuktikan penjawabnya memang Kova, bukan program
+/// lain yang kebetulan memakai port dari `control.json` lama.
+pub fn ask_instance(port: u16, token: &str, request: &str) -> bool {
+    use std::io::{BufRead, Write};
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let Ok(mut stream) = std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(700)) else {
+        return false;
+    };
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(3)));
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(3)));
+    if stream.write_all(format!("{} {}\n", token, request).as_bytes()).is_err() {
+        return false;
+    }
+    let mut line = String::new();
+    if std::io::BufReader::new(stream).read_line(&mut line).is_err() {
+        return false;
+    }
+    serde_json::from_str::<serde_json::Value>(&line).map(|v| v["ok"] == true).unwrap_or(false)
+}
+
+/// Dipanggil paling awal saat start. `true` = Kova lain sudah berjalan dan
+/// sudah diminta menampilkan jendelanya; proses ini harus keluar. `hidden`
+/// (start saat login) hanya memeriksa, tanpa memunculkan jendela.
+pub fn hand_off_to_running_instance(hidden: bool) -> bool {
+    let Some(file) = data_dir_early().map(|d| d.join("control.json")) else { return false };
+    let Ok(text) = std::fs::read_to_string(file) else { return false };
+    let Ok(info) = serde_json::from_str::<serde_json::Value>(&text) else { return false };
+    let (Some(port), Some(token)) = (info["port"].as_u64(), info["token"].as_str()) else { return false };
+    let Ok(port) = u16::try_from(port) else { return false };
+    ask_instance(port, token, if hidden { "status" } else { "show" })
+}
+
+/// Hapus `control.json` sebelum restart setelah update: proses baru dimulai
+/// saat proses ini masih hidup sebentar, dan tidak boleh mengira Kova sudah berjalan.
+pub fn forget() {
+    if let Some(dir) = data_dir_early() {
+        let _ = std::fs::remove_file(dir.join("control.json"));
     }
 }
 
@@ -393,6 +466,36 @@ mod tests {
         assert_eq!(service_ids("MySQL  redis", &known).unwrap(), vec!["mysql", "redis"]);
         assert!(service_ids("", &known).unwrap().is_empty());
         assert!(service_ids("mysql nope", &known).unwrap_err().contains("available: mysql, redis"));
+    }
+
+    #[test]
+    fn show_is_parsed() {
+        assert_eq!(
+            parse_request("abc123 show", "abc123"),
+            Ok(Request { action: Action::Show, target: String::new(), plain: false })
+        );
+    }
+
+    /// Instance kedua: `true` hanya bila penjawabnya menerima token dan membalas ok.
+    #[test]
+    fn ask_instance_needs_an_ok_reply() {
+        use std::io::{BufRead, Write};
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = std::thread::spawn(move || {
+            for _ in 0..2 {
+                let (stream, _) = listener.accept().unwrap();
+                let mut line = String::new();
+                std::io::BufReader::new(&stream).read_line(&mut line).unwrap();
+                let ok = parse_request(&line, "tok").map(|r| r.action == Action::Show).unwrap_or(false);
+                (&stream).write_all(format!("{{\"ok\":{}}}\n", ok).as_bytes()).unwrap();
+            }
+        });
+        assert!(ask_instance(port, "tok", "show"));
+        assert!(!ask_instance(port, "wrong", "show"));
+        server.join().unwrap();
+        // Tidak ada yang mendengarkan (control.json tertinggal dari sesi yang mati).
+        assert!(!ask_instance(port, "tok", "show"));
     }
 
     #[test]
