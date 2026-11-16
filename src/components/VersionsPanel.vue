@@ -3,6 +3,7 @@
 // halaman Runtimes di v3.
 import { computed, inject, onMounted } from 'vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiModal from '@/components/ui/UiModal.vue'
 import { usePhp } from '@/composables/usePhp'
 import { useNode } from '@/composables/useNode'
 import { useVersionContext } from '@/composables/useVersionContext'
@@ -224,26 +225,30 @@ onMounted(() => {
       </div>
     </section>
 
-    <div v-if="scopeRequest" class="scope-overlay" @click.self="scopeRequest = null">
-        <div class="scope-dialog" role="dialog" aria-modal="true">
-          <div class="scope-dialog__title">
-            Use {{ scopeRequest.tool === 'php' ? 'PHP' : 'Node' }} {{ scopeRequest.version }} for {{ miseCtx?.project?.name }}?
-          </div>
-          <p class="scope-dialog__body">
-            This project currently follows your global {{ scopeRequest.tool === 'php' ? 'PHP' : 'Node' }}
-            version<template v-if="scopeRequest.globalVersion"> ({{ scopeRequest.globalVersion }})</template>.
-          </p>
-          <button class="scope-option scope-option--primary" @click="resolveScope('project')">
-            <span>Pin in this project</span>
-            <small>writes {{ scopeRequest.projectFile }}</small>
-          </button>
-          <button class="scope-option" @click="resolveScope('global')">
-            <span>Change global version</span>
-            <small>affects every project without its own pin</small>
-          </button>
-          <UiButton variant="quiet" class="scope-cancel" @click="scopeRequest = null">Cancel</UiButton>
-        </div>
-      </div>
+    <UiModal
+      :open="!!scopeRequest"
+      :title="scopeRequest ? `Use ${scopeRequest.tool === 'php' ? 'PHP' : 'Node'} ${scopeRequest.version} for ${miseCtx?.project?.name ?? 'this project'}?` : ''"
+      size="sm"
+      @close="scopeRequest = null"
+    >
+      <template v-if="scopeRequest">
+        <p class="scope-dialog__body">
+          This project currently follows your global {{ scopeRequest.tool === 'php' ? 'PHP' : 'Node' }}
+          version<template v-if="scopeRequest.globalVersion"> ({{ scopeRequest.globalVersion }})</template>.
+        </p>
+        <button class="scope-option scope-option--primary" data-autofocus @click="resolveScope('project')">
+          <span>Pin in this project</span>
+          <small>writes {{ scopeRequest.projectFile }}</small>
+        </button>
+        <button class="scope-option" @click="resolveScope('global')">
+          <span>Change global version</span>
+          <small>affects every project without its own pin</small>
+        </button>
+      </template>
+      <template #footer>
+        <UiButton variant="quiet" size="md" @click="scopeRequest = null">Cancel</UiButton>
+      </template>
+    </UiModal>
   </div>
 </template>
 
@@ -432,28 +437,7 @@ onMounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.scope-overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 50;
-}
-.scope-dialog {
-  width: min(460px, calc(100vw - 32px));
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-5);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  box-shadow: var(--shadow-md);
-}
-.scope-dialog__title { font-size: var(--text-md); font-weight: 600; color: var(--text); }
-.scope-dialog__body { font-size: var(--text-xs); color: var(--muted); line-height: 1.55; }
+.scope-dialog__body { margin: 0; }
 .scope-option {
   display: flex;
   flex-direction: column;

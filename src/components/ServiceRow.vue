@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { ServiceDef, ServiceUiState } from '@/types/service'
 import UiButton from '@/components/ui/UiButton.vue'
+import StatusDot, { type DotState } from '@/components/ui/StatusDot.vue'
 
 const props = defineProps<{
   def: ServiceDef
@@ -45,6 +46,17 @@ function imageTag(def: ServiceDef): string {
   const parts = def.image.split(':')
   return parts.length > 1 ? `${parts[0].split('/').pop()}:${parts[1]}` : def.image
 }
+
+// Bentuk titik per status (lihat StatusDot): stopping → starting, error → exited.
+const dot = computed<{ state: DotState; label: string }>(() => {
+  switch (props.state.status) {
+    case 'running': return { state: 'running', label: 'running' }
+    case 'starting': return { state: 'starting', label: 'starting' }
+    case 'stopping': return { state: 'starting', label: 'stopping' }
+    case 'error': return { state: 'exited', label: 'error' }
+    default: return { state: 'stopped', label: 'stopped' }
+  }
+})
 </script>
 
 <template>
@@ -64,30 +76,7 @@ function imageTag(def: ServiceDef): string {
     <span class="svc-port">{{ formatPorts(def) }}</span>
     <span class="svc-ram">{{ ramDisplay }}</span>
     <div class="svc-status-cell">
-      <span
-        v-if="state.status === 'starting' || state.status === 'stopping'"
-        class="status-badge badge-starting"
-      >
-        <span class="sdot"></span>&#8943;
-      </span>
-      <span
-        v-else-if="state.status === 'running'"
-        class="status-badge badge-run"
-      >
-        <span class="sdot"></span>up
-      </span>
-      <span
-        v-else-if="state.status === 'error'"
-        class="status-badge badge-error"
-      >
-        <span class="sdot"></span>err
-      </span>
-      <span
-        v-else
-        class="status-badge badge-stop"
-      >
-        <span class="sdot"></span>off
-      </span>
+      <StatusDot :state="dot.state" :label="dot.label" />
     </div>
     <UiButton
       variant="quiet"
@@ -102,7 +91,7 @@ function imageTag(def: ServiceDef): string {
 <style scoped>
 .svc-row {
   display: grid;
-  grid-template-columns: 36px 24px 1fr 100px 68px 80px 76px;
+  grid-template-columns: 36px 24px 1fr 100px 68px 84px 76px;
   align-items: center;
   gap: var(--space-3);
   padding: 7px var(--space-4);
@@ -198,78 +187,6 @@ function imageTag(def: ServiceDef): string {
   justify-content: flex-end;
 }
 
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: var(--text-xs);
-  letter-spacing: 0.01em;
-}
-
-.sdot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  position: relative;
-}
-
-/* Running — green, soft "alive" pulse with halo */
-.badge-run {
-  color: var(--green);
-}
-.badge-run .sdot {
-  background: var(--green);
-  box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 60%, transparent);
-  animation: heartbeat-run 1.8s ease-in-out infinite;
-}
-
-/* Stopped — dim, subtle slow pulse (idle) */
-.badge-stop {
-  color: var(--faint);
-}
-.badge-stop .sdot {
-  background: var(--dim);
-  animation: heartbeat-stop 3s ease-in-out infinite;
-}
-
-/* Starting / stopping — amber, fast urgent pulse */
-.badge-starting {
-  color: var(--amber);
-}
-.badge-starting .sdot {
-  background: var(--amber);
-  animation: heartbeat-active 0.9s ease-in-out infinite;
-}
-
-/* Error — red, static */
-.badge-error {
-  color: var(--red);
-}
-.badge-error .sdot {
-  background: var(--red);
-}
-
-@keyframes heartbeat-run {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 50%, transparent);
-  }
-  50% {
-    transform: scale(1.15);
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 0%, transparent);
-  }
-}
-
-@keyframes heartbeat-stop {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 0.85; }
-}
-
-@keyframes heartbeat-active {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.8); }
-}
 .svc-connect {
   justify-self: end;
   padding: 2px 10px;
@@ -277,7 +194,7 @@ function imageTag(def: ServiceDef): string {
 /* Tabel sempit (mis. panel Connect terbuka di jendela kecil): port tampil di
    panel Connect, jadi kolom port disembunyikan agar nama tidak terpotong. */
 @container (max-width: 620px) {
-  .svc-row { grid-template-columns: 36px 24px minmax(0, 1fr) 68px 56px 76px; }
+  .svc-row { grid-template-columns: 36px 24px minmax(0, 1fr) 68px 84px 76px; }
   .svc-port { display: none; }
 }
 </style>

@@ -405,9 +405,13 @@ PR 1:
 
 PR 2:
 
-- [ ] Komponen bersama: Input/Select, SegmentedControl, Tabs, StatusDot, Chip/Badge, Banner, Toast, Menu ⋯, Modal, Drawer, EmptyState.
-- [ ] Menu ⋯, drawer, toast dipakai di layar.
-- [ ] State kosong/memuat/error dicocokkan dengan canvas.
+- [x] Komponen bersama di `src/components/ui/`, mengikuti spesifikasi canvas (Controls, Patterns): `UiInput` (input/textarea/select + label, bantuan, error), `UiSegmented`, `UiTabs`, `StatusDot`, `UiChip` (chip dan badge), `UiBanner`, `ToastHost` + `useToast`, `UiMenu`, `UiModal`, `UiDrawer`, `EmptyState`. Modal dan drawer mengunci fokus, Esc menutup, fokus kembali ke pemicu (`utils/focusTrap.ts`).
+- [x] Projects: menu ⋯ per kartu (Open folder, Terminal here, Open in VS Code, Copy URL, Project settings…, Remove project…); form edit pindah ke drawer "Project settings"; hapus lewat dialog konfirmasi dengan fokus awal di Cancel (menggantikan dialog sistem); banner untuk project yang keluar atau tidak menjawab; state kosong, memuat (skeleton), dan error baca config.
+- [x] Services: status memakai `StatusDot` (bentuk berbeda per status); engine tidak merespons, konflik port, dan gagal start memakai `UiBanner`; Copy .env / Copy URL memberi toast.
+- [x] Logs: tab memakai `UiTabs` (panah kiri/kanan); state kosong dan "tidak ada yang cocok" memakai `EmptyState`.
+- [x] Runtimes: dialog scope versi memakai `UiModal`. Settings: pilihan engine dan target restore memakai `UiSegmented`.
+- Belum dipindah ke komponen bersama: kolom isian di Runtimes dan PHP extensions, kartu prasyarat di onboarding, tombol log (`lv-btn`), pemilih service (`svc-toggle`). Tampilannya tidak berubah.
+- Belum diuji terhadap backend di Windows.
 
 ### v3.x — kandidat, belum diputuskan
 

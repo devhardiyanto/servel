@@ -1,25 +1,24 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import UiButton from '@/components/ui/UiButton.vue'
 import type { ServiceDef } from '@/types/service'
 import { connectionInfo } from '@/utils/connect'
+import { useToast } from '@/composables/useToast'
 
 const props = defineProps<{ def: ServiceDef; running: boolean }>()
 
 const info = computed(() => connectionInfo(props.def))
-const copied = ref<'' | 'env' | 'url'>('')
-let timer: ReturnType<typeof setTimeout> | undefined
+const toast = useToast()
 
 async function copy(kind: 'env' | 'url'): Promise<void> {
   const text = kind === 'env' ? info.value.env : info.value.url
   try {
     await navigator.clipboard.writeText(text)
-    copied.value = kind
-    clearTimeout(timer)
-    timer = setTimeout(() => (copied.value = ''), 1500)
+    const lines = text.split('\n').length
+    toast.show(kind === 'env' ? `Copied .env for ${props.def.name} (${lines} line${lines === 1 ? '' : 's'})` : `Copied the ${props.def.name} URL`)
   } catch {
-    copied.value = ''
+    toast.show('Could not copy. Select the text and copy it by hand.', { tone: 'info' })
   }
 }
 </script>
@@ -40,8 +39,8 @@ async function copy(kind: 'env' | 'url'): Promise<void> {
     <div class="sc-actions">
       <span v-if="!running" class="sc-note">Not running. Start it to connect.</span>
       <UiButton v-if="info.webUrl" variant="quiet" @click="openUrl(info.webUrl)">Open web UI</UiButton>
-      <UiButton variant="quiet" @click="copy('url')">{{ copied === 'url' ? 'Copied' : 'Copy URL' }}</UiButton>
-      <UiButton v-if="info.env" variant="accent" @click="copy('env')">{{ copied === 'env' ? 'Copied' : 'Copy .env' }}</UiButton>
+      <UiButton variant="quiet" @click="copy('url')">Copy URL</UiButton>
+      <UiButton v-if="info.env" variant="accent" @click="copy('env')">Copy .env</UiButton>
     </div>
   </div>
 </template>

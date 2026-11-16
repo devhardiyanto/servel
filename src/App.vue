@@ -11,6 +11,7 @@ import ProjectsView from './views/ProjectsView.vue'
 import NavRail from './components/shell/NavRail.vue'
 import StatusBar from './components/shell/StatusBar.vue'
 import CommandPalette from './components/CommandPalette.vue'
+import ToastHost from './components/ui/ToastHost.vue'
 import { useAutoStart } from './composables/useAutoStart'
 import { useEngineStatus } from './composables/useEngineStatus'
 import { useUpdateCheck } from './composables/useUpdateCheck'
@@ -75,6 +76,7 @@ onMounted(() => {
     </main>
     <StatusBar class="shell-status" />
     <CommandPalette ref="palette" @go="setView" />
+    <ToastHost />
   </div>
 </template>
 

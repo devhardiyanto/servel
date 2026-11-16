@@ -50,6 +50,8 @@ const DEFAULT_CONFIG: ConfigState = {
 // Singleton state
 const config = ref<ConfigState>(structuredClone(DEFAULT_CONFIG))
 const loaded = ref(false)
+/** Pesan bila config.json tidak terbaca; kosong bila baik. */
+const loadError = ref('')
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -68,7 +70,14 @@ function scheduleSave(): void {
 
 export function useConfig() {
   async function load(): Promise<void> {
-    const result = await invoke<ConfigState>('config_read')
+    let result: ConfigState
+    try {
+      result = await invoke<ConfigState>('config_read')
+    } catch (err) {
+      loadError.value = String(err)
+      throw err
+    }
+    loadError.value = ''
     config.value = result
     loaded.value = true
     console.log('[CONFIG] loaded:', JSON.parse(JSON.stringify(result)))
@@ -248,6 +257,7 @@ export function useConfig() {
   return {
     config,
     loaded,
+    loadError,
     load,
     save,
     saveImmediate,

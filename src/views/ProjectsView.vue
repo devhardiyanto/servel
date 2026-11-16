@@ -5,8 +5,23 @@ import ProjectsPanel from '@/components/ProjectsPanel.vue'
 import ProjectDetail from '@/components/ProjectDetail.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useProjectRuntime } from '@/composables/useProjectRuntime'
+import SkeletonBox from '@/components/ui/SkeletonBox.vue'
+import UiBanner from '@/components/ui/UiBanner.vue'
+import UiButton from '@/components/ui/UiButton.vue'
 
-const { config } = useConfig()
+const { config, loaded, loadError, load } = useConfig()
+
+const retrying = ref(false)
+async function retry(): Promise<void> {
+  retrying.value = true
+  try {
+    await load()
+  } catch {
+    /* pesan ada di loadError */
+  } finally {
+    retrying.value = false
+  }
+}
 const { stateOf } = useProjectRuntime()
 
 const selectedId = ref<string | null>(null)
@@ -24,7 +39,20 @@ watch(
 </script>
 
 <template>
-  <div class="pv">
+  <div v-if="loadError" class="pv-state">
+    <UiBanner tone="err" title="Kova could not read its settings">
+      {{ loadError }}
+      <template #actions><UiButton :loading="retrying" @click="retry">Try again</UiButton></template>
+    </UiBanner>
+  </div>
+  <div v-else-if="!loaded" class="pv-state" aria-busy="true" aria-label="Loading projects">
+    <div v-for="n in 3" :key="n" class="pv-skel">
+      <SkeletonBox width="38%" height="14px" />
+      <SkeletonBox width="62%" height="11px" />
+      <SkeletonBox width="180px" height="26px" radius="6px" />
+    </div>
+  </div>
+  <div v-else class="pv">
     <div class="pv-list">
       <ProjectsPanel :selected-id="selectedId" @select="selectedId = $event" />
     </div>
@@ -48,6 +76,17 @@ watch(
 </template>
 
 <style scoped>
+.pv-state { padding: var(--space-6) var(--space-8); display: flex; flex-direction: column; gap: var(--space-3); max-width: 720px; }
+.pv-skel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
 .pv {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
