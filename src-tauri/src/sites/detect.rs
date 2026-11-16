@@ -168,6 +168,139 @@ fn detect_go(dir: &Path) -> Option<Detection> {
     Some(det("go", "Go", cmd, 8080))
 }
 
+/// Interpreter Python bawaan platform. Dengan mise aktif, keduanya ada.
+const PYTHON: &str = if cfg!(windows) { "python" } else { "python3" };
+
+/// Awalan untuk menjalankan Python di environment milik project. Tanpa ini
+/// `python` yang terpakai adalah interpreter global, yang tidak punya
+/// dependency project.
+fn python_runner(dir: &Path) -> String {
+    if dir.join("uv.lock").is_file() {
+        return "uv run python".into();
+    }
+    if dir.join("poetry.lock").is_file() {
+        return "poetry run python".into();
+    }
+    if dir.join("Pipfile").is_file() {
+        return "pipenv run python".into();
+    }
+    for venv in [".venv", "venv"] {
+        let (rel, shown) = if cfg!(windows) {
+            (format!("{venv}/Scripts/python.exe"), format!("{venv}\\Scripts\\python"))
+        } else {
+            (format!("{venv}/bin/python"), format!("{venv}/bin/python"))
+        };
+        if dir.join(rel).is_file() {
+            return shown;
+        }
+    }
+    PYTHON.into()
+}
+
+/// Nama paket yang disebut di berkas dependency Python, huruf kecil.
+/// Pencocokan per token, jadi `flask-cors` tidak dihitung sebagai `flask`.
+fn python_packages(dir: &Path) -> HashSet<String> {
+    let mut out = HashSet::new();
+    for file in ["requirements.txt", "pyproject.toml", "Pipfile", "setup.py", "setup.cfg"] {
+        let Ok(text) = std::fs::read_to_string(dir.join(file)) else { continue };
+        for token in text
+            .to_ascii_lowercase()
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '-' || c == '_'))
+        {
+            if !token.is_empty() {
+                out.insert(token.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// Cari `<nama> = <Kelas>(` di berkas masuk yang lazim. Hasil: (modul, nama
+/// variabel), mis. `("app.main", "app")` untuk `app/main.py`.
+fn python_app(dir: &Path, class: &str) -> Option<(String, String)> {
+    let call = format!("{class}(");
+    for rel in ["main.py", "app.py", "server.py", "api.py", "wsgi.py", "asgi.py", "app/main.py", "src/main.py"] {
+        let Ok(text) = std::fs::read_to_string(dir.join(rel)) else { continue };
+        for line in text.lines() {
+            let Some((left, right)) = line.split_once('=') else { continue };
+            if !right.trim_start().starts_with(&call) {
+                continue;
+            }
+            // `app: FastAPI = FastAPI()` → `app`. Baris berindentasi dilewati:
+            // itu variabel lokal di dalam fungsi, bukan objek tingkat modul.
+            let var = left.split(':').next().unwrap_or("").trim_end();
+            let is_ident = !var.is_empty()
+                && var.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                && !var.starts_with(|c: char| c.is_ascii_digit());
+            if is_ident {
+                let module = rel.trim_end_matches(".py").replace('/', ".");
+                return Some((module, var.to_string()));
+            }
+        }
+    }
+    None
+}
+
+/// Django dikenali dari `manage.py`, dan didahulukan dari Node karena project
+/// Django sering punya `package.json` untuk aset.
+fn detect_django(dir: &Path) -> Option<Detection> {
+    if !dir.join("manage.py").is_file() {
+        return None;
+    }
+    Some(det(
+        "django",
+        "Django",
+        format!("{} manage.py runserver 127.0.0.1:{{port}}", python_runner(dir)),
+        8000,
+    ))
+}
+
+fn detect_python(dir: &Path) -> Option<Detection> {
+    const MARKERS: [&str; 7] =
+        ["pyproject.toml", "requirements.txt", "Pipfile", "uv.lock", "poetry.lock", "setup.py", "setup.cfg"];
+    let has_marker = MARKERS.iter().any(|f| dir.join(f).is_file());
+    let entry = ["main.py", "app.py"].into_iter().find(|f| dir.join(f).is_file());
+    if !has_marker && entry.is_none() {
+        return None;
+    }
+    let py = python_runner(dir);
+    let packages = python_packages(dir);
+
+    // Objek aplikasi di kode sumber lebih kuat daripada daftar dependency:
+    // dari situ modul dan nama variabelnya diketahui.
+    if let Some((module, var)) = python_app(dir, "FastAPI") {
+        return Some(det(
+            "fastapi",
+            "FastAPI",
+            format!("{py} -m uvicorn {module}:{var} --reload --host 127.0.0.1 --port {{port}}"),
+            8000,
+        ));
+    }
+    if let Some((module, var)) = python_app(dir, "Flask") {
+        return Some(det(
+            "flask",
+            "Flask",
+            format!("{py} -m flask --app {module}:{var} run --debug --host 127.0.0.1 --port {{port}}"),
+            5000,
+        ));
+    }
+    // Framework dideklarasikan tetapi objek aplikasinya tidak ditemukan
+    // (application factory, struktur paket lain): jenis dikenali, perintah
+    // dikosongkan agar pengguna mengisinya, bukan diberi tebakan yang salah.
+    if packages.contains("fastapi") {
+        return Some(det("fastapi", "FastAPI", "", 8000));
+    }
+    if packages.contains("flask") {
+        return Some(det("flask", "Flask", "", 5000));
+    }
+    if packages.contains("django") {
+        return Some(det("django", "Django", "", 8000));
+    }
+    // Skrip biasa: port lewat env PORT.
+    let cmd = entry.map(|f| format!("{py} {f}")).unwrap_or_default();
+    Some(det("python", "Python", cmd, 8000))
+}
+
 fn detect_plain_php(dir: &Path) -> Option<Detection> {
     if dir.join("public/index.php").is_file() {
         return Some(det("php", "PHP", "php -S 127.0.0.1:{port} -t public", 8000));
@@ -182,8 +315,10 @@ fn detect_plain_php(dir: &Path) -> Option<Detection> {
 /// punya `package.json` (Vite untuk aset), tetapi yang dibuka adalah PHP-nya.
 pub fn detect(dir: &Path) -> Detection {
     detect_php_framework(dir)
+        .or_else(|| detect_django(dir))
         .or_else(|| detect_node(dir))
         .or_else(|| detect_go(dir))
+        .or_else(|| detect_python(dir))
         .or_else(|| detect_plain_php(dir))
         .unwrap_or_else(|| det("unknown", "", "", 8000))
 }
@@ -350,6 +485,96 @@ mod tests {
         let p = Proj::new("empty");
         let d = p.detect();
         assert_eq!((d.kind.as_str(), d.command.as_str()), ("unknown", ""));
+    }
+
+    #[test]
+    fn django_wins_over_its_own_package_json() {
+        let p = Proj::new("django");
+        p.file("manage.py", "#!/usr/bin/env python")
+            .file("requirements.txt", "Django>=5.0\n")
+            .file("package.json", r#"{"scripts":{"dev":"vite"},"devDependencies":{"vite":"^5"}}"#);
+        let d = p.detect();
+        assert_eq!((d.kind.as_str(), d.default_port), ("django", 8000));
+        assert_eq!(d.command, format!("{PYTHON} manage.py runserver 127.0.0.1:{{port}}"));
+    }
+
+    #[test]
+    fn fastapi_and_flask_use_the_app_object_found_in_source() {
+        let p = Proj::new("fastapi");
+        p.file("requirements.txt", "fastapi[standard]==0.115\n")
+            .file("main.py", "from fastapi import FastAPI\n\napp = FastAPI()\n");
+        let d = p.detect();
+        assert_eq!(d.kind, "fastapi");
+        assert_eq!(d.command, format!("{PYTHON} -m uvicorn main:app --reload --host 127.0.0.1 --port {{port}}"));
+
+        // Anotasi tipe, nama variabel lain, dan berkas di dalam paket.
+        let p = Proj::new("fastapi-pkg");
+        p.file("pyproject.toml", "[project]\ndependencies = [\"fastapi\"]\n")
+            .file("app/main.py", "api: FastAPI = FastAPI(title='x')\n");
+        assert!(p.detect().command.contains(" -m uvicorn app.main:api "));
+
+        let p = Proj::new("flask");
+        p.file("requirements.txt", "flask\n").file("app.py", "app = Flask(__name__)\n");
+        let d = p.detect();
+        assert_eq!((d.kind.as_str(), d.default_port), ("flask", 5000));
+        assert_eq!(
+            d.command,
+            format!("{PYTHON} -m flask --app app:app run --debug --host 127.0.0.1 --port {{port}}")
+        );
+    }
+
+    #[test]
+    fn python_framework_without_a_visible_app_object_leaves_the_command_empty() {
+        // Application factory: objek dibuat di dalam fungsi (berindentasi).
+        let p = Proj::new("flask-factory");
+        p.file("requirements.txt", "Flask==3.0\nflask-cors\n")
+            .file("app.py", "def create_app():\n    app = Flask(__name__)\n    return app\n");
+        let d = p.detect();
+        assert_eq!((d.kind.as_str(), d.command.as_str()), ("flask", ""));
+
+        // `flask-cors` saja bukan Flask.
+        let p = Proj::new("not-flask");
+        p.file("requirements.txt", "flask-cors\n");
+        assert_eq!(p.detect().kind, "python");
+    }
+
+    #[test]
+    fn python_runner_follows_the_project_environment() {
+        let p = Proj::new("uv");
+        p.file("uv.lock", "").file("pyproject.toml", "[project]\n").file("main.py", "print(1)\n");
+        let d = p.detect();
+        assert_eq!((d.kind.as_str(), d.command.as_str()), ("python", "uv run python main.py"));
+
+        let p = Proj::new("poetry");
+        p.file("poetry.lock", "").file("manage.py", "");
+        assert_eq!(p.detect().command, "poetry run python manage.py runserver 127.0.0.1:{port}");
+
+        let p = Proj::new("venv");
+        let (file, shown) = if cfg!(windows) {
+            (".venv/Scripts/python.exe", ".venv\\Scripts\\python")
+        } else {
+            (".venv/bin/python", ".venv/bin/python")
+        };
+        p.file(file, "").file("requirements.txt", "requests\n").file("app.py", "print(1)\n");
+        assert_eq!(p.detect().command, format!("{shown} app.py"));
+
+        // Hanya berkas dependency, tanpa berkas masuk: dikenali, tanpa perintah.
+        let p = Proj::new("py-bare");
+        p.file("requirements.txt", "requests\n");
+        let d = p.detect();
+        assert_eq!((d.kind.as_str(), d.command.as_str()), ("python", ""));
+    }
+
+    #[test]
+    fn node_and_go_still_win_over_stray_python_files() {
+        let p = Proj::new("node-with-py");
+        p.file("package.json", r#"{"scripts":{"dev":"vite"},"devDependencies":{"vite":"^5"}}"#)
+            .file("requirements.txt", "flask\n");
+        assert_eq!(p.detect().kind, "vite");
+
+        let p = Proj::new("go-with-py");
+        p.file("go.mod", "module x").file("main.py", "print(1)\n");
+        assert_eq!(p.detect().kind, "go");
     }
 
     #[test]

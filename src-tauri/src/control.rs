@@ -36,6 +36,8 @@ pub enum Action {
     Down,
     /// Service: daftar status.
     Services,
+    /// Service: daftar yang tersedia beserta image dan port (`kova list`).
+    Catalog,
     /// Tampilkan jendela utama. Dikirim oleh Kova yang dibuka kedua kali,
     /// supaya hanya ada satu Kova yang berjalan (v3.2.1).
     Show,
@@ -72,6 +74,11 @@ pub struct Response {
 pub struct ServiceRow {
     pub id: String,
     pub state: String,
+    /// Hanya terisi untuk `list`: image dan pemetaan port `host->container`.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub image: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub ports: String,
 }
 
 impl Response {
@@ -86,7 +93,8 @@ fn one_line(s: &str) -> String {
 
 /// Balasan untuk klien shell: baris 1 `ok` atau `error`, baris 2 pesan (boleh
 /// kosong), lalu satu baris per entri dengan kolom dipisah tab:
-/// `project<TAB>nama<TAB>status<TAB>url` atau `service<TAB>id<TAB>status`.
+/// `project<TAB>nama<TAB>status<TAB>url`, `service<TAB>id<TAB>status`, atau
+/// untuk `list`: `catalog<TAB>id<TAB>image<TAB>port`.
 pub fn to_plain(r: &Response) -> String {
     let mut out = format!("{}\n{}\n", if r.ok { "ok" } else { "error" }, one_line(&r.message));
     for p in &r.projects {
@@ -99,6 +107,10 @@ pub fn to_plain(r: &Response) -> String {
         out.push_str(&format!("project\t{}\t{}\t{}\n", one_line(&p.name), state, url));
     }
     for s in &r.services {
+        if !s.image.is_empty() {
+            out.push_str(&format!("catalog\t{}\t{}\t{}\n", one_line(&s.id), one_line(&s.image), one_line(&s.ports)));
+            continue;
+        }
         out.push_str(&format!("service\t{}\t{}\n", one_line(&s.id), one_line(&s.state)));
     }
     out
@@ -132,6 +144,7 @@ pub fn parse_request(line: &str, token: &str) -> Result<Request, String> {
         "up" => Action::Up,
         "down" => Action::Down,
         "services" => Action::Services,
+        "list" => Action::Catalog,
         "show" => Action::Show,
         other => return Err(format!("unknown action: {}", other)),
     };
@@ -178,7 +191,7 @@ async fn service_rows() -> Result<Vec<ServiceRow>, String> {
     let mut rows: Vec<ServiceRow> = crate::runtime::status()
         .await?
         .into_iter()
-        .map(|s| ServiceRow { id: s.id, state: s.state })
+        .map(|s| ServiceRow { id: s.id, state: s.state, image: String::new(), ports: String::new() })
         .collect();
     rows.sort_by(|a, b| a.id.cmp(&b.id));
     Ok(rows)
@@ -193,8 +206,25 @@ pub fn service_ids(target: &str, known: &[String]) -> Result<Vec<String>, String
     Ok(ids)
 }
 
+/// Baris `list` dari definisi service. Tidak menyentuh engine container,
+/// jadi tetap menjawab saat Docker mati.
+pub fn catalog_rows(defs: &[crate::commands::services::ServiceDef]) -> Vec<ServiceRow> {
+    defs.iter()
+        .map(|d| ServiceRow {
+            id: d.id.clone(),
+            state: String::new(),
+            image: d.image.clone(),
+            ports: d.ports.iter().map(|p| format!("{}->{}", p.host, p.container)).collect::<Vec<_>>().join(", "),
+        })
+        .collect()
+}
+
 async fn handle_services(app: &AppHandle, req: &Request) -> Result<Response, String> {
     use crate::commands::services::{services_start, services_stop, services_stop_all};
+    if req.action == Action::Catalog {
+        let defs = crate::commands::services::load_services(app.clone()).await?;
+        return Ok(Response { ok: true, message: String::new(), projects: Vec::new(), services: catalog_rows(&defs) });
+    }
     let message = match req.action {
         Action::Services => String::new(),
         Action::Up | Action::Down => {
@@ -232,7 +262,7 @@ async fn handle(app: &AppHandle, req: &Request) -> Response {
         }
         return Response { ok: true, message: "shown".to_string(), projects: Vec::new(), services: Vec::new() };
     }
-    if matches!(req.action, Action::Up | Action::Down | Action::Services) {
+    if matches!(req.action, Action::Up | Action::Down | Action::Services | Action::Catalog) {
         return handle_services(app, req).await.unwrap_or_else(Response::fail);
     }
     let cfg = match load_config(app) {
@@ -421,6 +451,7 @@ mod tests {
             parse_request("abc123 plain services", t),
             Ok(Request { action: Action::Services, target: String::new(), plain: true })
         );
+        assert_eq!(parse_request("abc123 plain list", t).unwrap().action, Action::Catalog);
         assert_eq!(parse_request("abc123 down", t), Ok(Request { action: Action::Down, target: String::new(), plain: false }));
         // Project bernama "plain" tetap bisa dituju lewat JSON.
         assert_eq!(parse_request("abc123 start plain", t).unwrap().target, "plain");
@@ -451,11 +482,14 @@ mod tests {
                 ProjectStatus { name: "share api".into(), state: SiteState::Running, port: 8001, exit_code: None },
                 ProjectStatus { name: "lib".into(), state: SiteState::Exited, port: 0, exit_code: Some(1) },
             ],
-            services: vec![ServiceRow { id: "mysql".into(), state: "running".into() }],
+            services: vec![
+                ServiceRow { id: "mysql".into(), state: "running".into(), image: String::new(), ports: String::new() },
+                ServiceRow { id: "redis".into(), state: String::new(), image: "redis:7".into(), ports: "6379->6379".into() },
+            ],
         };
         assert_eq!(
             to_plain(&r),
-            "ok\nstarted mysql\nproject\tshare api\trunning\thttp://localhost:8001\nproject\tlib\texited (1)\t\nservice\tmysql\trunning\n"
+            "ok\nstarted mysql\nproject\tshare api\trunning\thttp://localhost:8001\nproject\tlib\texited (1)\t\nservice\tmysql\trunning\ncatalog\tredis\tredis:7\t6379->6379\n"
         );
         assert_eq!(to_plain(&Response::fail("nope".into())), "error\nnope\n");
     }

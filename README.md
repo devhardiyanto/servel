@@ -21,7 +21,7 @@ No more juggling three terminals every morning.
 ## Features
 
 **Projects**
-- Add a project folder; Kova detects what it is (Laravel, Lumen, WordPress, Drupal, plain PHP, Vite with Vue/React/Svelte, Next, Nuxt, Angular, other Node apps, Go) and suggests the dev-server command and a free port.
+- Add a project folder; Kova detects what it is (Laravel, Lumen, WordPress, Drupal, plain PHP, Vite with Vue/React/Svelte, Next, Nuxt, Angular, other Node apps, Go, Django, FastAPI, Flask, other Python apps) and suggests the dev-server command and a free port.
 - Start, Stop, Restart and Open each project at `localhost:<port>`; its output goes to the Logs viewer.
 - The dev server runs with the PHP/Node/Go versions from the project's `mise.toml`, plus any environment variables you set for that project.
 - Optionally start a project when Kova opens, and link it to a service profile.
@@ -164,6 +164,8 @@ kova down                      # stop every service (or name some)
 kova status
 kova logs mysql -f
 kova shell postgres
+kova list                      # available services, images and ports
+kova restore mysql dump.sql    # or a folder of .sql files
 kova use php@8.3               # via mise, in the current project folder
 kova start share-api           # start a project's dev server
 kova stop share-api
@@ -172,7 +174,7 @@ kova ps                        # state and URL of every project
 kova preflight                 # check Docker, mise and whether the app is open
 ```
 
-How it differs from Windows: `up`, `down` and the project commands are carried out by the Kova app, so **the app must be open** (it may sit in the tray). `status`, `logs` and `shell` talk to Docker directly and work without the app. Restoring a database dump is done in the app (**Settings → Services**).
+How it differs from Windows: `up`, `down` and the project commands are carried out by the Kova app, so **the app must be open** (it may sit in the tray). `status`, `logs` and `shell` talk to Docker directly and work without the app. `kova list` shows the available services, and `kova restore mysql dump.sql` (or a folder of `.sql` files, loaded in name order) starts the service, waits until it accepts connections and loads the dump.
 
 #### Docker
 
