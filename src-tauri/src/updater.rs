@@ -83,6 +83,8 @@ pub async fn update_install(app: AppHandle) -> Result<(), String> {
         .install(bytes)
         .map_err(|e| format!("could not install the update: {}", e))?;
 
+    // Instance baru tidak boleh menyerahkan diri ke proses ini yang sedang keluar.
+    crate::control::forget();
     app.restart();
 }
 

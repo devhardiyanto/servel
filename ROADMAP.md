@@ -413,6 +413,11 @@ PR 2:
 - Belum dipindah ke komponen bersama: kolom isian di Runtimes dan PHP extensions, kartu prasyarat di onboarding, tombol log (`lv-btn`), pemilih service (`svc-toggle`). Tampilannya tidak berubah.
 - Belum diuji terhadap backend di Windows.
 
+### H.1 — v3.2.1: satu instance
+
+- [x] Kova yang dibuka kedua kali meminta instance pertama menampilkan jendelanya (aksi `show` di kanal kontrol), lalu keluar. Dicek paling awal di `run()`, sebelum Tauri dibangun. Start saat login (`--hidden`) hanya memeriksa, tanpa memunculkan jendela. `control.json` dihapus sebelum restart setelah update supaya proses baru tidak menyerahkan diri ke proses lama.
+- [x] v3.2.0: `latest.json` terbit dengan 4 dari 8 platform karena job build menulisnya bergantian; diganti manual di rilis. Workflow belum diperbaiki.
+
 ### v3.x — kandidat, belum diputuskan
 
 - Deteksi project Python (saat ini hanya kelola versi).
