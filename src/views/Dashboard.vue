@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue'
+import UiInput from '@/components/ui/UiInput.vue'
 import { onMounted, onUnmounted, computed, inject, ref } from 'vue'
 import { useLogs } from '@/composables/useLogs'
 import { useServices } from '@/composables/useServices'
@@ -81,8 +82,7 @@ const {
 const profiles = computed(() => useConfig().config.value.profiles)
 const activeProfileId = computed(() => useConfig().config.value.activeProfileId)
 
-function onProfileChange(e: Event): void {
-  const id = (e.target as HTMLSelectElement).value
+function onProfileChange(id: string): void {
   if (id) applyProfile(id)
 }
 
@@ -143,14 +143,14 @@ onUnmounted(() => {
         <span class="sw-counter">{{ runningCount }}/{{ definitions.length }}</span>
         <div v-if="profiles.length > 0" class="sw-profile">
           <span class="sw-profile__label">profile</span>
-          <select
-            class="sw-profile__select"
-            :value="activeProfileId ?? ''"
-            title="Change the active profile"
-            @change="onProfileChange"
-          >
-            <option v-for="p in profiles" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
+          <UiInput
+            as="select"
+            width="160px"
+            aria-label="Active profile"
+            :model-value="activeProfileId ?? ''"
+            :options="profiles.map((p) => ({ value: p.id, label: p.name }))"
+            @update:model-value="onProfileChange"
+          />
         </div>
         <div class="sw-actions">
           <UiButton
@@ -219,7 +219,7 @@ onUnmounted(() => {
     <section class="log-wrap">
       <div class="log-wrap__bar">
         <span class="log-wrap__label">LOGS</span>
-        <button class="log-wrap__expand-btn" @click="setView('logs')">expand &#8599;</button>
+        <UiButton variant="quiet" @click="setView('logs')">Open logs</UiButton>
       </div>
       <LogTail :lines="logLines" max-height="148px" />
     </section>
@@ -228,7 +228,7 @@ onUnmounted(() => {
     <aside v-if="connectDef" class="svc-detail" :aria-label="`Connect to ${connectDef.name}`">
       <div class="svc-detail__head">
         <div class="svc-detail__name">{{ connectDef.name }}</div>
-        <button class="svc-detail__close" aria-label="Close" @click="connectId = null">&times;</button>
+        <UiButton variant="quiet" aria-label="Close connection details" @click="connectId = null">&times;</UiButton>
       </div>
       <div class="svc-detail__meta">
         {{ connectDef.image }} · {{ uiState[connectDef.id]?.status ?? 'stopped' }}
@@ -381,23 +381,6 @@ onUnmounted(() => {
   color: var(--faint);
 }
 
-.sw-profile__select {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 3px 8px;
-  border-radius: var(--radius-xs);
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
-  cursor: pointer;
-  max-width: 160px;
-  transition: border-color 0.1s;
-}
-
-.sw-profile__select:hover {
-  border-color: var(--dim);
-}
-
 .sw-actions {
   display: flex;
   gap: var(--space-2);
@@ -471,21 +454,6 @@ onUnmounted(() => {
   text-transform: uppercase;
 }
 
-.log-wrap__expand-btn {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  background: transparent;
-  border: none;
-  color: var(--faint);
-  cursor: pointer;
-  padding: 0;
-  transition: color 0.1s;
-}
-
-.log-wrap__expand-btn:hover {
-  color: var(--accent);
-}
-
 .svc-detail {
   width: 300px;
   flex-shrink: 0;
@@ -499,13 +467,5 @@ onUnmounted(() => {
 }
 .svc-detail__head { display: flex; align-items: center; justify-content: space-between; }
 .svc-detail__name { font-size: var(--text-lg); font-weight: 600; color: var(--text); }
-.svc-detail__close {
-  border: 0;
-  background: transparent;
-  color: var(--faint);
-  font-size: var(--text-lg);
-  cursor: pointer;
-}
-.svc-detail__close:hover { color: var(--text); }
 .svc-detail__meta { font-size: var(--text-xs); color: var(--muted); font-family: var(--font-mono); }
 </style>

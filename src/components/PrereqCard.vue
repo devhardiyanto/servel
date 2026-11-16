@@ -87,9 +87,9 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
       <div v-if="code" class="prereq-card__code-block">
         <span class="prereq-card__code-prefix">&#62;</span>
         <code class="prereq-card__code-text">{{ code }}</code>
-        <button class="prereq-card__copy-btn" @click="copyCode">
-          {{ copied ? '✓ copied' : 'copy' }}
-        </button>
+        <UiButton :aria-label="copied ? 'Copied' : 'Copy the command'" @click="copyCode">
+          {{ copied ? 'Copied' : 'Copy' }}
+        </UiButton>
       </div>
     </template>
   </div>
@@ -227,22 +227,5 @@ const isOk = () => props.installed && (props.running === undefined || props.runn
   color: var(--text);
   flex: 1;
   min-width: 0;
-}
-
-.prereq-card__copy-btn {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--muted);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: var(--radius-xs);
-  flex-shrink: 0;
-  transition: color 0.1s;
-}
-
-.prereq-card__copy-btn:hover {
-  color: var(--accent);
 }
 </style>

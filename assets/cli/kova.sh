@@ -62,7 +62,8 @@ control() {
     NR <= 2 { next }
     $1 == "project" { if (!p++) printf "%-28s %-14s %s\n", "PROJECT", "STATE", "URL"; printf "%-28s %-14s %s\n", $2, $3, $4 }
     $1 == "service" { if (!s++) printf "%-14s %s\n", "SERVICE", "STATE"; printf "%-14s %s\n", $2, $3 }
-    END { if (!p && !s && want) print "[kova] " want }
+    $1 == "catalog" { if (!c++) printf "%-14s %-34s %s\n", "SERVICE", "IMAGE", "PORTS"; printf "%-14s %-34s %s\n", $2, $3, $4 }
+    END { if (!p && !s && !c && want) print "[kova] " want }
   ' want="${2:-}"
 }
 
@@ -106,6 +107,49 @@ cmd_shell() {
   exec docker exec -it "$name" sh
 }
 
+# Restore runs inside the container, reading the dump from stdin, so nothing
+# is copied and the file can be any size.
+cmd_restore() {
+  [ $# -ge 2 ] || fail 'usage: kova restore <mysql|postgres> <file.sql | folder of .sql files>'
+  id="$1"; target="$2"
+  case "$id" in
+    mysql)
+      ready='MYSQL_PWD="${MYSQL_ROOT_PASSWORD:-}" mysqladmin ping -h 127.0.0.1 -uroot --silent'
+      load='MYSQL_PWD="${MYSQL_ROOT_PASSWORD:-}" mysql -uroot' ;;
+    postgres)
+      ready='pg_isready -h 127.0.0.1 -U "${POSTGRES_USER:-postgres}" -q'
+      load='psql -v ON_ERROR_STOP=1 -q -U "${POSTGRES_USER:-postgres}" -d postgres' ;;
+    *) fail 'restore works only for: mysql, postgres' ;;
+  esac
+  [ -e "$target" ] || fail "not found: $target"
+  if [ -d "$target" ]; then
+    ls "$target"/*.sql >/dev/null 2>&1 || fail "no .sql files in $target"
+  fi
+  need_docker
+  name="${PREFIX}${id}"
+
+  control "up $id"
+  say "waiting for $name to be ready (up to 120 s)..."
+  i=0
+  until docker exec "$name" sh -c "$ready" >/dev/null 2>&1; do
+    i=$((i + 1))
+    [ "$i" -lt 60 ] || fail "$name was not ready within 120 seconds. Check: kova logs $id"
+    sleep 2
+  done
+
+  restore_one() {
+    say "restore $(basename "$1") -> $name"
+    docker exec -i "$name" sh -c "$load" < "$1" || fail "restore $(basename "$1") failed."
+    say "finished $(basename "$1")"
+  }
+  if [ -d "$target" ]; then
+    # The glob expands in name order, the same order the Windows CLI uses.
+    for f in "$target"/*.sql; do restore_one "$f"; done
+  else
+    restore_one "$target"
+  fi
+}
+
 cmd_use() {
   command -v mise >/dev/null 2>&1 || fail 'mise was not found. Install it first: https://mise.jdx.dev'
   global=''; spec=''
@@ -139,8 +183,11 @@ kova: manage Kova services and projects from the terminal
   kova up [service...]           start services (default: the selection in the app)
   kova down [service...]         stop services (default: all of them)
   kova status                    status of every service
+  kova list                      list the available services
   kova logs <service> [-f] [-n N]
   kova shell <service> [cmd...]  shell or command inside the container
+  kova restore <mysql|postgres> <file.sql | folder>
+                                 load a SQL dump (a folder is loaded in name order)
   kova use <tool>@<version> [--global]
                                  change a version through mise in this folder (or globally)
   kova start <project>           start the project's dev server
@@ -148,11 +195,10 @@ kova: manage Kova services and projects from the terminal
   kova restart <project>         stop, then start again
   kova ps                        dev server status of every project
   kova preflight                 check Docker, mise and the Kova app
-  kova service <up|down|status|logs|shell> ...
+  kova service <up|down|status|list|logs|shell> ...
                                  same as the service commands above
 
-up, down, start, stop, restart and ps need the Kova app to be open.
-Restoring a database dump is done in the app: Settings > Services.
+up, down, list, restore, start, stop, restart and ps need the Kova app to be open.
 HELP
 }
 
@@ -164,6 +210,8 @@ main() {
     up)        control "up $*" ;;
     down)      control "down $*" ;;
     status)    cmd_status ;;
+    list)      control list 'no services are defined.' ;;
+    restore)   cmd_restore "$@" ;;
     logs)      cmd_logs "$@" ;;
     shell)     cmd_shell "$@" ;;
     use)       cmd_use "$@" ;;
@@ -176,8 +224,8 @@ main() {
       sub="${1:-}"
       [ $# -gt 0 ] && shift
       case "$sub" in
-        up|down|status|logs|shell) main "$sub" "$@" ;;
-        *) fail 'usage: kova service <up|down|status|logs|shell> [args...]' ;;
+        up|down|status|list|logs|shell) main "$sub" "$@" ;;
+        *) fail 'usage: kova service <up|down|status|list|logs|shell> [args...]' ;;
       esac ;;
     *) printf '[kova] unknown command: %s\n\n' "$cmd" >&2; show_help >&2; exit 2 ;;
   esac

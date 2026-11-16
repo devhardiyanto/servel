@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
+import UiInput from '@/components/ui/UiInput.vue'
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -150,18 +151,15 @@ onMounted(async () => {
   <div class="px">
     <div class="px-head">
       <div class="px-title">PHP EXTENSIONS</div>
-      <select
+      <UiInput
         v-if="versions.length > 1"
-        id="px-version"
-        class="px-select"
-        :value="selected"
+        as="select"
+        width="170px"
         aria-label="PHP version"
-        @change="chooseVersion(($event.target as HTMLSelectElement).value)"
-      >
-        <option v-for="v in versions" :key="v.version" :value="v.version">
-          PHP {{ v.version }}{{ v.active ? ' (active)' : '' }}
-        </option>
-      </select>
+        :model-value="selected ?? ''"
+        :options="versions.map((v) => ({ value: v.version, label: `PHP ${v.version}${v.active ? ' (active)' : ''}` }))"
+        @update:model-value="chooseVersion"
+      />
     </div>
     <p class="px-hint">
       Extensions are set in php.ini for one PHP version, so a change applies to every project and terminal that uses
@@ -193,14 +191,7 @@ onMounted(async () => {
       </div>
 
       <div class="px-toolbar">
-        <input
-          id="px-filter"
-          v-model="filter"
-          class="px-input"
-          placeholder="Filter extensions"
-          aria-label="Filter extensions"
-          spellcheck="false"
-        />
+        <UiInput v-model="filter" type="search" width="220px" placeholder="Filter extensions" aria-label="Filter extensions" />
         <span class="px-count">{{ enabledCount }} of {{ status.extensions.filter((e) => e.available).length }} enabled</span>
       </div>
 
@@ -226,15 +217,14 @@ onMounted(async () => {
         <p>{{ builtin.join(', ') }}</p>
       </details>
       <div v-if="status.canInstall" class="px-install">
-        <label for="px-install-name" class="px-install__label">Install another extension</label>
+        <span class="px-install__label">Install another extension</span>
         <div class="px-install__row">
-          <input
-            id="px-install-name"
+          <UiInput
             v-model="installName"
-            class="px-input"
+            width="220px"
             list="px-install-list"
+            aria-label="Extension to install"
             placeholder="redis, xdebug, imagick…"
-            spellcheck="false"
             :disabled="busy !== null"
             @keydown.enter="installExt"
           />
@@ -367,22 +357,6 @@ onMounted(async () => {
   gap: var(--space-3);
 }
 
-.px-input,
-.px-select {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 5px 10px;
-  background: var(--bg);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-xs);
-  color: var(--text);
-}
-
-.px-input {
-  flex: 0 1 240px;
-  min-width: 0;
-}
-
 .px-count {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -413,12 +387,6 @@ onMounted(async () => {
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.px-input:focus-visible,
-.px-select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
 }
 
 .px-install {

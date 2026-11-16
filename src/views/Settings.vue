@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue'
+import UiInput from '@/components/ui/UiInput.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
 import UiSegmented from '@/components/ui/UiSegmented.vue'
 import { useToast } from '@/composables/useToast'
@@ -283,16 +284,19 @@ onMounted(async () => {
         <button
           class="snav-item"
           :class="{ 'snav-item--active': activeNav === 'general' }"
+          :aria-current="activeNav === 'general' ? 'page' : undefined"
           @click="activeNav = 'general'"
         >General</button>
         <button
           class="snav-item"
           :class="{ 'snav-item--active': activeNav === 'services' }"
+          :aria-current="activeNav === 'services' ? 'page' : undefined"
           @click="activeNav = 'services'"
         >Services</button>
         <button
           class="snav-item"
           :class="{ 'snav-item--active': activeNav === 'about' }"
+          :aria-current="activeNav === 'about' ? 'page' : undefined"
           @click="activeNav = 'about'"
         >About</button>
       </nav>
@@ -451,11 +455,11 @@ onMounted(async () => {
             <div class="profile-list">
               <div v-for="p in config.profiles" :key="p.id" class="profile-item">
                 <template v-if="editingId === p.id">
-                  <input
+                  <UiInput
                     v-model="editingName"
-                    class="profile-edit-input"
-                    type="text"
-                    maxlength="40"
+                    class="profile-field"
+                    :maxlength="40"
+                    :aria-label="`New name for profile ${p.name}`"
                     @keyup.enter="commitEditProfile"
                     @keyup.esc="cancelEditProfile"
                   />
@@ -467,8 +471,8 @@ onMounted(async () => {
                 <template v-else>
                   <div class="profile-info">
                     <span class="profile-name">{{ p.name }}</span>
-                    <span v-if="p.id === config.activeProfileId" class="profile-badge">aktif</span>
-                    <span class="profile-count">{{ p.serviceIds.length }} service</span>
+                    <span v-if="p.id === config.activeProfileId" class="profile-badge">active</span>
+                    <span class="profile-count">{{ p.serviceIds.length }} {{ p.serviceIds.length === 1 ? 'service' : 'services' }}</span>
                   </div>
                   <div class="profile-actions">
                     <UiButton @click="startEditProfile(p.id, p.name)">Rename</UiButton>
@@ -484,12 +488,12 @@ onMounted(async () => {
             </div>
 
             <div class="profile-create">
-              <input
+              <UiInput
                 v-model="newProfileName"
-                class="profile-create-input"
-                type="text"
-                maxlength="40"
-                placeholder="New profile name…"
+                class="profile-field"
+                :maxlength="40"
+                placeholder="New profile name"
+                aria-label="New profile name"
                 @keyup.enter="handleCreateProfile"
               />
               <UiButton
@@ -586,13 +590,13 @@ onMounted(async () => {
             <div v-if="updateAvailable" class="update-banner">
               <span class="ub-text">New version available: <strong>v{{ latestVersion }}</strong></span>
               <span class="ub-actions">
-                <button v-if="canInstall" class="ub-link" :disabled="installingUpdate" @click="openReleasePage">
+                <UiButton v-if="canInstall" variant="quiet" :disabled="installingUpdate" @click="openReleasePage">
                   Release notes
-                </button>
-                <button v-if="canInstall" class="ub-download" :disabled="installingUpdate" @click="installUpdate">
+                </UiButton>
+                <UiButton v-if="canInstall" variant="primary" :loading="installingUpdate" @click="installUpdate">
                   {{ installingUpdate ? 'Installing…' : 'Update now' }}
-                </button>
-                <button v-else class="ub-download" @click="openReleasePage">Open release page</button>
+                </UiButton>
+                <UiButton v-else variant="primary" @click="openReleasePage">Open release page</UiButton>
               </span>
             </div>
             <div v-if="installingUpdate" class="update-progress">
@@ -848,49 +852,11 @@ onMounted(async () => {
   color: var(--text);
 }
 
-.ub-download {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 4px 12px;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  border-radius: var(--radius-xs);
-  color: var(--accent);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.1s, border-color 0.1s;
-}
-
-.ub-download:hover {
-  background: color-mix(in srgb, var(--accent) 28%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 65%, transparent);
-}
-
-.ub-download:disabled,
-.ub-link:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 .ub-actions {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   flex-shrink: 0;
-}
-
-.ub-link {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 4px 8px;
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.ub-link:hover:not(:disabled) {
-  color: var(--text);
 }
 
 .update-progress {
@@ -1036,25 +1002,6 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.profile-edit-input,
-.profile-create-input {
-  flex: 1;
-  min-width: 0;
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  padding: 5px 8px;
-  border-radius: var(--radius-xs);
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
-}
-
-.profile-edit-input:focus,
-.profile-create-input:focus {
-  outline: none;
-  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
-}
-
 .profile-create {
   display: flex;
   align-items: center;
@@ -1084,4 +1031,5 @@ onMounted(async () => {
   font-size: var(--text-xs);
   color: var(--red);
 }
+.profile-field { flex: 1; }
 </style>

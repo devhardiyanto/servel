@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { ServiceDef, ServiceUiState } from '@/types/service'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiToggle from '@/components/ui/UiToggle.vue'
 import StatusDot, { type DotState } from '@/components/ui/StatusDot.vue'
 
 const props = defineProps<{
@@ -65,9 +66,12 @@ const dot = computed<{ state: DotState; label: string }>(() => {
     :class="{ 'svc-row--enabled': state.selected }"
     @click="emit('toggle', def.id)"
   >
-    <div class="svc-toggle" :class="{ 'svc-toggle--on': state.selected }" @click.stop="emit('toggle', def.id)">
-      <span class="svc-knob" :class="{ 'svc-knob--on': state.selected }"></span>
-    </div>
+    <UiToggle
+      size="sm"
+      :on="state.selected"
+      :label="`Include ${def.name} in the selection`"
+      @click.stop="emit('toggle', def.id)"
+    />
     <div class="svc-icon">{{ icon(def.id) }}</div>
     <div class="svc-id">
       <span class="svc-name">{{ def.name }}</span>
@@ -147,38 +151,6 @@ const dot = computed<{ state: DotState; label: string }>(() => {
   color: var(--amber);
   text-align: right;
   font-size: var(--text-xs);
-}
-
-.svc-toggle {
-  width: 28px;
-  height: 15px;
-  border-radius: var(--radius-md);
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  position: relative;
-  flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s;
-}
-
-.svc-toggle--on {
-  background: color-mix(in srgb, var(--accent) 30%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
-}
-
-.svc-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--muted);
-  transition: left 0.15s, background 0.15s;
-}
-
-.svc-knob--on {
-  left: 15px;
-  background: var(--accent);
 }
 
 .svc-status-cell {

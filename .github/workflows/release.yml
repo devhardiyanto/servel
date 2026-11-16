@@ -1,9 +1,16 @@
 name: release
 
+# Dua cara memulai rilis:
+#   1. Actions → release → "Run workflow" pada main. Tag v<versi> dibuat dari
+#      versi di src-tauri/tauri.conf.json, jadi tag dan versi tidak bisa beda.
+#   2. Push tag v*.*.* secara manual. Run berhenti di langkah pertama bila tag
+#      tidak sama dengan versi di tauri.conf.json (kasus v3.1.0 dan v3.2.1:
+#      tag dibuat sebelum PR versi di-merge).
 on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,6 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changelog: ${{ steps.gen.outputs.changelog }}
+      tag: ${{ steps.tag.outputs.tag }}
       prerelease: ${{ steps.flag.outputs.prerelease }}
       release_id: ${{ steps.draft.outputs.release_id }}
     steps:
@@ -21,12 +29,46 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Generate changelog
-        id: gen
+      - name: Resolve tag and check it matches the app version
+        id: tag
         shell: bash
         run: |
           set -e
-          CURRENT_TAG="${GITHUB_REF_NAME}"
+          VERSION="$(node -p "require('./src-tauri/tauri.conf.json').version")"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "::error::Run this workflow from main (got ${GITHUB_REF})."
+              exit 1
+            fi
+            TAG="v${VERSION}"
+            if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+              TAGGED="$(git rev-list -n 1 "${TAG}")"
+              if [ "$TAGGED" != "$GITHUB_SHA" ]; then
+                echo "::error::Tag ${TAG} already exists on ${TAGGED}, not on main (${GITHUB_SHA}). Bump the version first, or delete the tag."
+                exit 1
+              fi
+              echo "Tag ${TAG} already points at ${GITHUB_SHA}."
+            else
+              git tag "${TAG}" "${GITHUB_SHA}"
+              git push origin "refs/tags/${TAG}"
+              echo "Created tag ${TAG} at ${GITHUB_SHA}."
+            fi
+          else
+            TAG="${GITHUB_REF_NAME}"
+            if [ "$TAG" != "v${VERSION}" ]; then
+              echo "::error::Tag ${TAG} does not match version ${VERSION} in src-tauri/tauri.conf.json. Was the tag pushed before the version PR was merged? Delete the tag and push it again from the merged commit."
+              exit 1
+            fi
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        id: gen
+        shell: bash
+        env:
+          CURRENT_TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -e
           PREV_TAG="$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo '')"
           if [ -z "$PREV_TAG" ]; then
             RANGE="${CURRENT_TAG}"
@@ -63,8 +105,10 @@ jobs:
       - name: Detect prerelease
         id: flag
         shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
-          if [[ "${GITHUB_REF_NAME}" =~ -(beta|rc|alpha) ]]; then
+          if [[ "${TAG}" =~ -(beta|rc|alpha) ]]; then
             echo "prerelease=true" >> "$GITHUB_OUTPUT"
           else
             echo "prerelease=false" >> "$GITHUB_OUTPUT"
@@ -78,6 +122,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
           NOTES: |
             ${{ steps.gen.outputs.changelog }}
 
@@ -90,7 +135,6 @@ jobs:
             See [README](https://github.com/${{ github.repository }}#readme) for prerequisites (Windows: WSL 3.0.1+ for built-in WSL containers, or Docker Desktop; macOS/Linux: Docker).
         run: |
           set -e
-          TAG="${GITHUB_REF_NAME}"
           # Re-run workflow: pakai rilis yang sudah ada untuk tag ini.
           # (Endpoint per-tag tidak melihat draft, jadi cari di daftar.)
           ID="$(gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
@@ -184,3 +228,49 @@ jobs:
         with:
           releaseId: ${{ needs.changelog.outputs.release_id }}
           args: --target ${{ matrix.rust-target }}
+          # latest.json disusun sekali oleh job updater-manifest. Bila tiap
+          # job menulisnya sendiri, job yang selesai bersamaan saling menimpa
+          # (v3.2.0: job gagal 404, lalu latest.json hanya memuat 4 platform).
+          includeUpdaterJson: false
+
+  # Menyusun latest.json dari berkas .sig yang sudah diunggah keempat build.
+  # Gagal bila ada platform yang hilang, sehingga manifest tidak pernah
+  # terbit separuh.
+  updater-manifest:
+    needs: [changelog, release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build and upload latest.json
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.changelog.outputs.release_id }}
+          TAG: ${{ needs.changelog.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" > release.json
+          mkdir sigs
+          jq -r '.assets[] | select(.name | endswith(".sig")) | "\(.id)\t\(.name)"' release.json |
+          while IFS=$'\t' read -r id name; do
+            gh api -H "Accept: application/octet-stream" \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" > "sigs/${name}"
+          done
+          python3 scripts/updater-manifest.py \
+            --version "${TAG#v}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --release release.json --sigs sigs --out latest.json
+          cat latest.json
+          OLD="$(jq -r '.assets[] | select(.name == "latest.json") | .id' release.json)"
+          if [ -n "$OLD" ]; then
+            gh api -X DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${OLD}"
+          fi
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data-binary @latest.json \
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=latest.json" \
+            > /dev/null
+          echo "latest.json uploaded for ${TAG}."

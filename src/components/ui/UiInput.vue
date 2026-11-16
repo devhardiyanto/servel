@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Kolom teks, textarea, atau select dengan label, bantuan, dan pesan error.
-import { computed, useId } from 'vue'
+import { computed, ref, useId } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -17,13 +17,26 @@ const props = withDefaults(
     rows?: number
     options?: { value: string; label: string }[]
     width?: string
+    /** Nama aksesibel bila tidak ada `label` yang terlihat. */
+    ariaLabel?: string
+    /** Hanya untuk input: `search` menambah tombol hapus bawaan. */
+    type?: 'text' | 'search'
+    /** Id `<datalist>` untuk saran. */
+    list?: string
+    maxlength?: number
   }>(),
-  { as: 'input', rows: 3, mono: false, readonly: false, disabled: false },
+  { as: 'input', rows: 3, mono: false, readonly: false, disabled: false, type: 'text' },
 )
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 const id = useId()
 const describedBy = computed(() => (props.error || props.help ? `${id}-help` : undefined))
+
+const el = ref<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null>(null)
+defineExpose({
+  focus: () => el.value?.focus(),
+  select: () => (el.value as HTMLInputElement | null)?.select?.(),
+})
 
 function onInput(e: Event): void {
   emit('update:modelValue', (e.target as HTMLInputElement).value)
@@ -36,6 +49,8 @@ function onInput(e: Event): void {
     <div v-if="as === 'select'" class="ui-field__select">
       <select
         :id="id"
+        ref="el"
+        :aria-label="ariaLabel"
         class="ui-input"
         :class="{ 'ui-input--err': !!error }"
         :value="modelValue"
@@ -51,6 +66,8 @@ function onInput(e: Event): void {
     <textarea
       v-else-if="as === 'textarea'"
       :id="id"
+      ref="el"
+      :aria-label="ariaLabel"
       class="ui-input ui-input--area"
       :class="{ 'ui-input--mono': mono, 'ui-input--err': !!error }"
       :value="modelValue"
@@ -66,6 +83,11 @@ function onInput(e: Event): void {
     <input
       v-else
       :id="id"
+      ref="el"
+      :type="type"
+      :list="list"
+      :maxlength="maxlength"
+      :aria-label="ariaLabel"
       class="ui-input"
       :class="{ 'ui-input--mono': mono, 'ui-input--err': !!error, 'ui-input--ro': readonly }"
       :value="modelValue"

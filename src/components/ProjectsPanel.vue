@@ -359,7 +359,14 @@ function dotState(p: Project): SiteState {
         <div class="pp-row">
           <div class="pp-who">
             <div class="pp-name">
-              {{ p.name }}
+              <!-- Tombol, supaya project bisa dipilih dengan keyboard; klik
+                   di area kartu lainnya tetap memilih lewat @click kartu. -->
+              <button
+                type="button"
+                class="pp-name__btn"
+                :aria-current="selectedId === p.id ? 'true' : undefined"
+                @click.stop="emit('select', p.id)"
+              >{{ p.name }}</button>
               <UiChip v-if="p.kind">{{ p.kind }}</UiChip>
               <UiChip v-if="p.autoStart">auto-start</UiChip>
               <UiChip v-if="p.startServices && p.profileId">+ services</UiChip>
@@ -590,6 +597,16 @@ function dotState(p: Project): SiteState {
   min-width: 0;
 }
 
+.pp-name__btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+}
+.pp-name__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pp-name {
   display: flex;
   flex-wrap: wrap;

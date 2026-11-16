@@ -23,7 +23,7 @@
   --text:  #e9eaee;
   --muted: #a2a6b2;
   --dim:   #6f7482; /* hanya untuk dekorasi/ikon: kontras 3.5–3.8:1, terlalu rendah untuk teks */
-  --faint: #8b909d; /* v2.8: teks redup yang tetap terbaca (5.6:1 di atas --bg, 5.1:1 di atas --surface) */
+  --faint: #9297a4; /* teks redup yang tetap terbaca: 6.1:1 di atas --bg, 5.6:1 di atas --surface, 4.7:1 di atas --surface2 (baris terpilih). v3.3: dinaikkan dari #8b909d yang hanya 4.3:1 di atas --surface2 */
 
   /* Accents (pastel) */
   --accent: #7cc7e8;
