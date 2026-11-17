@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import UiChip from '@/components/ui/UiChip.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
@@ -538,7 +539,7 @@ onMounted(async () => {
                 <template v-else>
                   <div class="profile-info">
                     <span class="profile-name">{{ p.name }}</span>
-                    <span v-if="p.id === config.activeProfileId" class="profile-badge">active</span>
+                    <UiChip v-if="p.id === config.activeProfileId" tone="accent" class="profile-badge">active</UiChip>
                     <span class="profile-count">{{ p.serviceIds.length }} {{ p.serviceIds.length === 1 ? 'service' : 'services' }}</span>
                   </div>
                   <div class="profile-actions">
@@ -999,16 +1000,10 @@ onMounted(async () => {
 }
 
 .profile-badge {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 1px 6px;
-  border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  color: var(--accent);
+  /* v3.7.0: chip standar (sama dengan "global" di Runtimes), bukan pil huruf besar. */
   flex-shrink: 0;
+  height: 20px;
+  padding: 0 6px;
 }
 
 .profile-count {

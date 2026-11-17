@@ -471,9 +471,17 @@ Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-nav
 - [x] Projects tanpa project: panel detail dan tombol Add project ganda tidak ditampilkan.
 - [x] Pemisah panel yang bisa diseret (`col-resize`) di Projects dan Services; seret habis ke kanan menutup panel.
 
+### M — v3.7.0: popup tray
+
+- [x] Klik kiri ikon tray membuka popup seperti canvas (status berwarna, port rata kanan, Start/Stop); klik kanan tetap menu native.
+- [x] Posisi dihitung dari kotak ikon dan work area monitornya: taskbar bawah, atas, kiri, kanan, monitor kedua (diuji unit).
+- [x] Hilang fokus = tertutup; klik ikon yang menutupnya tidak langsung membukanya lagi (jeda 300 ms).
+- [x] Menutup jendela utama dengan "Minimize to tray" mati tetap keluar lewat jalur Quit (popup tersembunyi tidak menahan aplikasi).
+- [x] Badge "active" di Settings › Services memakai chip standar.
+- [ ] Uji di Windows: posisi, DPI, multi-monitor, sudut dan bayangan, klik ulang ikon.
+
 ### v3.x — kandidat, belum diputuskan
 
-- Popup tray custom seperti canvas (klik kiri; klik kanan tetap menu native). Ditunda 18 Nov: posisi terhadap taskbar, multi-monitor, dan DPI perlu milestone sendiri.
 
 ### v4.0 — pemutusan kompatibilitas Servel (belum dijadwalkan)
 

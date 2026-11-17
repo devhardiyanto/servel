@@ -262,6 +262,19 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
         .icon(icon)
         .tooltip(tooltip_text(&app.package_info().version.to_string(), 0))
         .menu(&menu)
+        // v3.7.0: klik kiri membuka popup (tray_popup), klik kanan menu ini.
+        .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            if let tauri::tray::TrayIconEvent::Click {
+                button: tauri::tray::MouseButton::Left,
+                button_state: tauri::tray::MouseButtonState::Up,
+                rect,
+                ..
+            } = event
+            {
+                crate::tray_popup::toggle(tray.app_handle(), &rect);
+            }
+        })
         .on_menu_event(|app, event| {
             let id = event.id.as_ref();
             if let Some(pid) = id.strip_prefix("project:") {
