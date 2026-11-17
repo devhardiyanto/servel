@@ -9,6 +9,7 @@
 //! menawarkan halaman rilis.
 
 use serde::Serialize;
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_updater::UpdaterExt;
 
@@ -49,11 +50,17 @@ pub async fn update_check(app: AppHandle) -> Result<Option<UpdateInfo>, String> 
     }))
 }
 
-/// Unduh, verifikasi tanda tangan, hentikan dev server, pasang, lalu restart. Progress dikirim
-/// lewat event `update-progress`. Di Windows proses keluar saat installer
-/// berjalan, jadi command ini tidak selalu sempat mengembalikan `Ok`.
+/// Update yang sudah diunduh dan lolos verifikasi, menunggu "Restart now".
+static READY: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>)>> = Mutex::new(None);
+
+/// Unduh dan verifikasi update, lalu simpan sampai pengguna memilih restart
+/// (v3.4: banner "Ready to restart" dengan Later / Restart now). Progress
+/// dikirim lewat event `update-progress`. Mengembalikan versi yang siap.
 #[tauri::command]
-pub async fn update_install(app: AppHandle) -> Result<(), String> {
+pub async fn update_download(app: AppHandle) -> Result<String, String> {
+    if let Some((u, _)) = READY.lock().map_err(|e| e.to_string())?.as_ref() {
+        return Ok(u.version.clone());
+    }
     let updater = app.updater().map_err(|e| format!("updater not available: {}", e))?;
     let update = updater
         .check()
@@ -63,6 +70,7 @@ pub async fn update_install(app: AppHandle) -> Result<(), String> {
 
     let mut downloaded: u64 = 0;
     let emitter = app.clone();
+    // `download` memverifikasi tanda tangan; berkas yang tidak cocok ditolak di sini.
     let bytes = update
         .download(
             move |chunk, total| {
@@ -73,8 +81,22 @@ pub async fn update_install(app: AppHandle) -> Result<(), String> {
         )
         .await
         .map_err(|e| format!("could not download the update: {}", e))?;
+    let version = update.version.clone();
+    *READY.lock().map_err(|e| e.to_string())? = Some((update, bytes));
+    Ok(version)
+}
 
-    // Installer Windows menutup Servel secara paksa, jadi hook "stop saat
+/// Pasang update yang sudah diunduh, lalu restart. Di Windows proses keluar
+/// saat installer berjalan, jadi command ini tidak selalu sempat mengembalikan `Ok`.
+#[tauri::command]
+pub async fn update_apply(app: AppHandle) -> Result<(), String> {
+    let (update, bytes) = READY
+        .lock()
+        .map_err(|e| e.to_string())?
+        .take()
+        .ok_or_else(|| "the update is not downloaded yet".to_string())?;
+
+    // Installer Windows menutup Kova secara paksa, jadi hook "stop saat
     // keluar" tidak sempat berjalan. Hentikan dev server di sini; kalau tidak,
     // prosesnya tertinggal memegang port dan Start setelah update gagal.
     crate::sites::process::stop_all(&app).await;
@@ -86,6 +108,13 @@ pub async fn update_install(app: AppHandle) -> Result<(), String> {
     // Instance baru tidak boleh menyerahkan diri ke proses ini yang sedang keluar.
     crate::control::forget();
     app.restart();
+}
+
+/// Unduh lalu langsung pasang (dipakai alur lama dan tray).
+#[tauri::command]
+pub async fn update_install(app: AppHandle) -> Result<(), String> {
+    update_download(app.clone()).await?;
+    update_apply(app).await
 }
 
 #[cfg(test)]

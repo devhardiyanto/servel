@@ -18,6 +18,8 @@ export interface ProjectSuggestion {
   name: string
   detection: { kind: string; label: string; command: string; defaultPort: number }
   port: number
+  /** Berkas yang membuat jenisnya dikenali (v3.4). */
+  evidence: string[]
 }
 
 // Singleton: status dev server dibagi ke semua konsumen (Settings, Dashboard).

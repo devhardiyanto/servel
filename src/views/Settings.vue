@@ -91,11 +91,10 @@ const {
   checking: checkingUpdate,
   lastChecked,
   canInstall,
-  installing: installingUpdate,
-  installPercent,
-  installError,
+  phase: updatePhase,
   check: checkUpdate,
-  install: installUpdate,
+  download: downloadUpdate,
+  apply: applyUpdate,
   openReleasePage,
 } = useUpdateCheck()
 
@@ -590,30 +589,18 @@ onMounted(async () => {
             <div v-if="updateAvailable" class="update-banner">
               <span class="ub-text">New version available: <strong>v{{ latestVersion }}</strong></span>
               <span class="ub-actions">
-                <UiButton v-if="canInstall" variant="quiet" :disabled="installingUpdate" @click="openReleasePage">
-                  Release notes
-                </UiButton>
-                <UiButton v-if="canInstall" variant="primary" :loading="installingUpdate" @click="installUpdate">
-                  {{ installingUpdate ? 'Installing…' : 'Update now' }}
-                </UiButton>
-                <UiButton v-else variant="primary" @click="openReleasePage">Open release page</UiButton>
+                <UiButton v-if="canInstall" variant="quiet" @click="openReleasePage">Release notes</UiButton>
+                <UiButton
+                  v-if="canInstall && (updatePhase === 'available' || updatePhase === 'idle')"
+                  variant="primary"
+                  @click="downloadUpdate"
+                >Update</UiButton>
+                <UiButton v-else-if="canInstall && updatePhase === 'ready'" variant="primary" @click="applyUpdate">Restart now</UiButton>
+                <UiButton v-else-if="!canInstall" variant="primary" @click="openReleasePage">Open release page</UiButton>
               </span>
             </div>
-            <div v-if="installingUpdate" class="update-progress">
-              <div class="up-track">
-                <div
-                  class="up-fill"
-                  :class="{ 'up-fill--unknown': installPercent === null }"
-                  :style="installPercent !== null ? { width: installPercent + '%' } : undefined"
-                />
-              </div>
-              <span class="up-text">
-                {{ installPercent !== null ? `Downloading ${installPercent}%` : 'Downloading…' }}
-                · Kova will close, install, then open again.
-              </span>
-            </div>
-            <p v-if="installError" class="update-error">
-              Automatic update failed: {{ installError }}. Download the installer from the release page.
+            <p v-if="updatePhase === 'downloading' || updatePhase === 'error'" class="update-progress-note">
+              Progress and errors show in the banner at the top of the window.
             </p>
 
             <div class="update-row">
@@ -859,50 +846,6 @@ onMounted(async () => {
   flex-shrink: 0;
 }
 
-.update-progress {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-
-.up-track {
-  height: 6px;
-  border-radius: 999px;
-  background: var(--surface2);
-  overflow: hidden;
-}
-
-.up-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 999px;
-  transition: width 0.2s var(--ease);
-}
-
-.up-fill--unknown {
-  width: 35%;
-  animation: up-slide 1.2s var(--ease) infinite alternate;
-}
-
-@keyframes up-slide {
-  from { transform: translateX(-20%); }
-  to { transform: translateX(210%); }
-}
-
-.up-text {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--muted);
-}
-
-.update-error {
-  margin-top: var(--space-3);
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--red);
-}
-
 .update-row {
   display: flex;
   align-items: center;
@@ -1032,4 +975,5 @@ onMounted(async () => {
   color: var(--red);
 }
 .profile-field { flex: 1; }
+.update-progress-note { margin: var(--space-2) 0 0; font-size: var(--text-xs); color: var(--faint); }
 </style>

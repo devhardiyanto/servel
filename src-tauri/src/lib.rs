@@ -116,6 +116,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             updater::update_check,
             updater::update_install,
+            updater::update_download,
+            updater::update_apply,
             commands::prereq::check_prerequisites,
             commands::prereq::start_engine,
             commands::prereq::get_platform,
@@ -156,6 +158,7 @@ pub fn run() {
             php_ext::php_ext_install,
             php_ext::php_ext_fix_https,
             sites::project_detect,
+            sites::project_port_check,
             sites::sites_runtime,
             sites::site_start,
             sites::site_stop,

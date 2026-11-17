@@ -12,6 +12,7 @@ import NavRail from './components/shell/NavRail.vue'
 import StatusBar from './components/shell/StatusBar.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import ToastHost from './components/ui/ToastHost.vue'
+import UpdateBanner from './components/shell/UpdateBanner.vue'
 import { useAutoStart } from './composables/useAutoStart'
 import { useEngineStatus } from './composables/useEngineStatus'
 import { useUpdateCheck } from './composables/useUpdateCheck'
@@ -72,6 +73,7 @@ onMounted(() => {
   <div v-else class="shell">
     <NavRail :current="currentView" @go="setView" @palette="palette?.show()" />
     <main class="shell-main">
+      <UpdateBanner />
       <component :is="viewComponent" />
     </main>
     <StatusBar class="shell-status" />
@@ -95,7 +97,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
 }
-.shell-main > :deep(*) {
+.shell-main > :deep(*:not(.ub)) {
   flex: 1;
   min-height: 0;
 }

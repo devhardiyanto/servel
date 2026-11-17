@@ -323,6 +323,18 @@ pub fn detect(dir: &Path) -> Detection {
         .unwrap_or_else(|| det("unknown", "", "", 8000))
 }
 
+/// Berkas penanda yang ada di folder, untuk ditampilkan sebagai alasan hasil
+/// deteksi ("artisan, composer.json"). Urutan tetap; paling banyak empat.
+pub fn evidence(dir: &Path) -> Vec<String> {
+    const MARKERS: [&str; 20] = [
+        "artisan", "manage.py", "composer.json", "package.json", "go.mod", "pyproject.toml",
+        "requirements.txt", "Pipfile", "nuxt.config.ts", "nuxt.config.js", "next.config.js",
+        "next.config.mjs", "vite.config.ts", "vite.config.js", "angular.json", "wp-config.php",
+        "wp-load.php", "index.php", "main.py", "app.py",
+    ];
+    MARKERS.iter().filter(|f| dir.join(f).is_file()).take(4).map(|f| f.to_string()).collect()
+}
+
 /// Port pertama ≥ `start` yang tidak ada di `taken` dan lolos `is_free`.
 pub fn pick_port(start: u16, taken: &HashSet<u16>, is_free: impl Fn(u16) -> bool) -> Option<u16> {
     (start.max(1024)..=u16::MAX).find(|p| !taken.contains(p) && is_free(*p))
@@ -575,6 +587,14 @@ mod tests {
         let p = Proj::new("go-with-py");
         p.file("go.mod", "module x").file("main.py", "print(1)\n");
         assert_eq!(p.detect().kind, "go");
+    }
+
+    #[test]
+    fn evidence_lists_marker_files_in_a_fixed_order() {
+        let p = Proj::new("evidence");
+        p.file("composer.json", "{}").file("artisan", "").file("package.json", "{}");
+        assert_eq!(evidence(&p.0), vec!["artisan", "composer.json", "package.json"]);
+        assert!(evidence(&Proj::new("evidence-empty").0).is_empty());
     }
 
     #[test]

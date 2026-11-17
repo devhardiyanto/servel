@@ -1,121 +1,307 @@
 <script setup lang="ts">
-// Panel detail project (v2.10): versi runtime dari mise, service dari
-// profil, output terakhir dev server, dan pintasan buka folder.
-import { computed, onMounted, ref } from 'vue'
+// Panel detail project (v3.4, canvas Projects / Flow C): kepala dengan status
+// dan aksi, lalu tab Overview, Environment, Logs.
+import { computed, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiBanner from '@/components/ui/UiBanner.vue'
+import UiMenu from '@/components/ui/UiMenu.vue'
+import UiTabs from '@/components/ui/UiTabs.vue'
+import UiInput from '@/components/ui/UiInput.vue'
+import StatusDot from '@/components/ui/StatusDot.vue'
 import LogTail from '@/components/LogTail.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
+import { useServices } from '@/composables/useServices'
+import { useToast } from '@/composables/useToast'
+import { useProjectRuntime, isActive } from '@/composables/useProjectRuntime'
+import { useProjectActions, canRun, missingReason } from '@/composables/useProjectActions'
 import type { Project, ToolCurrent } from '@/types/mise'
 
 const props = defineProps<{ project: Project }>()
 
-const { config } = useConfig()
+const { config, updateProject } = useConfig()
 const { lines } = useLogs()
+const services = useServices()
+const toast = useToast()
+const runtime = useProjectRuntime()
+const actions = useProjectActions()
+const tab = actions.detailTab
 
+const p = computed(() => props.project)
+const state = computed(() => runtime.stateOf(p.value.id))
+const info = computed(() => runtime.infoOf(p.value.id))
+const busy = computed(() => !!actions.busy.value[p.value.id])
+const error = computed(() => actions.errors.value[p.value.id] ?? '')
+const up = computed(() => state.value === 'running' || state.value === 'unresponsive')
+
+const statusLine = computed(() => actions.stateLabel(p.value) + (state.value === 'running' ? ` · :${p.value.port}` : ''))
+
+// --- Overview ---------------------------------------------------------------
 const tools = ref<ToolCurrent[] | null>(null)
-const toolsError = ref('')
-const openError = ref('')
+async function loadTools(): Promise<void> {
+  if (!p.value.path) {
+    tools.value = []
+    return
+  }
+  try {
+    tools.value = await invoke<ToolCurrent[]>('mise_project_tools', { path: p.value.path })
+  } catch {
+    tools.value = []
+  }
+}
+onMounted(loadTools)
 
 const profile = computed(() =>
-  props.project.profileId ? config.value.profiles.find((p) => p.id === props.project.profileId) : undefined,
+  p.value.profileId ? config.value.profiles.find((x) => x.id === p.value.profileId) : undefined,
+)
+const profileServices = computed(() =>
+  (profile.value?.serviceIds ?? []).map((id) => ({
+    id,
+    name: services.definitions.value.find((d) => d.id === id)?.name ?? id,
+    state: services.uiState.value[id]?.status === 'running' ? ('running' as const) : ('stopped' as const),
+  })),
 )
 
-// Dev server memakai nama project sebagai sumber log.
-const output = computed(() => lines.value.filter((l) => l.src === props.project.name).slice(-20))
+const projectLines = computed(() => lines.value.filter((l) => l.src === p.value.name))
+const recent = computed(() => projectLines.value.slice(-12))
+const last500 = computed(() => projectLines.value.slice(-500))
 
 function sourceLabel(t: ToolCurrent): string {
   if (t.scope === 'global') return 'global'
-  if (!t.source) return ''
-  return t.source.split(/[\\/]/).pop() ?? ''
-}
-
-async function loadTools(): Promise<void> {
-  toolsError.value = ''
-  try {
-    tools.value = await invoke<ToolCurrent[]>('mise_project_tools', { path: props.project.path })
-  } catch (err) {
-    tools.value = []
-    toolsError.value = String(err)
-  }
+  return t.source?.split(/[\\/]/).pop() ?? ''
 }
 
 async function openIn(target: 'folder' | 'terminal' | 'vscode'): Promise<void> {
-  openError.value = ''
   try {
-    await invoke('project_open_in', { target, path: props.project.path })
+    await invoke('project_open_in', { target, path: p.value.path })
   } catch (err) {
-    openError.value = String(err)
+    actions.setError(p.value.id, String(err))
   }
 }
 
-onMounted(loadTools)
+// --- Environment ------------------------------------------------------------
+interface Row { k: string; v: string }
+const rows = ref<Row[]>([])
+const envError = ref('')
+const envSaving = ref(false)
+
+function resetRows(): void {
+  rows.value = Object.entries(p.value.env ?? {}).map(([k, v]) => ({ k, v }))
+  envError.value = ''
+}
+watch(() => p.value.id, resetRows, { immediate: true })
+
+const envDirty = computed(() => {
+  const cur = Object.entries(p.value.env ?? {})
+  const next = rows.value.filter((r) => r.k.trim() !== '' || r.v !== '')
+  return cur.length !== next.length || next.some((r, i) => cur[i]?.[0] !== r.k.trim() || cur[i]?.[1] !== r.v)
+})
+
+function validateEnv(): Record<string, string> | null {
+  const env: Record<string, string> = {}
+  for (const [i, r] of rows.value.entries()) {
+    const k = r.k.trim()
+    if (k === '' && r.v === '') continue
+    if (!/^[^\s=]+$/.test(k)) {
+      envError.value = `Row ${i + 1}: "${k || '(empty)'}" is not a valid variable name.`
+      return null
+    }
+    if (k.toUpperCase() === 'PORT') {
+      envError.value = `Row ${i + 1}: set the port in Project settings, not here.`
+      return null
+    }
+    if (k in env) {
+      envError.value = `Row ${i + 1}: ${k} is listed twice.`
+      return null
+    }
+    env[k] = r.v
+  }
+  envError.value = ''
+  return env
+}
+
+async function saveEnv(thenRestart: boolean): Promise<void> {
+  const env = validateEnv()
+  if (!env) return
+  envSaving.value = true
+  try {
+    await updateProject(p.value.id, { env })
+    resetRows()
+    const fresh = config.value.projects.find((x) => x.id === p.value.id)
+    if (thenRestart && fresh) {
+      await (isActive(state.value) ? actions.restart(fresh) : actions.start(fresh))
+      tab.value = 'overview'
+    } else {
+      toast.show('Environment saved. It applies the next time the project starts.')
+    }
+  } finally {
+    envSaving.value = false
+  }
+}
+
+const tabs = computed(() => [
+  { value: 'overview', label: 'Overview' },
+  { value: 'env', label: 'Environment', badge: Object.keys(p.value.env ?? {}).length || undefined },
+  { value: 'logs', label: 'Logs' },
+])
 </script>
 
 <template>
   <div class="pd">
-    <div class="pd-actions">
-      <UiButton variant="quiet" @click="openIn('folder')">Open folder</UiButton>
-      <UiButton variant="quiet" @click="openIn('terminal')">Terminal here</UiButton>
-      <UiButton variant="quiet" @click="openIn('vscode')">Open in VS Code</UiButton>
-    </div>
-    <p v-if="openError" class="pd-error">{{ openError }}</p>
+    <header class="pd-head">
+      <div class="pd-title">
+        <h2 class="pd-name">{{ p.name }}</h2>
+        <StatusDot :state="state" :label="statusLine" />
+      </div>
+      <div class="pd-actions">
+        <template v-if="!p.path">
+          <UiButton variant="accent" @click="actions.editingId.value = p.id">Choose folder</UiButton>
+        </template>
+        <template v-else-if="!canRun(p)">
+          <UiButton variant="accent" @click="actions.editingId.value = p.id">Project settings</UiButton>
+        </template>
+        <template v-else-if="up">
+          <UiButton variant="accent" @click="actions.open(p)">Open localhost:{{ p.port }}</UiButton>
+          <UiButton :disabled="busy" @click="actions.stop(p)">Stop</UiButton>
+          <UiButton :disabled="busy" @click="actions.restart(p)">Restart</UiButton>
+        </template>
+        <template v-else-if="state === 'starting'">
+          <UiButton disabled loading>Starting…</UiButton>
+          <UiButton @click="actions.stop(p)">Stop</UiButton>
+        </template>
+        <UiButton v-else variant="success" :loading="busy" @click="actions.start(p)">Start</UiButton>
+        <UiMenu :items="actions.menuItems(p)" :label="`More actions for ${p.name}`" @select="actions.onMenu(p, $event)" />
+      </div>
+    </header>
 
-    <dl class="pd-grid">
-      <dt>Runtime</dt>
-      <dd>
-        <span v-if="tools === null" class="pd-dim">Checking…</span>
-        <span v-else-if="toolsError" class="pd-dim">{{ toolsError }}</span>
-        <span v-else-if="tools.length === 0" class="pd-dim">No versions set by mise for this folder</span>
-        <template v-else>
-          <span v-for="t in tools" :key="t.tool" class="pd-tool">
-            {{ t.tool }} <b>{{ t.version }}</b>
+    <UiTabs v-model="tab" :tabs="tabs" label="Project details" />
+
+    <!-- Overview -->
+    <div v-if="tab === 'overview'" class="pd-body" role="tabpanel">
+      <UiBanner v-if="error" tone="err" title="That did not work">{{ error }}</UiBanner>
+      <UiBanner
+        v-else-if="state === 'exited'"
+        tone="err"
+        :title="info?.exitCode != null ? `Stopped with exit code ${info.exitCode}` : 'Stopped'"
+      >
+        <code v-if="info?.lastLine" class="pd-lastline">{{ info.lastLine }}</code>
+        <template #actions>
+          <UiButton @click="actions.viewLog(p)">View log</UiButton>
+          <UiButton @click="tab = 'env'">Environment</UiButton>
+          <UiButton variant="accent" :loading="busy" @click="actions.start(p)">Restart</UiButton>
+        </template>
+      </UiBanner>
+      <UiBanner v-else-if="state === 'unresponsive'" tone="warn" :title="`Running, but nothing answers on :${p.port}`">
+        The app may listen on another port. Add {port} to the command so it uses the project's port.
+        <template #actions>
+          <UiButton @click="actions.editingId.value = p.id">Edit command</UiButton>
+          <UiButton @click="actions.viewLog(p)">View log</UiButton>
+        </template>
+      </UiBanner>
+      <p v-if="!canRun(p)" class="pd-note">{{ missingReason(p) }}</p>
+
+      <dl class="pd-grid">
+        <dt>Type</dt>
+        <dd>{{ p.kind || 'Not detected' }}</dd>
+        <dt>Command</dt>
+        <dd class="pd-mono">{{ p.command || '—' }}</dd>
+        <dt>Folder</dt>
+        <dd class="pd-mono pd-wrap">{{ p.path || 'Not chosen yet' }}</dd>
+      </dl>
+
+      <section class="pd-sec">
+        <h3 class="pd-label">Runtime</h3>
+        <p v-if="tools === null" class="pd-dim">Checking…</p>
+        <p v-else-if="tools.length === 0" class="pd-dim">No versions set by mise for this folder.</p>
+        <ul v-else class="pd-list">
+          <li v-for="t in tools" :key="t.tool">
+            <span>{{ t.tool }}</span>
+            <b class="pd-mono">{{ t.version }}</b>
             <span v-if="!t.installed" class="pd-warn">not installed</span>
-            <span v-if="sourceLabel(t)" class="pd-dim">· {{ sourceLabel(t) }}</span>
-          </span>
-        </template>
-      </dd>
+            <span class="pd-dim">{{ sourceLabel(t) }}</span>
+          </li>
+        </ul>
+      </section>
 
-      <dt>Services</dt>
-      <dd>
-        <template v-if="profile">
-          {{ profile.name }}:
-          <span class="pd-mono">{{ profile.serviceIds.join(', ') || 'none' }}</span>
-          <span class="pd-dim">· {{ project.startServices ? 'started with the project' : 'not started with the project' }}</span>
-        </template>
-        <span v-else class="pd-dim">No service profile. Pick one in Edit.</span>
-      </dd>
-    </dl>
+      <section class="pd-sec">
+        <h3 class="pd-label">Services{{ profile ? ` · profile ${profile.name}` : '' }}</h3>
+        <p v-if="!profile" class="pd-dim">No service profile. Pick one in Project settings.</p>
+        <p v-else-if="profileServices.length === 0" class="pd-dim">This profile has no services.</p>
+        <ul v-else class="pd-list">
+          <li v-for="s in profileServices" :key="s.id"><StatusDot :state="s.state" :label="s.name" /></li>
+        </ul>
+      </section>
 
-    <div class="pd-out-label">Last output</div>
-    <LogTail v-if="output.length" :lines="output" max-height="160px" />
-    <p v-else class="pd-dim pd-empty">No output yet in this session.</p>
+      <section class="pd-sec">
+        <h3 class="pd-label">Recent output</h3>
+        <LogTail v-if="recent.length" :lines="recent" max-height="180px" />
+        <p v-else class="pd-dim">No output yet. Start the project to see it here.</p>
+      </section>
+
+      <div class="pd-open">
+        <UiButton variant="quiet" :disabled="!p.path" @click="openIn('folder')">Open folder</UiButton>
+        <UiButton variant="quiet" :disabled="!p.path" @click="openIn('terminal')">Terminal here</UiButton>
+        <UiButton variant="quiet" :disabled="!p.path" @click="openIn('vscode')">Open in VS Code</UiButton>
+      </div>
+    </div>
+
+    <!-- Environment -->
+    <div v-else-if="tab === 'env'" class="pd-body" role="tabpanel">
+      <p class="pd-dim">Added on top of the environment from mise. Values stay on this PC.</p>
+      <div v-for="(r, i) in rows" :key="i" class="pd-env">
+        <UiInput v-model="r.k" mono :aria-label="`Name of variable ${i + 1}`" placeholder="NAME" />
+        <UiInput v-model="r.v" mono :aria-label="`Value for ${r.k || `variable ${i + 1}`}`" placeholder="value" />
+        <UiButton variant="quiet" :aria-label="`Remove ${r.k || `variable ${i + 1}`}`" @click="rows.splice(i, 1)">&times;</UiButton>
+      </div>
+      <div><UiButton @click="rows.push({ k: '', v: '' })">Add variable</UiButton></div>
+      <p v-if="profile" class="pd-dim">Tip: Services › Connect copies database and cache values for you.</p>
+      <UiBanner v-if="envError" tone="err" title="Check the variables">{{ envError }}</UiBanner>
+      <div class="pd-env-actions">
+        <UiButton :disabled="!envDirty || envSaving" @click="saveEnv(false)">Save</UiButton>
+        <UiButton
+          variant="primary"
+          :disabled="!canRun(p) || envSaving || (!envDirty && isActive(state))"
+          :loading="envSaving"
+          @click="saveEnv(true)"
+        >{{ isActive(state) ? 'Save & restart' : 'Save & start' }}</UiButton>
+      </div>
+    </div>
+
+    <!-- Logs -->
+    <div v-else class="pd-body" role="tabpanel">
+      <LogTail v-if="last500.length" :lines="last500" max-height="calc(100vh - 300px)" />
+      <p v-else class="pd-dim">No output yet in this session.</p>
+      <div class="pd-env-actions">
+        <span class="pd-dim">Last 500 lines</span>
+        <UiButton @click="actions.viewLog(p)">Open in Logs</UiButton>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.pd {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  font-size: var(--text-xs);
-}
-.pd-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-.pd-grid {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: var(--space-1) var(--space-4);
-  margin: var(--space-1) 0;
-}
+.pd { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.pd-head { display: flex; flex-direction: column; gap: var(--space-3); }
+.pd-title { display: flex; flex-direction: column; gap: var(--space-1); }
+.pd-name { margin: 0; font-size: var(--text-lg); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.pd-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.pd-body { display: flex; flex-direction: column; gap: var(--space-4); font-size: var(--text-sm); }
+.pd-grid { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-4); margin: 0; font-size: var(--text-xs); }
 .pd-grid dt { color: var(--faint); }
-.pd-grid dd { margin: 0; color: var(--text); display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
-.pd-tool { display: inline-flex; align-items: baseline; gap: var(--space-1); }
-.pd-tool b { font-family: var(--font-mono); font-weight: 500; }
-.pd-mono { font-family: var(--font-mono); }
-.pd-dim { color: var(--faint); }
+.pd-grid dd { margin: 0; color: var(--text); min-width: 0; }
+.pd-sec { display: flex; flex-direction: column; gap: var(--space-2); }
+.pd-label { margin: 0; font-size: var(--text-xs); font-weight: 500; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; }
+.pd-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-xs); }
+.pd-list li { display: flex; gap: var(--space-2); align-items: baseline; }
+.pd-mono { font-family: var(--font-mono); font-weight: 500; }
+.pd-wrap { overflow-wrap: anywhere; }
+.pd-dim { margin: 0; color: var(--faint); font-size: var(--text-xs); }
 .pd-warn { color: var(--amber); }
-.pd-error { margin: 0; color: var(--red); }
-.pd-out-label { color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; }
-.pd-empty { margin: 0; }
+.pd-note { margin: 0; color: var(--muted); font-size: var(--text-xs); }
+.pd-lastline { font: 400 var(--text-xs) var(--font-mono); color: var(--red); overflow-wrap: anywhere; }
+.pd-open { display: flex; flex-wrap: wrap; gap: var(--space-2); border-top: 1px solid var(--border); padding-top: var(--space-3); }
+.pd-env { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto; gap: var(--space-2); align-items: center; }
+.pd-env-actions { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; }
+.pd-env-actions .pd-dim { margin-right: auto; }
 </style>
