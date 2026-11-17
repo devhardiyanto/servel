@@ -43,7 +43,7 @@ No more juggling three terminals every morning.
 **App**
 - One window with five screens: **Projects**, **Services**, **Runtimes**, **Logs**, **Settings**. The status bar shows the container engine, running services, memory and version.
 - **Command palette** (`Ctrl K`, `⌘K` on macOS): jump to a screen, start or stop a service, start, stop, restart or open a project, all from the keyboard.
-- In-app updates from Settings → About.
+- In-app updates: a banner on every screen, download in the background, restart when you choose.
 - System tray, remembered selection, optional start when you sign in (in the tray), and a `kova` terminal command on Windows, macOS and Linux.
 
 ---
@@ -67,7 +67,7 @@ Download the installer for your OS from the [Releases page](https://github.com/d
 
 **Upgrading from Servel 2.x:** use **Check for updates** in Servel, or run the Kova installer. The installer removes the old Servel app for you. Projects, profiles, settings and database volumes are kept: the data folder (`com.devhardiyanto.servel`) and the `servel_*` containers keep their names on purpose. In the terminal, `servel` still works until v4.0 and prints a one-line reminder to use `kova`.
 
-**Updating:** from v2.1 on, open **Settings → About → Check for updates → Update now**. Kova stops running projects, installs the new version and reopens. Older versions update by installing the new release manually once.
+**Updating:** when a new version is out, a banner appears at the top of every screen. **Update** downloads it in the background (it is checked against the update signing key) while projects and services keep running; when it is ready, choose **Restart now** or **Later**. **Settings → About → Check for updates** checks again on demand. Versions before 2.1 update by installing the new release manually once.
 
 If you changed `.wslconfig`, restart WSL once so it takes effect:
 
@@ -191,7 +191,7 @@ How it differs from Windows: `up`, `down` and the project commands are carried o
 
 ## First run
 
-On first launch Kova checks what is installed: the container engine (WSL containers or Docker) and mise. Missing items show what to install. Click **Refresh checks** after installing, then **Continue to Kova**.
+On first launch Kova walks through three steps: **Engine** (WSL containers or Docker), **Runtimes** (mise: **Install mise**, or **I'll install it myself** to see the command), and **First project** (pick a folder, check what was detected, then **Add & start**). Each step after the first can be skipped.
 
 ---
 
@@ -225,17 +225,23 @@ To load data: **Settings → Services → Restore database** (pick a `.sql` dump
 
 ### Projects
 
-1. Click **+ Add project folder** and pick the folder. Kova detects the type and opens the form with a suggested **Command** and **Port**.
-2. Check the **Project settings** panel that opens on the right, then **Save & start**. Open it again later from the **⋯** menu on the project's card; the same menu has Open folder, Terminal here, Open in VS Code, Copy URL and Remove project.
-3. When the status turns **running**, click `localhost:<port>` to open it.
+1. Click **Add project** and pick the folder. Kova shows what it detected (and from which files), a suggested **Command**, and a **Port** it has checked is free; if the port is taken, **Use <next port>** picks the next free one.
+2. Click **Save & start**. Nothing is added until you save.
+3. Select the project in the list. The panel on the right has **Open localhost:<port>**, Stop and Restart, a **⋯** menu (Open folder, Terminal here, Open in VS Code, Copy URL, Project settings, Remove project), and three tabs:
+   - **Overview**: type, command, folder, versions from mise, the profile's services, and recent output. If the project stops with an error, the last line is shown with **View log**, **Environment** and **Restart**.
+   - **Environment**: variables for this project's dev server, one row each. **Save & restart** applies them right away.
+   - **Logs**: the last 500 lines, and **Open in Logs** for the full view.
+
+With more than three projects a search box appears above the list.
 
 | Field | What it does |
 |---|---|
 | **Command** | Any command, run in the project folder. `{port}` is replaced by the port, and the `PORT` variable is set to it. **Detect** fills it in again. Leave it empty to use the project only for versions and services. |
 | **Port** | Fixed port on `localhost` (1024–65535). |
-| **Services** | Service profile applied when you pick this project under **Versions for** on Runtimes. Tick **Start these services when the project starts** to have Start, Restart and start-on-launch also start that profile's services; running services are left alone and stopping the project stops none. |
-| **Environment** | One `KEY=VALUE` per line, set for this project's dev server on top of mise's environment. Lines copied from a shell (`export KEY='value'`) work as-is. |
-| **On launch** | Start this project when Kova opens. |
+| **Services** | Service profile applied when you pick this project under **Versions for** on Runtimes. Turn on **Start services with project** to have Start, Restart and start-on-launch also start that profile's services; running services are left alone and stopping the project stops none. |
+| **Start when Kova opens** | Start this project when Kova opens. |
+
+These fields are in **⋯ → Project settings**; environment variables are on the **Environment** tab.
 
 Examples of commands Kova suggests:
 
@@ -344,7 +350,7 @@ PHP printed a startup error with the new setting, so Kova restored `php.ini`; th
 
 ### Project shows "port not answering"
 
-The process is running but nothing listens on the project's port. The app probably uses its own port: check **Logs → Projects** for the address it prints, then set that port in **⋯ → Project settings** (or make the app read `PORT`). **View log** on the project's card opens that log directly.
+The process is running but nothing listens on the project's port. The app probably uses its own port: check **Logs → Projects** for the address it prints, then set that port in **⋯ → Project settings** (or make the app read `PORT`). **View log** on the project's panel opens that log directly.
 
 ### Old `.test` domains still resolve (upgraded from v2.1 or older)
 

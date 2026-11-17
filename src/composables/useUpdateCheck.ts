@@ -42,6 +42,23 @@ const canInstall = ref(false)
 const installing = ref(false)
 const installPercent = ref<number | null>(null)
 const installError = ref('')
+// v3.4: banner global. Unduh dulu, lalu pengguna memilih kapan restart.
+export type UpdatePhase = 'idle' | 'available' | 'downloading' | 'ready' | 'error'
+const phase = ref<UpdatePhase>('idle')
+const downloaded = ref(0)
+const totalBytes = ref<number | null>(null)
+const readyVersion = ref('')
+const DISMISS_KEY = 'kova.update.dismissed'
+const dismissedVersion = ref<string>(readDismissed())
+const bannerHidden = ref(false)
+
+function readDismissed(): string {
+  try {
+    return localStorage.getItem(DISMISS_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
 
 interface UpdateInfo {
   version: string
@@ -63,6 +80,7 @@ async function probeInstaller(): Promise<void> {
     if (info) {
       latestVersion.value = info.version
       updateAvailable.value = true
+      if (phase.value === 'idle') phase.value = 'available'
     }
   } catch (err) {
     console.warn('[update-check] built-in updater not available:', err)
@@ -87,6 +105,53 @@ async function runInstall(): Promise<void> {
   } finally {
     unlisten()
     installing.value = false
+  }
+}
+
+/** Unduh dan verifikasi; banner berpindah ke "ready" bila berhasil. */
+async function runDownload(): Promise<void> {
+  if (phase.value === 'downloading') return
+  phase.value = 'downloading'
+  bannerHidden.value = false
+  installError.value = ''
+  installPercent.value = null
+  downloaded.value = 0
+  totalBytes.value = null
+  const unlisten = await listen<UpdateProgress>('update-progress', (e) => {
+    installPercent.value = e.payload.percent
+    downloaded.value = e.payload.downloaded
+    totalBytes.value = e.payload.total
+  })
+  try {
+    readyVersion.value = await invoke<string>('update_download')
+    phase.value = 'ready'
+  } catch (err) {
+    installError.value = String(err)
+    phase.value = 'error'
+  } finally {
+    unlisten()
+  }
+}
+
+/** Pasang yang sudah diunduh lalu restart. */
+async function runApply(): Promise<void> {
+  installing.value = true
+  try {
+    await invoke('update_apply')
+  } catch (err) {
+    installError.value = String(err)
+    phase.value = 'error'
+  } finally {
+    installing.value = false
+  }
+}
+
+function dismiss(): void {
+  dismissedVersion.value = latestVersion.value
+  try {
+    localStorage.setItem(DISMISS_KEY, latestVersion.value)
+  } catch {
+    /* hanya untuk sesi ini */
   }
 }
 
@@ -124,6 +189,16 @@ export function useUpdateCheck() {
     installing,
     installPercent,
     installError,
+    phase,
+    downloaded,
+    totalBytes,
+    readyVersion,
+    dismissedVersion,
+    bannerHidden,
+    download: runDownload,
+    apply: runApply,
+    dismiss,
+    hideBanner: () => (bannerHidden.value = true),
     check: runCheck,
     install: runInstall,
     openReleasePage,

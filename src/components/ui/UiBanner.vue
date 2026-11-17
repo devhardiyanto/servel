@@ -23,6 +23,7 @@ defineProps<{ tone: 'info' | 'warn' | 'err' | 'ok'; title: string }>()
 <style scoped>
 .ui-banner {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: flex-start;
   padding: 10px 12px;
@@ -42,10 +43,15 @@ defineProps<{ tone: 'info' | 'warn' | 'err' | 'ok'; title: string }>()
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.ui-banner__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.ui-banner__body { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .ui-banner__title { font-weight: 600; color: var(--text); }
 .ui-banner__msg { color: var(--muted); overflow-wrap: anywhere; }
-.ui-banner__actions { display: flex; gap: 6px; align-items: center; flex: none; }
+.ui-banner__actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: none; margin-left: auto; }
+/* Di wadah sempit (panel detail) aksi turun ke bawah teks, sejajar judul. */
+.ui-banner { container-type: inline-size; }
+@container (max-width: 480px) {
+  .ui-banner__actions { flex-basis: 100%; margin-left: 26px; }
+}
 .ui-banner--info { background: color-mix(in srgb, var(--accent) 7%, transparent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); }
 .ui-banner--info .ui-banner__icon { color: var(--accent); }
 .ui-banner--warn { background: color-mix(in srgb, var(--amber) 7%, transparent); border-color: color-mix(in srgb, var(--amber) 30%, transparent); }

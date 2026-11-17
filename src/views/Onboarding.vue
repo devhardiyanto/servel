@@ -10,6 +10,8 @@ import PrereqCard from '@/components/PrereqCard.vue'
 import type { PrereqAction } from '@/components/PrereqCard.vue'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 import KovaMark from '@/components/shell/KovaMark.vue'
+import AddProjectForm from '@/components/AddProjectForm.vue'
+import { open as openFolderDialog } from '@tauri-apps/plugin-dialog'
 
 const setView = inject(SetViewKey)!
 
@@ -28,9 +30,7 @@ const {
   checking,
   startingEngine,
   startEngineError,
-  allReady,
   canContinue,
-  engineReady,
   engineInstalledButNotRunning,
   engineLabel,
   canSwitchToWslc,
@@ -56,20 +56,10 @@ async function useEngine(kind: 'wslc' | 'docker'): Promise<void> {
 // v3: mise satu-satunya pengelola versi PHP/Node.
 const usesMise = computed<boolean>(() => !!status.value?.mise_installed)
 
-const readyCount = computed<number>(() => {
-  if (!status.value) return 0
-  const s = status.value
-  return [engineReady.value, s.mise_installed].filter(Boolean).length
-})
-
-const totalCount = computed<number>(() => 2)
-
 const miseOkDesc = computed<string>(() => {
   const v = status.value?.mise_version
   return `Manages PHP and Node per project${v ? ` — v${v} detected` : ''}`
 })
-
-const progressPct = computed<number>(() => (readyCount.value / totalCount.value) * 100)
 
 function openUrl(url: string): void {
   window.open(url, '_blank', 'noopener')
@@ -178,11 +168,54 @@ async function installMise(): Promise<void> {
   }
 }
 const miseActions = computed<PrereqAction[]>(() => [
-  ...(isWindows.value
+  ...(isWindows.value && !miseManual.value
     ? [{ label: installingMise.value ? 'Installing…' : 'Install mise', primary: true, onClick: () => void installMise() }]
+    : []),
+  ...(isWindows.value && !miseManual.value
+    ? [{ label: "I'll install it myself", onClick: () => (miseManual.value = true) }]
     : []),
   { label: 'mise.jdx.dev ↗', onClick: () => openUrl('https://mise.jdx.dev/getting-started.html') },
 ])
+// v3.4 (canvas Flow A): tiga langkah — Engine, Runtimes, First project.
+const step = ref<1 | 2 | 3>(1)
+const steps = [
+  { n: 1, label: 'Engine' },
+  { n: 2, label: 'Runtimes' },
+  { n: 3, label: 'First project' },
+] as const
+/** "I'll install it myself": tampilkan perintahnya, lalu Check again / Skip. */
+const miseManual = ref(false)
+
+const { config: cfg } = useConfig()
+const hasProjects = computed(() => cfg.value.projects.length > 0)
+const firstPath = ref('')
+const firstForm = ref<InstanceType<typeof AddProjectForm> | null>(null)
+const pickErr = ref('')
+
+function finish(): void {
+  setView('projects')
+}
+
+function afterRuntimes(): void {
+  if (hasProjects.value) finish()
+  else step.value = 3
+}
+
+async function chooseFirstFolder(): Promise<void> {
+  pickErr.value = ''
+  try {
+    const picked = await openFolderDialog({ directory: true, multiple: false, title: 'Choose your first project folder' })
+    if (typeof picked === 'string') firstPath.value = picked
+  } catch (err) {
+    pickErr.value = String(err)
+  }
+}
+
+async function addFirst(start: boolean): Promise<void> {
+  const p = await firstForm.value?.save(start)
+  if (p) finish()
+}
+
 const miseInstallCmd = computed<string>(() => {
   if (isWindows.value) return 'winget install jdx.mise'
   if (platform.value === 'macos') return 'brew install mise'
@@ -204,20 +237,19 @@ const miseInstallCmd = computed<string>(() => {
           your services, and mise for PHP, Node, Go and Python versions.
         </p>
 
-        <div class="ob-progress">
-          <div class="ob-progress-track">
-            <div
-              class="ob-progress-fill"
-              :class="{ 'ob-progress-fill--done': allReady }"
-              :style="{ width: progressPct + '%' }"
-            ></div>
-          </div>
-          <span class="ob-progress-label">
-            {{ status === null ? 'checking…' : `${readyCount}/${totalCount} ready` }}
-          </span>
-        </div>
+        <ol class="ob-steps" aria-label="Setup steps">
+          <li
+            v-for="st in steps"
+            :key="st.n"
+            class="ob-step"
+            :class="{ 'ob-step--on': step === st.n, 'ob-step--done': step > st.n }"
+            :aria-current="step === st.n ? 'step' : undefined"
+          >
+            <span class="ob-step__n">{{ step > st.n ? '✓' : st.n }}</span>{{ st.label }}
+          </li>
+        </ol>
 
-        <div v-if="status === null" class="ob-cards" aria-busy="true" aria-label="Checking prerequisites">
+        <div v-if="status === null && step < 3" class="ob-cards" aria-busy="true" aria-label="Checking prerequisites">
           <div v-for="i in 2" :key="`prereq-skel-${i}`" class="prereq-skel">
             <SkeletonBox width="36px" height="36px" radius="8px" />
             <div class="prereq-skel__body">
@@ -230,7 +262,7 @@ const miseInstallCmd = computed<string>(() => {
           </div>
         </div>
 
-        <div v-else class="ob-cards">
+        <div v-else-if="step === 1" class="ob-cards">
           <PrereqCard
             :name="engineLabel"
             :installed="status?.engine_installed ?? false"
@@ -245,7 +277,9 @@ const miseInstallCmd = computed<string>(() => {
               {{ isWslc ? ' WSL containers are installed but not responding.' : ' Docker is installed but not running.' }}
             </template>
           </PrereqCard>
+        </div>
 
+        <div v-else-if="step === 2" class="ob-cards">
           <PrereqCard
             v-if="usesMise"
             name="mise"
@@ -261,31 +295,73 @@ const miseInstallCmd = computed<string>(() => {
             icon="&#x1F9F0;"
             not-found-desc="Manages PHP, Node, Go and Python per project. Needed to pick versions; you can continue without it."
             :actions="miseActions"
-            :code="miseInstallCmd"
+            :code="!isWindows || miseManual ? miseInstallCmd : undefined"
           />
           <p v-if="miseInstallMsg" class="ob-note">{{ miseInstallMsg }}</p>
           <p v-if="miseInstallErr" class="ob-error ob-error--soft">{{ miseInstallErr }}</p>
         </div>
 
-        <div v-if="showElevatedWarning" class="ob-error ob-error--soft">
+        <div v-else-if="step === 3" class="ob-cards">
+          <div class="ob-first">
+            <h2 class="ob-first__title">Add your first project</h2>
+            <template v-if="!firstPath">
+              <p class="ob-first__text">Pick a folder. Kova detects how to run it and gives it a fixed localhost port.</p>
+              <p class="ob-first__kinds">Laravel, WordPress, PHP, Django, FastAPI, Flask, Vite, Next, Nuxt, Angular, Node, Go</p>
+              <p v-if="pickErr" class="ob-error ob-error--soft">{{ pickErr }}</p>
+            </template>
+            <AddProjectForm v-else ref="firstForm" :key="firstPath" :path="firstPath" compact />
+          </div>
+        </div>
+
+        <div v-if="step === 1 && showElevatedWarning" class="ob-error ob-error--soft">
           Kova is running as Administrator. WSL containers keep a separate session per
           elevation, so containers created from a normal window will not appear here.
           Restart Kova without "Run as administrator".
         </div>
 
-        <div v-if="startEngineError && !isLinux" class="ob-error">
+        <div v-if="step === 1 && startEngineError && !isLinux" class="ob-error">
           {{ startEngineError }}
         </div>
 
-        <div v-if="isLinux && engineInstalledButNotRunning" class="ob-instruction">
+        <div v-if="step === 1 && isLinux && engineInstalledButNotRunning" class="ob-instruction">
           <p class="ob-instruction__title">Start Docker manually:</p>
           <code class="ob-instruction__cmd">sudo systemctl start docker</code>
           <p class="ob-instruction__hint">Then click "Refresh checks" to update the status.</p>
         </div>
 
-        <p class="ob-note">Already installed everything? Click Refresh to re-check.</p>
+        <p v-if="step === 1" class="ob-note">Already installed everything? Click Refresh to re-check.</p>
 
-        <div class="ob-cta-row">
+        <!-- Langkah 2: mise -->
+        <div v-if="step === 2" class="ob-cta-row">
+          <UiButton variant="quiet" size="lg" @click="step = 1">Back</UiButton>
+          <UiButton v-if="usesMise" variant="primary" size="lg" @click="afterRuntimes">Continue &#x2192;</UiButton>
+          <template v-else>
+            <UiButton size="lg" :disabled="checking || installingMise" @click="check">
+              {{ checking ? 'Checking…' : 'Check again' }}
+            </UiButton>
+            <UiButton variant="quiet" size="lg" :disabled="installingMise" @click="afterRuntimes">Skip for now</UiButton>
+          </template>
+        </div>
+
+        <!-- Langkah 3: project pertama -->
+        <div v-else-if="step === 3" class="ob-cta-row">
+          <UiButton variant="quiet" size="lg" @click="firstPath ? (firstPath = '') : (step = 2)">Back</UiButton>
+          <template v-if="!firstPath">
+            <UiButton variant="quiet" size="lg" @click="finish">Skip for now</UiButton>
+            <UiButton variant="primary" size="lg" @click="chooseFirstFolder">Choose folder</UiButton>
+          </template>
+          <template v-else>
+            <UiButton size="lg" :disabled="!firstForm?.ready || firstForm?.saving" @click="addFirst(false)">Add</UiButton>
+            <UiButton
+              variant="primary"
+              size="lg"
+              :disabled="!firstForm?.ready || !firstForm?.canStart || firstForm?.saving"
+              @click="addFirst(true)"
+            >Add &amp; start</UiButton>
+          </template>
+        </div>
+
+        <div v-else class="ob-cta-row">
           <UiButton
             variant="accent"
             size="lg"
@@ -312,9 +388,9 @@ const miseInstallCmd = computed<string>(() => {
             variant="primary"
             size="lg"
             v-if="canContinue"
-            @click="setView('projects')"
+            @click="step = 2"
           >
-            Continue to Kova &#x2192;
+            Continue &#x2192;
           </UiButton>
 
           <UiButton
@@ -322,7 +398,7 @@ const miseInstallCmd = computed<string>(() => {
             v-if="!canContinue"
             disabled
           >
-            Continue to Kova &#x2192;
+            Continue &#x2192;
           </UiButton>
 
           <UiButton
@@ -392,38 +468,34 @@ const miseInstallCmd = computed<string>(() => {
   margin: 0 0 var(--space-6) 0;
 }
 
-.ob-progress {
+.ob-steps {
+  list-style: none;
+  margin: 0 0 var(--space-6);
+  padding: 0;
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-bottom: var(--space-6);
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--faint);
 }
+.ob-step { display: inline-flex; align-items: center; gap: var(--space-2); }
+.ob-step__n {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  font: 500 var(--text-xs) var(--font-mono);
+}
+.ob-step--on { color: var(--text); }
+.ob-step--on .ob-step__n { border-color: var(--accent); color: var(--accent); }
+.ob-step--done { color: var(--muted); }
+.ob-step--done .ob-step__n { border-color: transparent; background: color-mix(in srgb, var(--green) 20%, transparent); color: var(--green); }
 
-.ob-progress-track {
-  flex: 1;
-  height: 4px;
-  background: var(--surface2);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.ob-progress-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
-  transition: width 0.3s ease, background 0.3s ease;
-}
-
-.ob-progress-fill--done {
-  background: var(--green);
-}
-
-.ob-progress-label {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--muted);
-  flex-shrink: 0;
-}
+.ob-first { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
+.ob-first__title { margin: 0; font-size: var(--text-md); font-weight: 600; color: var(--text); }
+.ob-first__text { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.ob-first__kinds { margin: 0; color: var(--faint); font-size: var(--text-xs); }
 
 .ob-cards {
   display: flex;

@@ -427,6 +427,24 @@ PR 2:
 - [x] Workflow rilis: tag dicek terhadap versi, "Run workflow" membuat tag, `latest.json` disusun sekali.
 - [ ] Uji di perangkat nyata: v3.2.x dan v3.3.0 di Windows; build dan CLI di macOS/Linux.
 
+### J — v3.4.0: Projects, Add project, onboarding, update (kesesuaian canvas)
+
+Audit per artboard (17 Nov) menemukan 12 dari 45 langkah flow sesuai canvas, 22 sebagian, 11 berbeda. Fungsinya ada, tetapi tata letak tiap layar belum mengikuti desain. J dan K menutup selisih itu.
+
+- [x] Projects: kartu ringkas, aksi di panel detail, tab Overview / Environment / Logs, editor variabel dengan Save & restart, banner error dengan View log / Environment / Restart, pencarian, strip service.
+- [x] Modal Add project: Detecting, hasil deteksi dengan berkas penanda dan versi mise, cek port dengan "Use <port>", Save & start.
+- [x] Onboarding tiga langkah, "I'll install it myself", langkah First project.
+- [x] Banner update global: unduh di latar, Later / Restart now, Try again.
+
+### K — v3.5.0: Runtimes, Services, Logs, Settings (kesesuaian canvas)
+
+- [ ] Runtimes bertab per tool dengan tabel versi (Used by, scope), menu ⋯ per versi, dialog Use in project, progres install dengan Cancel.
+- [ ] Panel service bertab (Connect, Data, Logs) dengan format .env; state kosong dan error Services.
+- [ ] Logs: Open project, Copy, state "Lost the log stream".
+- [ ] Settings: Diagnostics / Copy info.
+
+Sengaja tidak diikuti dari canvas: Settings satu halaman (sub-navigasi dipertahankan), daftar sumber Logs di kiri (tab dipertahankan), tab profil di Services (dropdown dipertahankan), gambar dialog folder (dialog OS dipakai).
+
 ### v3.x — kandidat, belum diputuskan
 
 - Belum ada kandidat terbuka. Usulan baru dicatat di sini.

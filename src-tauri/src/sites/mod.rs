@@ -23,6 +23,45 @@ pub struct ProjectSuggestion {
     /// Port usulan: port lazim jenisnya, digeser sampai menemukan yang kosong
     /// dan belum dipakai project lain.
     pub port: u16,
+    /// Berkas yang membuat jenisnya dikenali, untuk ditampilkan.
+    pub evidence: Vec<String>,
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PortCheck {
+    pub free: bool,
+    /// Kosong bila bebas; selain itu alasan singkat yang bisa ditampilkan.
+    pub reason: String,
+    /// Port bebas terdekat di atasnya, bila port ini tidak bisa dipakai.
+    pub suggestion: Option<u16>,
+}
+
+/// Periksa satu port: dipakai project lain (`taken`) atau program lain.
+pub fn check_port(port: u16, taken: &HashSet<u16>, is_free: impl Fn(u16) -> bool) -> PortCheck {
+    let reason = if port < 1024 {
+        "Use a port from 1024 to 65535.".to_string()
+    } else if taken.contains(&port) {
+        format!("Another project in Kova uses {}.", port)
+    } else if !is_free(port) {
+        format!("Another program is listening on {}.", port)
+    } else {
+        return PortCheck { free: true, reason: String::new(), suggestion: None };
+    };
+    let suggestion = detect::pick_port(port.saturating_add(1).max(1024), taken, is_free);
+    PortCheck { free: false, reason, suggestion }
+}
+
+/// Cek port untuk form project. Project yang sedang berjalan memegang port-nya
+/// sendiri, jadi port project yang sedang diedit tidak dikirim di `taken` dan
+/// `own` = true melewatkan cek bind.
+#[tauri::command]
+pub async fn project_port_check(port: u16, taken: Vec<u16>, own: Option<bool>) -> PortCheck {
+    let taken: HashSet<u16> = taken.into_iter().collect();
+    if own.unwrap_or(false) && !taken.contains(&port) && port >= 1024 {
+        return PortCheck { free: true, reason: String::new(), suggestion: None };
+    }
+    check_port(port, &taken, process::port_bindable)
 }
 
 /// Kenali project di `path` dan usulkan perintah + port. `taken` = port yang
@@ -40,6 +79,7 @@ pub async fn project_detect(path: String, taken: Vec<u16>) -> Result<ProjectSugg
         .ok_or_else(|| "no free port".to_string())?;
     Ok(ProjectSuggestion {
         name: detect::name_from_path(&path),
+        evidence: detect::evidence(dir),
         detection,
         port,
     })
@@ -165,6 +205,19 @@ pub fn autostart(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn port_check_explains_and_suggests() {
+        let taken: HashSet<u16> = [3001].into_iter().collect();
+        assert!(check_port(3000, &taken, |_| true).free);
+        let c = check_port(3001, &taken, |_| true);
+        assert_eq!((c.free, c.suggestion), (false, Some(3002)));
+        assert!(c.reason.contains("Another project"));
+        let c = check_port(3002, &taken, |p| p != 3002);
+        assert_eq!(c.suggestion, Some(3003));
+        assert!(c.reason.contains("Another program"));
+        assert!(!check_port(80, &taken, |_| true).free);
+    }
 
     #[test]
     fn services_for_follows_option_and_profile() {
