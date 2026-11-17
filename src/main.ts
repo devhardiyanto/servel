@@ -9,6 +9,7 @@ import './assets/styles/base.css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
+import TrayPopup from './views/TrayPopup.vue'
 import { invoke } from '@tauri-apps/api/core'
 import { installWebviewGuards } from './utils/webviewGuards'
 
@@ -16,11 +17,16 @@ import { installWebviewGuards } from './utils/webviewGuards'
 // muat ulang dan devtools tetap ada saat pengembangan.
 if (import.meta.env.PROD) installWebviewGuards()
 
-const app = createApp(App)
+// Jendela popup tray (v3.7.0) memuat halaman yang sama dengan `?view=tray`.
+const isTrayPopup = new URLSearchParams(location.search).get('view') === 'tray'
+if (isTrayPopup) document.documentElement.classList.add('tray-popup')
+
+const app = createApp(isTrayPopup ? TrayPopup : App)
 app.use(createPinia())
 app.mount('#app')
 
-// Jendela mulai tersembunyi (lihat `app_ready` di src-tauri/src/lib.rs) dan
-// ditampilkan setelah UI ter-mount. Tidak memakai requestAnimationFrame:
-// webview yang tersembunyi bisa menunda callback itu.
-void invoke('app_ready').catch(() => {})
+// Jendela utama mulai tersembunyi (lihat `app_ready` di src-tauri/src/lib.rs)
+// dan ditampilkan setelah UI ter-mount. Tidak memakai requestAnimationFrame:
+// webview yang tersembunyi bisa menunda callback itu. Popup tray menampilkan
+// dirinya sendiri lewat `tray_popup_resize`.
+if (!isTrayPopup) void invoke('app_ready').catch(() => {})

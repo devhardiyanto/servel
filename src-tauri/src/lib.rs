@@ -10,6 +10,7 @@ mod sites;
 mod runtime;
 mod updater;
 mod tray;
+mod tray_popup;
 mod shutdown;
 
 use std::collections::HashMap;
@@ -160,6 +161,10 @@ pub fn run() {
             mise::mise_trust,
             mise::mise_repair,
             app_ready,
+            tray_popup::tray_popup_resize,
+            tray_popup::tray_popup_hide,
+            tray_popup::app_open_main,
+            tray_popup::app_quit,
             php_ext::php_ext_status,
             php_ext::php_ext_set,
             php_ext::php_ext_install,
@@ -173,15 +178,24 @@ pub fn run() {
             sites::site_forget,
         ])
         .on_window_event(|window, event| {
+            if window.label() == tray_popup::LABEL {
+                tray_popup::on_window_event(window, event);
+                return;
+            }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let should_minimize = {
                     let state = window.app_handle().state::<Mutex<ConfigState>>();
                     let val = state.lock().unwrap().minimize_to_tray;
                     val
                 };
+                api.prevent_close();
                 if should_minimize {
-                    api.prevent_close();
                     let _ = window.hide();
+                } else {
+                    // v3.7.0: popup tray tersembunyi tetap terhitung jendela,
+                    // jadi menutup jendela utama tidak lagi memicu keluar
+                    // dengan sendirinya. Keluar lewat jalur Quit.
+                    shutdown::begin(window.app_handle());
                 }
             }
         })
