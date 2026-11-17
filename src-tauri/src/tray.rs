@@ -208,7 +208,8 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
                 });
             }
             "quit" => {
-                app.exit(0);
+                // v3.5.1: hentikan dev server dan service dulu, baru keluar.
+                crate::shutdown::begin(app);
             }
             _ => {}
             }

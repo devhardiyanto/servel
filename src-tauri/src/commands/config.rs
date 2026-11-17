@@ -116,6 +116,12 @@ pub struct ConfigState {
     /// Konteks versi di Dashboard. `None` = Global.
     #[serde(default)]
     pub active_project_id: Option<String>,
+    /// Quit Kova juga menghentikan service container (v3.5.1).
+    #[serde(default = "default_true")]
+    pub stop_services_on_quit: bool,
+    /// Onboarding sudah dilewati sekali; Kova langsung membuka Projects (v3.5.1).
+    #[serde(default)]
+    pub onboarded: bool,
 }
 
 fn default_true() -> bool {
@@ -148,6 +154,10 @@ fn default_runtime() -> String {
 ///
 /// Idempotent: config yang sudah v4 & punya profil valid dibiarkan apa adanya.
 fn migrate(mut cfg: ConfigState) -> ConfigState {
+    // v3.5.1: pengguna lama yang sudah memakai Kova tidak perlu onboarding lagi.
+    if !cfg.onboarded && (!cfg.projects.is_empty() || cfg.profiles.iter().any(|p| !p.service_ids.is_empty())) {
+        cfg.onboarded = true;
+    }
     if cfg.version == 0 {
         cfg.version = 1;
     }
@@ -291,6 +301,8 @@ impl Default for ConfigState {
             version_provider: default_runtime(),
             projects: Vec::new(),
             active_project_id: None,
+            stop_services_on_quit: true,
+            onboarded: false,
         }
     }
 }
@@ -439,6 +451,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn existing_users_count_as_onboarded() {
+        let fresh = migrate(ConfigState::default());
+        assert!(!fresh.onboarded, "a brand-new install still sees onboarding");
+        assert!(fresh.stop_services_on_quit);
+        let mut used = ConfigState::default();
+        used.profiles[0].service_ids = vec!["mysql".into()];
+        assert!(migrate(used).onboarded);
+        // Field lama tidak ada di JSON: default dipakai.
+        let old: ConfigState = serde_json::from_str(r#"{"version":7}"#).unwrap();
+        assert!(old.stop_services_on_quit && !old.onboarded);
+    }
+
+    #[test]
     fn test_default_config_shape() {
         let cfg = ConfigState::default();
         assert_eq!(cfg.version, CURRENT_VERSION);
@@ -479,6 +504,8 @@ mod tests {
             version_provider: "auto".to_string(),
             projects: Vec::new(),
             active_project_id: None,
+            stop_services_on_quit: true,
+            onboarded: false,
         };
 
         let json = serde_json::to_string(&original).expect("serialize gagal");
@@ -570,6 +597,8 @@ mod tests {
                 start_services: true,
             }],
             active_project_id: Some("p1".into()),
+            stop_services_on_quit: true,
+            onboarded: true,
         };
         let json = serde_json::to_string_pretty(&cfg).expect("serialize");
 

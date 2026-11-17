@@ -107,6 +107,8 @@ pub async fn update_apply(app: AppHandle) -> Result<(), String> {
 
     // Instance baru tidak boleh menyerahkan diri ke proses ini yang sedang keluar.
     crate::control::forget();
+    // Restart untuk update tidak menghentikan service (lihat shutdown.rs).
+    crate::shutdown::skip();
     app.restart();
 }
 

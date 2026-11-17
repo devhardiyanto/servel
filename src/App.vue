@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, provide, onMounted, h } from 'vue'
+import { listen } from '@tauri-apps/api/event'
 import type { Component } from 'vue'
 import { SetViewKey } from './types/navigation'
 import type { ViewName } from './types/navigation'
@@ -19,7 +20,10 @@ import { useUpdateCheck } from './composables/useUpdateCheck'
 import { useServices } from './composables/useServices'
 import { useConfig } from './composables/useConfig'
 
-const currentView = ref<ViewName>('onboarding')
+// v3.5.1: onboarding hanya sampai pernah diselesaikan sekali. Sampai config
+// terbaca, tidak ada layar yang dirender, supaya onboarding tidak berkedip.
+const currentView = ref<ViewName | null>(null)
+const quitting = ref<{ stopServices: boolean } | null>(null)
 const palette = ref<InstanceType<typeof CommandPalette> | null>(null)
 
 // Settings dipakai dua kali: halaman Settings dan halaman Runtimes.
@@ -35,7 +39,7 @@ const viewMap: Record<Exclude<ViewName, 'onboarding'>, Component> = {
 }
 
 const viewComponent = computed(() =>
-  currentView.value === 'onboarding' ? null : viewMap[currentView.value],
+  currentView.value === null || currentView.value === 'onboarding' ? null : viewMap[currentView.value],
 )
 
 function setView(view: ViewName | 'dashboard'): void {
@@ -60,7 +64,21 @@ async function restoreServiceSelection(): Promise<void> {
   reconcileSelectedWithRunning()
 }
 
+async function chooseFirstView(): Promise<void> {
+  const cfg = useConfig()
+  try {
+    if (!cfg.loaded.value) await cfg.load()
+  } catch {
+    // Config tidak terbaca: Projects menampilkan errornya dengan Try again.
+    currentView.value = 'projects'
+    return
+  }
+  currentView.value = cfg.config.value.onboarded ? 'projects' : 'onboarding'
+}
+
 onMounted(() => {
+  void chooseFirstView()
+  void listen<{ stopServices: boolean }>('app-quitting', (e) => (quitting.value = e.payload))
   void runAutoStartOnce()
   void refreshEngineStatus()
   void checkUpdate()
@@ -69,7 +87,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <Onboarding v-if="currentView === 'onboarding'" />
+  <div v-if="quitting" class="quitting" role="alert" aria-busy="true">
+    <span class="quitting__spinner" aria-hidden="true"></span>
+    <span class="quitting__title">{{ quitting.stopServices ? 'Stopping services…' : 'Quitting…' }}</span>
+    <span class="quitting__hint">Kova closes when everything has stopped.</span>
+  </div>
+  <template v-else-if="currentView === null"></template>
+  <Onboarding v-else-if="currentView === 'onboarding'" />
   <div v-else class="shell">
     <NavRail :current="currentView" @go="setView" @palette="palette?.show()" />
     <main class="shell-main">
@@ -83,6 +107,29 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.quitting {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background: var(--bg);
+  color: var(--text);
+}
+.quitting__title { font-size: var(--text-md); font-weight: 600; }
+.quitting__hint { font-size: var(--text-sm); color: var(--muted); }
+.quitting__spinner {
+  width: 20px;
+  height: 20px;
+  margin-bottom: var(--space-2);
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: quit-spin 0.8s linear infinite;
+}
+@keyframes quit-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .quitting__spinner { animation: none; } }
 .shell {
   display: grid;
   grid-template-columns: 188px 1fr;

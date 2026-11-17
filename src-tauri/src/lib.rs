@@ -10,6 +10,7 @@ mod sites;
 mod runtime;
 mod updater;
 mod tray;
+mod shutdown;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -458,6 +459,17 @@ pub fn run() {
     // Set flag shutdown saat app exit / Windows session-end → kedua loop polling
     // break di awal iterasi berikutnya, hindari spawn docker.exe saat teardown.
     app.run(move |handle, event| {
+        // v3.5.1: keluar lewat jendela terakhir (Minimize to tray mati) juga
+        // menghentikan service dulu. Ditunda sekali; shutdown::begin memanggil
+        // app.exit(0) lagi setelah selesai.
+        if let tauri::RunEvent::ExitRequested { api, .. } = &event {
+            if !shutdown::is_done() {
+                api.prevent_exit();
+                run_shutting_down.store(true, Ordering::Relaxed);
+                shutdown::begin(handle);
+                return;
+            }
+        }
         if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
             run_shutting_down.store(true, Ordering::Relaxed);
 
