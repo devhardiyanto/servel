@@ -443,6 +443,9 @@ pub async fn config_write(app: AppHandle, mut config: ConfigState) -> Result<(),
         }
     }
 
+    // Nama, port, dan daftar project tampil di menu tray (v3.6.0).
+    crate::tray::refresh(&app);
+
     Ok(())
 }
 

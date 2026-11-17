@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, provide, onMounted, h } from 'vue'
+import { useStatusAnnouncer } from '@/composables/useStatusAnnouncer'
 import { listen } from '@tauri-apps/api/event'
 import type { Component } from 'vue'
 import { SetViewKey } from './types/navigation'
@@ -76,6 +77,8 @@ async function chooseFirstView(): Promise<void> {
   currentView.value = cfg.config.value.onboarded ? 'projects' : 'onboarding'
 }
 
+const announcer = useStatusAnnouncer()
+
 onMounted(() => {
   void chooseFirstView()
   void listen<{ stopServices: boolean }>('app-quitting', (e) => (quitting.value = e.payload))
@@ -87,6 +90,8 @@ onMounted(() => {
 </script>
 
 <template>
+  <div class="sr-only" role="status" aria-live="polite">{{ announcer.polite.value }}</div>
+  <div class="sr-only" role="alert">{{ announcer.assertive.value }}</div>
   <div v-if="quitting" class="quitting" role="alert" aria-busy="true">
     <span class="quitting__spinner" aria-hidden="true"></span>
     <span class="quitting__title">{{ quitting.stopServices ? 'Stopping services…' : 'Quitting…' }}</span>
