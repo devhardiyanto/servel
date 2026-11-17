@@ -9,7 +9,7 @@ import { useEngineStatus } from '@/composables/useEngineStatus'
 import { SetViewKey } from '@/types/navigation'
 import LogTail from '@/components/LogTail.vue'
 import ServiceRow from '@/components/ServiceRow.vue'
-import ServiceConnect from '@/components/ServiceConnect.vue'
+import ServiceDetail from '@/components/ServiceDetail.vue'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 
@@ -63,6 +63,7 @@ const {
   coreServices,
   additionalServices,
   runningCount,
+  selectedCount,
   hasStarting,
   hasStopping,
   definitions,
@@ -81,6 +82,7 @@ const {
 
 const profiles = computed(() => useConfig().config.value.profiles)
 const activeProfileId = computed(() => useConfig().config.value.activeProfileId)
+const activeProfileName = computed(() => profiles.value.find((p) => p.id === activeProfileId.value)?.name ?? 'this profile')
 
 function onProfileChange(id: string): void {
   if (id) applyProfile(id)
@@ -117,7 +119,9 @@ onUnmounted(() => {
       <template v-else-if="canSwitchToWslc">Start Docker Desktop, or switch to the built-in WSL containers.</template>
       <template v-else>Start Docker Desktop to use services.</template>
       <span v-if="engineLastError"> ({{ engineLastError }})</span>
+      Kova can't read service status. Data in the servel_* volumes is not affected.
       <template #actions>
+        <UiButton variant="quiet" @click="setView('settings')">Engine settings</UiButton>
         <UiButton v-if="canSwitchToWslc" variant="accent" :disabled="refreshingEngine" @click="switchToWslc">
           Use WSL containers
         </UiButton>
@@ -169,6 +173,14 @@ onUnmounted(() => {
           </UiButton>
         </div>
       </header>
+      <UiBanner
+        v-if="definitions.length > 0 && selectedCount === 0 && engineStatus !== 'down'"
+        class="sw-empty"
+        tone="info"
+        :title="`No services in ${activeProfileName} yet`"
+      >
+        Turn on the services this profile starts with the switches below. Projects that use {{ activeProfileName }} can start them together with the project.
+      </UiBanner>
       <div class="services-table">
         <template v-if="coreServices.length > 0">
           <div class="svc-group-label">core</div>
@@ -177,6 +189,7 @@ onUnmounted(() => {
               :def="def"
               :state="uiState[def.id]"
               :connect-open="connectId === def.id"
+              :unknown="engineStatus === 'down'"
               @toggle="toggle"
               @connect="toggleConnect"
             />
@@ -189,12 +202,14 @@ onUnmounted(() => {
               :def="def"
               :state="uiState[def.id]"
               :connect-open="connectId === def.id"
+              :unknown="engineStatus === 'down'"
               @toggle="toggle"
               @connect="toggleConnect"
             />
           </template>
         </template>
         <template v-if="definitions.length === 0 && !serviceError">
+          <p class="svc-loading" role="status">Asking {{ engineLabel }} for status…</p>
           <div
             v-for="i in SKELETON_ROW_COUNT"
             :key="`skeleton-${i}`"
@@ -225,16 +240,8 @@ onUnmounted(() => {
     </section>
     </div>
 
-    <aside v-if="connectDef" class="svc-detail" :aria-label="`Connect to ${connectDef.name}`">
-      <div class="svc-detail__head">
-        <div class="svc-detail__name">{{ connectDef.name }}</div>
-        <UiButton variant="quiet" aria-label="Close connection details" @click="connectId = null">&times;</UiButton>
-      </div>
-      <div class="svc-detail__meta">
-        {{ connectDef.image }} · {{ uiState[connectDef.id]?.status ?? 'stopped' }}
-        <template v-if="uiState[connectDef.id]?.memMb != null"> · {{ Math.round(uiState[connectDef.id]!.memMb!) }} MB</template>
-      </div>
-      <ServiceConnect :key="connectDef.id" :def="connectDef" :running="uiState[connectDef.id]?.status === 'running'" />
+    <aside v-if="connectDef" class="svc-detail" :aria-label="`${connectDef.name} details`">
+      <ServiceDetail :key="connectDef.id" :def="connectDef" @close="connectId = null" />
     </aside>
   </div>
 </template>
@@ -468,4 +475,6 @@ onUnmounted(() => {
 .svc-detail__head { display: flex; align-items: center; justify-content: space-between; }
 .svc-detail__name { font-size: var(--text-lg); font-weight: 600; color: var(--text); }
 .svc-detail__meta { font-size: var(--text-xs); color: var(--muted); font-family: var(--font-mono); }
+.sw-empty { margin: var(--space-3) var(--space-4) 0; }
+.svc-loading { margin: 0; padding: var(--space-3) var(--space-4) 0; font-size: var(--text-xs); color: var(--faint); }
 </style>

@@ -7,15 +7,15 @@ import { useToast } from '@/composables/useToast'
 import { ref, computed, inject, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
+import { appDataDir } from '@tauri-apps/api/path'
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useVersionContext } from '@/composables/useVersionContext'
 import { SetViewKey } from '@/types/navigation'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
-import PhpExtensionsPanel from '@/components/PhpExtensionsPanel.vue'
-import RuntimesPanel from '@/components/RuntimesPanel.vue'
-import VersionsPanel from '@/components/VersionsPanel.vue'
+import RuntimeTools from '@/components/RuntimeTools.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import SettingRow from '@/components/SettingRow.vue'
 import { ENGINE_LABEL, type EnginePreference, type PrereqStatus } from '@/types/prereq'
 import { useEngineStatus } from '@/composables/useEngineStatus'
@@ -105,6 +105,44 @@ const switchingEngine = ref(false)
 const platform = ref<string>('windows')
 const version = ref<string>('')
 
+// v3.5: Diagnostics di About.
+const dataDir = ref('')
+const toast = useToast()
+const { engineLabel: diagEngine, engineStatus: diagEngineStatus } = useEngineStatus()
+async function loadDataDir(): Promise<void> {
+  try {
+    dataDir.value = await appDataDir()
+  } catch {
+    dataDir.value = ''
+  }
+}
+async function copyDiagnostics(): Promise<void> {
+  const platform = (await invoke<string>('get_platform').catch(() => '')) || navigator.platform
+  const ctx = versionCtx.ctx.value
+  const text = [
+    `Kova ${version.value}`,
+    `OS: ${platform} (${navigator.userAgent})`,
+    `Engine: ${diagEngine.value} · ${diagEngineStatus.value}`,
+    `mise: ${ctx?.miseVersion ?? 'not installed'}`,
+    `PHP (global): ${ctx?.php?.version ?? '-'} · Node (global): ${ctx?.node?.version ?? '-'}`,
+    `Data folder: ${dataDir.value}`,
+    `Projects: ${config.value.projects.length} · Profiles: ${config.value.profiles.length}`,
+  ].join('\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.show('Copied diagnostics. Paste it into the bug report.')
+  } catch {
+    toast.show('Could not copy the diagnostics.', { tone: 'info' })
+  }
+}
+async function openDataDir(): Promise<void> {
+  try {
+    await invoke('project_open_in', { target: 'folder', path: dataDir.value })
+  } catch (err) {
+    toast.show(String(err), { tone: 'info' })
+  }
+}
+
 const engineRunning = computed<boolean | null>(() => engineInfo.value?.engine_running ?? null)
 const activeEngineLabel = computed<string>(() =>
   engineInfo.value ? ENGINE_LABEL[engineInfo.value.engine] : '—',
@@ -121,6 +159,24 @@ const { refresh: refreshEngineBanner } = useEngineStatus()
 // --- Version manager (mise) & projects -------------------------------------
 const versionCtx = useVersionContext()
 const { ctx: miseCtx, busy: miseBusy, lastError: miseError } = versionCtx
+
+// v3.5: state "mise is not installed" di Runtimes.
+const isWindowsHost = navigator.userAgent.includes('Windows')
+const installingMise = ref(false)
+async function installMise(): Promise<void> {
+  installingMise.value = true
+  try {
+    await invoke<string>('mise_install_winget')
+    await versionCtx.refresh()
+  } catch (err) {
+    versionCtx.lastError.value = String(err)
+  } finally {
+    installingMise.value = false
+  }
+}
+function openMiseDocs(): void {
+  window.open('https://mise.jdx.dev/getting-started.html', '_blank', 'noopener')
+}
 // --- Restore database (v1.8) ---------------------------------------------
 const restoreService = ref<'mysql' | 'postgres'>('mysql')
 const restoreFile = ref<string | null>(null)
@@ -270,6 +326,7 @@ onMounted(async () => {
   void versionCtx.refresh()
   try {
     version.value = await getVersion()
+    void loadDataDir()
   } catch {
     version.value = ''
   }
@@ -540,8 +597,15 @@ onMounted(async () => {
 
         <template v-else-if="activeNav === 'php_node'">
           <div class="section-block">
-            <div class="section-title">PHP &amp; NODE</div>
-            <VersionsPanel />
+            <RuntimeTools v-if="versionCtx.isMise.value" />
+            <EmptyState v-else-if="miseCtx" title="mise is not installed" icon="lines">
+              Kova uses mise to install and switch PHP, Node, Go and Python. Install it once; your projects' mise.toml files keep working.
+              <code class="setting-value-mono">{{ isWindowsHost ? 'winget install jdx.mise' : 'curl https://mise.run | sh' }}</code>
+              <template #actions>
+                <UiButton v-if="isWindowsHost" variant="primary" :loading="installingMise" @click="installMise">Install mise</UiButton>
+                <UiButton variant="quiet" @click="openMiseDocs">I'll install it myself</UiButton>
+              </template>
+            </EmptyState>
           </div>
 
           <div class="section-block">
@@ -567,14 +631,6 @@ onMounted(async () => {
             <p v-if="miseError" class="section-hint section-hint--note">{{ miseError }}</p>
           </div>
 
-          <div v-if="versionCtx.isMise.value" class="section-block">
-            <div class="section-title">OTHER RUNTIMES</div>
-            <RuntimesPanel />
-          </div>
-
-          <div class="section-block">
-            <PhpExtensionsPanel />
-          </div>
         </template>
 
         <template v-else-if="activeNav === 'about'">
@@ -609,6 +665,16 @@ onMounted(async () => {
               </UiButton>
               <span v-if="!updateAvailable && lastChecked" class="update-uptodate">You have the latest version</span>
             </div>
+          </div>
+
+          <div class="section-block">
+            <div class="section-title">DIAGNOSTICS</div>
+            <SettingRow label="Diagnostics" desc="Versions, engine and paths, for bug reports">
+              <UiButton @click="copyDiagnostics">Copy info</UiButton>
+            </SettingRow>
+            <SettingRow label="Data folder" :desc="dataDir || '…'">
+              <UiButton :disabled="!dataDir" @click="openDataDir">Open</UiButton>
+            </SettingRow>
           </div>
         </template>
       </main>

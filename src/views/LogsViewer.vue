@@ -10,6 +10,10 @@ import { useLogs } from '@/composables/useLogs'
 import { useLogCopy } from '@/composables/useLogCopy'
 import { badgeStyle } from '@/utils/logColors'
 import { useConfig } from '@/composables/useConfig'
+import UiBanner from '@/components/ui/UiBanner.vue'
+import { useToast } from '@/composables/useToast'
+import { useProjectActions } from '@/composables/useProjectActions'
+import { useProjectRuntime } from '@/composables/useProjectRuntime'
 
 const { lines, clear } = useLogs()
 
@@ -40,6 +44,27 @@ const TAB_KEYWORDS: Record<string, string[]> = {
 
 // Filter di tab Projects: satu project saja, atau semua ('').
 const projectFilter = ref('')
+const toast = useToast()
+const projectActions = useProjectActions()
+const projectRuntime = useProjectRuntime()
+/** Project yang sedang difilter, untuk Open project dan state berhenti. */
+const focusedProject = computed(() =>
+  activeTab.value === 'Projects' && projectFilter.value
+    ? useConfig().config.value.projects.find((p) => p.name === projectFilter.value) ?? null
+    : null,
+)
+const focusedInfo = computed(() => (focusedProject.value ? projectRuntime.infoOf(focusedProject.value.id) : null))
+const focusedState = computed(() => (focusedProject.value ? projectRuntime.stateOf(focusedProject.value.id) : 'stopped'))
+
+async function copyView(): Promise<void> {
+  const text = filteredLines.value.map((l) => `${l.ts} [${l.src}] ${l.text}`).join('\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.show(`Copied ${filteredLines.value.length} line${filteredLines.value.length === 1 ? '' : 's'}`)
+  } catch {
+    toast.show('Could not copy. Select the lines and press Ctrl+C.', { tone: 'info' })
+  }
+}
 const problemsOnly = ref(false)
 
 const projectNames = computed(() => useConfig().config.value.projects.map((p) => p.name))
@@ -221,6 +246,8 @@ function triggerDownload(text: string, filename: string): void {
           title="Show only lines marked as error or warning"
           @click="problemsOnly = !problemsOnly"
         >Errors &amp; warnings</UiButton>
+        <UiButton v-if="focusedProject" @click="projectActions.openProject(focusedProject)">Open project</UiButton>
+        <UiButton :disabled="filteredLines.length === 0" @click="copyView">Copy</UiButton>
         <UiButton @click="clear">Clear</UiButton>
         <UiButton
           :variant="autoScroll ? 'accent' : 'default'"
@@ -253,6 +280,19 @@ function triggerDownload(text: string, filename: string): void {
       </button>
     </div>
 
+    <!-- Project berhenti: baris sampai saat berhenti tetap ditampilkan. -->
+    <UiBanner
+      v-if="focusedProject && focusedState === 'exited' && tabLines.length > 0"
+      class="lv-stopped"
+      tone="err"
+      :title="`${focusedProject.name} stopped${focusedInfo?.exitCode != null ? ` with exit code ${focusedInfo.exitCode}` : ''}`"
+    >
+      Its output up to the stop is kept below.
+      <template #actions>
+        <UiButton variant="accent" @click="projectActions.start(focusedProject)">Start {{ focusedProject.name }}</UiButton>
+      </template>
+    </UiBanner>
+
     <!-- Log area -->
     <div ref="logAreaRef" class="lv-area" tabindex="0" @click="focusContainer">
       <div
@@ -273,7 +313,17 @@ function triggerDownload(text: string, filename: string): void {
         >{{ line.src }}</span>
         <span class="lv-text">{{ line.text }}</span>
       </div>
-      <EmptyState v-if="tabLines.length === 0" title="No output yet" icon="lines">
+      <EmptyState
+        v-if="tabLines.length === 0 && focusedProject"
+        :title="`No output from ${focusedProject.name} yet`"
+        icon="lines"
+      >
+        {{ focusedState === 'stopped' || focusedState === 'exited' ? 'It is stopped. Start it and its output appears here as it runs.' : 'It is running but has not printed anything yet.' }}
+        <template v-if="focusedState === 'stopped' || focusedState === 'exited'" #actions>
+          <UiButton variant="accent" @click="projectActions.start(focusedProject)">Start {{ focusedProject.name }}</UiButton>
+        </template>
+      </EmptyState>
+      <EmptyState v-else-if="tabLines.length === 0" title="No output yet" icon="lines">
         Lines appear here when a service or project writes to its log.
       </EmptyState>
       <EmptyState v-else-if="filteredLines.length === 0" title="No lines match" icon="search">
@@ -490,4 +540,5 @@ function triggerDownload(text: string, filename: string): void {
 .lv-footer__ok {
   color: var(--faint);
 }
+.lv-stopped { margin: var(--space-2) var(--space-6) 0; }
 </style>

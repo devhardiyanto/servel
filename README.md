@@ -25,18 +25,18 @@ No more juggling three terminals every morning.
 - Start, Stop, Restart and Open each project at `localhost:<port>`; its output goes to the Logs viewer.
 - The dev server runs with the PHP/Node/Go versions from the project's `mise.toml`, plus any environment variables you set for that project.
 - Optionally start a project when Kova opens, and link it to a service profile.
-- **Details** per project: the PHP/Node versions mise resolves for that folder, its service profile, the last lines of output, and shortcuts to open the folder, a terminal there, or VS Code.
+- A **detail panel** per project with Overview (versions mise resolves for that folder, service profile, recent output), Environment (variables, Save & restart) and Logs tabs.
 - Dev servers stop when Kova quits, and do not linger if Kova crashes.
 
 **Services**
 - MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg. Toggle what you need, click Start.
 - Windows: runs on WSL containers (`wslc`, built into WSL 3.0.1+). No Docker Desktop and no extra Linux distro needed. Docker stays available.
 - A service shows "up" only once it accepts connections.
-- **Connect** on each service opens a side panel with host, port and credentials, a preview of the `.env` lines, **Copy .env** (Laravel keys) and **Copy URL**.
+- **Connect** on each service opens a side panel with tabs: **Connect** (host, port, credentials, `.env` lines as Laravel keys, a single URL, or Go-style DSN), **Data** (volumes, restore a `.sql` dump) and **Logs**.
 - Service profiles and database restore from a `.sql` dump.
 
 **Runtimes**
-- With mise: see and switch PHP/Node versions per project, written to the `mise.toml` that actually applies. Go and Python versions can be installed and set in **Runtimes**.
+- With mise: a tab per tool (PHP, Node, Go, Python) listing installed versions, which one is global, and which projects use each. Per version: **Set as global**, **Use in project…** (writes the project's `mise.toml`) and **Remove**. Installs show progress and can be cancelled.
 - PHP extensions: turn bundled extensions on or off per PHP version. `php.ini` is backed up first and the change is undone if PHP no longer starts.
 - Windows: one click fixes HTTPS from PHP (curl error 60).
 
@@ -206,7 +206,9 @@ Press `Ctrl K` (`⌘K` on macOS) anywhere to open the command palette: type part
 1. Toggle the services you need. The selection is saved as a **profile**; create more profiles in **Settings → Services**.
 2. Click **Start selected**. Each service shows "starting" until it accepts connections, then "up".
 3. **Stop all** stops every service; the data stays in volumes.
-4. **Connect** on a row opens a panel with the connection details and the `.env` lines to copy into your project.
+4. **Connect** on a row opens the service panel: **Connect** shows host, port and credentials, and the `.env` lines in three formats (**Laravel**, **URL**, **Go**) to copy into your project; **Data** lists the volumes and restores a `.sql` dump (MySQL, PostgreSQL); **Logs** shows what Kova did for that service.
+
+If the container engine stops answering, every service shows **unknown** until **Retry** succeeds; data in the `servel_*` volumes is not affected.
 
 Services listen on `127.0.0.1` with these defaults (for local development only):
 
@@ -255,7 +257,9 @@ Examples of commands Kova suggests:
 | Node backend | `npm run dev` (reads `PORT`) |
 | Go | `go run .` or `air` (reads `PORT`) |
 
-`npm` becomes `pnpm`, `yarn` or `bun` when that lockfile is present. **Restart** stops the project, waits for the port to be free and starts it again. Output shows under **Logs → Projects**. There, pick a project chip to see only its output, or **Errors & warnings** to hide everything else; each project keeps its own last 500 lines. **Filter lines** (or `Ctrl F`) narrows the list to lines containing the words you type. When a project exits or stops answering, **View log** on its card opens this view for that project.
+`npm` becomes `pnpm`, `yarn` or `bun` when that lockfile is present. **Restart** stops the project, waits for the port to be free and starts it again. Output shows under **Logs → Projects**. There, pick a project chip to see only its output, or **Errors & warnings** to hide everything else; each project keeps its own last 500 lines. **Filter lines** (or `Ctrl F`) narrows the list to lines containing the words you type. When a project exits or stops answering, **View log** on its panel opens this view for that project. With a project chip selected, **Open project** jumps to that project, and a project that stopped keeps its output with a **Start** button. **Copy** copies the lines in view.
+
+For bug reports, **Settings → About → Diagnostics → Copy info** copies the Kova, engine and mise versions and the data folder path.
 
 Notes:
 
@@ -265,13 +269,15 @@ Notes:
 
 ### PHP and Node versions
 
-- **Runtimes → Versions for** picks the context: **Global** or one of your projects. The PHP and Node lists show the versions that apply there and where they come from (project `mise.toml` or global config).
-- Switching a version in a project context writes to that project's `mise.toml`. If the version currently comes from your global config, Kova asks whether to pin it in the project or change it globally.
+- **Runtimes** has a tab for PHP, Node, Go and Python. Each lists the installed versions, marks the **global** one, and shows **Used by**: the projects whose `mise.toml` asks for that version. A version a project asks for but that is not installed is listed as **not installed**, with Install in its menu.
+- The **⋯** menu on a version: **Set as global** (`mise use -g`), **Use in project…** (pick a project; Kova writes the version to its `mise.toml`, and the project restarts only when you say so), and **Remove** (only for versions nothing uses).
+- **Install** takes a version such as `8.4` or `22`; progress shows above the box, and **Cancel** stops it.
 - A `mise.toml` that mise does not trust yet shows a **Trust** button.
+- The tray's PHP and Node menus change the global version.
 
 ### PHP extensions (Runtimes)
 
-1. Pick the PHP version at the top of **PHP extensions**.
+1. On **Runtimes → PHP**, pick the PHP version at the top of **PHP extensions**.
 2. Turn extensions on or off with their switches. The change goes into that version's `php.ini` and applies to every project and terminal that uses the version. Restart running PHP projects to pick it up.
 3. **Windows:** if **HTTPS certificates** says "Not set", click **Fix HTTPS certificates**. This sets `curl.cainfo` and `openssl.cafile`, which fixes curl error 60.
 

@@ -51,6 +51,16 @@ watch(
   },
   { immediate: true },
 )
+// Permintaan dari layar lain (Logs → Open project).
+watch(
+  () => actions.selectRequest.value,
+  (id) => {
+    if (!id) return
+    selectedId.value = id
+    actions.selectRequest.value = null
+  },
+  { immediate: true },
+)
 // Ganti project = mulai dari tab Overview.
 watch(selectedId, () => (actions.detailTab.value = 'overview'))
 </script>

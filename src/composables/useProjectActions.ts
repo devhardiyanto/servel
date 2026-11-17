@@ -20,6 +20,8 @@ const editingId = ref<string | null>(null)
 const removingId = ref<string | null>(null)
 /** Modal Add project. */
 const adding = ref(false)
+/** Project yang harus dipilih saat layar Projects dibuka (dari Logs, v3.5). */
+const selectRequest = ref<string | null>(null)
 /** Tab panel detail; diubah dari luar ("Environment" di banner). */
 const detailTab = ref<'overview' | 'env' | 'logs'>('overview')
 
@@ -130,6 +132,12 @@ export function useProjectActions() {
     removingId,
     adding,
     detailTab,
+    selectRequest,
+    /** Buka layar Projects dengan project ini terpilih. */
+    openProject(p: Project): void {
+      selectRequest.value = p.id
+      setView('projects')
+    },
     stateLabel,
     takenPorts,
     setError,
