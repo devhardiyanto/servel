@@ -10,6 +10,8 @@ import { SetViewKey } from '@/types/navigation'
 import LogTail from '@/components/LogTail.vue'
 import ServiceRow from '@/components/ServiceRow.vue'
 import ServiceDetail from '@/components/ServiceDetail.vue'
+import PanelSplitter from '@/components/ui/PanelSplitter.vue'
+import { usePanelWidth } from '@/composables/usePanelWidth'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 
@@ -19,6 +21,9 @@ const setView = inject(SetViewKey)!
 
 // Panel Connect (v2.10): satu service terbuka sekaligus.
 const connectId = ref<string | null>(null)
+// Lebar panel service bisa diseret; seret habis ke kanan = tutup panel (v3.6.1).
+const SVC_PANEL = { default: 320, min: 280, max: 480 }
+const svcPanel = usePanelWidth('services', SVC_PANEL)
 function toggleConnect(id: string): void {
   connectId.value = connectId.value === id ? null : id
 }
@@ -240,7 +245,21 @@ onUnmounted(() => {
     </section>
     </div>
 
-    <aside v-if="connectDef" class="svc-detail" :aria-label="`${connectDef.name} details`">
+    <PanelSplitter
+      v-if="connectDef"
+      v-model:width="svcPanel.width.value"
+      v-bind="{ min: SVC_PANEL.min, max: SVC_PANEL.max, defaultWidth: SVC_PANEL.default }"
+      controls="svc-detail"
+      :label="`Resize ${connectDef.name} details`"
+      @collapse="connectId = null"
+    />
+    <aside
+      v-if="connectDef"
+      id="svc-detail"
+      class="svc-detail"
+      :aria-label="`${connectDef.name} details`"
+      :style="{ width: `${svcPanel.width.value}px` }"
+    >
       <ServiceDetail :key="connectDef.id" :def="connectDef" @close="connectId = null" />
     </aside>
   </div>
@@ -348,8 +367,9 @@ onUnmounted(() => {
 
 .sw-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2) var(--space-3);
   padding: var(--space-3) var(--space-5);
   background: transparent;
   border-bottom: 1px solid var(--border);
@@ -391,6 +411,7 @@ onUnmounted(() => {
 .sw-actions {
   display: flex;
   gap: var(--space-2);
+  margin-left: auto;
 }
 
 .services-table {
@@ -462,8 +483,8 @@ onUnmounted(() => {
 }
 
 .svc-detail {
-  width: 300px;
   flex-shrink: 0;
+  max-width: 55%;
   overflow-y: auto;
   padding: var(--space-5);
   background: var(--bg-sunken);

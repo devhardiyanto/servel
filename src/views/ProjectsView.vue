@@ -14,6 +14,8 @@ import { useProjectRuntime } from '@/composables/useProjectRuntime'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import PanelSplitter from '@/components/ui/PanelSplitter.vue'
+import { usePanelWidth } from '@/composables/usePanelWidth'
 
 const { config, loaded, loadError, load } = useConfig()
 
@@ -39,7 +41,16 @@ const runningServices = computed(() =>
   services.definitions.value.filter((d) => services.uiState.value[d.id]?.status === 'running').map((d) => d.name),
 )
 
+// Panel detail: lebar bisa diseret dan panel bisa ditutup (v3.7.0).
+const PANEL = { default: 400, min: 320, max: 640 }
+const panel = usePanelWidth('projects', PANEL)
+
 const selectedId = ref<string | null>(null)
+/** Pilihan dari pengguna (klik kartu) membuka panel yang tertutup. */
+function choose(id: string): void {
+  selectedId.value = id
+  panel.collapsed.value = false
+}
 const selected = computed(() => config.value.projects.find((p) => p.id === selectedId.value) ?? null)
 
 // Pilih project pertama yang punya folder; lepas pilihan bila project dihapus.
@@ -95,17 +106,39 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
         <!-- Tanpa project, Add project ada di empty state; jangan dobel (v3.6.1). -->
         <UiButton v-if="config.projects.length" variant="primary" @click="actions.adding.value = true">Add project</UiButton>
       </header>
-      <ProjectsPanel :selected-id="selectedId" :query="query" @select="selectedId = $event" />
+      <ProjectsPanel :selected-id="selectedId" :query="query" @select="choose" />
       <div v-if="config.projects.length" class="pv-strip">
         <span>{{ runningServices.length ? `${runningServices.join(' · ')} running` : 'No services running' }}</span>
         <UiButton variant="quiet" @click="setView('services')">Services</UiButton>
       </div>
     </section>
     <!-- Panel detail hanya berguna bila ada project yang bisa dipilih (v3.6.1). -->
-    <aside v-if="config.projects.length" class="pv-detail" aria-label="Project details">
-      <ProjectDetail v-if="selected" :key="selected.id" :project="selected" />
-      <p v-else class="pv-empty">Select a project to see its status, environment and output.</p>
-    </aside>
+    <template v-if="config.projects.length">
+      <template v-if="!panel.collapsed.value">
+        <PanelSplitter
+          v-model:width="panel.width.value"
+          v-bind="{ min: PANEL.min, max: PANEL.max, defaultWidth: PANEL.default }"
+          controls="pv-detail"
+          label="Resize project details"
+          @collapse="panel.collapsed.value = true"
+        />
+        <aside id="pv-detail" class="pv-detail" aria-label="Project details" :style="{ width: `${panel.width.value}px` }">
+          <ProjectDetail v-if="selected" :key="selected.id" :project="selected" />
+          <p v-else class="pv-empty">Select a project to see its status, environment and output.</p>
+        </aside>
+      </template>
+      <button
+        v-else
+        class="pv-reopen"
+        aria-controls="pv-detail"
+        aria-expanded="false"
+        title="Show project details"
+        @click="panel.collapsed.value = false"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 4L6 8l4 4" /></svg>
+        <span class="sr-only">Show project details</span>
+      </button>
+    </template>
     <ProjectDialogs />
     <AddProjectModal @added="selectedId = $event" />
   </div>
@@ -124,17 +157,19 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
 }
 
 .pv {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
+  display: flex;
   height: 100%;
   min-height: 0;
 }
-.pv--empty { grid-template-columns: minmax(0, 1fr); }
 .pv-list {
+  flex: 1;
+  min-width: 0;
   overflow-y: auto;
   padding: var(--space-6) var(--space-6) var(--space-6) var(--space-8);
 }
 .pv-detail {
+  flex: none;
+  max-width: 60%;
   overflow-y: auto;
   padding: var(--space-6) var(--space-5);
   background: var(--bg-sunken);
@@ -160,10 +195,29 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
   color: var(--muted);
 }
 .pv-empty { margin: 0; font-size: var(--text-sm); color: var(--faint); }
+/* Panel tertutup: strip tipis di tepi kanan untuk membukanya lagi. */
+.pv-reopen {
+  flex: none;
+  width: 28px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: var(--space-6);
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--muted);
+  cursor: pointer;
+}
+.pv-reopen:hover { color: var(--text); background: var(--surface); }
+.pv-reopen:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.pv-reopen svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 @media (max-width: 1000px) {
-  .pv { grid-template-columns: 1fr; grid-template-rows: auto auto; overflow-y: auto; }
+  .pv { flex-direction: column; overflow-y: auto; }
   .pv-list, .pv-detail { overflow: visible; }
-  .pv-detail { border-left: 0; border-top: 1px solid var(--border); }
+  .pv-detail { width: auto !important; max-width: none; border-left: 0; border-top: 1px solid var(--border); }
+  .pv > .ps { display: none; }
+  .pv-reopen { width: auto; padding: var(--space-2); border-left: 0; border-top: 1px solid var(--border); }
 }
 </style>

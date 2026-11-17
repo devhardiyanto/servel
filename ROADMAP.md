@@ -469,11 +469,11 @@ Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-nav
 - [x] Menu tray tanpa baris abu-abu yang hanya label; versi dan jumlah service di tooltip.
 - [x] Settings › About tidak menduplikasi banner update; sub-navigasi Settings tanpa latar sendiri.
 - [x] Projects tanpa project: panel detail dan tombol Add project ganda tidak ditampilkan.
+- [x] Pemisah panel yang bisa diseret (`col-resize`) di Projects dan Services; seret habis ke kanan menutup panel.
 
 ### v3.x — kandidat, belum diputuskan
 
 - Popup tray custom seperti canvas (klik kiri; klik kanan tetap menu native). Ditunda 18 Nov: posisi terhadap taskbar, multi-monitor, dan DPI perlu milestone sendiri.
-- Pemisah panel yang bisa digeser (`col-resize`) di Projects dan Services, dengan panel detail yang bisa ditutup. Belum diputuskan.
 
 ### v4.0 — pemutusan kompatibilitas Servel (belum dijadwalkan)
 

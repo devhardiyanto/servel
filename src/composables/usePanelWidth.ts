@@ -1,0 +1,34 @@
+// Lebar dan status tutup panel detail, diingat per layar (v3.7.0).
+// Disimpan di localStorage jendela ini: preferensi tampilan saja, bukan
+// config, jadi kalau hilang panel kembali ke lebar bawaan.
+import { ref, watch, type Ref } from 'vue'
+
+function read(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function write(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    /* hanya untuk sesi ini */
+  }
+}
+
+export function usePanelWidth(
+  name: string,
+  opts: { default: number; min: number; max: number },
+): { width: Ref<number>; collapsed: Ref<boolean> } {
+  const wKey = `kova.panel.${name}.width`
+  const cKey = `kova.panel.${name}.collapsed`
+  const saved = Number(read(wKey))
+  const width = ref(Number.isFinite(saved) && saved >= opts.min && saved <= opts.max ? saved : opts.default)
+  const collapsed = ref(read(cKey) === '1')
+  watch(width, (w) => write(wKey, String(w)))
+  watch(collapsed, (c) => write(cKey, c ? '1' : '0'))
+  return { width, collapsed }
+}
