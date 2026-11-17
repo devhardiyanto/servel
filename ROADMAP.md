@@ -463,9 +463,17 @@ Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-nav
 - [x] Baris `mise ERROR`/`✗` ditandai error dan `mise WARN` peringatan; pesan error tidak lagi "Run with --verbose…"; uninstall versi yang sedang dipakai menjelaskan penyebabnya.
 - [ ] Uji pembaca layar NVDA (perangkat pengguna).
 
+### L.1 — v3.6.1: patch dari pemakaian
+
+- [x] Toggle service cepat (on lalu off, atau sebaliknya) tidak lagi macet di "starting"/"stopping".
+- [x] Menu tray tanpa baris abu-abu yang hanya label; versi dan jumlah service di tooltip.
+- [x] Settings › About tidak menduplikasi banner update; sub-navigasi Settings tanpa latar sendiri.
+- [x] Projects tanpa project: panel detail dan tombol Add project ganda tidak ditampilkan.
+- [x] Pemisah panel yang bisa diseret (`col-resize`) di Projects dan Services; seret habis ke kanan menutup panel.
+
 ### v3.x — kandidat, belum diputuskan
 
-- Belum ada kandidat terbuka. Usulan baru dicatat di sini.
+- Popup tray custom seperti canvas (klik kiri; klik kanan tetap menu native). Ditunda 18 Nov: posisi terhadap taskbar, multi-monitor, dan DPI perlu milestone sendiri.
 
 ### v4.0 — pemutusan kompatibilitas Servel (belum dijadwalkan)
 

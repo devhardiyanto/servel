@@ -391,6 +391,10 @@ pub fn run() {
                     }
 
                     running_count = current.values().filter(|&&r| r).count();
+                    // Snapshot penuh tiap putaran (v3.6.1): event per perubahan di
+                    // atas terlewat bila start lalu stop terjadi di antara dua
+                    // putaran, dan UI tertahan di "starting"/"stopping".
+                    let _ = app_handle.emit("container-status-snapshot", &current);
                     *prev = current;
                     is_first_tick = false;
                     }

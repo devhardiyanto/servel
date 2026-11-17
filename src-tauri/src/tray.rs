@@ -1,8 +1,13 @@
 //! Menu tray (v3.6.0, canvas "Tray & accessibility").
 //!
-//! Isi dari atas: versi Kova, daftar project dengan status (klik = buka di
-//! browser bila berjalan, Start bila berhenti), ringkasan service dengan Start
-//! dan Stop, submenu PHP/Node untuk versi global, Open Kova, Quit Kova.
+//! Isi dari atas: Open Kova, daftar project dengan status (klik = buka di
+//! browser bila berjalan, Start bila berhenti), Start/Stop service, submenu
+//! PHP/Node untuk versi global, Quit Kova.
+//!
+//! v3.6.1: menu native Windows menampilkan item non-aktif dalam abu-abu,
+//! jadi tidak ada lagi baris yang hanya label ("Projects", "No projects yet",
+//! "Services: none running"). Versi Kova dan jumlah service pindah ke tooltip
+//! dan ke teks "Stop all services (N running)".
 //!
 //! Menu dibangun ulang saat status project berubah (`site-status-changed`),
 //! saat jumlah service berjalan berubah (polling status), saat config ditulis,
@@ -60,12 +65,17 @@ pub fn project_entry(project: &Project, runtime: Option<&SiteRuntime>) -> Projec
     ProjectEntry { id: project.id.clone(), label, enabled }
 }
 
-/// Baris ringkasan service.
-pub fn services_label(running: usize) -> String {
+/// Teks "Stop all services"; tidak ditampilkan bila tidak ada yang berjalan.
+pub fn stop_label(running: usize) -> Option<String> {
+    (running > 0).then(|| format!("Stop all services ({} running)", running))
+}
+
+/// Tooltip ikon tray, dengan versi Kova.
+pub fn tooltip_text(version: &str, running: usize) -> String {
     match running {
-        0 => "Services: none running".into(),
-        1 => "Services: 1 running".into(),
-        n => format!("Services: {} running", n),
+        0 => format!("Kova {} — idle", version),
+        1 => format!("Kova {} — 1 service running", version),
+        n => format!("Kova {} — {} services running", version, n),
     }
 }
 
@@ -77,29 +87,26 @@ fn build_menu(
     node: &[(String, bool)],
 ) -> tauri::Result<Menu<tauri::Wry>> {
     let menu = Menu::new(app)?;
-    let version = format!("Kova {}", app.package_info().version);
-    menu.append(&MenuItem::with_id(app, "header", version, false, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, "show", "Open Kova", true, None::<&str>)?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
 
-    menu.append(&MenuItem::with_id(app, "projects_header", "Projects", false, None::<&str>)?)?;
-    if projects.is_empty() {
-        menu.append(&MenuItem::with_id(app, "projects_none", "No projects yet", false, None::<&str>)?)?;
+    if !projects.is_empty() {
+        for p in projects {
+            menu.append(&MenuItem::with_id(app, format!("project:{}", p.id), &p.label, p.enabled, None::<&str>)?)?;
+        }
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
     }
-    for p in projects {
-        menu.append(&MenuItem::with_id(app, format!("project:{}", p.id), &p.label, p.enabled, None::<&str>)?)?;
-    }
-    menu.append(&PredefinedMenuItem::separator(app)?)?;
 
-    menu.append(&MenuItem::with_id(app, "services_header", services_label(running), false, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, "start_all", "Start selected services", true, None::<&str>)?)?;
-    menu.append(&MenuItem::with_id(app, "stop_all", "Stop all services", running > 0, None::<&str>)?)?;
+    if let Some(label) = stop_label(running) {
+        menu.append(&MenuItem::with_id(app, "stop_all", label, true, None::<&str>)?)?;
+    }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
 
     menu.append(&build_version_submenu(app, "PHP (global)", "php", php)?)?;
     menu.append(&build_version_submenu(app, "Node (global)", "node", node)?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
 
-    menu.append(&MenuItem::with_id(app, "show", "Open Kova", true, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, "quit", "Quit Kova", true, None::<&str>)?)?;
     Ok(menu)
 }
@@ -253,7 +260,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
 
     TrayIconBuilder::with_id("main")
         .icon(icon)
-        .tooltip("Kova — idle")
+        .tooltip(tooltip_text(&app.package_info().version.to_string(), 0))
         .menu(&menu)
         .on_menu_event(|app, event| {
             let id = event.id.as_ref();
@@ -364,11 +371,7 @@ pub fn update_tooltip(app: &AppHandle, running_count: usize) {
         return;
     }
     if let Some(tray) = app.tray_by_id("main") {
-        let text = if running_count > 0 {
-            format!("Kova — {} running", running_count)
-        } else {
-            "Kova — idle".to_string()
-        };
+        let text = tooltip_text(&app.package_info().version.to_string(), running_count);
         let _ = tray.set_tooltip(Some(&text));
     }
     if SERVICES_RUNNING.swap(running_count, Ordering::Relaxed) != running_count {
@@ -441,9 +444,11 @@ mod tests {
     }
 
     #[test]
-    fn services_summary() {
-        assert_eq!(services_label(0), "Services: none running");
-        assert_eq!(services_label(1), "Services: 1 running");
-        assert_eq!(services_label(4), "Services: 4 running");
+    fn service_texts() {
+        assert_eq!(stop_label(0), None);
+        assert_eq!(stop_label(3).as_deref(), Some("Stop all services (3 running)"));
+        assert_eq!(tooltip_text("3.6.1", 0), "Kova 3.6.1 — idle");
+        assert_eq!(tooltip_text("3.6.1", 1), "Kova 3.6.1 — 1 service running");
+        assert_eq!(tooltip_text("3.6.1", 4), "Kova 3.6.1 — 4 services running");
     }
 }

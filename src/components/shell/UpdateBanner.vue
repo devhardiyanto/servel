@@ -13,11 +13,7 @@ function mb(bytes: number): string {
   return (bytes / 1_048_576).toFixed(1)
 }
 
-const show = computed(() => {
-  if (u.bannerHidden.value) return false
-  if (u.phase.value === 'available') return u.dismissedVersion.value !== u.latestVersion.value
-  return u.phase.value !== 'idle'
-})
+const show = u.bannerVisible
 
 const progressText = computed(() => {
   const total = u.totalBytes.value

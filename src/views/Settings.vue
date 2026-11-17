@@ -93,6 +93,7 @@ const {
   lastChecked,
   canInstall,
   phase: updatePhase,
+  bannerVisible: updateBannerVisible,
   check: checkUpdate,
   download: downloadUpdate,
   apply: applyUpdate,
@@ -652,8 +653,12 @@ onMounted(async () => {
               <span class="about-version">v{{ version || '...' }}</span>
             </div>
 
-            <div v-if="updateAvailable" class="update-banner">
-              <span class="ub-text">New version available: <strong>v{{ latestVersion }}</strong></span>
+            <p v-if="updateBannerVisible" class="update-progress-note">
+              {{ updatePhase === 'ready' ? `Kova ${latestVersion} is ready to install.` : `Kova ${latestVersion} is available.` }}
+              Use the banner at the top of the window.
+            </p>
+            <div v-else-if="updateAvailable" class="update-banner">
+              <span class="ub-text">{{ updatePhase === 'ready' ? 'Ready to install' : 'New version available' }}: <strong>v{{ latestVersion }}</strong></span>
               <span class="ub-actions">
                 <UiButton v-if="canInstall" variant="quiet" @click="openReleasePage">Release notes</UiButton>
                 <UiButton
@@ -665,9 +670,6 @@ onMounted(async () => {
                 <UiButton v-else-if="!canInstall" variant="primary" @click="openReleasePage">Open release page</UiButton>
               </span>
             </div>
-            <p v-if="updatePhase === 'downloading' || updatePhase === 'error'" class="update-progress-note">
-              Progress and errors show in the banner at the top of the window.
-            </p>
 
             <div class="update-row">
               <UiButton :disabled="checkingUpdate" @click="checkUpdate">
@@ -755,7 +757,8 @@ onMounted(async () => {
   width: 180px;
   flex-shrink: 0;
   border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  background: var(--surface);
+  /* Tanpa latar sendiri: banner update di atasnya tidak meninggalkan strip (v3.6.1). */
+  background: transparent;
   padding: var(--space-4) 0;
   display: flex;
   flex-direction: column;
