@@ -9,6 +9,8 @@ const props = defineProps<{
   def: ServiceDef
   state: ServiceUiState
   connectOpen?: boolean
+  /** Engine tidak menjawab: status sebenarnya tidak diketahui (v3.5). */
+  unknown?: boolean
 }>()
 
 const ramDisplay = computed(() => {
@@ -50,6 +52,7 @@ function imageTag(def: ServiceDef): string {
 
 // Bentuk titik per status (lihat StatusDot): stopping → starting, error → exited.
 const dot = computed<{ state: DotState; label: string }>(() => {
+  if (props.unknown) return { state: 'stopped', label: 'unknown' }
   switch (props.state.status) {
     case 'running': return { state: 'running', label: 'running' }
     case 'starting': return { state: 'starting', label: 'starting' }

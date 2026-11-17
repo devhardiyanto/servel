@@ -19,10 +19,11 @@
 //! Format output yang di-parse diverifikasi terhadap mise 2026.11.2 (Windows);
 //! fixture ada di `src/fixtures/mise-*`.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -349,6 +350,10 @@ pub fn clean_log_line(raw: &str) -> Option<String> {
     if text.is_empty() { None } else { Some(text) }
 }
 
+/// `mise install` yang sedang berjalan, untuk tombol Cancel (v3.5).
+static INSTALL_PID: std::sync::Mutex<Option<u32>> = std::sync::Mutex::new(None);
+static INSTALL_CANCELLED: AtomicBool = AtomicBool::new(false);
+
 /// Jalankan mise sambil men-stream output ke panel log (source `MISE`).
 async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), String> {
     let emit = |line: &str, stream: &str| {
@@ -361,6 +366,11 @@ async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), 
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("could not run mise: {}", e))?;
+    let is_install = args.first().map(String::as_str) == Some("install");
+    if is_install {
+        INSTALL_CANCELLED.store(false, Ordering::SeqCst);
+        *INSTALL_PID.lock().unwrap_or_else(|e| e.into_inner()) = child.id();
+    }
     let stdout = child.stdout.take().ok_or("mise stdout not available")?;
     let stderr = child.stderr.take().ok_or("mise stderr not available")?;
 
@@ -393,6 +403,13 @@ async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), 
         .map_err(|e| format!("waiting for mise failed: {}", e))?;
     let _ = out_task.await;
     let err = err_task.await.unwrap_or_default();
+    if is_install {
+        *INSTALL_PID.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        if INSTALL_CANCELLED.swap(false, Ordering::SeqCst) {
+            emit("install cancelled", "stderr");
+            return Err("Install cancelled.".to_string());
+        }
+    }
     if status.success() {
         Ok(())
     } else {
@@ -583,6 +600,149 @@ pub async fn runtime_use(app: AppHandle, tool: String, version: String, scope: S
     use_version(&app, &tool, &version, Some(&scope)).await
 }
 
+// ---------------------------------------------------------------------------
+// Halaman Runtimes per tool (v3.5, canvas Flow E)
+// ---------------------------------------------------------------------------
+
+/// Tool yang punya tab di Runtimes.
+pub const ALL_TOOLS: &[&str] = &["php", "node", "go", "python"];
+
+fn check_any_tool(tool: &str) -> Result<(), String> {
+    if ALL_TOOLS.contains(&tool) {
+        Ok(())
+    } else {
+        Err(format!("'{tool}' is not a supported runtime"))
+    }
+}
+
+#[derive(Deserialize, Clone, Debug)]
+pub struct ProjectRef {
+    pub name: String,
+    pub path: String,
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionRow {
+    pub version: String,
+    pub installed: bool,
+    /// Versi global (di luar project mana pun).
+    pub global: bool,
+    /// Nama project yang `mise.toml`-nya meminta versi ini.
+    pub used_by: Vec<String>,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolOverview {
+    pub tool: String,
+    pub global: Option<String>,
+    pub versions: Vec<VersionRow>,
+}
+
+/// Gabungkan versi terpasang, versi global, dan pemakaian per project.
+/// Versi yang diminta project tetapi belum terpasang ikut ditampilkan.
+/// Urutan: versi terbaru di atas.
+pub fn build_rows(installed: &[InstalledVersion], global: Option<&str>, uses: &[(String, String)]) -> Vec<VersionRow> {
+    let mut rows: Vec<VersionRow> = installed
+        .iter()
+        .map(|v| VersionRow { version: v.version.clone(), installed: true, global: false, used_by: Vec::new() })
+        .collect();
+    let row_for = |rows: &mut Vec<VersionRow>, version: &str| -> usize {
+        if let Some(i) = rows.iter().position(|r| r.version == version) {
+            return i;
+        }
+        rows.push(VersionRow { version: version.to_string(), installed: false, global: false, used_by: Vec::new() });
+        rows.len() - 1
+    };
+    if let Some(g) = global {
+        let i = row_for(&mut rows, g);
+        rows[i].global = true;
+    }
+    for (name, version) in uses {
+        let i = row_for(&mut rows, version);
+        if !rows[i].used_by.contains(name) {
+            rows[i].used_by.push(name.clone());
+        }
+    }
+    let key = |v: &str| -> Vec<u64> { v.split(|c: char| !c.is_ascii_digit()).filter_map(|n| n.parse().ok()).collect() };
+    rows.sort_by(|a, b| key(&b.version).cmp(&key(&a.version)));
+    rows
+}
+
+#[tauri::command]
+pub async fn runtime_overview(tool: String, projects: Vec<ProjectRef>) -> Result<ToolOverview, String> {
+    check_any_tool(&tool)?;
+    let home = home_dir();
+    let installed =
+        parse_installed(&capture(&["ls".into(), "--installed".into(), "--json".into(), tool.clone()], &home).await?);
+    let roots = global_config_roots(&env_lookup);
+    let global = parse_current(&capture(&["ls".into(), "--current".into(), "--json".into()], &home).await?, &roots)
+        .into_iter()
+        .find(|t| t.tool == tool && t.scope == SourceScope::Global)
+        .map(|t| t.version);
+    let mut uses = Vec::new();
+    for p in &projects {
+        let dir = PathBuf::from(&p.path);
+        if !dir.is_dir() {
+            continue;
+        }
+        // Project yang mise.toml-nya belum dipercaya membuat mise gagal; lewati saja.
+        let Ok(out) = capture(&["ls".into(), "--current".into(), "--json".into()], &dir).await else { continue };
+        if let Some(t) = parse_current(&out, &roots).into_iter().find(|t| t.tool == tool && t.scope == SourceScope::Project) {
+            uses.push((p.name.clone(), t.version));
+        }
+    }
+    Ok(ToolOverview { versions: build_rows(&installed, global.as_deref(), &uses), global, tool })
+}
+
+/// Pasang versi untuk tool apa pun di Runtimes. Bisa dibatalkan dengan
+/// `runtime_install_cancel`.
+#[tauri::command]
+pub async fn runtime_install_version(app: AppHandle, tool: String, version: String) -> Result<(), String> {
+    check_any_tool(&tool)?;
+    validate_version(&version)?;
+    run_logged(&app, &["install".into(), format!("{}@{}", tool, version)], &home_dir()).await
+}
+
+#[tauri::command]
+pub async fn runtime_install_cancel() -> Result<(), String> {
+    let pid = *INSTALL_PID.lock().map_err(|e| e.to_string())?;
+    let Some(pid) = pid else { return Ok(()) };
+    INSTALL_CANCELLED.store(true, Ordering::SeqCst);
+    crate::sites::process::kill_tree(pid).await;
+    Ok(())
+}
+
+/// `mise use -g tool@version`.
+#[tauri::command]
+pub async fn runtime_set_global(app: AppHandle, tool: String, version: String) -> Result<(), String> {
+    check_any_tool(&tool)?;
+    validate_version(&version)?;
+    run_logged(&app, &["use".into(), "-g".into(), format!("{}@{}", tool, version)], &home_dir()).await
+}
+
+/// `mise use tool@version` di folder project: menulis `mise.toml` project itu.
+#[tauri::command]
+pub async fn runtime_use_in(app: AppHandle, tool: String, version: String, path: String) -> Result<(), String> {
+    check_any_tool(&tool)?;
+    validate_version(&version)?;
+    let dir = PathBuf::from(&path);
+    if !dir.is_dir() {
+        return Err(format!("Folder not found: {path}"));
+    }
+    run_logged(&app, &["use".into(), format!("{}@{}", tool, version)], &dir).await
+}
+
+/// `mise uninstall tool@version`. Frontend hanya menawarkannya untuk versi
+/// yang bukan global dan tidak dipakai project.
+#[tauri::command]
+pub async fn runtime_uninstall(app: AppHandle, tool: String, version: String) -> Result<(), String> {
+    check_any_tool(&tool)?;
+    validate_version(&version)?;
+    run_logged(&app, &["uninstall".into(), format!("{}@{}", tool, version)], &home_dir()).await
+}
+
 /// Argumen winget untuk memasang mise tanpa dialog (v2.11).
 pub fn winget_install_args() -> Vec<&'static str> {
     vec![
@@ -732,6 +892,33 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn version_rows_merge_installed_global_and_projects() {
+        let installed = vec![
+            InstalledVersion { version: "8.3.35".into(), active: true },
+            InstalledVersion { version: "8.4.14".into(), active: false },
+            InstalledVersion { version: "8.2.9".into(), active: false },
+        ];
+        let uses = vec![
+            ("ce-console-api".to_string(), "8.3.35".to_string()),
+            ("share-api".to_string(), "8.3.35".to_string()),
+            ("legacy".to_string(), "7.4.33".to_string()),
+        ];
+        let rows = build_rows(&installed, Some("8.4.14"), &uses);
+        let versions: Vec<&str> = rows.iter().map(|r| r.version.as_str()).collect();
+        assert_eq!(versions, vec!["8.4.14", "8.3.35", "8.2.9", "7.4.33"]);
+        assert!(rows[0].global && rows[0].used_by.is_empty());
+        assert_eq!(rows[1].used_by, vec!["ce-console-api", "share-api"]);
+        assert!(!rows[3].installed, "requested but not installed");
+        // 10 > 9 secara numerik, bukan teks.
+        let rows = build_rows(
+            &[InstalledVersion { version: "1.9.0".into(), active: false }, InstalledVersion { version: "1.10.0".into(), active: false }],
+            None,
+            &[],
+        );
+        assert_eq!(rows[0].version, "1.10.0");
+    }
 
     fn win_env(k: &str) -> Option<String> {
         match k {

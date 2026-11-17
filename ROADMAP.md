@@ -438,10 +438,13 @@ Audit per artboard (17 Nov) menemukan 12 dari 45 langkah flow sesuai canvas, 22 
 
 ### K — v3.5.0: Runtimes, Services, Logs, Settings (kesesuaian canvas)
 
-- [ ] Runtimes bertab per tool dengan tabel versi (Used by, scope), menu ⋯ per versi, dialog Use in project, progres install dengan Cancel.
-- [ ] Panel service bertab (Connect, Data, Logs) dengan format .env; state kosong dan error Services.
-- [ ] Logs: Open project, Copy, state "Lost the log stream".
-- [ ] Settings: Diagnostics / Copy info.
+- [x] Runtimes bertab per tool dengan tabel versi (Used by, scope), menu ⋯ per versi, dialog Use in project, progres install dengan Cancel.
+- [x] Panel service bertab (Connect, Data, Logs) dengan format .env; state kosong dan error Services.
+- [x] Logs: Open project, Copy, state "Lost the log stream".
+- [x] Settings: Diagnostics / Copy info.
+- [ ] Uji di perangkat nyata: v3.4.0 dan v3.5.0 di Windows (WebView2, unduh lalu restart, Cancel install, mise use/uninstall).
+
+"Lost the log stream" untuk service tidak dibuat: Kova tidak men-stream log container. Padanannya banner project berhenti di Logs.
 
 Sengaja tidak diikuti dari canvas: Settings satu halaman (sub-navigasi dipertahankan), daftar sumber Logs di kiri (tab dipertahankan), tab profil di Services (dropdown dipertahankan), gambar dialog folder (dialog OS dipakai).
 

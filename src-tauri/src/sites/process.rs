@@ -216,7 +216,7 @@ fn shell_command(line: &str) -> tokio::process::Command {
     }
 }
 
-async fn kill_tree(pid: u32) {
+pub(crate) async fn kill_tree(pid: u32) {
     #[cfg(target_os = "windows")]
     {
         let _ = silent_command("taskkill")

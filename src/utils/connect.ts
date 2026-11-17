@@ -187,3 +187,44 @@ export function connectionInfo(def: ServiceDef): ConnectInfo {
     }
   }
 }
+
+/** Format baris .env di panel Connect (v3.5, canvas D4). */
+export type EnvFormat = 'laravel' | 'url' | 'go'
+
+const URL_KEY: Record<string, string> = {
+  mysql: 'DATABASE_URL',
+  postgres: 'DATABASE_URL',
+  redis: 'REDIS_URL',
+  rabbitmq: 'RABBITMQ_URL',
+  mongodb: 'MONGODB_URI',
+  minio: 'S3_ENDPOINT',
+  mailpit: 'SMTP_URL',
+  gotenberg: 'GOTENBERG_URL',
+}
+
+/**
+ * Baris .env dalam format pilihan.
+ * - laravel: nama variabel bawaan Laravel (DB_HOST, REDIS_HOST, ...).
+ * - url: satu URL koneksi (DATABASE_URL, REDIS_URL, ...).
+ * - go: bentuk yang dipakai driver Go umum (DSN go-sql-driver/mysql,
+ *   alamat go-redis, URL pgx dengan sslmode=disable).
+ */
+export function envFor(def: ServiceDef, format: EnvFormat): string {
+  const info = connectionInfo(def)
+  if (format === 'laravel') return info.env
+  const key = URL_KEY[def.id] ?? `${def.id.toUpperCase()}_URL`
+  if (format === 'url') return info.url ? `${key}=${info.url}` : ''
+  const field = (label: string) => info.fields.find((f) => f.label === label)?.value ?? ''
+  switch (def.id) {
+    case 'mysql': {
+      const pw = def.environment?.MYSQL_ROOT_PASSWORD ?? ''
+      return `DB_DSN=root${pw ? `:${pw}` : ''}@tcp(${HOST}:${field('Port')})/${field('Database')}?parseTime=true`
+    }
+    case 'postgres':
+      return `DATABASE_URL=${info.url}?sslmode=disable`
+    case 'redis':
+      return `REDIS_ADDR=${HOST}:${field('Port')}`
+    default:
+      return info.url ? `${key}=${info.url}` : ''
+  }
+}
