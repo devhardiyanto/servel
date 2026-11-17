@@ -79,10 +79,10 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
       <SkeletonBox width="180px" height="26px" radius="6px" />
     </div>
   </div>
-  <div v-else class="pv">
+  <div v-else class="pv" :class="{ 'pv--empty': !config.projects.length }">
     <section class="pv-list" aria-label="Project list">
       <header class="pv-bar">
-        <h1 class="pv-title">Projects <span class="pv-count">{{ config.projects.length }}</span></h1>
+        <h1 class="pv-title">Projects <span v-if="config.projects.length" class="pv-count">{{ config.projects.length }}</span></h1>
         <UiInput
           v-if="config.projects.length > 3"
           v-model="query"
@@ -92,7 +92,8 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
           aria-label="Search projects"
           @keydown.esc="query = ''"
         />
-        <UiButton variant="primary" @click="actions.adding.value = true">Add project</UiButton>
+        <!-- Tanpa project, Add project ada di empty state; jangan dobel (v3.6.1). -->
+        <UiButton v-if="config.projects.length" variant="primary" @click="actions.adding.value = true">Add project</UiButton>
       </header>
       <ProjectsPanel :selected-id="selectedId" :query="query" @select="selectedId = $event" />
       <div v-if="config.projects.length" class="pv-strip">
@@ -100,7 +101,8 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
         <UiButton variant="quiet" @click="setView('services')">Services</UiButton>
       </div>
     </section>
-    <aside class="pv-detail" aria-label="Project details">
+    <!-- Panel detail hanya berguna bila ada project yang bisa dipilih (v3.6.1). -->
+    <aside v-if="config.projects.length" class="pv-detail" aria-label="Project details">
       <ProjectDetail v-if="selected" :key="selected.id" :project="selected" />
       <p v-else class="pv-empty">Select a project to see its status, environment and output.</p>
     </aside>
@@ -127,6 +129,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
   height: 100%;
   min-height: 0;
 }
+.pv--empty { grid-template-columns: minmax(0, 1fr); }
 .pv-list {
   overflow-y: auto;
   padding: var(--space-6) var(--space-6) var(--space-6) var(--space-8);

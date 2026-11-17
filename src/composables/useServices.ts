@@ -95,11 +95,31 @@ function applyStatusChange(id: string, running: boolean): void {
   }
 }
 
+/** Perlu diterapkan: status transisi yang sudah mencapai tujuannya, atau status
+ * tetap yang berbeda dari kenyataan. */
+export function needsUpdate(status: ServiceUiState['status'] | undefined, running: boolean): boolean {
+  if (status === undefined) return false
+  if (status === 'starting') return running
+  if (status === 'stopping') return !running
+  return running ? status !== 'running' : status === 'running'
+}
+
 async function registerListener(): Promise<void> {
   if (listenerRegistered) return
   listenerRegistered = true
   await listen<ContainerStatusChangedPayload>('container-status-changed', (e) => {
     applyStatusChange(e.payload.service, e.payload.running)
+  })
+  // Snapshot tiap putaran polling (v3.6.1): menyelesaikan "starting"/"stopping"
+  // walau perubahannya terjadi di antara dua putaran (toggle cepat).
+  await listen<Record<string, boolean>>('container-status-snapshot', (e) => {
+    for (const [id, running] of Object.entries(e.payload)) {
+      if (needsUpdate(uiState.value[id]?.status, running)) applyStatusChange(id, running)
+    }
+    // Service yang tidak ada di snapshot (belum pernah dibuat) = tidak berjalan.
+    for (const [id, entry] of Object.entries(uiState.value)) {
+      if (!(id in e.payload) && entry.status === 'stopping') applyStatusChange(id, false)
+    }
   })
 }
 

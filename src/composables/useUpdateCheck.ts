@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -174,6 +174,13 @@ async function runCheck(): Promise<void> {
   }
 }
 
+/** Banner update di atas jendela sedang tampil (v3.6.1: About tidak menduplikasinya). */
+const bannerVisible = computed(() => {
+  if (bannerHidden.value) return false
+  if (phase.value === 'available') return dismissedVersion.value !== latestVersion.value
+  return phase.value !== 'idle'
+})
+
 export function useUpdateCheck() {
   function openReleasePage(): void {
     window.open(RELEASE_PAGE, '_blank', 'noopener')
@@ -195,6 +202,7 @@ export function useUpdateCheck() {
     readyVersion,
     dismissedVersion,
     bannerHidden,
+    bannerVisible,
     download: runDownload,
     apply: runApply,
     dismiss,
