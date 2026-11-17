@@ -453,6 +453,16 @@ Sengaja tidak diikuti dari canvas: Settings satu halaman (sub-navigasi dipertaha
 - [x] Quit Kova menghentikan dev server lalu service (batas 60 detik), dengan layar "Stopping services…"; bisa dimatikan di Settings.
 - [x] Onboarding hanya sampai diselesaikan sekali; pengguna lama dianggap sudah. "Run setup again" di Settings.
 
+### L — v3.6.0: tray, ikon, aksesibilitas (penutup revamp canvas)
+
+Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-navigasi Settings); yang tersisa di canvas adalah lingkup ini.
+
+- [x] Menu tray baru: versi, project dengan status (klik = buka atau Start), ringkasan service dengan Start/Stop, PHP/Node global, Open Kova, Quit Kova. Dibangun ulang saat status atau config berubah.
+- [x] Ikon di nav rail.
+- [x] Perubahan status project diumumkan (`role="status"`, error lewat `role="alert"`); badge nav punya teks untuk pembaca layar.
+- [x] Baris `mise ERROR`/`✗` ditandai error dan `mise WARN` peringatan; pesan error tidak lagi "Run with --verbose…"; uninstall versi yang sedang dipakai menjelaskan penyebabnya.
+- [ ] Uji pembaca layar NVDA (perangkat pengguna).
+
 ### v3.x — kandidat, belum diputuskan
 
 - Belum ada kandidat terbuka. Usulan baru dicatat di sini.

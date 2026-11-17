@@ -285,21 +285,48 @@ fn command(args: &[String], cwd: &Path) -> tokio::process::Command {
     cmd
 }
 
+/// Baris ERROR penutup mise yang tidak menjelaskan apa pun.
+fn is_error_boilerplate(line: &str) -> bool {
+    let l = line.trim_start_matches("mise ERROR").trim();
+    l.starts_with("Run with --verbose") || l.starts_with("Version:") || l.is_empty()
+}
+
 fn map_error(stderr: &str, stdout: &str) -> String {
     if let Some(p) = untrusted_path(stderr).or_else(|| untrusted_path(stdout)) {
         return format!("{}|{}", ERR_UNTRUSTED, p);
     }
-    // Pesan paling berguna: baris ERROR terakhir. Abaikan WARN (mis. notifikasi
-    // "mise version X available") yang sering muncul di stderr.
+    // Pesan paling berguna: baris ERROR terakhir yang bukan penutup ("Run with
+    // --verbose…", "Version: …"). Abaikan WARN (mis. notifikasi "mise version
+    // X available") yang sering muncul di stderr.
     let lines: Vec<&str> = stderr.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
     let msg = lines
         .iter()
         .rev()
-        .find(|l| l.contains("ERROR"))
-        .or_else(|| lines.iter().rev().find(|l| !l.contains("WARN")))
+        .find(|l| l.contains("ERROR") && !is_error_boilerplate(l))
+        .or_else(|| lines.iter().rev().find(|l| !l.contains("WARN") && !l.contains("ERROR")))
         .copied()
         .unwrap_or("mise failed");
     msg.trim_start_matches("mise ERROR").trim().to_string()
+}
+
+/// Level baris output mise untuk Logs (v3.6.0): `mise ERROR …` dan `✗` adalah
+/// error, `mise WARN …` peringatan. Progres (yang juga ditulis ke stderr) tidak.
+pub fn line_level(line: &str) -> Option<&'static str> {
+    let has = |w: &str| line.split_whitespace().take(3).any(|t| t == w);
+    if has("ERROR") || has("✗") {
+        Some("error")
+    } else if has("WARN") {
+        Some("warn")
+    } else {
+        None
+    }
+}
+
+/// Uninstall gagal karena folder versi itu sedang dipakai proses lain
+/// (Windows: "Access is denied (os error 5)" / "used by another process").
+fn uninstall_in_use(err: &str) -> bool {
+    let e = err.to_lowercase();
+    e.contains("in use") || e.contains("os error 5") || e.contains("os error 32") || e.contains("failed to remove")
 }
 
 async fn capture(args: &[String], cwd: &Path) -> Result<String, String> {
@@ -350,6 +377,14 @@ pub fn clean_log_line(raw: &str) -> Option<String> {
     if text.is_empty() { None } else { Some(text) }
 }
 
+fn log_payload(line: &str) -> serde_json::Value {
+    let mut v = serde_json::json!({ "line": line, "stream": "stdout", "source": "MISE" });
+    if let Some(level) = line_level(line) {
+        v["level"] = serde_json::Value::String(level.into());
+    }
+    v
+}
+
 /// `mise install` yang sedang berjalan, untuk tombol Cancel (v3.5).
 static INSTALL_PID: std::sync::Mutex<Option<u32>> = std::sync::Mutex::new(None);
 static INSTALL_CANCELLED: AtomicBool = AtomicBool::new(false);
@@ -379,7 +414,7 @@ async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), 
         let mut lines = BufReader::new(stdout).lines();
         while let Ok(Some(l)) = lines.next_line().await {
             if let Some(l) = clean_log_line(&l) {
-                let _ = app_out.emit("cmd-output", serde_json::json!({ "line": l, "stream": "stdout", "source": "MISE" }));
+                let _ = app_out.emit("cmd-output", log_payload(&l));
             }
         }
     });
@@ -389,8 +424,9 @@ async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), 
         let mut lines = BufReader::new(stderr).lines();
         while let Ok(Some(l)) = lines.next_line().await {
             if let Some(l) = clean_log_line(&l) {
-                // mise menulis progress install ke stderr — bukan error.
-                let _ = app_err.emit("cmd-output", serde_json::json!({ "line": l, "stream": "stdout", "source": "MISE" }));
+                // mise menulis progress install ke stderr — bukan error; level
+                // diambil dari isi baris.
+                let _ = app_err.emit("cmd-output", log_payload(&l));
                 acc.push(l);
             }
         }
@@ -740,7 +776,29 @@ pub async fn runtime_use_in(app: AppHandle, tool: String, version: String, path:
 pub async fn runtime_uninstall(app: AppHandle, tool: String, version: String) -> Result<(), String> {
     check_any_tool(&tool)?;
     validate_version(&version)?;
-    run_logged(&app, &["uninstall".into(), format!("{}@{}", tool, version)], &home_dir()).await
+    run_logged(&app, &["uninstall".into(), format!("{}@{}", tool, version)], &home_dir())
+        .await
+        .map_err(|e| {
+            if uninstall_in_use(&e) {
+                format!(
+                    "{} {} is in use by a running program, such as a project, a terminal or an editor. Stop it and try again.",
+                    tool_label(&tool),
+                    version
+                )
+            } else {
+                e
+            }
+        })
+}
+
+fn tool_label(tool: &str) -> String {
+    match tool {
+        "php" => "PHP".into(),
+        "node" => "Node".into(),
+        "go" => "Go".into(),
+        "python" => "Python".into(),
+        t => t.to_string(),
+    }
 }
 
 /// Argumen winget untuk memasang mise tanpa dialog (v2.11).
@@ -1110,6 +1168,24 @@ mod tests {
         assert_eq!(untrusted_path(e).as_deref(), Some(r"D:\dev\astra\mise.toml"));
         assert_eq!(map_error(e, ""), format!("{}|{}", ERR_UNTRUSTED, r"D:\dev\astra\mise.toml"));
         assert_eq!(untrusted_path("mise ERROR tool not found"), None);
+    }
+
+    #[test]
+    fn error_message_skips_boilerplate() {
+        let e = "mise ERROR failed to remove: C:\\mise\\installs\\node\\22.23.3\nmise ERROR Access is denied. (os error 5)\nmise ERROR Version: 2026.11.2 windows-x64 (2026-11-05)\nmise ERROR Run with --verbose or MISE_VERBOSE=1 for more information";
+        assert_eq!(map_error(e, ""), "Access is denied. (os error 5)");
+        assert!(uninstall_in_use(&map_error(e, "")));
+        assert!(!uninstall_in_use("no version found for php@9.9"));
+    }
+
+    #[test]
+    fn log_levels_follow_mise_prefixes() {
+        assert_eq!(line_level("mise ERROR failed to uninstall core:node@22.23.3"), Some("error"));
+        assert_eq!(line_level("mise ✗ node@22.23.3 18ms · failed: failed to remove"), Some("error"));
+        assert_eq!(line_level("mise WARN failed to remove C:\\x"), Some("warn"));
+        assert_eq!(line_level("mise ✓ node@20.20.2 589ms"), None);
+        assert_eq!(line_level("go@1.26.0 removing 3.0s"), None);
+        assert_eq!(line_level("A file under it is in use. ERROR handling is fine"), None);
     }
 
     #[test]

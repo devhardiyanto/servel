@@ -24,16 +24,43 @@ const runningProjects = computed(
 )
 const errorCount = computed(() => lines.value.filter((l) => l.level === 'error').length)
 
+// Ikon 16px dari canvas (Components › Patterns › Nav rail item), stroke.
+const ICONS: Record<ViewName, string[]> = {
+  projects: ['M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z'],
+  services: ['M3 4a5 2 0 1 0 10 0a5 2 0 1 0 -10 0', 'M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2'],
+  runtimes: ['M8 2l6 3-6 3-6-3zM2 8l6 3 6-3M2 11l6 3 6-3'],
+  logs: ['M3 3.5h10M3 6.5h10M3 9.5h7M3 12.5h5'],
+  settings: ['M2.5 4h7M12.5 4h1M2.5 8h2M7.5 8h6M2.5 12h8', 'M9.5 4a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M4.5 8a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0M10.5 12a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0 -3 0'],
+  onboarding: [],
+}
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`
+}
+
+// `badgeLabel` dibacakan pembaca layar; angkanya sendiri tidak bermakna tanpa konteks.
 const items = computed(() => [
-  { id: 'projects' as const, label: 'Projects', badge: runningProjects.value ? String(runningProjects.value) : '' },
+  {
+    id: 'projects' as const,
+    label: 'Projects',
+    badge: runningProjects.value ? String(runningProjects.value) : '',
+    badgeLabel: `${plural(runningProjects.value, 'project', 'projects')} running`,
+  },
   {
     id: 'services' as const,
     label: 'Services',
     badge: definitions.value.length ? `${runningCount.value}/${definitions.value.length}` : '',
+    badgeLabel: `${runningCount.value} of ${plural(definitions.value.length, 'service', 'services')} running`,
   },
-  { id: 'runtimes' as const, label: 'Runtimes', badge: '' },
-  { id: 'logs' as const, label: 'Logs', badge: errorCount.value ? String(errorCount.value) : '', alert: errorCount.value > 0 },
-  { id: 'settings' as const, label: 'Settings', badge: '', dot: updateAvailable.value },
+  { id: 'runtimes' as const, label: 'Runtimes', badge: '', badgeLabel: '' },
+  {
+    id: 'logs' as const,
+    label: 'Logs',
+    badge: errorCount.value ? String(errorCount.value) : '',
+    badgeLabel: plural(errorCount.value, 'error', 'errors'),
+    alert: errorCount.value > 0,
+  },
+  { id: 'settings' as const, label: 'Settings', badge: '', badgeLabel: '', dot: updateAvailable.value },
 ])
 </script>
 
@@ -51,9 +78,15 @@ const items = computed(() => [
       :aria-current="current === it.id ? 'page' : undefined"
       @click="emit('go', it.id)"
     >
+      <svg class="rail-icon" viewBox="0 0 16 16" aria-hidden="true">
+        <path v-for="(d, i) in ICONS[it.id]" :key="i" :d="d" />
+      </svg>
       <span class="rail-label">{{ it.label }}</span>
-      <span v-if="it.dot" class="rail-dot" title="Update available"></span>
-      <span v-if="it.badge" class="rail-badge" :class="{ 'rail-badge--alert': it.alert }">{{ it.badge }}</span>
+      <span v-if="it.dot" class="rail-dot" role="img" aria-label="Update available" title="Update available"></span>
+      <span v-if="it.badge" class="rail-badge" :class="{ 'rail-badge--alert': it.alert }">
+        <span aria-hidden="true">{{ it.badge }}</span>
+        <span class="sr-only">, {{ it.badgeLabel }}</span>
+      </span>
     </button>
     <button class="rail-cmd" title="Open the command palette" @click="emit('palette')">
       <span class="rail-label">Commands</span>
@@ -99,6 +132,16 @@ const items = computed(() => [
 .rail-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .rail-item--on { background: var(--surface2); color: var(--text); }
 .rail-label { flex: 1; }
+.rail-icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 .rail-cmd {
   display: flex;
   align-items: center;

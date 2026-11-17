@@ -26,6 +26,11 @@ pub fn is_done() -> bool {
     DONE.load(Ordering::SeqCst)
 }
 
+/// Keluar sedang berjalan (tooltip tray tidak boleh ditimpa polling).
+pub fn in_progress() -> bool {
+    STARTED.load(Ordering::SeqCst)
+}
+
 /// Lewati langkah rapi untuk keluar berikutnya (restart setelah update).
 pub fn skip() {
     DONE.store(true, Ordering::SeqCst);

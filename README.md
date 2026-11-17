@@ -287,7 +287,7 @@ Extensions that are not bundled (redis, xdebug, imagick, mongodb, ...) can be do
 
 ### Tray menu
 
-Right-click the tray icon for **Show Kova**, the **PHP** and **Node** version submenus, **Start all selected**, **Stop all** and **Quit Kova**. Closing the window keeps Kova in the tray (change it in **Settings → General**). **Quit Kova** stops running projects and then the services, shows "Stopping services…" while it waits (up to 60 seconds), and closes. Data in the volumes is kept, and services you had selected start again next time if **Start the services that were running last time** is on. To leave services running after Kova quits, turn off **Settings → General → Stop services when Kova quits**. Installing an update restarts Kova without stopping services.
+Right-click the tray icon to see your projects with their status: click a running project to open it in the browser, or a stopped one to start it. Below them are the number of running services with **Start selected services** and **Stop all services**, the **PHP (global)** and **Node (global)** version submenus, **Open Kova** and **Quit Kova**. Closing the window keeps Kova in the tray (change it in **Settings → General**). **Quit Kova** stops running projects and then the services, shows "Stopping services…" while it waits (up to 60 seconds), and closes. Data in the volumes is kept, and services you had selected start again next time if **Start the services that were running last time** is on. To leave services running after Kova quits, turn off **Settings → General → Stop services when Kova quits**. Installing an update restarts Kova without stopping services.
 
 ---
 
