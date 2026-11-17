@@ -448,6 +448,11 @@ Audit per artboard (17 Nov) menemukan 12 dari 45 langkah flow sesuai canvas, 22 
 
 Sengaja tidak diikuti dari canvas: Settings satu halaman (sub-navigasi dipertahankan), daftar sumber Logs di kiri (tab dipertahankan), tab profil di Services (dropdown dipertahankan), gambar dialog folder (dialog OS dipakai).
 
+### K.1 — v3.5.1: Quit dan onboarding
+
+- [x] Quit Kova menghentikan dev server lalu service (batas 60 detik), dengan layar "Stopping services…"; bisa dimatikan di Settings.
+- [x] Onboarding hanya sampai diselesaikan sekali; pengguna lama dianggap sudah. "Run setup again" di Settings.
+
 ### v3.x — kandidat, belum diputuskan
 
 - Belum ada kandidat terbuka. Usulan baru dicatat di sini.

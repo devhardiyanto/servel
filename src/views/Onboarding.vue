@@ -186,13 +186,14 @@ const steps = [
 /** "I'll install it myself": tampilkan perintahnya, lalu Check again / Skip. */
 const miseManual = ref(false)
 
-const { config: cfg } = useConfig()
+const { config: cfg, markOnboarded } = useConfig()
 const hasProjects = computed(() => cfg.value.projects.length > 0)
 const firstPath = ref('')
 const firstForm = ref<InstanceType<typeof AddProjectForm> | null>(null)
 const pickErr = ref('')
 
 function finish(): void {
+  void markOnboarded()
   setView('projects')
 }
 

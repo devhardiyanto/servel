@@ -191,7 +191,7 @@ How it differs from Windows: `up`, `down` and the project commands are carried o
 
 ## First run
 
-On first launch Kova walks through three steps: **Engine** (WSL containers or Docker), **Runtimes** (mise: **Install mise**, or **I'll install it myself** to see the command), and **First project** (pick a folder, check what was detected, then **Add & start**). Each step after the first can be skipped.
+On first launch Kova walks through three steps: **Engine** (WSL containers or Docker), **Runtimes** (mise: **Install mise**, or **I'll install it myself** to see the command), and **First project** (pick a folder, check what was detected, then **Add & start**). Each step after the first can be skipped. Setup runs once: after that Kova opens on Projects. To go through it again, use **Settings → General → Run setup again**.
 
 ---
 
@@ -287,7 +287,7 @@ Extensions that are not bundled (redis, xdebug, imagick, mongodb, ...) can be do
 
 ### Tray menu
 
-Right-click the tray icon for **Show Kova**, the **PHP** and **Node** version submenus, **Start all selected**, **Stop all** and **Quit Kova**. Closing the window keeps Kova in the tray (change it in **Settings → General**). Quitting stops running projects; services keep running until you stop them.
+Right-click the tray icon for **Show Kova**, the **PHP** and **Node** version submenus, **Start all selected**, **Stop all** and **Quit Kova**. Closing the window keeps Kova in the tray (change it in **Settings → General**). **Quit Kova** stops running projects and then the services, shows "Stopping services…" while it waits (up to 60 seconds), and closes. Data in the volumes is kept, and services you had selected start again next time if **Start the services that were running last time** is on. To leave services running after Kova quits, turn off **Settings → General → Stop services when Kova quits**. Installing an update restarts Kova without stopping services.
 
 ---
 

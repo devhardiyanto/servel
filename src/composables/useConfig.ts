@@ -28,6 +28,10 @@ export interface ConfigState {
   projects: Project[]
   // Konteks versi Dashboard; null = Global.
   activeProjectId: string | null
+  /** Quit Kova juga menghentikan service (v3.5.1). */
+  stopServicesOnQuit: boolean
+  /** Onboarding sudah dilewati sekali (v3.5.1). */
+  onboarded: boolean
 }
 
 const DEFAULT_CONFIG: ConfigState = {
@@ -45,6 +49,8 @@ const DEFAULT_CONFIG: ConfigState = {
   versionProvider: 'auto',
   projects: [],
   activeProjectId: null,
+  stopServicesOnQuit: true,
+  onboarded: false,
 }
 
 // Singleton state
@@ -111,6 +117,18 @@ export function useConfig() {
   function setRememberSession(value: boolean): void {
     config.value.rememberSession = value
     scheduleSave()
+  }
+
+  function setStopServicesOnQuit(value: boolean): void {
+    config.value.stopServicesOnQuit = value
+    scheduleSave()
+  }
+
+  /** Tandai onboarding selesai; disimpan langsung supaya tidak hilang bila Kova segera ditutup. */
+  async function markOnboarded(): Promise<void> {
+    if (config.value.onboarded) return
+    config.value.onboarded = true
+    await writeNow()
   }
 
   function setMinimizeToTray(value: boolean): void {
@@ -265,6 +283,8 @@ export function useConfig() {
     setAutoStart,
     setRememberSession,
     setMinimizeToTray,
+    setStopServicesOnQuit,
+    markOnboarded,
     setContainerRuntime,
     addProject,
     removeProject,

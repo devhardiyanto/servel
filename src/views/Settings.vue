@@ -31,6 +31,7 @@ const {
   setAutoStart,
   setRememberSession,
   setMinimizeToTray,
+  setStopServicesOnQuit,
   setContainerRuntime,
   createProfile,
   renameProfile,
@@ -405,6 +406,15 @@ onMounted(async () => {
               desc="Keep Kova running in the system tray instead of quitting when the window closes"
             >
               <UiToggle label="Minimize to tray on close" :on="config.minimizeToTray" @click="setMinimizeToTray(!config.minimizeToTray)" />
+            </SettingRow>
+            <SettingRow
+              label="Stop services when Kova quits"
+              desc="Quit Kova from the tray stops MySQL, Redis and the other services first. Data in the volumes is kept."
+            >
+              <UiToggle label="Stop services when Kova quits" :on="config.stopServicesOnQuit" @click="setStopServicesOnQuit(!config.stopServicesOnQuit)" />
+            </SettingRow>
+            <SettingRow label="Setup" desc="Check the container engine and mise again, step by step">
+              <UiButton @click="setView('onboarding')">Run setup again</UiButton>
             </SettingRow>
           </div>
 
