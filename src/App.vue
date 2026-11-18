@@ -149,6 +149,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
 }
+/* Logs memakai latar gelap sampai ke tepi: banner update di atasnya ikut latar
+   header Logs, supaya tidak tampak sebagai pita terpisah. */
+.shell-main:has(.view-logs-viewer) { background: var(--surface); }
 .shell-main > :deep(*:not(.ub)) {
   flex: 1;
   min-height: 0;
