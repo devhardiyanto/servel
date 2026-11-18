@@ -480,6 +480,11 @@ Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-nav
 - [x] Badge "active" di Settings › Services memakai chip standar.
 - [ ] Uji di Windows: posisi, DPI, multi-monitor, sudut dan bayangan, klik ulang ikon.
 
+### M.1 — v3.7.1: toggle service saat hidup
+
+- [x] Start/stop service berjalan dalam satu antrean berurutan; stop yang datang selagi start berjalan tidak lagi jadi no-op.
+- [x] Jaring pengaman UI: status transisi yang bertentangan dengan kenyataan lama setelah perintahnya selesai (stop 15 s, start 120 s) diganti status sebenarnya.
+
 ### v3.x — kandidat, belum diputuskan
 
 

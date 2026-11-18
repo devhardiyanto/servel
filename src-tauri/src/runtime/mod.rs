@@ -223,8 +223,17 @@ pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
     }
 }
 
+/// Antrean operasi start/stop (v3.7.1). `wslc::stop` hanya menghentikan
+/// container yang running saat dicek; tanpa antrean, stop yang datang selagi
+/// start masih berjalan melihat container belum running, tidak melakukan
+/// apa-apa, lalu start selesai dan container tetap hidup dengan toggle mati.
+/// `tokio::sync::Mutex` melayani penunggu sesuai urutan datang, jadi urutan
+/// toggle pengguna dipertahankan.
+static OPS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// Start `services` (id). Service lain yang sedang running tetap dibiarkan.
 pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) -> Result<(), String> {
+    let _turn = OPS.lock().await;
     match ensure_resolved().await {
         RuntimeKind::Docker => docker::start(app, defs, services).await,
         RuntimeKind::Wslc => wslc::start(app, defs, services).await,
@@ -232,6 +241,7 @@ pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) ->
 }
 
 pub async fn stop(app: &AppHandle, defs: &[ServiceDef], services: &[String]) -> Result<(), String> {
+    let _turn = OPS.lock().await;
     match ensure_resolved().await {
         RuntimeKind::Docker => docker::stop(app, services).await,
         RuntimeKind::Wslc => wslc::stop(app, defs, services).await,
@@ -239,6 +249,7 @@ pub async fn stop(app: &AppHandle, defs: &[ServiceDef], services: &[String]) -> 
 }
 
 pub async fn stop_all(app: &AppHandle, defs: &[ServiceDef]) -> Result<(), String> {
+    let _turn = OPS.lock().await;
     match ensure_resolved().await {
         RuntimeKind::Docker => docker::stop_all(app).await,
         RuntimeKind::Wslc => wslc::stop_all(app, defs).await,
@@ -248,6 +259,25 @@ pub async fn stop_all(app: &AppHandle, defs: &[ServiceDef]) -> Result<(), String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Antrean melayani sesuai urutan datang: stop yang datang selagi start
+    /// berjalan baru jalan setelah start selesai.
+    #[tokio::test]
+    async fn ops_queue_keeps_arrival_order() {
+        use std::sync::{Arc, Mutex as StdMutex};
+        let log = Arc::new(StdMutex::new(Vec::<&str>::new()));
+        let first = OPS.lock().await; // "start" sedang berjalan
+        let l = log.clone();
+        let stop = tokio::spawn(async move {
+            let _t = OPS.lock().await;
+            l.lock().unwrap().push("stop");
+        });
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        log.lock().unwrap().push("start done");
+        drop(first);
+        stop.await.unwrap();
+        assert_eq!(*log.lock().unwrap(), vec!["start done", "stop"]);
+    }
 
     #[test]
     fn non_windows_always_docker() {

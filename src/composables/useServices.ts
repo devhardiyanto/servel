@@ -95,13 +95,33 @@ function applyStatusChange(id: string, running: boolean): void {
   }
 }
 
-/** Perlu diterapkan: status transisi yang sudah mencapai tujuannya, atau status
- * tetap yang berbeda dari kenyataan. */
-export function needsUpdate(status: ServiceUiState['status'] | undefined, running: boolean): boolean {
+/** Kapan perintah start/stop terakhir untuk sebuah service selesai (v3.7.1). */
+const settledAt: Record<string, number> = {}
+
+/** Batas menunggu status transisi setelah perintahnya selesai. Start lebih
+ * lama karena service baru dihitung running setelah siap menerima koneksi. */
+export const SETTLE_LIMIT_MS = { starting: 120_000, stopping: 15_000 } as const
+
+/** Perlu diterapkan: status transisi yang sudah mencapai tujuannya, status
+ * transisi yang perintahnya sudah lama selesai tetapi kenyataannya berbeda
+ * (jaring pengaman v3.7.1), atau status tetap yang berbeda dari kenyataan. */
+export function needsUpdate(
+  status: ServiceUiState['status'] | undefined,
+  running: boolean,
+  settledFor: number | null = null,
+): boolean {
   if (status === undefined) return false
-  if (status === 'starting') return running
-  if (status === 'stopping') return !running
+  if (status === 'starting') return running || (settledFor !== null && settledFor > SETTLE_LIMIT_MS.starting)
+  if (status === 'stopping') return !running || (settledFor !== null && settledFor > SETTLE_LIMIT_MS.stopping)
   return running ? status !== 'running' : status === 'running'
+}
+
+/** Paksa status mengikuti kenyataan (abaikan penahan transisi). */
+function forceStatus(id: string, running: boolean): void {
+  const current = uiState.value[id]
+  if (!current) return
+  uiState.value[id] = { ...current, status: running ? 'running' : 'stopped' }
+  applyStatusChange(id, running)
 }
 
 async function registerListener(): Promise<void> {
@@ -113,8 +133,14 @@ async function registerListener(): Promise<void> {
   // Snapshot tiap putaran polling (v3.6.1): menyelesaikan "starting"/"stopping"
   // walau perubahannya terjadi di antara dua putaran (toggle cepat).
   await listen<Record<string, boolean>>('container-status-snapshot', (e) => {
+    const now = Date.now()
     for (const [id, running] of Object.entries(e.payload)) {
-      if (needsUpdate(uiState.value[id]?.status, running)) applyStatusChange(id, running)
+      const status = uiState.value[id]?.status
+      const settledFor = settledAt[id] !== undefined ? now - settledAt[id] : null
+      if (!needsUpdate(status, running, settledFor)) continue
+      const reachedTarget = (status === 'starting' && running) || (status === 'stopping' && !running)
+      if ((status === 'starting' || status === 'stopping') && !reachedTarget) forceStatus(id, running)
+      else applyStatusChange(id, running)
     }
     // Service yang tidak ada di snapshot (belum pernah dibuat) = tidak berjalan.
     for (const [id, entry] of Object.entries(uiState.value)) {
@@ -160,6 +186,7 @@ async function registerServicesActionListener(): Promise<void> {
       // yang dipicu UI — hindari double-set dari tray + UI toggle bersamaan.
       if (current && current.status !== 'starting' && current.status !== 'stopping') {
         uiState.value[id] = { ...current, status: transitionalStatus }
+        delete settledAt[id]
       }
     }
   })
@@ -351,6 +378,7 @@ export function useServices() {
     for (const id of newOnes) {
       if (uiState.value[id]) {
         uiState.value[id] = { ...uiState.value[id], status: 'starting' }
+        delete settledAt[id]
       }
     }
 
@@ -358,6 +386,7 @@ export function useServices() {
       // Pass FULL selection — compose file = all selected, `up -d` idempotent
       // untuk yang sudah running, start yang belum.
       await invoke('services_start', { services: allSelected })
+      for (const id of newOnes) settledAt[id] = Date.now()
     } catch (err) {
       const msg = typeof err === 'string' ? err : 'services_start failed'
       serviceError.value = msg
@@ -377,11 +406,13 @@ export function useServices() {
     for (const id of ids) {
       if (uiState.value[id]) {
         uiState.value[id] = { ...uiState.value[id], status: 'stopping' }
+        delete settledAt[id]
       }
     }
 
     try {
       await invoke('services_stop', { services: ids })
+      for (const id of ids) settledAt[id] = Date.now()
     } catch (err) {
       const msg = typeof err === 'string' ? err : 'services_stop failed'
       serviceError.value = msg
@@ -423,11 +454,13 @@ export function useServices() {
     for (const id of runningSnapshot) {
       if (uiState.value[id]) {
         uiState.value[id] = { ...uiState.value[id], status: 'stopping' }
+        delete settledAt[id]
       }
     }
 
     try {
       await invoke('services_stop_all')
+      for (const id of runningSnapshot) settledAt[id] = Date.now()
       if (runningSnapshot.length > 0) {
         useLogs('ENV').push({
           ts: new Date().toTimeString().slice(0, 8),
