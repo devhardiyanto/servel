@@ -485,6 +485,13 @@ Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-nav
 - [x] Start/stop service berjalan dalam satu antrean berurutan; stop yang datang selagi start berjalan tidak lagi jadi no-op.
 - [x] Jaring pengaman UI: status transisi yang bertentangan dengan kenyataan lama setelah perintahnya selesai (stop 15 s, start 120 s) diganti status sebenarnya.
 
+### M.2 — v3.7.2: deteksi engine tanpa restart, klik kanan tray, Logs
+
+- [x] Windows: folder baru di PATH sistem/user (mis. `C:\Program Files\WSL` setelah `wsl --update`) ditambahkan ke PATH proses saat memeriksa engine, jadi `wslc` atau `docker` yang baru dipasang terdeteksi tanpa menutup paksa Kova.
+- [x] Preferensi engine Auto diperiksa ulang bila engine yang terpilih tidak terpasang.
+- [x] Klik kanan ikon tray juga membuka popup (Windows, macOS). Menu native hanya di Linux.
+- [x] Logs: banner update tidak lagi memotong baris terbaru; latar banner menyatu dengan header Logs.
+
 ### v3.x — kandidat, belum diputuskan
 
 

@@ -30,6 +30,100 @@ pub fn silent_command(program: &str) -> Command {
     cmd
 }
 
+/// Windows: tambahkan ke PATH proses ini folder yang muncul di PATH sistem atau
+/// user sejak Kova dibuka (mis. `C:\Program Files\WSL` setelah `wsl --update`).
+///
+/// Proses Windows mewarisi PATH saat dijalankan dan tidak pernah melihat
+/// perubahan sesudahnya, jadi tanpa ini `wslc` atau `docker` yang baru dipasang
+/// tetap "not installed" sampai Kova ditutup paksa. Urutan PATH lama tidak
+/// diubah; folder baru ditambahkan di belakang. Dibaca dari registry paling
+/// sering sekali per 5 detik.
+#[cfg(target_os = "windows")]
+pub fn refresh_windows_path() {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    static LAST: Mutex<Option<Instant>> = Mutex::new(None);
+    {
+        let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        if last.is_some_and(|t| t.elapsed() < Duration::from_secs(5)) {
+            return;
+        }
+        *last = Some(Instant::now());
+    }
+    let registry = [
+        win_reg::read_path(true).unwrap_or_default(),
+        win_reg::read_path(false).unwrap_or_default(),
+    ]
+    .join(";");
+    let current = std::env::var("PATH").unwrap_or_default();
+    if let Some(merged) = merge_path(&current, &registry) {
+        std::env::set_var("PATH", merged);
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn refresh_windows_path() {}
+
+/// `current` ditambah segmen `extra` yang belum ada (Windows: tanpa beda huruf
+/// besar/kecil, tanpa `\` di akhir). `None` bila tidak ada yang baru.
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn merge_path(current: &str, extra: &str) -> Option<String> {
+    let norm = |s: &str| s.trim().trim_end_matches('\\').to_ascii_lowercase();
+    let mut seen: std::collections::HashSet<String> =
+        current.split(';').map(norm).filter(|s| !s.is_empty()).collect();
+    let added: Vec<&str> = extra
+        .split(';')
+        .map(str::trim)
+        .filter(|s| !s.is_empty() && seen.insert(norm(s)))
+        .collect();
+    if added.is_empty() {
+        return None;
+    }
+    let mut out = current.trim_end_matches(';').to_string();
+    for a in added {
+        if !out.is_empty() {
+            out.push(';');
+        }
+        out.push_str(a);
+    }
+    Some(out)
+}
+
+#[cfg(target_os = "windows")]
+mod win_reg {
+    use windows_sys::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, RRF_RT_REG_SZ};
+
+    fn wide(s: &str) -> Vec<u16> {
+        s.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    /// Nilai `Path` dari registry, dengan `%VAR%` sudah diekspansi
+    /// (RegGetValueW mengekspansi REG_EXPAND_SZ bila diminta RRF_RT_REG_SZ).
+    pub fn read_path(machine: bool) -> Option<String> {
+        let (root, key) = if machine {
+            (HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment")
+        } else {
+            (HKEY_CURRENT_USER, "Environment")
+        };
+        let key = wide(key);
+        let name = wide("Path");
+        let mut size: u32 = 0;
+        // SAFETY: pointer ke buffer milik fungsi ini; ukuran dalam byte.
+        unsafe {
+            if RegGetValueW(root, key.as_ptr(), name.as_ptr(), RRF_RT_REG_SZ, std::ptr::null_mut(), std::ptr::null_mut(), &mut size) != 0 {
+                return None;
+            }
+            let mut buf: Vec<u16> = vec![0; (size as usize).div_ceil(2) + 1];
+            let mut bytes = (buf.len() * 2) as u32;
+            if RegGetValueW(root, key.as_ptr(), name.as_ptr(), RRF_RT_REG_SZ, std::ptr::null_mut(), buf.as_mut_ptr().cast(), &mut bytes) != 0 {
+                return None;
+            }
+            let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+            Some(String::from_utf16_lossy(&buf[..len]))
+        }
+    }
+}
+
 /// PATH yang sudah di-augment untuk spawn tool eksternal di Linux/macOS.
 /// Di-resolve sekali (login-interactive shell → source .bashrc/.zshrc) lalu di-cache.
 #[cfg(not(target_os = "windows"))]
@@ -339,5 +433,16 @@ mod tests {
         assert_eq!(extract_semver("v20.14.0\n"), Some("20.14.0".to_string()));
         assert_eq!(extract_semver("20.14.0"), Some("20.14.0".to_string()));
     }
-}
 
+    #[test]
+    fn merge_path_appends_only_new_folders() {
+        let cur = r"C:\Windows\system32;C:\Program Files\Git\cmd\;";
+        let reg = r"C:\WINDOWS\System32;C:\Program Files\WSL\;C:\Program Files\Git\cmd";
+        assert_eq!(
+            merge_path(cur, reg).as_deref(),
+            Some(r"C:\Windows\system32;C:\Program Files\Git\cmd\;C:\Program Files\WSL\")
+        );
+        assert_eq!(merge_path(cur, r"c:\windows\system32\"), None);
+        assert_eq!(merge_path("", r"C:\a;;C:\a").as_deref(), Some(r"C:\a"));
+    }
+}

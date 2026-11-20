@@ -1,6 +1,6 @@
 [package]
 name = "servel"
-version = "3.7.1"
+version = "3.7.2"
 description = "One app. All your local dev environment."
 authors = ["devhardiyanto <dev.hardiyanto@gmail.com>"]
 edition = "2021"
@@ -42,6 +42,8 @@ windows-sys = { version = "0.59", features = [
   "Win32_Security",
   "Win32_System_JobObjects",
   "Win32_System_Threading",
+  # PATH terbaru dari registry (v3.7.2).
+  "Win32_System_Registry",
 ] }
 
 [dev-dependencies]
