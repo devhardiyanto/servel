@@ -143,6 +143,26 @@ pub async fn ensure_resolved() -> RuntimeKind {
     apply_preference(&pref).await
 }
 
+/// Preferensi Auto dan engine terpilih tidak terpasang: probe ulang.
+///
+/// Auto di-resolve sekali lalu disimpan, jadi tanpa ini memasang WSL
+/// containers (atau Docker) setelah Kova dibuka baru terlihat setelah Kova
+/// ditutup paksa. Dipanggil dari `check_prerequisites` (Settings, onboarding,
+/// status engine). Preferensi eksplisit tidak diubah.
+pub async fn reprobe_auto_if_missing(engine: RuntimeKind, installed: bool) -> RuntimeKind {
+    if installed {
+        return engine;
+    }
+    let pref = LAST_PREF.read().ok().and_then(|g| g.clone());
+    if pref.as_deref() != Some("auto") {
+        return engine;
+    }
+    if let Ok(mut g) = LAST_PREF.write() {
+        *g = None;
+    }
+    apply_preference("auto").await
+}
+
 /// Engine yang sedang aktif (nilai terakhir). Caller async sebaiknya memakai
 /// [`ensure_resolved`] supaya tidak membaca nilai bawaan sebelum boot selesai.
 pub fn active() -> RuntimeKind {
@@ -158,6 +178,7 @@ fn set_active(kind: RuntimeKind) {
 /// Probe ketersediaan tool lalu set engine aktif dari `pref_raw`.
 /// Dipanggil saat boot dan setiap config ditulis. Return engine terpilih.
 pub async fn apply_preference(pref_raw: &str) -> RuntimeKind {
+    crate::commands::util::refresh_windows_path();
     let normalized = pref_raw.trim().to_ascii_lowercase();
     if RESOLVED.load(Ordering::Acquire)
         && LAST_PREF.read().ok().and_then(|g| g.clone()).as_deref() == Some(normalized.as_str())

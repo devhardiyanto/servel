@@ -25,6 +25,55 @@ const busy = ref<Record<string, boolean>>({})
 const error = ref('')
 const root = ref<HTMLElement | null>(null)
 
+// Versi global PHP/Node (v3.7.2): pengganti submenu menu native.
+type Tool = 'php' | 'node'
+interface VersionRow { version: string; installed: boolean; global: boolean }
+interface Overview { global: string | null; versions: VersionRow[] }
+const TOOLS: { tool: Tool; label: string }[] = [
+  { tool: 'php', label: 'PHP' },
+  { tool: 'node', label: 'Node' },
+]
+const runtimes = ref<Partial<Record<Tool, Overview>>>({})
+const expanded = ref<Tool | null>(null)
+const switching = ref<string | null>(null)
+const runtimeRows = computed(() =>
+  TOOLS.filter((t) => runtimes.value[t.tool]).map((t) => {
+    const o = runtimes.value[t.tool]!
+    return { ...t, global: o.global, versions: o.versions.filter((v) => v.installed) }
+  }),
+)
+
+async function loadRuntimes(): Promise<void> {
+  const next: Partial<Record<Tool, Overview>> = {}
+  await Promise.all(
+    TOOLS.map(async ({ tool }) => {
+      try {
+        next[tool] = await invoke<Overview>('runtime_overview', { tool, projects: [] })
+      } catch {
+        /* mise tidak terpasang: bagian ini disembunyikan */
+      }
+    }),
+  )
+  runtimes.value = next
+}
+
+async function setGlobal(tool: Tool, version: string): Promise<void> {
+  if (switching.value) return
+  error.value = ''
+  switching.value = `${tool}@${version}`
+  try {
+    await invoke('runtime_set_global', { tool, version })
+    // Jendela utama (Runtimes, Settings) memuat ulang daftarnya.
+    await emit('runtime-global-changed', { tool, version })
+    await loadRuntimes()
+    expanded.value = null
+  } catch (e) {
+    error.value = String(e)
+  } finally {
+    switching.value = null
+  }
+}
+
 const runningServices = computed(() => defs.value.filter((d) => running.value[d.id]).map((d) => d.name))
 const selectedIds = computed(() => config.value.selectedServiceIds ?? [])
 
@@ -108,6 +157,8 @@ async function refresh(): Promise<void> {
   } catch {
     /* engine tidak menjawab: anggap tidak ada yang berjalan */
   }
+  // Tidak ditunggu: mise bisa butuh beberapa ratus ms, popup tampil lebih dulu.
+  void loadRuntimes()
 }
 
 // Panah atas/bawah berpindah antar tombol; Esc menutup popup.
@@ -211,6 +262,37 @@ onUnmounted(() => {
       </button>
     </section>
 
+    <section v-if="runtimeRows.length" class="tp-sect" aria-labelledby="tp-runtimes">
+      <h2 id="tp-runtimes" class="tp-label">Global versions</h2>
+      <template v-for="r in runtimeRows" :key="r.tool">
+        <button
+          class="tp-item"
+          :aria-expanded="expanded === r.tool"
+          :aria-controls="`tp-ver-${r.tool}`"
+          :disabled="!r.versions.length"
+          @click="expanded = expanded === r.tool ? null : r.tool"
+        >
+          <span class="tp-text">{{ r.label }}</span>
+          <span class="tp-hint tp-hint--value">{{ r.global ?? (r.versions.length ? 'not set' : 'none installed') }}</span>
+          <span class="tp-caret" :class="{ 'tp-caret--open': expanded === r.tool }" aria-hidden="true">›</span>
+        </button>
+        <div v-if="expanded === r.tool" :id="`tp-ver-${r.tool}`" class="tp-versions" role="group" :aria-label="`${r.label} versions`">
+          <button
+            v-for="v in r.versions"
+            :key="v.version"
+            class="tp-item tp-item--sub"
+            :aria-pressed="v.global"
+            :disabled="!!switching"
+            @click="v.global ? (expanded = null) : setGlobal(r.tool, v.version)"
+          >
+            <span class="tp-check" aria-hidden="true">{{ v.global ? '✓' : '' }}</span>
+            <span class="tp-text">{{ r.label }} {{ v.version }}</span>
+            <span v-if="switching === `${r.tool}@${v.version}`" class="tp-hint tp-hint--value">switching…</span>
+          </button>
+        </div>
+      </template>
+    </section>
+
     <p v-if="error" class="tp-error" role="alert">{{ error }}</p>
 
     <footer class="tp-sect tp-foot">
@@ -280,14 +362,26 @@ onUnmounted(() => {
 .tp-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tp-hint { flex: none; font: 400 var(--text-xs) var(--font-mono); color: var(--faint); }
 .tp-hint--err { color: var(--red); }
+/* Dibaca pembaca layar (tidak aria-hidden): kontras teks biasa. */
+.tp-hint--value { color: var(--muted); }
+.tp-caret { flex: none; width: 10px; color: var(--faint); transition: transform var(--dur-fast) var(--ease); }
+.tp-caret--open { transform: rotate(90deg); }
+.tp-versions { display: flex; flex-direction: column; gap: 1px; }
+.tp-item--sub { padding-left: 18px; }
+.tp-check { flex: none; width: 12px; color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .tp-caret { transition: none; } }
 .tp-error { margin: 0; padding: 6px 10px; font-size: var(--text-xs); color: var(--red); border-top: 1px solid var(--border); }
 </style>
 
 <style>
-/* Jendela popup: latar panel, tanpa scrollbar (tinggi jendela = tinggi isi). */
+/* Jendela popup: latar panel. Tinggi jendela = tinggi isi, sampai batas
+   tinggi jendela (MAX_HEIGHT di tray_popup.rs); lebih dari itu isi digulir. */
 html.tray-popup,
 html.tray-popup body {
   background: var(--surface);
-  overflow: hidden;
+}
+html.tray-popup #app {
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 </style>

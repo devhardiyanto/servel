@@ -2,8 +2,9 @@
 // Runtimes per tool (v3.5, canvas Flow E): tab PHP / Node / Go / Python,
 // tabel versi (global, dipakai project mana), menu ⋯ per versi, dialog
 // "Use in project", dan install dengan progres serta Cancel.
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import UiTabs from '@/components/ui/UiTabs.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
@@ -71,7 +72,16 @@ onMounted(async () => {
   // kembalikan ke global supaya tray tidak menulis ke mise.toml project lama.
   if (config.value.activeProjectId) await setActiveProject(null)
   await load()
+  // Versi global diganti dari popup tray: data tab itu sudah basi.
+  unlistenGlobal = await listen<{ tool: Tool }>('runtime-global-changed', (e) => {
+    const { [e.payload.tool]: _stale, ...rest } = data.value
+    data.value = rest
+    if (e.payload.tool === tool.value) void load()
+    void versionCtx.refresh()
+  })
 })
+let unlistenGlobal: UnlistenFn | null = null
+onUnmounted(() => unlistenGlobal?.())
 
 const rows = computed(() => data.value[tool.value]?.versions ?? [])
 

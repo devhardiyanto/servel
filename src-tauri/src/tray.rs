@@ -13,6 +13,9 @@
 //! saat jumlah service berjalan berubah (polling status), saat config ditulis,
 //! dan setelah daftar versi PHP/Node dibaca. Pembangunan ulang dilewati bila
 //! isinya sama dengan menu yang sedang tampil.
+//!
+//! v3.7.2: menu native hanya dipakai di Linux (`NATIVE_MENU`). Di Windows dan
+//! macOS kedua tombol mouse membuka popup tray.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -153,6 +156,9 @@ fn build_version_submenu(
 /// Bangun ulang menu dari keadaan sekarang. Murah: membaca config dari disk dan
 /// status project dari memori; tidak menjalankan subprocess.
 pub fn refresh(app: &AppHandle) {
+    if !NATIVE_MENU {
+        return;
+    }
     let projects: Vec<ProjectEntry> = match load_config(app) {
         Ok(cfg) => {
             let runtime = crate::sites::process::snapshot(app);
@@ -191,6 +197,9 @@ pub fn refresh(app: &AppHandle) {
 /// Penanda aktif (●) diambil dari `php_get_active()` / `node_get_active()`,
 /// sumber yang sama dengan frontend.
 pub(crate) async fn refresh_version_submenus(app: &AppHandle) {
+    if !NATIVE_MENU {
+        return;
+    }
     let php_active = crate::commands::php::php_get_active().await.ok().flatten();
     let php: Versions = crate::commands::php::php_list_installed()
         .await
@@ -249,6 +258,25 @@ fn on_project(app: &AppHandle, id: &str) {
     }
 }
 
+/// v3.7.2: di Windows dan macOS klik kiri maupun kanan membuka popup
+/// (`tray_popup`); menu native hanya dipasang di Linux, karena di sana ikon
+/// tray tidak mengirim event klik sehingga popup tidak bisa dibuka.
+const NATIVE_MENU: bool = cfg!(target_os = "linux");
+
+fn set_global_version(app: &AppHandle, tool: &'static str, version: &str) {
+    let app = app.clone();
+    let version = version.to_string();
+    tauri::async_runtime::spawn(async move {
+        match crate::mise::runtime_set_global(app.clone(), tool.to_string(), version.clone()).await {
+            Ok(()) => {
+                let _ = app.emit("runtime-global-changed", serde_json::json!({ "tool": tool, "version": version }));
+                refresh_version_submenus(&app).await;
+            }
+            Err(e) => emit_log_line(&app, "TRAY", &format!("could not switch {tool} to {version}: {e}")),
+        }
+    });
+}
+
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
     // Menu awal tanpa versi PHP/Node; diisi setelah listing selesai.
     let menu = build_menu(app, &[], 0, &[], &[])?;
@@ -258,15 +286,16 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
         .cloned()
         .ok_or(tauri::Error::AssetNotFound("default window icon".into()))?;
 
-    TrayIconBuilder::with_id("main")
+    let mut builder = TrayIconBuilder::with_id("main")
         .icon(icon)
-        .tooltip(tooltip_text(&app.package_info().version.to_string(), 0))
-        .menu(&menu)
-        // v3.7.0: klik kiri membuka popup (tray_popup), klik kanan menu ini.
-        .show_menu_on_left_click(false)
+        .tooltip(tooltip_text(&app.package_info().version.to_string(), 0));
+    if NATIVE_MENU {
+        builder = builder.menu(&menu).show_menu_on_left_click(true);
+    }
+    builder
         .on_tray_icon_event(|tray, event| {
             if let tauri::tray::TrayIconEvent::Click {
-                button: tauri::tray::MouseButton::Left,
+                button: tauri::tray::MouseButton::Left | tauri::tray::MouseButton::Right,
                 button_state: tauri::tray::MouseButtonState::Up,
                 rect,
                 ..
@@ -283,19 +312,14 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
             }
             // Quick-switch versi: id `php:<ver>` / `node:<ver>` → emit ke frontend,
             // reuse php_switch/node_switch (butuh Window untuk streaming).
-            if let Some(ver) = id.strip_prefix("php:") {
-                let _ = app.emit(
-                    "tray-switch-version",
-                    serde_json::json!({ "kind": "php", "version": ver }),
-                );
-                return;
-            }
-            if let Some(ver) = id.strip_prefix("node:") {
-                let _ = app.emit(
-                    "tray-switch-version",
-                    serde_json::json!({ "kind": "node", "version": ver }),
-                );
-                return;
+            // v3.7.2: dulu di-emit ke frontend, tetapi tidak ada yang
+            // mendengarkan sehingga pilihan ini tidak berefek. Kini `mise use
+            // -g` dijalankan langsung, sama seperti Runtimes dan popup tray.
+            for tool in ["php", "node"] {
+                if let Some(ver) = id.strip_prefix(&format!("{tool}:")) {
+                    set_global_version(app, tool, ver);
+                    return;
+                }
             }
             match id {
             "show" => {

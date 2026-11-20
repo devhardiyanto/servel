@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, provide, onMounted, h } from 'vue'
+import { ref, computed, provide, onMounted, onUnmounted, h } from 'vue'
 import { useStatusAnnouncer } from '@/composables/useStatusAnnouncer'
 import { listen } from '@tauri-apps/api/event'
 import type { Component } from 'vue'
@@ -20,6 +20,7 @@ import { useEngineStatus } from './composables/useEngineStatus'
 import { useUpdateCheck } from './composables/useUpdateCheck'
 import { useServices } from './composables/useServices'
 import { useConfig } from './composables/useConfig'
+import { useVersionContext } from './composables/useVersionContext'
 
 // v3.5.1: onboarding hanya sampai pernah diselesaikan sekali. Sampai config
 // terbaca, tidak ada layar yang dirender, supaya onboarding tidak berkedip.
@@ -78,6 +79,19 @@ async function chooseFirstView(): Promise<void> {
 }
 
 const announcer = useStatusAnnouncer()
+const versionCtx = useVersionContext()
+
+// v3.7.2: kembali ke Kova (mis. setelah memasang WSL, Docker, atau mise di
+// terminal) memeriksa ulang engine dan mise, jadi hasil deteksi lama tidak
+// bertahan sampai Kova ditutup. Paling sering sekali per 10 detik.
+let lastFocusCheck = 0
+function onWindowFocus(): void {
+  const now = Date.now()
+  if (now - lastFocusCheck < 10_000) return
+  lastFocusCheck = now
+  void refreshEngineStatus()
+  void versionCtx.refresh()
+}
 
 onMounted(() => {
   void chooseFirstView()
@@ -86,7 +100,10 @@ onMounted(() => {
   void refreshEngineStatus()
   void checkUpdate()
   void restoreServiceSelection()
+  lastFocusCheck = Date.now()
+  window.addEventListener('focus', onWindowFocus)
 })
+onUnmounted(() => window.removeEventListener('focus', onWindowFocus))
 </script>
 
 <template>
@@ -149,6 +166,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
 }
+/* Logs memakai latar gelap sampai ke tepi: banner update di atasnya ikut latar
+   header Logs, supaya tidak tampak sebagai pita terpisah. */
+.shell-main:has(.view-logs-viewer) { background: var(--surface); }
 .shell-main > :deep(*:not(.ub)) {
   flex: 1;
   min-height: 0;

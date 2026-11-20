@@ -139,6 +139,8 @@ const errorCount = computed(
   () => filteredLines.value.filter((l) => l.level === 'error').length,
 )
 
+let areaObserver: ResizeObserver | null = null
+
 function scrollToBottom(): void {
   if (logAreaRef.value) {
     logAreaRef.value.scrollTop = logAreaRef.value.scrollHeight
@@ -159,9 +161,18 @@ onMounted(async () => {
   logAreaRef.value?.addEventListener('copy', handleCopy)
   await nextTick()
   scrollToBottom()
+  // Area log mengecil saat banner update muncul atau jendela diperkecil:
+  // tetap tampilkan baris terbaru bila auto-scroll aktif.
+  if (logAreaRef.value) {
+    areaObserver = new ResizeObserver(() => {
+      if (autoScroll.value) scrollToBottom()
+    })
+    areaObserver.observe(logAreaRef.value)
+  }
 })
 
 onUnmounted(() => {
+  areaObserver?.disconnect()
   document.removeEventListener('keydown', handleFindKey)
   document.removeEventListener('keydown', handleKeydown)
   logAreaRef.value?.removeEventListener('copy', handleCopy)
@@ -350,7 +361,7 @@ function triggerDownload(text: string, filename: string): void {
 .view-logs-viewer {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   background: var(--bg-sunken);
   color: var(--text);
   overflow: hidden;

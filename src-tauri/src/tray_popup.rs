@@ -21,7 +21,8 @@ pub const LABEL: &str = "tray";
 const WIDTH: f64 = 320.0;
 /// Tinggi awal sebelum halaman melaporkan tingginya.
 const INITIAL_HEIGHT: f64 = 240.0;
-const MAX_HEIGHT: f64 = 560.0;
+/// Lebih tinggi dari ini isi popup digulir (v3.7.2: ada bagian versi global).
+const MAX_HEIGHT: f64 = 640.0;
 /// Jarak dari tepi work area, piksel logis.
 const MARGIN: f64 = 8.0;
 /// Klik ikon dalam rentang ini setelah popup hilang karena blur = tutup saja.

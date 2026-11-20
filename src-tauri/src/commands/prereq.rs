@@ -113,7 +113,14 @@ async fn is_elevated() -> bool {
 pub async fn check_prerequisites() -> PrereqStatus {
     use crate::runtime::{self, RuntimeKind};
 
-    let engine = runtime::ensure_resolved().await;
+    crate::commands::util::refresh_windows_path();
+    crate::commands::util::refresh_unix_path().await;
+    let mut engine = runtime::ensure_resolved().await;
+    let installed = match engine {
+        RuntimeKind::Docker => runtime::docker::is_installed().await,
+        RuntimeKind::Wslc => runtime::wslc::is_installed().await,
+    };
+    engine = runtime::reprobe_auto_if_missing(engine, installed).await;
 
     let engine_probe = async {
         match engine {
