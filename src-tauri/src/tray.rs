@@ -263,6 +263,20 @@ fn on_project(app: &AppHandle, id: &str) {
 /// tray tidak mengirim event klik sehingga popup tidak bisa dibuka.
 const NATIVE_MENU: bool = cfg!(target_os = "linux");
 
+fn set_global_version(app: &AppHandle, tool: &'static str, version: &str) {
+    let app = app.clone();
+    let version = version.to_string();
+    tauri::async_runtime::spawn(async move {
+        match crate::mise::runtime_set_global(app.clone(), tool.to_string(), version.clone()).await {
+            Ok(()) => {
+                let _ = app.emit("runtime-global-changed", serde_json::json!({ "tool": tool, "version": version }));
+                refresh_version_submenus(&app).await;
+            }
+            Err(e) => emit_log_line(&app, "TRAY", &format!("could not switch {tool} to {version}: {e}")),
+        }
+    });
+}
+
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
     // Menu awal tanpa versi PHP/Node; diisi setelah listing selesai.
     let menu = build_menu(app, &[], 0, &[], &[])?;
@@ -298,19 +312,14 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
             }
             // Quick-switch versi: id `php:<ver>` / `node:<ver>` → emit ke frontend,
             // reuse php_switch/node_switch (butuh Window untuk streaming).
-            if let Some(ver) = id.strip_prefix("php:") {
-                let _ = app.emit(
-                    "tray-switch-version",
-                    serde_json::json!({ "kind": "php", "version": ver }),
-                );
-                return;
-            }
-            if let Some(ver) = id.strip_prefix("node:") {
-                let _ = app.emit(
-                    "tray-switch-version",
-                    serde_json::json!({ "kind": "node", "version": ver }),
-                );
-                return;
+            // v3.7.2: dulu di-emit ke frontend, tetapi tidak ada yang
+            // mendengarkan sehingga pilihan ini tidak berefek. Kini `mise use
+            // -g` dijalankan langsung, sama seperti Runtimes dan popup tray.
+            for tool in ["php", "node"] {
+                if let Some(ver) = id.strip_prefix(&format!("{tool}:")) {
+                    set_global_version(app, tool, ver);
+                    return;
+                }
             }
             match id {
             "show" => {

@@ -79,12 +79,13 @@ fn spawn(a: &Attempt, dir: &Path) -> std::io::Result<()> {
         cmd.current_dir(dir);
     }
     #[cfg(not(target_os = "windows"))]
-    cmd.env("PATH", crate::commands::util::resolved_path());
+    cmd.env("PATH", crate::commands::util::resolved_path().as_str());
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+        crate::commands::util::refresh_windows_path();
         cmd.creation_flags(if a.new_console { CREATE_NEW_CONSOLE } else { CREATE_NO_WINDOW });
     }
     cmd.spawn().map(|_| ())

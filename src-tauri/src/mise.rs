@@ -481,7 +481,7 @@ pub async fn provider_is_mise() -> bool {
 }
 
 pub const ERR_NO_MISE: &str =
-    "mise is not installed. Install it from the first-run screen or mise.jdx.dev, then restart Kova.";
+    "mise is not installed. Install it from Runtimes or mise.jdx.dev.";
 
 pub async fn require_mise() -> Result<(), String> {
     if version().await.is_some() {

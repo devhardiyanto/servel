@@ -17,6 +17,9 @@ pub fn silent_command(program: &str) -> Command {
     {
         const CREATE_NO_WINDOW: u32 = 0x08000000;
         cmd.creation_flags(CREATE_NO_WINDOW);
+        // Tool yang dipasang setelah Kova dibuka (wslc, docker, mise, git…)
+        // langsung terlihat oleh perintah berikutnya, tanpa restart.
+        refresh_windows_path();
     }
 
     // GUI-launched apps (AppImage / .app dari launcher) TIDAK mewarisi PATH shell
@@ -24,7 +27,7 @@ pub fn silent_command(program: &str) -> Command {
     // dll.) tak ketemu. Inject PATH hasil resolusi login-shell + dir umum.
     #[cfg(not(target_os = "windows"))]
     {
-        cmd.env("PATH", resolved_path());
+        cmd.env("PATH", resolved_path().as_str());
     }
 
     cmd
@@ -127,11 +130,44 @@ mod win_reg {
 /// PATH yang sudah di-augment untuk spawn tool eksternal di Linux/macOS.
 /// Di-resolve sekali (login-interactive shell → source .bashrc/.zshrc) lalu di-cache.
 #[cfg(not(target_os = "windows"))]
-pub fn resolved_path() -> &'static str {
-    use std::sync::OnceLock;
-    static CACHE: OnceLock<String> = OnceLock::new();
-    CACHE.get_or_init(build_resolved_path)
+static UNIX_PATH: std::sync::RwLock<Option<String>> = std::sync::RwLock::new(None);
+
+#[cfg(not(target_os = "windows"))]
+pub fn resolved_path() -> String {
+    if let Some(p) = UNIX_PATH.read().ok().and_then(|g| g.clone()) {
+        return p;
+    }
+    let p = build_resolved_path();
+    if let Ok(mut g) = UNIX_PATH.write() {
+        *g = Some(p.clone());
+    }
+    p
 }
+
+/// Linux/macOS: baca ulang PATH login shell (mis. setelah memasang mise atau
+/// Docker sambil Kova terbuka). Menjalankan shell, jadi hanya dipanggil dari
+/// pemeriksaan eksplisit (`check_prerequisites`), paling sering sekali per 30 detik.
+#[cfg(not(target_os = "windows"))]
+pub async fn refresh_unix_path() {
+    use std::sync::Mutex;
+    use std::time::{Duration, Instant};
+    static LAST: Mutex<Option<Instant>> = Mutex::new(None);
+    {
+        let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        if last.is_some_and(|t| t.elapsed() < Duration::from_secs(30)) {
+            return;
+        }
+        *last = Some(Instant::now());
+    }
+    if let Ok(p) = tokio::task::spawn_blocking(build_resolved_path).await {
+        if let Ok(mut g) = UNIX_PATH.write() {
+            *g = Some(p);
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+pub async fn refresh_unix_path() {}
 
 /// Susun PATH: PATH login-shell (bila terbaca) ∪ PATH proses ∪ dir install umum.
 /// Dedup jaga urutan; buang segmen kosong.

@@ -5,7 +5,7 @@ import UiInput from '@/components/ui/UiInput.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
 import UiSegmented from '@/components/ui/UiSegmented.vue'
 import { useToast } from '@/composables/useToast'
-import { ref, computed, inject, onMounted } from 'vue'
+import { ref, computed, inject, onMounted, onUnmounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { appDataDir } from '@tauri-apps/api/path'
@@ -245,6 +245,20 @@ async function checkEngine(): Promise<void> {
     checkingEngine.value = false
   }
 }
+
+// v3.7.2: kembali ke Kova setelah memasang WSL/Docker di luar Kova memeriksa
+// ulang engine, supaya "not installed" tidak tertahan sampai Kova ditutup.
+let lastEngineCheck = 0
+function onWindowFocus(): void {
+  if (checkingEngine.value || Date.now() - lastEngineCheck < 10_000) return
+  lastEngineCheck = Date.now()
+  void checkEngine()
+}
+onMounted(() => {
+  lastEngineCheck = Date.now()
+  window.addEventListener('focus', onWindowFocus)
+})
+onUnmounted(() => window.removeEventListener('focus', onWindowFocus))
 
 async function chooseEngine(value: EnginePreference): Promise<void> {
   if (switchingEngine.value || config.value.containerRuntime === value) return

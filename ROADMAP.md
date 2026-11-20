@@ -490,6 +490,9 @@ Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-nav
 - [x] Windows: folder baru di PATH sistem/user (mis. `C:\Program Files\WSL` setelah `wsl --update`) ditambahkan ke PATH proses saat memeriksa engine, jadi `wslc` atau `docker` yang baru dipasang terdeteksi tanpa menutup paksa Kova.
 - [x] Preferensi engine Auto diperiksa ulang bila engine yang terpilih tidak terpasang.
 - [x] Klik kanan ikon tray juga membuka popup (Windows, macOS). Menu native hanya di Linux.
+- [x] Popup tray: bagian Global versions (PHP, Node) dengan `mise use -g`; Runtimes memuat ulang lewat event `runtime-global-changed`.
+- [x] Submenu PHP/Node di menu tray native kini berefek (dulu event-nya tidak ditangani; `usePhp`/`useNode` yang tidak terpakai dihapus).
+- [x] PATH dibaca ulang sebelum setiap perintah di Windows (registry, maks. sekali per 5 s) dan saat memeriksa engine di Linux/macOS; jendela utama memeriksa ulang engine dan mise saat kembali difokuskan.
 - [x] Logs: banner update tidak lagi memotong baris terbaru; latar banner menyatu dengan header Logs.
 
 ### v3.x — kandidat, belum diputuskan

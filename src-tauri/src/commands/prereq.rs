@@ -114,6 +114,7 @@ pub async fn check_prerequisites() -> PrereqStatus {
     use crate::runtime::{self, RuntimeKind};
 
     crate::commands::util::refresh_windows_path();
+    crate::commands::util::refresh_unix_path().await;
     let mut engine = runtime::ensure_resolved().await;
     let installed = match engine {
         RuntimeKind::Docker => runtime::docker::is_installed().await,
