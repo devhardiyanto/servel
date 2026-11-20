@@ -1,3 +1,4 @@
+import { openExternal } from '@/utils/openExternal'
 import { ref, computed } from 'vue'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
@@ -183,7 +184,7 @@ const bannerVisible = computed(() => {
 
 export function useUpdateCheck() {
   function openReleasePage(): void {
-    window.open(RELEASE_PAGE, '_blank', 'noopener')
+    void openExternal(RELEASE_PAGE)
   }
 
   return {

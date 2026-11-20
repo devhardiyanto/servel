@@ -500,6 +500,10 @@ Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-nav
 - [x] Docker tidak terpasang + WSL containers tersedia: tanpa `wsl --update`, tawarkan Use WSL containers atau Docker Desktop.
 - [x] Layar onboarding menutupi seluruh jendela (`position: fixed`).
 
+### M.4 — v3.7.4: tautan keluar
+
+- [x] `utils/openExternal` (plugin opener, `window.open` hanya cadangan) untuk onboarding, kartu prasyarat, panduan mise, dan Release notes.
+
 ### v3.x — kandidat, belum diputuskan
 
 
