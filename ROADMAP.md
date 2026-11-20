@@ -527,8 +527,10 @@ Belum diuji di perangkat nyata (Windows):
 - [ ] Start/stop per service dari popup tray. Alasan: popup kini hanya punya Start selected dan Stop all, padahal yang sering dibutuhkan adalah menyalakan atau mematikan satu service.
 - [ ] Logs: sorot kata yang cocok dengan filter; batas jumlah baris untuk log sangat panjang. Alasan: baris yang cocok sulit dicari di log panjang, dan log yang terus tumbuh membebani tampilan.
 - [ ] Perbarui catatan status di canvas design (v3.6.1–v3.7.4). Alasan: canvas masih mencatat keadaan v3.6.0, sedangkan popup tray, panel yang bisa diseret, dan perubahan onboarding sudah berbeda.
-- [ ] Dukungan Dockerfile/compose project, didahului spike: verifikasi `wslc build`, bind mount, dan jaringan ke service. Alasan: Docker jelas bisa, tetapi dukungan wslc belum pasti dan `wslc compose` belum ada.
 
+### Ditunda — sampai ada kebutuhan pengguna
+
+- Dukungan Dockerfile/compose per project. Ditunda per 20 November 2026: belum ada kebutuhan dari pengguna; dibuka lagi bila permintaannya banyak. Bila dibuka, mulai dengan spike: verifikasi `wslc build`, bind mount folder project, dan jaringan ke service. Docker jelas bisa; dukungan wslc belum pasti dan `wslc compose` belum ada.
 
 ### v4.0 — pemutusan kompatibilitas Servel (belum dijadwalkan)
 
