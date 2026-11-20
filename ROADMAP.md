@@ -495,6 +495,11 @@ Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-nav
 - [x] PATH dibaca ulang sebelum setiap perintah di Windows (registry, maks. sekali per 5 s) dan saat memeriksa engine di Linux/macOS; jendela utama memeriksa ulang engine dan mise saat kembali difokuskan.
 - [x] Logs: banner update tidak lagi memotong baris terbaru; latar banner menyatu dengan header Logs.
 
+### M.3 — v3.7.3: onboarding saat WSL containers sudah ada
+
+- [x] Docker tidak terpasang + WSL containers tersedia: tanpa `wsl --update`, tawarkan Use WSL containers atau Docker Desktop.
+- [x] Layar onboarding menutupi seluruh jendela (`position: fixed`).
+
 ### v3.x — kandidat, belum diputuskan
 
 

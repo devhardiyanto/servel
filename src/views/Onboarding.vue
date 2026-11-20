@@ -76,7 +76,13 @@ const engineActions = computed<PrereqAction[]>(() => {
       ]
     }
     if (status.value?.wslc_available) {
-      return [{ label: 'Use WSL containers', primary: true, onClick: () => void useEngine('wslc') }]
+      return [
+        { label: 'Use WSL containers', primary: true, onClick: () => void useEngine('wslc') },
+        {
+          label: 'Docker Desktop ↗',
+          onClick: () => openUrl('https://www.docker.com/products/docker-desktop/'),
+        },
+      ]
     }
     return [
       { label: 'Use WSL containers', primary: true, onClick: () => void useEngine('wslc') },
@@ -133,16 +139,25 @@ const engineOkDesc = computed<string>(() => {
 
 const engineMissingDesc = computed<string>(() => {
   if (isWindows.value) {
-    return isWslc.value
-      ? 'WSL containers need WSL 3.0.1 or newer. Update WSL, then refresh.'
-      : 'Needed to run services. Built-in WSL containers (WSL 3.0.1+) replace Docker Desktop.'
+    if (isWslc.value) {
+      const v = status.value?.wsl_version
+      return `WSL containers need WSL 3.0.1 or newer${v ? ` (this PC has WSL ${v})` : ''}. Update WSL, then refresh.`
+    }
+    // v3.7.2: WSL containers sudah terpasang, jadi tidak perlu `wsl --update`.
+    if (status.value?.wslc_available) {
+      const v = status.value?.wsl_version
+      return `Docker is not installed, but WSL containers${v ? ` (WSL ${v})` : ''} are already on this PC and can run your services without Docker Desktop.`
+    }
+    return 'Needed to run services. Built-in WSL containers (WSL 3.0.1+) replace Docker Desktop.'
   }
   return 'Required to run infra services (MySQL, Redis, etc)'
 })
 
 // `wsl --update` cukup untuk mendapatkan wslc di Windows.
+// Tidak ditampilkan bila WSL containers sudah tersedia (memilih Docker lalu
+// menjalankan setup lagi dulu tetap menyarankan `wsl --update`).
 const engineCode = computed<string | undefined>(() =>
-  isWindows.value && !status.value?.engine_installed ? 'wsl --update' : undefined,
+  isWindows.value && !status.value?.engine_installed && !status.value?.wslc_available ? 'wsl --update' : undefined,
 )
 
 const showElevatedWarning = computed<boolean>(
@@ -419,6 +434,11 @@ const miseInstallCmd = computed<string>(() => {
 
 <style scoped>
 .ob-viewport {
+  /* v3.7.2: menutupi seluruh jendela, supaya sisa layar sebelumnya (mis.
+     Settings saat "Run setup again") tidak terlihat di tepi atas. */
+  position: fixed;
+  inset: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   /* Tinggi tetap, bukan min-height: body overflow hidden, jadi scroll harus
