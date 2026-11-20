@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { openExternal } from '@/utils/openExternal'
 import UiButton from '@/components/ui/UiButton.vue'
 import { ref } from 'vue'
 
@@ -36,7 +37,7 @@ async function copyCode(): Promise<void> {
 
 function handleAction(action: PrereqAction): void {
   if (action.href) {
-    window.open(action.href, '_blank', 'noopener')
+    void openExternal(action.href)
   } else if (action.onClick) {
     action.onClick()
   }

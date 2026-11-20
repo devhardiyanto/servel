@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { openExternal } from '@/utils/openExternal'
 import UiButton from '@/components/ui/UiButton.vue'
 import { inject, computed, ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
@@ -62,7 +63,7 @@ const miseOkDesc = computed<string>(() => {
 })
 
 function openUrl(url: string): void {
-  window.open(url, '_blank', 'noopener')
+  void openExternal(url)
 }
 
 const WSL_RELEASES_URL = 'https://github.com/microsoft/WSL/releases'

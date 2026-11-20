@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { openExternal } from '@/utils/openExternal'
 import UiChip from '@/components/ui/UiChip.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
@@ -178,7 +179,7 @@ async function installMise(): Promise<void> {
   }
 }
 function openMiseDocs(): void {
-  window.open('https://mise.jdx.dev/getting-started.html', '_blank', 'noopener')
+  void openExternal('https://mise.jdx.dev/getting-started.html')
 }
 // --- Restore database (v1.8) ---------------------------------------------
 const restoreService = ref<'mysql' | 'postgres'>('mysql')
