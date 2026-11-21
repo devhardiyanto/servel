@@ -3,6 +3,8 @@ import UiTabs from '@/components/ui/UiTabs.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
+import UiSegmented from '@/components/ui/UiSegmented.vue'
+import UiToggle from '@/components/ui/UiToggle.vue'
 import { useLogFocus } from '@/composables/useLogFocus'
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -293,21 +295,20 @@ function triggerDownload(text: string, filename: string): void {
           aria-label="Filter log lines by text"
           @keydown.esc="textFilter = ''"
         />
-        <UiButton
-          :variant="problemsOnly ? 'accent' : 'default'"
-          :aria-pressed="problemsOnly"
-          title="Show only lines marked as error or warning"
-          @click="problemsOnly = !problemsOnly"
-        >Errors &amp; warnings</UiButton>
+        <!-- v3.8.4 (canvas G2/G3): level sebagai pilihan, bukan tombol tekan. -->
+        <UiSegmented
+          label="Log level"
+          :model-value="problemsOnly ? 'problems' : 'all'"
+          :options="[{ value: 'all', label: 'All' }, { value: 'problems', label: 'Errors & warnings' }]"
+          @update:model-value="problemsOnly = $event === 'problems'"
+        />
         <UiButton v-if="focusedProject" @click="projectActions.openProject(focusedProject)">Open project</UiButton>
+        <label class="lv-follow" title="Keep the newest line in view">
+          <UiToggle size="sm" label="Follow" :on="autoScroll" @click="autoScroll = !autoScroll" />
+          <span aria-hidden="true">Follow</span>
+        </label>
         <UiButton :disabled="filteredLines.length === 0" @click="copyView">Copy</UiButton>
-        <UiButton @click="clear">Clear</UiButton>
-        <UiButton
-          :variant="autoScroll ? 'accent' : 'default'"
-          :aria-pressed="autoScroll"
-          title="Keep the newest line in view"
-          @click="autoScroll = !autoScroll"
-        >Auto-scroll</UiButton>
+        <UiButton variant="quiet" @click="clear">Clear</UiButton>
       </div>
     </header>
 
@@ -398,7 +399,10 @@ function triggerDownload(text: string, filename: string): void {
         <span v-if="errorCount > 0" class="lv-footer__errors">&nbsp;· {{ errorCount }} errors</span>
         <span v-else class="lv-footer__ok">&nbsp;· 0 errors</span>
       </span>
-      <UiButton @click="exportLogs">Export logs</UiButton>
+      <span class="lv-footer__right">
+        <span class="lv-footer__cap">Last 500 lines per source</span>
+        <UiButton @click="exportLogs">Export logs</UiButton>
+      </span>
     </footer>
   </div>
 </template>
@@ -595,6 +599,18 @@ function triggerDownload(text: string, filename: string): void {
 }
 
 /* Footer */
+.lv-follow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lv-footer__right { display: inline-flex; align-items: center; gap: var(--space-3); }
+.lv-footer__cap { font-size: var(--text-xs); color: var(--muted); }
+
 .lv-footer {
   display: flex;
   align-items: center;

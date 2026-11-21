@@ -439,13 +439,13 @@ onMounted(async () => {
           </div>
 
           <div class="section-block">
-            <div class="section-title">WINDOW</div>
+            <div class="section-title">WINDOW &amp; QUIT</div>
 
             <SettingRow
-              label="Minimize to tray on close"
-              desc="Keep Kova running in the system tray instead of quitting when the window closes"
+              label="Keep running in the tray when the window closes"
+              desc="Closing the window hides Kova in the system tray; projects and services keep running"
             >
-              <UiToggle label="Minimize to tray on close" :on="config.minimizeToTray" @click="setMinimizeToTray(!config.minimizeToTray)" />
+              <UiToggle label="Keep running in the tray when the window closes" :on="config.minimizeToTray" @click="setMinimizeToTray(!config.minimizeToTray)" />
             </SettingRow>
             <SettingRow
               label="Stop services when Kova quits"
@@ -459,7 +459,7 @@ onMounted(async () => {
           </div>
 
           <div v-if="cli?.supported" class="section-block">
-            <div class="section-title">TERMINAL</div>
+            <div class="section-title">COMMAND LINE</div>
 
             <SettingRow label="kova command" :desc="cliDesc">
               <UiButton :loading="cliBusy" :disabled="cliBusy || (cli.installed && !cli.outdated)" @click="installCli">

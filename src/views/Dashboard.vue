@@ -127,6 +127,13 @@ onMounted(async () => {
 
 onUnmounted(() => {
 })
+
+/** Kanvas D: "Choose services" pada profil kosong membawa fokus ke switch pertama. */
+function focusFirstSwitch(): void {
+  const el = document.querySelector<HTMLElement>('.services-table [role="switch"]')
+  el?.scrollIntoView({ block: 'nearest' })
+  el?.focus()
+}
 </script>
 
 <template>
@@ -211,6 +218,9 @@ onUnmounted(() => {
         :title="`No services in ${activeProfileName} yet`"
       >
         Turn on the services this profile starts with the switches below. Projects that use {{ activeProfileName }} can start them together with the project.
+        <template #actions>
+          <UiButton variant="accent" @click="focusFirstSwitch">Choose services</UiButton>
+        </template>
       </UiBanner>
       <div class="services-table">
         <template v-if="coreServices.length > 0">
