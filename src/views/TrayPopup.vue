@@ -145,7 +145,9 @@ const rows = computed<Row[]>(() =>
     const info = runtime.value[p.id]
     const state = stateOf(p.id)
     const name = p.name
-    if (state === 'running') return { project: p, dot: 'running', hint: `:${p.port}`, label: `${name}, running. Open localhost:${p.port}`, disabled: false }
+    // v3.9.0 (canvas H6): environment yang dipakai, bila bukan Default.
+    const env = info?.envName ? ` · ${info.envName}` : ''
+    if (state === 'running') return { project: p, dot: 'running', hint: `:${p.port}${env}`, label: `${name}, running${env ? ` with ${info?.envName}` : ''}. Open localhost:${p.port}`, disabled: false }
     if (state === 'unresponsive') return { project: p, dot: 'unresponsive', hint: `:${p.port}`, label: `${name}, not answering. Open localhost:${p.port}`, disabled: false }
     if (state === 'starting') return { project: p, dot: 'starting', hint: 'starting…', label: `${name}, starting`, disabled: true }
     if (!runnable(p)) return { project: p, dot: 'stopped', hint: 'not set up', label: `${name}, not set up yet`, disabled: true }

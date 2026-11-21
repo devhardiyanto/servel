@@ -18,7 +18,7 @@ pub struct Profile {
 
 /// Folder project yang dikelola Servel (v1.7). Versi PHP/Node di project
 /// di-resolve oleh mise dengan cwd = `path`. `id` di-generate frontend.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Project {
     pub id: String,
@@ -48,10 +48,47 @@ pub struct Project {
     /// environment dari mise. `PORT` dikelola Servel dan tidak boleh diisi.
     #[serde(default)]
     pub env: std::collections::BTreeMap<String, String>,
+    /// Environment tambahan per project (v3.9.0, canvas Flow H): tiap entri
+    /// hanya menyimpan nilai yang BERBEDA dari `env` (Default) atau yang
+    /// tidak ada di sana. Kova versi lama mengabaikan field ini.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub envs: Vec<ProjectEnv>,
+    /// Nama environment yang dipakai saat start. `None` = Default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_env: Option<String>,
     /// Saat dev server dijalankan, nyalakan juga service di profil project
     /// (v2.4). Tanpa `profile_id` tidak berpengaruh.
     #[serde(default)]
     pub start_services: bool,
+}
+
+/// Satu environment project selain Default (v3.9.0).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectEnv {
+    pub name: String,
+    #[serde(default)]
+    pub vars: std::collections::BTreeMap<String, String>,
+}
+
+impl Project {
+    /// Environment aktif yang benar-benar ada. Nama yang sudah dihapus
+    /// dianggap Default, supaya start tidak gagal karena config usang.
+    pub fn active_env_entry(&self) -> Option<&ProjectEnv> {
+        let name = self.active_env.as_deref()?;
+        self.envs.iter().find(|e| e.name == name)
+    }
+
+    /// ENV yang dipasang saat start: Default, lalu override environment aktif.
+    pub fn effective_env(&self) -> std::collections::BTreeMap<String, String> {
+        let mut out = self.env.clone();
+        if let Some(e) = self.active_env_entry() {
+            for (k, v) in &e.vars {
+                out.insert(k.clone(), v.clone());
+            }
+        }
+        out
+    }
 }
 
 /// Target proxy site lama (v1.5–v2.1). Hanya dibaca saat migrasi ke v7.
@@ -194,6 +231,8 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
                 port: 0,
                 auto_start: false,
                 env: Default::default(),
+                envs: Vec::new(),
+                active_env: None,
                 start_services: false,
             });
         }
@@ -217,6 +256,8 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
             port,
             auto_start: false,
             env: Default::default(),
+            envs: Vec::new(),
+            active_env: None,
             start_services: false,
         });
     }
@@ -454,6 +495,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn effective_env_layers_active_environment_over_default() {
+        let mut p = Project {
+            id: "p".into(),
+            name: "payments-worker".into(),
+            env: [("APP_ENV".to_string(), "local".to_string()), ("DATABASE_URL".to_string(), "local_db".to_string())].into(),
+            envs: vec![ProjectEnv {
+                name: "tenant-astra".into(),
+                vars: [("DATABASE_URL".to_string(), "astra_db".to_string()), ("TENANT_ID".to_string(), "astra".to_string())].into(),
+            }],
+            ..Default::default()
+        };
+        assert_eq!(p.effective_env(), p.env);
+        p.active_env = Some("tenant-astra".into());
+        let e = p.effective_env();
+        assert_eq!(e["APP_ENV"], "local");
+        assert_eq!(e["DATABASE_URL"], "astra_db");
+        assert_eq!(e["TENANT_ID"], "astra");
+        // Environment yang sudah dihapus = Default.
+        p.active_env = Some("gone".into());
+        assert_eq!(p.effective_env(), p.env);
+        assert!(p.active_env_entry().is_none());
+    }
+
+    #[test]
+    fn project_without_envs_serializes_like_before() {
+        let p = Project { id: "p".into(), name: "x".into(), ..Default::default() };
+        let v = serde_json::to_value(&p).unwrap();
+        assert!(v.get("envs").is_none() && v.get("activeEnv").is_none());
+        let back: Project = serde_json::from_value(serde_json::json!({ "id": "p", "name": "x", "activeEnv": "t", "envs": [{ "name": "t", "vars": { "A": "1" } }] })).unwrap();
+        assert_eq!(back.envs[0].vars["A"], "1");
+        assert_eq!(back.active_env.as_deref(), Some("t"));
+    }
+
+    #[test]
     fn existing_users_count_as_onboarded() {
         let fresh = migrate(ConfigState::default());
         assert!(!fresh.onboarded, "a brand-new install still sees onboarding");
@@ -597,6 +672,8 @@ mod tests {
                 port: 8001,
                 auto_start: true,
                 env: [("SSL_CERT_FILE".to_string(), r"C:\ca.crt".to_string())].into(),
+                envs: Vec::new(),
+                active_env: None,
                 start_services: true,
             }],
             active_project_id: Some("p1".into()),

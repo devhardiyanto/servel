@@ -10,6 +10,11 @@ export interface ToolCurrent {
   installed: boolean
 }
 
+export interface ProjectEnv {
+  name: string
+  vars: Record<string, string>
+}
+
 export interface Project {
   id: string
   name: string
@@ -26,6 +31,10 @@ export interface Project {
   autoStart?: boolean
   /** Environment tambahan untuk dev server (v2.2.1), di atas environment mise. */
   env?: Record<string, string>
+  /** v3.9.0 (canvas Flow H): environment lain; hanya nilai yang berbeda dari Default. */
+  envs?: ProjectEnv[]
+  /** Environment yang dipakai saat start; kosong = Default. */
+  activeEnv?: string | null
   /** Start project ikut menyalakan service di profilnya (v2.4). */
   startServices?: boolean
 }

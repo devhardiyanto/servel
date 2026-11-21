@@ -8,6 +8,7 @@ import UiBanner from '@/components/ui/UiBanner.vue'
 import UiMenu from '@/components/ui/UiMenu.vue'
 import UiTabs from '@/components/ui/UiTabs.vue'
 import UiInput from '@/components/ui/UiInput.vue'
+import UiModal from '@/components/ui/UiModal.vue'
 import StatusDot from '@/components/ui/StatusDot.vue'
 import UiIcon from '@/components/ui/UiIcon.vue'
 import UiChip from '@/components/ui/UiChip.vue'
@@ -39,7 +40,12 @@ const busy = computed(() => !!actions.busy.value[p.value.id])
 const error = computed(() => actions.errors.value[p.value.id] ?? '')
 const up = computed(() => state.value === 'running' || state.value === 'unresponsive')
 
-const statusLine = computed(() => actions.stateLabel(p.value) + (state.value === 'running' ? ` · :${p.value.port}` : ''))
+const statusLine = computed(
+  () =>
+    actions.stateLabel(p.value) +
+    (state.value === 'running' ? ` · :${p.value.port}` : '') +
+    (isActive(state.value) && info.value?.envName ? ` · ${info.value.envName}` : ''),
+)
 
 // --- Overview ---------------------------------------------------------------
 const tools = ref<ToolCurrent[] | null>(null)
@@ -90,7 +96,10 @@ async function openIn(target: 'folder' | 'terminal' | 'vscode'): Promise<void> {
 }
 
 // --- Environment ------------------------------------------------------------
-interface Row { k: string; v: string }
+// v3.9.0 (canvas Flow H, model B): Default + environment lain. Environment
+// lain hanya menyimpan nilai yang berbeda; baris Default tampil dengan nilai
+// Default sebagai placeholder, dan baru disimpan bila diisi.
+interface Row { k: string; v: string; ph?: string; inh?: boolean }
 const rows = ref<Row[]>([])
 const envError = ref('')
 const envSaving = ref(false)
@@ -100,13 +109,45 @@ const textMode = ref(false)
 const envText = ref('')
 const pasteNote = ref<{ title: string; skipped: SkippedLine[] } | null>(null)
 
+const envs = computed(() => p.value.envs ?? [])
+/** Environment yang dipakai saat start ('' = Default). Nama usang = Default. */
+const activeName = computed(() => {
+  const n = p.value.activeEnv ?? ''
+  return envs.value.some((e) => e.name === n) ? n : ''
+})
+const envOptions = computed(() => [
+  { value: '', label: 'Default' },
+  ...envs.value.map((e) => ({ value: e.name, label: e.name })),
+])
+/** Environment proses yang sedang jalan ('' = Default), dari status backend. */
+const runningEnv = computed(() => info.value?.envName ?? '')
+const restartToApply = computed(() => isActive(state.value) && runningEnv.value !== activeName.value)
+
+function savedMap(name: string): Record<string, string> {
+  if (!name) return { ...(p.value.env ?? {}) }
+  return { ...(envs.value.find((e) => e.name === name)?.vars ?? {}) }
+}
+
+function buildRows(name: string, overrides: Record<string, string>): Row[] {
+  if (!name) return Object.entries(overrides).map(([k, v]) => ({ k, v }))
+  const defaults = p.value.env ?? {}
+  const out: Row[] = Object.entries(defaults).map(([k, dv]) => ({ k, v: overrides[k] ?? '', ph: dv, inh: true }))
+  for (const [k, v] of Object.entries(overrides)) if (!(k in defaults)) out.push({ k, v })
+  return out
+}
+
+/** Baris yang benar-benar disimpan: di environment lain, baris Default kosong = tidak di-override. */
+function effectiveRows(src: Row[]): Row[] {
+  return src.filter((r) => !(r.inh && r.v === '') && (r.k.trim() !== '' || r.v !== ''))
+}
+
 function resetRows(): void {
-  rows.value = Object.entries(p.value.env ?? {}).map(([k, v]) => ({ k, v }))
-  if (textMode.value) envText.value = serializeDotenv(rows.value)
+  rows.value = buildRows(activeName.value, savedMap(activeName.value))
+  if (textMode.value) envText.value = serializeDotenv(effectiveRows(rows.value))
   envError.value = ''
 }
 watch(
-  () => p.value.id,
+  () => [p.value.id, activeName.value],
   () => {
     textMode.value = false
     pasteNote.value = null
@@ -122,17 +163,21 @@ const pasteDetail = computed(() =>
   pasteNote.value?.skipped.map((s) => `Line ${s.line}: ${s.text} — ${s.reason}`).join('\n') || undefined,
 )
 
+function rowsFromText(): Row[] {
+  const r = parseDotenv(envText.value)
+  if (r.skipped.length) noteFor(`${r.entries.length} variables · ${r.skipped.length} skipped`, r.skipped)
+  return buildRows(activeName.value, Object.fromEntries(r.entries.map((e) => [e.k, e.v])))
+}
+
 function toText(): void {
-  envText.value = serializeDotenv(rows.value)
+  envText.value = serializeDotenv(effectiveRows(rows.value))
   textMode.value = true
   pasteNote.value = null
 }
 function toRows(): void {
-  const r = parseDotenv(envText.value)
-  rows.value = r.entries
-  textMode.value = false
   pasteNote.value = null
-  if (r.skipped.length) noteFor(`${r.entries.length} variables · ${r.skipped.length} skipped`, r.skipped)
+  rows.value = rowsFromText()
+  textMode.value = false
 }
 
 /**
@@ -147,21 +192,35 @@ function onPaste(e: ClipboardEvent, i: number, field: 'k' | 'v'): void {
   if (r.entries.length === 0 && r.skipped.length === 0) return
   e.preventDefault()
   const m = mergeRows(rows.value, r.entries, i)
-  rows.value = m.rows.length ? m.rows : [{ k: '', v: '' }]
+  rows.value = m.rows.length ? (m.rows as Row[]) : [{ k: '', v: '' }]
   noteFor(summarize(m.added, m.replaced, r.skipped.length), r.skipped)
 }
 
+function removeRow(i: number): void {
+  const r = rows.value[i]
+  if (r.inh) r.v = '' // kembali ke nilai Default
+  else rows.value.splice(i, 1)
+}
+
+function mapOf(src: Row[]): Record<string, string> {
+  return Object.fromEntries(effectiveRows(src).map((r) => [r.k.trim(), r.v]))
+}
+function sameMap(a: Record<string, string>, b: Record<string, string>): boolean {
+  const ka = Object.keys(a)
+  return ka.length === Object.keys(b).length && ka.every((k) => b[k] === a[k])
+}
 const envDirty = computed(() => {
-  const cur = Object.entries(p.value.env ?? {})
-  const src = textMode.value ? parseDotenv(envText.value).entries : rows.value
-  const next = src.filter((r) => r.k.trim() !== '' || r.v !== '')
-  return cur.length !== next.length || next.some((r, i) => cur[i]?.[0] !== r.k.trim() || cur[i]?.[1] !== r.v)
+  const src = textMode.value
+    ? buildRows(activeName.value, Object.fromEntries(parseDotenv(envText.value).entries.map((e) => [e.k, e.v])))
+    : rows.value
+  return !sameMap(mapOf(src), savedMap(activeName.value))
 })
 
 function validateEnv(): Record<string, string> | null {
   const env: Record<string, string> = {}
   for (const [i, r] of rows.value.entries()) {
     const k = r.k.trim()
+    if (r.inh && r.v === '') continue
     if (k === '' && r.v === '') continue
     if (!/^[^\s=]+$/.test(k)) {
       envError.value = `Row ${i + 1}: "${k || '(empty)'}" is not a valid variable name.`
@@ -182,27 +241,67 @@ function validateEnv(): Record<string, string> | null {
 }
 
 async function saveEnv(thenRestart: boolean): Promise<void> {
-  if (textMode.value) {
-    const r = parseDotenv(envText.value)
-    rows.value = r.entries
-    if (r.skipped.length) noteFor(`${r.entries.length} variables · ${r.skipped.length} skipped`, r.skipped)
-  }
-  const env = validateEnv()
-  if (!env) return
+  if (textMode.value) rows.value = rowsFromText()
+  const vars = validateEnv()
+  if (!vars) return
   envSaving.value = true
   try {
-    await updateProject(p.value.id, { env })
+    const name = activeName.value
+    if (!name) await updateProject(p.value.id, { env: vars })
+    else await updateProject(p.value.id, { envs: envs.value.map((e) => (e.name === name ? { name, vars } : e)) })
     resetRows()
     const fresh = config.value.projects.find((x) => x.id === p.value.id)
     if (thenRestart && fresh) {
       await (isActive(state.value) ? actions.restart(fresh) : actions.start(fresh))
       tab.value = 'overview'
     } else {
-      toast.show('Environment saved. It applies the next time the project starts.')
+      toast.show(`${name || 'Default'} saved. It applies the next time the project starts.`)
     }
   } finally {
     envSaving.value = false
   }
+}
+
+/** Ganti environment yang dipakai saat start (H1, H5). */
+async function selectEnv(name: string): Promise<void> {
+  if (name === activeName.value) return
+  await updateProject(p.value.id, { activeEnv: name || null })
+}
+
+// H2: New environment.
+const ENV_NAME = /^[A-Za-z0-9_-]{1,40}$/
+const newEnvOpen = ref(false)
+const newEnvName = ref('')
+const newEnvCopy = ref('')
+const newEnvError = computed(() => {
+  const n = newEnvName.value.trim()
+  if (!n) return ''
+  if (!ENV_NAME.test(n)) return 'Use letters, numbers, - and _ (up to 40).'
+  if (n.toLowerCase() === 'default' || envs.value.some((e) => e.name.toLowerCase() === n.toLowerCase())) return `${n} already exists.`
+  return ''
+})
+function openNewEnv(): void {
+  newEnvName.value = ''
+  newEnvCopy.value = ''
+  newEnvOpen.value = true
+}
+async function createEnv(): Promise<void> {
+  const name = newEnvName.value.trim()
+  if (!name || newEnvError.value) return
+  const vars = newEnvCopy.value ? savedMap(newEnvCopy.value) : {}
+  await updateProject(p.value.id, { envs: [...envs.value, { name, vars }], activeEnv: name })
+  newEnvOpen.value = false
+  toast.show(`Created ${name}. Default's variables still apply; set only what changes.`)
+}
+
+// Hapus environment (kembali ke Default).
+const deleteEnvOpen = ref(false)
+async function deleteEnv(): Promise<void> {
+  const name = activeName.value
+  if (!name) return
+  await updateProject(p.value.id, { envs: envs.value.filter((e) => e.name !== name), activeEnv: null })
+  deleteEnvOpen.value = false
+  toast.show(`Deleted ${name}. ${p.value.name} uses Default now.`)
 }
 
 const tabs = computed(() => [
@@ -277,6 +376,13 @@ const tabs = computed(() => [
         <dd class="pd-mono pd-wrap">{{ p.command || '—' }}</dd>
         <dt>Folder</dt>
         <dd class="pd-mono pd-wrap pd-muted">{{ p.path || 'Not chosen yet' }}</dd>
+        <template v-if="envs.length">
+          <dt>Environment</dt>
+          <dd class="pd-rt">
+            <UiChip tone="accent">{{ activeName || 'Default' }}</UiChip>
+            <span v-if="restartToApply" class="pd-dim">running with {{ runningEnv || 'Default' }} · restart to apply</span>
+          </dd>
+        </template>
         <template v-if="tools === null">
           <dt>Runtime</dt>
           <dd class="pd-dim">Checking…</dd>
@@ -318,10 +424,33 @@ const tabs = computed(() => [
 
     <!-- Environment -->
     <div v-else-if="tab === 'env'" class="pd-body" role="tabpanel">
-      <div class="pd-env-head">
-        <p class="pd-dim">Added on top of the environment from mise. Values stay on this PC.</p>
+      <!-- v3.9.0 (canvas H1): environment yang dipakai saat start. -->
+      <div class="pd-envbar">
+        <UiInput
+          as="select"
+          width="180px"
+          aria-label="Environment used when the project starts"
+          :model-value="activeName"
+          :options="envOptions"
+          :disabled="envDirty"
+          :title="envDirty ? 'Save or undo your changes first' : undefined"
+          @update:model-value="selectEnv"
+        />
+        <UiButton variant="quiet" :disabled="envDirty" @click="openNewEnv"><UiIcon name="plus" />New environment</UiButton>
+        <span class="pd-sp"></span>
         <UiButton variant="quiet" @click="textMode ? toRows() : toText()">{{ textMode ? 'Edit as rows' : 'Edit as .env' }}</UiButton>
       </div>
+      <UiStatusNotice
+        v-if="restartToApply"
+        tone="info"
+        :title="`Running with ${runningEnv || 'Default'}`"
+        :detail="`Restart ${p.name} to use ${activeName || 'Default'}. Nothing changes until then.`"
+        retryable
+        retry-label="Restart"
+        @retry="actions.restart(p)"
+      />
+      <p class="pd-dim">Added on top of the environment from mise. Values stay on this PC.</p>
+      <p v-if="activeName" class="pd-dim">An empty value uses Default (shown greyed). Type a value to override it for {{ activeName }}; clear it to use Default again.</p>
       <UiStatusNotice
         v-if="pasteNote"
         :tone="pasteNote.skipped.length ? 'warn' : 'ok'"
@@ -336,7 +465,7 @@ const tabs = computed(() => [
         as="textarea"
         :rows="12"
         mono
-        label="One KEY=VALUE per line"
+        :label="activeName ? `${activeName} · only the values that differ from Default` : 'One KEY=VALUE per line'"
         help="Comments (#), blank lines, export and quoted values are fine. PORT is set in Project settings."
         placeholder="APP_ENV=local"
       />
@@ -345,6 +474,7 @@ const tabs = computed(() => [
           <UiInput
             v-model="r.k"
             mono
+            :readonly="r.inh"
             :aria-label="`Name of variable ${i + 1}`"
             placeholder="NAME or paste KEY=VALUE lines"
             @paste="onPaste($event, i, 'k')"
@@ -353,16 +483,22 @@ const tabs = computed(() => [
             v-model="r.v"
             mono
             :aria-label="`Value for ${r.k || `variable ${i + 1}`}`"
-            placeholder="value"
+            :placeholder="r.inh ? r.ph || '(empty in Default)' : 'value'"
             @paste="onPaste($event, i, 'v')"
           />
-          <UiButton variant="quiet" :aria-label="`Remove ${r.k || `variable ${i + 1}`}`" @click="rows.splice(i, 1)">&times;</UiButton>
+          <UiButton
+            variant="quiet"
+            :disabled="r.inh && r.v === ''"
+            :aria-label="r.inh ? `Use Default for ${r.k}` : `Remove ${r.k || `variable ${i + 1}`}`"
+            :title="r.inh ? 'Use the Default value' : undefined"
+            @click="removeRow(i)"
+          >&times;</UiButton>
         </div>
-        <div><UiButton @click="rows.push({ k: '', v: '' })">Add variable</UiButton></div>
+        <div><UiButton @click="rows.push({ k: '', v: '' })"><UiIcon name="plus" />Add variable</UiButton></div>
       </template>
-      <p v-if="profile" class="pd-dim">Tip: Services › Connect copies database and cache values for you.</p>
       <UiBanner v-if="envError" tone="err" title="Check the variables">{{ envError }}</UiBanner>
       <div class="pd-env-actions">
+        <UiButton v-if="activeName" variant="quiet" class="pd-env-del" @click="deleteEnvOpen = true"><UiIcon name="trash" />Delete {{ activeName }}</UiButton>
         <UiButton :disabled="!envDirty || envSaving" @click="saveEnv(false)">Save</UiButton>
         <UiButton
           variant="primary"
@@ -382,6 +518,40 @@ const tabs = computed(() => [
         <UiButton @click="actions.viewLog(p)">Open in Logs</UiButton>
       </div>
     </div>
+
+    <!-- v3.9.0 (canvas H2) -->
+    <UiModal :open="newEnvOpen" title="New environment" size="sm" @close="newEnvOpen = false">
+      <div class="pd-modal">
+        <UiInput
+          v-model="newEnvName"
+          mono
+          label="Name"
+          placeholder="tenant-astra"
+          :error="newEnvError || undefined"
+          help="Letters, numbers, - and _. Shown on the project while it runs."
+          :maxlength="40"
+          @keydown.enter="createEnv"
+        />
+        <UiInput
+          v-model="newEnvCopy"
+          as="select"
+          label="Copy changes from"
+          :options="[{ value: '', label: 'Nothing (start from Default)' }, ...envs.map((e) => ({ value: e.name, label: e.name }))]"
+          help="Default's variables always apply. Add only the values this environment changes."
+        />
+      </div>
+      <template #footer>
+        <UiButton variant="quiet" size="md" @click="newEnvOpen = false">Cancel</UiButton>
+        <UiButton variant="primary" size="md" :disabled="!newEnvName.trim() || !!newEnvError" @click="createEnv">Create environment</UiButton>
+      </template>
+    </UiModal>
+    <UiModal :open="deleteEnvOpen" :title="`Delete ${activeName}?`" size="sm" danger @close="deleteEnvOpen = false">
+      <p class="pd-text">Its values are removed from Kova. {{ p.name }} uses Default the next time it starts. Default does not change.</p>
+      <template #footer>
+        <UiButton variant="quiet" size="md" @click="deleteEnvOpen = false">Cancel</UiButton>
+        <UiButton variant="danger" size="md" @click="deleteEnv">Delete environment</UiButton>
+      </template>
+    </UiModal>
 
     <!-- v3.8.6 (canvas .k-dfoot): selalu di bawah panel, untuk semua tab. -->
     <div class="pd-open">
@@ -430,8 +600,11 @@ const tabs = computed(() => [
 .pd-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .pd-chips :deep(.ui-chip) { display: inline-flex; align-items: center; gap: 6px; }
 .pd-out { padding: var(--space-2) var(--space-3); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); }
-.pd-env-head { display: flex; align-items: center; gap: var(--space-2); }
-.pd-env-head .pd-dim { flex: 1; margin: 0; }
+.pd-sp { flex: 1; }
+.pd-envbar { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.pd-modal { display: flex; flex-direction: column; gap: var(--space-4); }
+.pd-text { margin: 0; line-height: 1.6; }
+.pd-env-del { margin-right: auto; }
 .pd-env { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }
 .pd-env-actions { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; }
 .pd-env-actions .pd-dim { margin-right: auto; }

@@ -11,6 +11,8 @@ export interface SiteRuntime {
   state: SiteState
   exitCode: number | null
   lastLine: string | null
+  /** v3.9.0: environment yang dipakai saat proses dimulai; null = Default. */
+  envName?: string | null
 }
 
 /** Mirror `ProjectSuggestion` di src-tauri/src/sites/mod.rs. */

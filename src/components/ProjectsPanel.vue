@@ -16,7 +16,12 @@ const props = defineProps<{ selectedId?: string | null; query?: string }>()
 const emit = defineEmits<{ select: [id: string] }>()
 
 const { config } = useConfig()
-const { stateOf } = useProjectRuntime()
+const { stateOf, infoOf } = useProjectRuntime()
+/** v3.9.0 (canvas H6): environment proses yang jalan, bila bukan Default. */
+function envOf(id: string): string {
+  const i = infoOf(id)
+  return i && (i.state === 'running' || i.state === 'starting' || i.state === 'unresponsive') ? (i.envName ?? '') : ''
+}
 const actions = useProjectActions()
 
 const all = computed<Project[]>(() => config.value.projects)
@@ -67,7 +72,7 @@ async function howDetection(): Promise<void> {
           <span class="pl-path">{{ p.path || 'Folder not chosen yet' }}</span>
         </span>
         <UiChip v-if="p.kind">{{ p.kind }}</UiChip>
-        <span class="pl-port">{{ (p.port ?? 0) > 0 ? `:${p.port}` : '' }}</span>
+        <span class="pl-port">{{ (p.port ?? 0) > 0 ? `:${p.port}` : '' }}<template v-if="envOf(p.id)"> · {{ envOf(p.id) }}</template></span>
         <span class="pl-state" :class="`pl-state--${stateOf(p.id)}`">{{ actions.stateLabel(p) }}</span>
       </button>
     </li>
@@ -85,7 +90,7 @@ async function howDetection(): Promise<void> {
 .pl-card {
   width: 100%;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto 64px 96px;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(64px, max-content) 96px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
