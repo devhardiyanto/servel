@@ -25,6 +25,19 @@ use crate::commands::util::silent_command;
 /// Batas menunggu port menerima koneksi sebelum status menjadi `unresponsive`.
 const READY_TIMEOUT: Duration = Duration::from_secs(90);
 const READY_INTERVAL: Duration = Duration::from_millis(500);
+/// v3.10.2: setelah batas lewat, port tetap dicek (lebih jarang) supaya start
+/// yang lambat (mis. `composer run dev` di Windows) naik ke `running` begitu
+/// server akhirnya menjawab, bukan macet di `unresponsive`.
+const LATE_INTERVAL: Duration = Duration::from_secs(2);
+
+/// Status berikutnya dari pengecekan port. `None` = tidak berubah.
+fn ready_transition(state: SiteState, open: bool, timed_out: bool) -> Option<SiteState> {
+    match (state, open, timed_out) {
+        (SiteState::Starting | SiteState::Unresponsive, true, _) => Some(SiteState::Running),
+        (SiteState::Starting, false, true) => Some(SiteState::Unresponsive),
+        _ => None,
+    }
+}
 
 #[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -436,6 +449,11 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env("PORT", site.port.to_string())
+        // v3.10.2: `php artisan serve` membaca SERVER_PORT/SERVER_HOST sebagai
+        // default, jadi `composer run dev` (artisan serve di dalam
+        // concurrently) ikut port project. Environment project tetap menang.
+        .env("SERVER_PORT", site.port.to_string())
+        .env("SERVER_HOST", "127.0.0.1")
         // Jangan buka browser sendiri (CRA) dan jangan beri warna di log.
         .env("BROWSER", "none")
         .env("NO_COLOR", "1")
@@ -560,32 +578,41 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     tauri::async_runtime::spawn(async move {
         let deadline = tokio::time::Instant::now() + READY_TIMEOUT;
         loop {
-            tokio::time::sleep(READY_INTERVAL).await;
+            let timed_out = tokio::time::Instant::now() >= deadline;
+            tokio::time::sleep(if timed_out { LATE_INTERVAL } else { READY_INTERVAL }).await;
             let procs = ready_app.state::<SiteProcs>();
-            let still_starting = procs
+            let current = procs
                 .entries
                 .lock()
                 .unwrap()
                 .get(&ready_id)
-                .is_some_and(|e| e.generation == generation && e.state == SiteState::Starting);
-            if !still_starting {
+                .filter(|e| e.generation == generation)
+                .map(|e| e.state);
+            // Berhenti bila proses sudah diganti, dihentikan, atau keluar.
+            let Some(current) = current.filter(|s| matches!(s, SiteState::Starting | SiteState::Unresponsive)) else {
                 return;
-            }
+            };
             let open = port_open(port).await;
             let timed_out = tokio::time::Instant::now() >= deadline;
-            if !open && !timed_out {
+            let Some(next) = ready_transition(current, open, timed_out) else {
                 continue;
-            }
-            {
+            };
+            let changed = {
                 let mut map = procs.entries.lock().unwrap();
-                if let Some(e) = map.get_mut(&ready_id) {
-                    if e.generation == generation && e.state == SiteState::Starting {
-                        e.state = if open { SiteState::Running } else { SiteState::Unresponsive };
+                match map.get_mut(&ready_id) {
+                    Some(e) if e.generation == generation && e.state == current => {
+                        e.state = next;
+                        true
                     }
+                    _ => false,
                 }
+            };
+            if changed {
+                emit_status(&ready_app);
             }
-            emit_status(&ready_app);
-            return;
+            if next == SiteState::Running {
+                return;
+            }
         }
     });
 
@@ -691,6 +718,19 @@ pub fn snapshot<R: Runtime>(app: &AppHandle<R>) -> Vec<SiteRuntime> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn late_answer_moves_unresponsive_to_running() {
+        use super::{ready_transition, SiteState::*};
+        assert_eq!(ready_transition(Starting, false, false), None);
+        assert_eq!(ready_transition(Starting, true, false), Some(Running));
+        assert_eq!(ready_transition(Starting, false, true), Some(Unresponsive));
+        // v3.10.2: tetap dicek setelah batas; jawaban terlambat = running.
+        assert_eq!(ready_transition(Unresponsive, false, true), None);
+        assert_eq!(ready_transition(Unresponsive, true, true), Some(Running));
+        assert_eq!(ready_transition(Exited, true, true), None);
+        assert_eq!(ready_transition(Stopped, true, true), None);
+    }
+
     use super::*;
 
     fn site(path: &str, command: &str, port: u16) -> Project {
@@ -802,8 +842,9 @@ mod tests {
         };
         let dir = std::env::temp_dir();
         // `sh -c "<cmd> & wait"` membuat anak terpisah dari shell, seperti
-        // npm → node: Stop harus mematikan keduanya.
-        let mut p = site(&dir.to_string_lossy(), "python3 -m http.server {port} --bind 127.0.0.1 & wait", port);
+        // npm → node: Stop harus mematikan keduanya. Port dari SERVER_PORT
+        // (v3.10.2), seperti `php artisan serve` di dalam `composer run dev`.
+        let mut p = site(&dir.to_string_lossy(), "python3 -m http.server $SERVER_PORT --bind $SERVER_HOST & wait", port);
         p.id = "e2e".into();
 
         start(&handle, &p).await.expect("start gagal");

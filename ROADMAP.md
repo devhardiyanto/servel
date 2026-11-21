@@ -597,6 +597,13 @@ Masukan 21 November: teks terasa terlalu besar, dan audit harus mencakup kompone
 - [x] Snapshot kosong ikut dikirim, sehingga nilai lama terhapus setelah semua service berhenti.
 - [x] Tooltip RAM: "measured at …" untuk nilai asli, "Estimate …" untuk perkiraan.
 
+### P.2 — v3.10.2: `composer run dev` dan start yang lambat
+
+- [x] Port tetap dicek setelah batas 90 detik (tiap 2 s); `unresponsive` naik ke `running` begitu app menjawab.
+- [x] `SERVER_PORT` dan `SERVER_HOST` disuntik bersama `PORT`, sehingga `php artisan serve` di dalam `composer run dev` mengikuti port project.
+- [x] Settings → About: kartu bersarang dihapus, baris update diberi ruang bawah.
+- [ ] Kandidat minor: pilih script dari `composer.json`/`package.json`, chip sumber log `[server]`/`[queue]`/`[vite]`, petunjuk bila `composer` tidak ditemukan.
+
 ## Berikutnya
 
 ### v3.x — kandidat, belum diputuskan

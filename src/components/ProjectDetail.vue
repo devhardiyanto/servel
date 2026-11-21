@@ -360,7 +360,7 @@ const tabs = computed(() => [
         </template>
       </UiBanner>
       <UiBanner v-else-if="state === 'unresponsive'" tone="warn" :title="`Running, but nothing answers on :${p.port}`">
-        The app may listen on another port. Add {port} to the command so it uses the project's port.
+        Still checking; this changes to Running as soon as the app answers. If it listens on another port, add {port} to the command.
         <template #actions>
           <UiButton @click="actions.editingId.value = p.id">Edit command</UiButton>
           <UiButton @click="actions.viewLog(p)">View log</UiButton>
