@@ -119,6 +119,17 @@ fn emit(app: &AppHandle, source: &str, stream: &str, line: &str) {
 }
 
 /// Jalankan wslc sambil men-stream stdout/stderr ke panel log. Serial + retry.
+/// Nama container yang dicetak ulang wslc setelah `start`/`stop`/`remove`
+/// berhasil. Baris itu tidak ditampilkan di Logs: tanpa konteks, baris
+/// `servel_redis` sendirian membingungkan, dan hasilnya sudah terlihat dari
+/// baris UP/DOWN. Error tetap tampil karena ditulis ke stderr.
+fn echoed_target(args: &[String]) -> Option<String> {
+    match args.first().map(String::as_str) {
+        Some("start" | "stop" | "remove") => args.last().filter(|_| args.len() > 1).cloned(),
+        _ => None,
+    }
+}
+
 async fn run_streamed(
     app: &AppHandle,
     args: &[String],
@@ -141,10 +152,11 @@ async fn run_streamed(
 
             let app_out = app.clone();
             let src_out = source.to_string();
+            let echo = echoed_target(args);
             let out_task = tokio::spawn(async move {
                 let mut lines = BufReader::new(stdout).lines();
                 while let Ok(Some(line)) = lines.next_line().await {
-                    if !line.trim().is_empty() {
+                    if !line.trim().is_empty() && echo.as_deref() != Some(line.trim()) {
                         emit(&app_out, &src_out, "stdout", &line);
                     }
                 }
@@ -905,6 +917,16 @@ pub async fn stop_all(app: &AppHandle, defs: &[ServiceDef]) -> Result<(), String
 mod tests {
     use super::*;
     use crate::commands::services::PortMap;
+
+    #[test]
+    fn echoed_target_only_for_start_stop_remove() {
+        assert_eq!(echoed_target(&owned(&["stop", "-t", "30", "servel_redis"])).as_deref(), Some("servel_redis"));
+        assert_eq!(echoed_target(&owned(&["start", "servel_redis"])).as_deref(), Some("servel_redis"));
+        assert_eq!(echoed_target(&owned(&["remove", "-f", "servel_mysql"])).as_deref(), Some("servel_mysql"));
+        assert_eq!(echoed_target(&owned(&["stop"])), None);
+        assert_eq!(echoed_target(&owned(&["exec", "servel_redis", "sh", "-c", "ls"])), None);
+        assert_eq!(echoed_target(&owned(&["run", "-d", "--name", "servel_redis", "redis:7-alpine"])), None);
+    }
 
     fn def(id: &str) -> ServiceDef {
         ServiceDef {

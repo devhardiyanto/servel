@@ -33,7 +33,8 @@ Hal-hal berikut tidak bisa diuji tanpa `wslc` sungguhan. Parser sudah dibuat tol
 
 - ~~Bentuk JSON `wslc container list --all --format json`~~ — **terverifikasi di WSL 3.0.5**: NDJSON bergaya Docker (`Names` string, `State` teks, exit code hanya di `Status`). Fixture: `src-tauri/src/runtime/fixtures/`.
 - ~~Bentuk JSON `wslc stats --format json`~~ — **terverifikasi di WSL 3.0.5**: NDJSON bergaya `docker stats` (`Name`, `MemUsage`); output kosong bila tidak ada container running; `--no-stream` tidak dikenali (tidak dipakai).
-- `wslc stop -t 30` dan `wslc remove -f`.
+- ~~`wslc stop -t 30`~~ — **terverifikasi di Windows (21 November 2026, v3.8.0)**: flag diterima, service berhenti tanpa error.
+- `wslc remove -f` (hanya dipakai saat definisi service berubah: container dibuat ulang, volume tetap).
 - Apakah `.wslconfig` memengaruhi VM WSLC.
 - CLI `servel`: belum pernah dijalankan di PowerShell sungguhan (lingkungan pengembangan tanpa pwsh). Algoritma hash sudah dicocokkan dengan Rust; sintaks skrip perlu diuji di Windows.
 
@@ -532,11 +533,18 @@ Ditemukan saat uji: setelah restart, toggle Redis menyala dan log menulis `auto-
 - [x] C3 Logs: kata filter disorot; hanya 1.000 baris terbaru yang dirender, dengan "Show N older lines" (posisi baca dipertahankan). Buffer tetap 500 baris per sumber, maks. 4.000.
 - [x] S4 Popup tray: "none selected" dan petunjuk bila belum ada service yang dipilih (bukan bug; pilihan sudah tersinkron, hanya labelnya kurang jelas).
 
+### N.1 — v3.8.1: log wslc dan test flaky
+
+Diuji di Windows (21 November 2026, v3.8.0): start/stop satu service dari popup tray (status "starting…"/"stopping…", service lain tidak ikut berubah) dan `wslc stop -t 30`. Lolos.
+
+- [x] Logs: output wslc yang hanya mengulang nama container setelah start/stop/remove tidak ditampilkan.
+- [x] Test `port_checks_see_a_listener` tidak lagi bergantung pada port yang baru dilepas (bisa direbut test paralel).
+
 ## Berikutnya
 
 ### v3.x — kandidat, belum diputuskan
 
-- [ ] Perbarui catatan status di canvas design (v3.6.1–v3.7.4). Alasan: canvas masih mencatat keadaan v3.6.0, sedangkan popup tray, panel yang bisa diseret, dan perubahan onboarding sudah berbeda.
+- [ ] Perbarui catatan status di canvas design (v3.6.1–v3.8.1). Alasan: canvas masih mencatat keadaan v3.6.0, sedangkan popup tray, panel yang bisa diseret, dan perubahan onboarding sudah berbeda.
 
 ### Ditunda — sampai ada kebutuhan pengguna
 
