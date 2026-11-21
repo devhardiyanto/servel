@@ -19,6 +19,7 @@ import { useUpdateCheck } from '@/composables/useUpdateCheck'
 import RuntimeTools from '@/components/RuntimeTools.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import SettingRow from '@/components/SettingRow.vue'
+import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
 import { ENGINE_LABEL, type EnginePreference, type PrereqStatus } from '@/types/prereq'
 import { useEngineStatus } from '@/composables/useEngineStatus'
 
@@ -236,6 +237,14 @@ async function fetchComposePath(): Promise<void> {
   }
 }
 
+// v3.8 (C1): waktu pemeriksaan terakhir, ditampilkan di samping Check again.
+const engineCheckedAt = ref<number | null>(null)
+const engineCheckedText = computed(() => {
+  if (engineCheckedAt.value === null) return ''
+  const t = new Date(engineCheckedAt.value)
+  return `Checked at ${t.toTimeString().slice(0, 5)}`
+})
+
 async function checkEngine(): Promise<void> {
   checkingEngine.value = true
   try {
@@ -244,8 +253,17 @@ async function checkEngine(): Promise<void> {
     engineInfo.value = null
   } finally {
     checkingEngine.value = false
+    engineCheckedAt.value = Date.now()
   }
 }
+
+// v3.8 (C1): Docker dipakai, tetapi WSL containers sudah ada di PC ini.
+const suggestWslc = computed(
+  () =>
+    platform.value === 'windows' &&
+    engineInfo.value?.engine === 'docker' &&
+    !!engineInfo.value?.wslc_available,
+)
 
 // v3.7.2: kembali ke Kova setelah memasang WSL/Docker di luar Kova memeriksa
 // ulang engine, supaya "not installed" tidak tertahan sampai Kova ditutup.
@@ -481,11 +499,21 @@ onMounted(async () => {
                 </span>
                 <span v-else>—</span>
               </span>
-              <UiButton
-                :disabled="checkingEngine"
-                @click="checkEngine"
-              >{{ checkingEngine ? '...' : 'Refresh' }}</UiButton>
+              <span v-if="engineCheckedText && !checkingEngine" class="engine-checked">{{ engineCheckedText }}</span>
+              <UiButton :loading="checkingEngine" @click="checkEngine">{{ checkingEngine ? 'Checking…' : 'Check again' }}</UiButton>
             </SettingRow>
+
+            <UiStatusNotice
+              v-if="suggestWslc"
+              class="engine-suggest"
+              tone="info"
+              title="WSL containers are available on this PC"
+              detail="They run your services without Docker Desktop. Your databases stay in Docker's volumes: dump them to a .sql file first, then use Restore database (Services → Connect → Data) after switching."
+            >
+              <template #actions>
+                <UiButton variant="primary" :disabled="switchingEngine" @click="chooseEngine('wslc')">Use WSL containers</UiButton>
+              </template>
+            </UiStatusNotice>
 
             <SettingRow v-if="platform === 'windows'" label="WSL version" desc="Built-in containers need WSL 3.0.1 or newer">
               <span class="setting-value-mono">{{ engineInfo?.wsl_version ?? '—' }}</span>
@@ -711,6 +739,8 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+.engine-checked { font-size: var(--text-xs); color: var(--faint); white-space: nowrap; }
+.engine-suggest { margin: var(--space-2) 0; }
 .view-settings {
   display: flex;
   flex-direction: column;

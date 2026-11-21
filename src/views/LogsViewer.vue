@@ -126,6 +126,48 @@ const filteredLines = computed(() => {
   return out
 })
 
+// v3.8 (C3): hanya baris terbaru yang dirender (buffer bisa sampai 4000 baris);
+// "Show older lines" menambah jatah. Jatah kembali ke awal saat tab atau
+// filter berubah.
+const RENDER_STEP = 1000
+const renderLimit = ref(RENDER_STEP)
+watch([activeTab, projectFilter, problemsOnly, textFilter], () => (renderLimit.value = RENDER_STEP))
+const hiddenCount = computed(() => Math.max(0, filteredLines.value.length - renderLimit.value))
+const visibleLines = computed(() => (hiddenCount.value ? filteredLines.value.slice(hiddenCount.value) : filteredLines.value))
+
+// v3.8 (C3): kata filter disorot di teks baris.
+interface Seg { t: string; m: boolean }
+function segments(text: string): Seg[] {
+  const words = filterWords.value
+  if (!words.length) return [{ t: text, m: false }]
+  const lower = text.toLowerCase()
+  const marks = new Array<boolean>(text.length).fill(false)
+  for (const w of words) {
+    let i = lower.indexOf(w)
+    while (i !== -1) {
+      for (let k = i; k < i + w.length; k++) marks[k] = true
+      i = lower.indexOf(w, i + w.length)
+    }
+  }
+  const out: Seg[] = []
+  for (let i = 0; i < text.length; i++) {
+    const last = out[out.length - 1]
+    if (last && last.m === marks[i]) last.t += text[i]
+    else out.push({ t: text[i], m: marks[i] })
+  }
+  return out.length ? out : [{ t: text, m: false }]
+}
+
+function showOlder(): void {
+  const area = logAreaRef.value
+  const before = area ? area.scrollHeight - area.scrollTop : 0
+  renderLimit.value += RENDER_STEP
+  // Pertahankan posisi baca: baris yang tadi terlihat tetap di tempatnya.
+  void nextTick(() => {
+    if (area) area.scrollTop = area.scrollHeight - before
+  })
+}
+
 // Ctrl F memfokuskan filter (cari bawaan webview dimatikan di webviewGuards).
 function handleFindKey(e: KeyboardEvent): void {
   if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
@@ -306,10 +348,14 @@ function triggerDownload(text: string, filename: string): void {
 
     <!-- Log area -->
     <div ref="logAreaRef" class="lv-area" tabindex="0" @click="focusContainer">
+      <button v-if="hiddenCount > 0" type="button" class="lv-older" @click.stop="showOlder">
+        Show {{ Math.min(hiddenCount, RENDER_STEP).toLocaleString() }} older lines
+        <span class="lv-older__count">({{ hiddenCount.toLocaleString() }} hidden)</span>
+      </button>
       <div
-        v-for="(line, i) in filteredLines"
-        :key="i"
-        :data-log-idx="i"
+        v-for="(line, i) in visibleLines"
+        :key="hiddenCount + i"
+        :data-log-idx="hiddenCount + i"
         class="lv-line"
         :class="{ 'lv-line--error': line.level === 'error', 'lv-line--warn': line.level === 'warn' }"
       >
@@ -322,7 +368,7 @@ function triggerDownload(text: string, filename: string): void {
             background: badgeStyle(line.src, line.level).background,
           }"
         >{{ line.src }}</span>
-        <span class="lv-text">{{ line.text }}</span>
+        <span class="lv-text"><template v-for="(g, k) in segments(line.text)" :key="k"><mark v-if="g.m" class="lv-mark">{{ g.t }}</mark><template v-else>{{ g.t }}</template></template></span>
       </div>
       <EmptyState
         v-if="tabLines.length === 0 && focusedProject"
@@ -520,6 +566,28 @@ function triggerDownload(text: string, filename: string): void {
   flex-shrink: 0;
   line-height: 1.4;
 }
+
+.lv-mark {
+  background: color-mix(in srgb, var(--amber) 35%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.lv-older {
+  align-self: center;
+  margin: 0 0 var(--space-2);
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.lv-older:hover { color: var(--text); }
+.lv-older:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lv-older__count { color: var(--faint); }
 
 .lv-text {
   flex: 1;

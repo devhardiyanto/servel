@@ -24,7 +24,20 @@ const ramDisplay = computed(() => {
 const emit = defineEmits<{
   toggle: [id: string]
   connect: [id: string]
+  /** Start ulang service yang dipilih tetapi tidak berjalan (v3.8). */
+  start: [id: string]
 }>()
+
+// v3.8 (S1, S5): toggle = "dipilih". Dipilih tetapi tidak berjalan (auto-start
+// dilewati, service berhenti sendiri) atau gagal → tampilkan keadaannya dan
+// tombol untuk menyalakan lagi, supaya toggle on + stopped tidak tampak seperti
+// keadaan yang benar.
+const idle = computed(() => {
+  const s = props.state.status
+  return s === 'stopped' || s === 'not_created' || s === 'error'
+})
+const failed = computed(() => !props.unknown && idle.value && !!props.state.error)
+const selectedIdle = computed(() => !props.unknown && props.state.selected && idle.value && !failed.value)
 
 const SERVICE_ICONS: Record<string, string> = {
   mysql: '🐬',
@@ -61,6 +74,7 @@ const dot = computed<{ state: DotState; label: string }>(() => {
     default: return { state: 'stopped', label: 'stopped' }
   }
 })
+const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value ? 'not running' : dot.value.label))
 </script>
 
 <template>
@@ -83,7 +97,14 @@ const dot = computed<{ state: DotState; label: string }>(() => {
     <span class="svc-port">{{ formatPorts(def) }}</span>
     <span class="svc-ram">{{ ramDisplay }}</span>
     <div class="svc-status-cell">
-      <StatusDot :state="dot.state" :label="dot.label" />
+      <StatusDot :state="failed ? 'exited' : dot.state" :label="statusLabel" :title="failed ? state.error : undefined" />
+      <button
+        v-if="failed || selectedIdle"
+        type="button"
+        class="svc-act"
+        :title="failed ? `${def.name} failed: ${state.error}` : `Start ${def.name}`"
+        @click.stop="emit('start', def.id)"
+      >{{ failed ? 'Retry' : 'Start' }}<span class="sr-only"> {{ def.name }}</span></button>
     </div>
     <UiButton
       variant="quiet"
@@ -96,6 +117,17 @@ const dot = computed<{ state: DotState; label: string }>(() => {
 </template>
 
 <style scoped>
+.svc-act {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--accent);
+  cursor: pointer;
+}
+.svc-act:hover { text-decoration: underline; }
+.svc-act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
 .svc-row {
   display: grid;
   grid-template-columns: 36px 24px 1fr 100px 68px 84px 76px;
@@ -158,8 +190,11 @@ const dot = computed<{ state: DotState; label: string }>(() => {
 
 .svc-status-cell {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
 }
 
 .svc-connect {

@@ -74,6 +74,56 @@ async function setGlobal(tool: Tool, version: string): Promise<void> {
   }
 }
 
+// v3.8 (C2): baris per service untuk yang dipilih atau sedang berjalan.
+// Klik = start/stop service itu saja. `pending` menahan tampilan "starting…" /
+// "stopping…" sampai event status datang (atau 90 detik).
+const pending = ref<Record<string, 'start' | 'stop'>>({})
+const pendingTimers: Record<string, ReturnType<typeof setTimeout>> = {}
+function setPending(id: string, action: 'start' | 'stop' | null): void {
+  clearTimeout(pendingTimers[id])
+  const next = { ...pending.value }
+  if (action) {
+    next[id] = action
+    pendingTimers[id] = setTimeout(() => setPending(id, null), 90_000)
+  } else delete next[id]
+  pending.value = next
+}
+interface SvcRow { def: ServiceDef; dot: DotState; hint: string; label: string }
+const serviceRows = computed<SvcRow[]>(() =>
+  defs.value
+    .filter((d) => running.value[d.id] || selectedIds.value.includes(d.id) || pending.value[d.id])
+    .map((d) => {
+      const p = pending.value[d.id]
+      if (p) return { def: d, dot: 'starting', hint: p === 'start' ? 'starting…' : 'stopping…', label: `${d.name}, ${p === 'start' ? 'starting' : 'stopping'}` }
+      if (running.value[d.id]) return { def: d, dot: 'running', hint: 'Stop', label: `${d.name}, running. Stop` }
+      return { def: d, dot: 'stopped', hint: 'Start', label: `${d.name}, stopped. Start` }
+    }),
+)
+
+async function toggleService(r: SvcRow): Promise<void> {
+  if (pending.value[r.def.id]) return
+  error.value = ''
+  const id = r.def.id
+  if (running.value[id]) {
+    setPending(id, 'stop')
+    await emit('services-action', { action: 'stop', services: [id] })
+    await invoke('services_stop', { services: [id] }).catch((e) => {
+      error.value = String(e)
+      setPending(id, null)
+    })
+  } else {
+    setPending(id, 'start')
+    await emit('services-action', { action: 'start', services: [id] })
+    // Backend Docker menyusun compose dari daftar ini: sertakan yang sedang
+    // berjalan supaya tidak ikut dihentikan, tanpa menyalakan pilihan lain.
+    const keep = Object.keys(running.value).filter((k) => running.value[k])
+    await invoke('services_start', { services: [...new Set([...keep, id])] }).catch((e) => {
+      error.value = String(e)
+      setPending(id, null)
+    })
+  }
+}
+
 const runningServices = computed(() => defs.value.filter((d) => running.value[d.id]).map((d) => d.name))
 const selectedIds = computed(() => config.value.selectedServiceIds ?? [])
 
@@ -144,6 +194,13 @@ async function stopServices(): Promise<void> {
   await invoke('services_stop_all').catch((e) => (error.value = String(e)))
 }
 
+// Selesaikan "starting…"/"stopping…" begitu keadaan service sesuai tujuan.
+function settlePending(): void {
+  for (const [id, a] of Object.entries(pending.value)) {
+    if ((a === 'start') === !!running.value[id]) setPending(id, null)
+  }
+}
+
 async function refresh(): Promise<void> {
   error.value = ''
   try {
@@ -200,9 +257,13 @@ onMounted(async () => {
   }
   await refresh()
   unlisten.push(
-    await listen<Record<string, boolean>>('container-status-snapshot', (e) => (running.value = { ...e.payload })),
+    await listen<Record<string, boolean>>('container-status-snapshot', (e) => {
+      running.value = { ...e.payload }
+      settlePending()
+    }),
     await listen<{ service: string; running: boolean }>('container-status-changed', (e) => {
       running.value = { ...running.value, [e.payload.service]: e.payload.running }
+      settlePending()
     }),
     await listen('tray-popup-shown', async () => {
       await refresh()
@@ -252,10 +313,26 @@ onUnmounted(() => {
         Services
         <span class="tp-count">{{ runningServices.length ? `${runningServices.length} running` : 'none running' }}</span>
       </h2>
-      <p v-if="runningServices.length" class="tp-names">{{ runningServices.join(' · ') }}</p>
-      <button class="tp-item" :disabled="!selectedIds.length" @click="startServices">
+      <button
+        v-for="r in serviceRows"
+        :key="r.def.id"
+        class="tp-item"
+        :disabled="!!pending[r.def.id]"
+        @click="toggleService(r)"
+      >
+        <StatusDot :state="r.dot" />
+        <span class="tp-text">{{ r.def.name }}<span class="sr-only">{{ r.label.slice(r.def.name.length) }}</span></span>
+        <span class="tp-hint" :class="{ 'tp-hint--value': pending[r.def.id] }" aria-hidden="true">{{ r.hint }}</span>
+      </button>
+      <!-- v3.8 (S4): pilihan kosong dijelaskan, bukan sekadar "0 selected". -->
+      <button
+        class="tp-item"
+        :disabled="!selectedIds.length"
+        :title="selectedIds.length ? undefined : 'Choose services in Kova → Services first'"
+        @click="startServices"
+      >
         <span class="tp-text">Start selected services</span>
-        <span class="tp-hint" aria-hidden="true">{{ selectedIds.length }} selected</span>
+        <span class="tp-hint" aria-hidden="true">{{ selectedIds.length ? `${selectedIds.length} selected` : 'none selected' }}</span>
       </button>
       <button v-if="runningServices.length" class="tp-item" @click="stopServices">
         <span class="tp-text">Stop all services</span>
@@ -340,7 +417,6 @@ onUnmounted(() => {
   color: var(--faint);
 }
 .tp-count { margin-left: auto; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted); }
-.tp-names { margin: 0; padding: 0 10px 4px; font-size: var(--text-xs); color: var(--muted); }
 .tp-item {
   display: flex;
   align-items: center;
@@ -357,6 +433,8 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .tp-item:hover:not(:disabled) { background: var(--surface3); }
+/* Kontras petunjuk tetap cukup di atas latar hover (v3.8). */
+.tp-item:hover:not(:disabled) .tp-hint:not(.tp-hint--err) { color: var(--muted); }
 .tp-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tp-item:disabled { color: var(--muted); cursor: default; }
 .tp-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

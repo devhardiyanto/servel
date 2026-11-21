@@ -5,7 +5,7 @@
 // - Berhasil: toast singkat, banner hilang.
 // - Dilewati / gagal: banner dengan alasan, Retry, dan (konflik port) Open Services.
 import { computed, inject, watch } from 'vue'
-import UiBanner from '@/components/ui/UiBanner.vue'
+import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import { useAutoStart } from '@/composables/useAutoStart'
 import { useToast } from '@/composables/useToast'
@@ -41,16 +41,20 @@ function openServices(): void {
 
 <template>
   <div v-if="busy || problem" class="ub as">
-    <UiBanner v-if="busy" tone="info" :title="state.message" />
-    <UiBanner v-else :tone="state.phase === 'failed' ? 'err' : 'warn'" :title="state.message">
-      <template v-if="state.detail && state.phase === 'failed'">{{ state.detail }}</template>
-      <template #actions>
+    <UiStatusNotice
+      :tone="busy ? 'pending' : state.phase === 'failed' ? 'err' : 'warn'"
+      :title="state.message"
+      :detail="state.phase === 'failed' ? state.detail : ''"
+      :retryable="problem"
+      :dismissible="problem"
+      @retry="retry"
+      @dismiss="dismiss"
+    >
+      <template v-if="state.portConflict || state.engineProblem" #actions>
         <UiButton v-if="state.portConflict" variant="quiet" @click="openServices">Open Services</UiButton>
         <UiButton v-if="state.engineProblem" variant="quiet" @click="openSettings">Engine settings</UiButton>
-        <UiButton variant="primary" @click="retry">Retry</UiButton>
-        <UiButton variant="quiet" aria-label="Dismiss" @click="dismiss">&times;</UiButton>
       </template>
-    </UiBanner>
+    </UiStatusNotice>
   </div>
 </template>
 

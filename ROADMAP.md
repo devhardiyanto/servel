@@ -522,14 +522,20 @@ Ditemukan saat uji: setelah restart, toggle Redis menyala dan log menulis `auto-
 - [x] Banner hasil auto-start (menunggu engine, sedang start, dilewati, gagal) dengan Retry, Open Services, atau Engine settings; berhasil = toast.
 - [x] Status engine `not installed` (bukan "checking" atau "not responding") di status bar dan Services; status bar bisa diklik ke Settings saat engine bermasalah.
 
+### N — v3.8.0: keadaan UI yang jelas
+
+- [x] C4 `UiStatusNotice`: satu pola untuk proses yang sedang berjalan, berhasil, dilewati, atau gagal (Retry, tutup, aksi tambahan). `UiBanner` mendapat tone `pending` (ikon berputar).
+- [x] C1 (kandidat a + b) Settings → Container engine: **Check again** dengan waktu pemeriksaan terakhir; saran "WSL containers are available on this PC" saat Docker dipakai, beserta penjelasan data volume dan tombol **Use WSL containers**.
+- [x] S1 Baris service yang dipilih tetapi tidak berjalan: label "not running" dan tombol **Start**.
+- [x] S5 Start/stop yang gagal: pesan disimpan per service, baris menampilkan "failed" dan **Retry** (pesan di tooltip); banner error Services mendapat Retry dan tutup.
+- [x] C2 Popup tray: baris per service (yang dipilih atau berjalan) dengan status berwarna; klik = start/stop service itu saja, dengan "starting…"/"stopping…" sampai statusnya berubah. Start mengirim service yang sedang berjalan + service itu, supaya backend Docker tidak menghentikan yang lain dan pilihan lain tidak ikut menyala.
+- [x] C3 Logs: kata filter disorot; hanya 1.000 baris terbaru yang dirender, dengan "Show N older lines" (posisi baca dipertahankan). Buffer tetap 500 baris per sumber, maks. 4.000.
+- [x] S4 Popup tray: "none selected" dan petunjuk bila belum ada service yang dipilih (bukan bug; pilihan sudah tersinkron, hanya labelnya kurang jelas).
+
 ## Berikutnya
 
 ### v3.x — kandidat, belum diputuskan
 
-- [ ] Saran pindah engine di Settings ("WSL containers tersedia, pindah dari Docker?") beserta penjelasan data volume. Alasan: Auto yang sudah memakai Docker tidak pindah sendiri saat WSL containers dipasang, dan pengguna perlu tahu bahwa data di volume Docker tidak ikut pindah.
-- [ ] Tombol "Check again" yang eksplisit untuk deteksi engine di Settings. Alasan: pemeriksaan ulang kini hanya terjadi saat jendela kembali difokuskan (maks. sekali per 10 detik), jadi tidak terlihat oleh pengguna.
-- [ ] Start/stop per service dari popup tray. Alasan: popup kini hanya punya Start selected dan Stop all, padahal yang sering dibutuhkan adalah menyalakan atau mematikan satu service.
-- [ ] Logs: sorot kata yang cocok dengan filter; batas jumlah baris untuk log sangat panjang. Alasan: baris yang cocok sulit dicari di log panjang, dan log yang terus tumbuh membebani tampilan.
 - [ ] Perbarui catatan status di canvas design (v3.6.1–v3.7.4). Alasan: canvas masih mencatat keadaan v3.6.0, sedangkan popup tray, panel yang bisa diseret, dan perubahan onboarding sudah berbeda.
 
 ### Ditunda — sampai ada kebutuhan pengguna
