@@ -84,6 +84,9 @@ let unlistenGlobal: UnlistenFn | null = null
 onUnmounted(() => unlistenGlobal?.())
 
 const rows = computed(() => data.value[tool.value]?.versions ?? [])
+/** v3.13.0 (canvas E3): versi yang baru dipasang di sesi ini diberi chip `new`. */
+const freshVersions = ref(new Set<string>())
+const isFresh = (version: string): boolean => freshVersions.value.has(`${tool.value}@${version}`)
 
 // --- Install -----------------------------------------------------------------
 const newVersion = ref('')
@@ -98,6 +101,8 @@ async function install(version = newVersion.value.trim()): Promise<void> {
   if (!version || installing.value) return
   actionError.value = ''
   installing.value = version
+  const before = new Set(rows.value.filter((r) => r.installed).map((r) => r.version))
+  const installedTool = tool.value
   try {
     await invoke('runtime_install_version', { tool: tool.value, version })
     newVersion.value = ''
@@ -108,6 +113,12 @@ async function install(version = newVersion.value.trim()): Promise<void> {
   } finally {
     installing.value = null
     await load()
+    const added = (data.value[installedTool]?.versions ?? []).filter((r) => r.installed && !before.has(r.version))
+    if (added.length > 0) {
+      const next = new Set(freshVersions.value)
+      for (const r of added) next.add(`${installedTool}@${r.version}`)
+      freshVersions.value = next
+    }
   }
 }
 
@@ -221,6 +232,7 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
             <td class="rtt-mono rtt-ver">{{ r.version }}</td>
             <td>
               <UiChip v-if="r.global" tone="accent">global</UiChip>
+              <UiChip v-if="isFresh(r.version)" tone="ok">new</UiChip>
               <UiChip v-if="!r.installed" tone="warn">not installed</UiChip>
             </td>
             <td class="rtt-used">{{ r.usedBy.length ? r.usedBy.join(', ') : '—' }}</td>

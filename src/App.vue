@@ -21,6 +21,8 @@ import AutoStartNotice from './components/shell/AutoStartNotice.vue'
 import { useAutoStart } from './composables/useAutoStart'
 import { useEngineStatus } from './composables/useEngineStatus'
 import { useUpdateCheck } from './composables/useUpdateCheck'
+import { useToast } from './composables/useToast'
+import { openExternal } from './utils/openExternal'
 import { useServices } from './composables/useServices'
 import { useConfig } from './composables/useConfig'
 import { useVersionContext } from './composables/useVersionContext'
@@ -55,7 +57,14 @@ provide(SetViewKey, setView)
 
 const { runAutoStartOnce } = useAutoStart()
 const { refresh: refreshEngineStatus } = useEngineStatus()
-const { check: checkUpdate, startAutoCheck } = useUpdateCheck()
+const { check: checkUpdate, startAutoCheck, consumeJustUpdated } = useUpdateCheck()
+const updatedToast = useToast()
+/** v3.13.0 (canvas F4): setelah update, toast dengan What's new. */
+async function announceUpdated(): Promise<void> {
+  const u = await consumeJustUpdated()
+  if (!u) return
+  updatedToast.show(`Kova updated to ${u.to}`, { action: { label: "What's new", run: () => void openExternal(u.url) } })
+}
 
 // v3.10.1: polling RAM cepat saat Services terlihat, jeda saat jendela tersembunyi.
 const docHidden = ref(document.hidden)
@@ -124,6 +133,7 @@ onMounted(() => {
   void refreshEngineStatus()
   void checkUpdate()
   startAutoCheck()
+  void announceUpdated()
   void restoreServiceSelection()
   lastFocusCheck = Date.now()
   window.addEventListener('focus', onWindowFocus)

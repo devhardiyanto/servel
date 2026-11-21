@@ -99,6 +99,7 @@ const {
   canInstall,
   phase: updatePhase,
   bannerVisible: updateBannerVisible,
+  installOnQuit,
   check: checkUpdate,
   download: downloadUpdate,
   apply: applyUpdate,
@@ -751,6 +752,10 @@ onMounted(async () => {
                 <UiButton v-else-if="!canInstall" variant="primary" @click="openReleasePage">Open release page</UiButton>
               </span>
             </div>
+
+            <p v-if="installOnQuit && updatePhase === 'ready'" class="update-progress-note">
+              Kova {{ latestVersion }} will be installed when you quit Kova.
+            </p>
 
             <!-- v3.8.2: hasil lama disembunyikan saat memeriksa; gagal tidak
                  lagi tampil sebagai "latest version". -->

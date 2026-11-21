@@ -121,6 +121,7 @@ pub fn run() {
             updater::update_install,
             updater::update_download,
             updater::update_apply,
+            updater::update_install_on_quit,
             commands::prereq::check_prerequisites,
             commands::prereq::start_engine,
             commands::prereq::get_platform,
