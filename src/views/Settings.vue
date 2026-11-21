@@ -937,6 +937,19 @@ onMounted(async () => {
   margin-top: 0;
   border-color: color-mix(in srgb, var(--red) 35%, var(--border));
 }
+/* v3.10.2: section About sudah berupa kartu; blok nama tidak lagi kartu
+   bersarang, dan baris update punya ruang bawah seperti SettingRow. */
+.settings-content--cards .about-block {
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 0;
+}
+.settings-content--cards .update-row { margin-top: 0; padding: var(--space-3) 0; }
+.settings-content--cards .update-banner,
+.settings-content--cards .update-progress-note { margin-top: var(--space-3); }
 .settings-content--cards .section-title {
   position: absolute;
   left: 0;
