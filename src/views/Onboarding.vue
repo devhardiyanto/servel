@@ -9,8 +9,9 @@ import UiButton from '@/components/ui/UiButton.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiChip from '@/components/ui/UiChip.vue'
 import UiSegmented from '@/components/ui/UiSegmented.vue'
-import { inject, computed, ref, onMounted } from 'vue'
+import { inject, computed, ref, onMounted, watch, nextTick } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { SetViewKey } from '../types/navigation'
 import { usePrereq } from '@/composables/usePrereq'
 import { useTauri } from '@/composables/useTauri'
@@ -173,16 +174,32 @@ const miseInstallErr = ref('')
 /** "I'll install it myself": tampilkan perintahnya, lalu Check again / Skip. */
 const miseManual = ref(false)
 
+/** v3.8.3: output winget baris per baris saat berjalan (A4). */
+const wingetLines = ref<string[]>([])
+const wingetProgress = ref('')
+const outEl = ref<HTMLElement | null>(null)
+
 async function installMise(): Promise<void> {
   installingMise.value = true
   miseInstallErr.value = ''
   miseInstallMsg.value = ''
+  wingetLines.value = []
+  wingetProgress.value = ''
+  const offLine = await listen<{ line: string; source?: string }>('cmd-output', (e) => {
+    if (e.payload.source === 'MISE') wingetLines.value = [...wingetLines.value, e.payload.line].slice(-200)
+  })
+  const offProgress = await listen<{ text: string }>('mise-install-progress', (e) => {
+    wingetProgress.value = e.payload.text
+  })
   try {
     miseInstallMsg.value = await invoke<string>('mise_install_winget')
     await check()
   } catch (err) {
     miseInstallErr.value = String(err)
   } finally {
+    offLine()
+    offProgress()
+    wingetProgress.value = ''
     installingMise.value = false
   }
 }
@@ -213,14 +230,18 @@ const miseText = computed<string>(() => {
   if (misePhase.value === 'manual') return `Run this in a terminal, then press Check again. You can also continue without it.`
   return 'Kova uses mise for versions. It is not installed yet.'
 })
-/** Baris log di kartu: perintah, lalu hasil (A4/A5). */
+/** Baris log di kartu: perintah winget, output-nya, lalu hasil (A4/A5). */
 const miseLog = computed<{ x: string; cmd?: boolean }[]>(() => {
   if (misePhase.value === 'ask' || misePhase.value === 'manual') return []
-  if (!installingMise.value && !miseInstallMsg.value && !miseInstallErr.value) return []
-  const lines: { x: string; cmd?: boolean }[] = [{ x: `> ${miseInstallCmd.value}`, cmd: true }]
-  if (miseInstallMsg.value) lines.push(...miseInstallMsg.value.split('\n').filter((l) => l.trim()).map((x) => ({ x })))
+  if (!installingMise.value && wingetLines.value.length === 0 && !miseInstallMsg.value) return []
+  const [first, ...rest] = wingetLines.value
+  const lines: { x: string; cmd?: boolean }[] = [{ x: `> ${first ?? miseInstallCmd.value}`, cmd: true }]
+  lines.push(...rest.map((x) => ({ x })))
+  if (miseInstallMsg.value) lines.push({ x: miseInstallMsg.value })
   return lines
 })
+
+watch(() => miseLog.value.length, () => nextTick(() => outEl.value?.scrollTo({ top: outEl.value.scrollHeight })))
 
 // --- Langkah 3: project pertama --------------------------------------------
 
@@ -397,11 +418,14 @@ async function addFirst(start: boolean): Promise<void> {
             </div>
           </div>
 
-          <div v-if="miseLog.length > 0" class="ob-out" aria-label="winget output">
+          <div v-if="miseLog.length > 0" ref="outEl" class="ob-out" tabindex="0" aria-label="winget output">
             <div v-for="(l, i) in miseLog" :key="i" class="ob-ol" :class="{ 'ob-ol--cmd': l.cmd }"><span class="ob-ol__x">{{ l.x }}</span></div>
           </div>
 
-          <div v-if="misePhase === 'running'" class="ob-prog" role="progressbar" aria-label="Installing mise"><span></span></div>
+          <div v-if="misePhase === 'running'" class="ob-progw">
+            <div class="ob-prog" role="progressbar" aria-label="Installing mise" :aria-valuetext="wingetProgress || undefined"><span></span></div>
+            <span v-if="wingetProgress" class="ob-text ob-text--faint ob-mono">{{ wingetProgress }}</span>
+          </div>
 
           <UiBanner
             v-if="misePhase === 'failed'"
@@ -590,6 +614,8 @@ async function addFirst(start: boolean): Promise<void> {
 .ob-ol--cmd { color: var(--muted); }
 
 /* Progres tanpa angka: winget tidak memberi persentase yang bisa dibaca. */
+.ob-progw { display: flex; flex-direction: column; gap: var(--space-1); }
+.ob-mono { font-family: var(--font-mono); }
 .ob-prog { position: relative; height: 3px; border-radius: 2px; background: var(--surface2); overflow: hidden; }
 .ob-prog span { position: absolute; inset: 0 auto 0 0; width: 35%; background: var(--accent); border-radius: 2px; animation: ob-slide 1.4s ease-in-out infinite; }
 @keyframes ob-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }

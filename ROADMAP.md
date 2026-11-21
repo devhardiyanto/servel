@@ -548,6 +548,10 @@ Audit ulang canvas (21 November 2026, per artboard, di level markup): selisih be
 - [x] Runtimes: judul dan state A3–A5, winget tidak ada, pasang sendiri dengan Copy.
 - [x] Pengecekan update gagal tampil sebagai error dengan Retry (dulu "You have the latest version"); hasil lama disembunyikan saat memeriksa; cek berkala 6 jam dan saat fokus.
 
+### N.3 — v3.8.3: output winget langsung di onboarding
+
+- [x] Output winget tampil baris per baris di kartu Install mise (A4), progres unduhan di bawah bar; baris yang sama masuk Logs.
+
 ## Berikutnya
 
 ### v3.x — kandidat, belum diputuskan

@@ -816,39 +816,131 @@ pub fn winget_install_args() -> Vec<&'static str> {
     ]
 }
 
+/// Potongan output winget: baris selesai (`\n`) masuk log; potongan yang
+/// diakhiri `\r` adalah gambar progres yang ditimpa winget di tempat.
+#[derive(Debug, PartialEq)]
+pub enum WingetSeg {
+    Line(String),
+    Progress(String),
+}
+
+/// Memecah output winget yang datang sepotong-sepotong menjadi baris dan
+/// progres (v3.8.3: tampil langsung di kartu onboarding, bukan setelah selesai).
+#[derive(Default)]
+pub struct WingetSplitter {
+    buf: Vec<u8>,
+    /// Potongan sebelum `\r` terakhir: baris bila diikuti `\n` (CRLF),
+    /// selain itu progres yang akan ditimpa.
+    pending_cr: Option<Vec<u8>>,
+}
+
+fn clean_bytes(b: &[u8]) -> Option<String> {
+    clean_log_line(&String::from_utf8_lossy(b))
+}
+
+impl WingetSplitter {
+    pub fn push(&mut self, bytes: &[u8]) -> Vec<WingetSeg> {
+        let mut out = Vec::new();
+        for &b in bytes {
+            if let Some(prev) = self.pending_cr.take() {
+                if b == b'\n' {
+                    out.extend(clean_bytes(&prev).map(WingetSeg::Line));
+                    continue;
+                }
+                out.extend(clean_bytes(&prev).map(WingetSeg::Progress));
+            }
+            match b {
+                b'\r' => self.pending_cr = Some(std::mem::take(&mut self.buf)),
+                b'\n' => out.extend(clean_bytes(&std::mem::take(&mut self.buf)).map(WingetSeg::Line)),
+                _ => self.buf.push(b),
+            }
+        }
+        out
+    }
+
+    pub fn finish(&mut self) -> Option<WingetSeg> {
+        let mut rest = self.pending_cr.take().unwrap_or_default();
+        rest.extend(std::mem::take(&mut self.buf));
+        clean_bytes(&rest).map(WingetSeg::Line)
+    }
+}
+
 /// Pasang mise satu klik lewat winget (Windows). Output masuk ke Logs
-/// (sumber MISE). Setelah berhasil, folder shim winget ditambahkan ke PATH
-/// proses ini supaya mise langsung terdeteksi tanpa restart.
+/// (sumber MISE) baris per baris saat winget berjalan, dan progresnya lewat
+/// event `mise-install-progress`. Setelah berhasil, folder shim winget
+/// ditambahkan ke PATH proses ini supaya mise langsung terdeteksi tanpa restart.
 #[tauri::command]
 pub async fn mise_install_winget(app: AppHandle) -> Result<String, String> {
+    use tokio::io::AsyncReadExt;
     if !cfg!(windows) {
         return Err("One-click install is available on Windows only. See mise.jdx.dev for macOS and Linux.".into());
     }
-    let emit = |line: &str| {
+    let emit = |app: &AppHandle, line: &str| {
         let _ = app.emit("cmd-output", serde_json::json!({ "line": line, "stream": "stdout", "source": "MISE" }));
     };
     let args = winget_install_args();
-    emit(&format!("winget {}", args.join(" ")));
+    emit(&app, &format!("winget {}", args.join(" ")));
     let mut cmd = crate::commands::util::silent_command("winget");
-    cmd.args(&args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    let out = tokio::time::timeout(std::time::Duration::from_secs(600), cmd.output())
-        .await
-        .map_err(|_| "winget did not finish within 10 minutes".to_string())?
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                "winget is not available on this PC. Install \"App Installer\" from the Microsoft Store, or install mise from mise.jdx.dev.".to_string()
-            } else {
-                format!("could not run winget: {e}")
+    cmd.args(&args).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
+    let mut child = cmd.spawn().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            "winget is not available on this PC. Install \"App Installer\" from the Microsoft Store, or install mise from mise.jdx.dev.".to_string()
+        } else {
+            format!("could not run winget: {e}")
+        }
+    })?;
+
+    let stdout = child.stdout.take().ok_or("winget stdout not available")?;
+    let stderr = child.stderr.take().ok_or("winget stderr not available")?;
+    let read = |mut pipe: Box<dyn tokio::io::AsyncRead + Unpin + Send>, app: AppHandle| {
+        tokio::spawn(async move {
+            let mut split = WingetSplitter::default();
+            let mut text = String::new();
+            let mut chunk = [0u8; 4096];
+            let mut last_progress = String::new();
+            loop {
+                let n = match pipe.read(&mut chunk).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => n,
+                };
+                for seg in split.push(&chunk[..n]) {
+                    match seg {
+                        WingetSeg::Line(l) => {
+                            emit(&app, &l);
+                            text.push_str(&l);
+                            text.push('\n');
+                        }
+                        WingetSeg::Progress(p) => {
+                            if p != last_progress {
+                                let _ = app.emit("mise-install-progress", serde_json::json!({ "text": p }));
+                                last_progress = p;
+                            }
+                        }
+                    }
+                }
             }
-        })?;
-    let text = format!("{}\n{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
-    for l in text.lines().filter_map(clean_log_line) {
-        emit(&l);
-    }
+            if let Some(WingetSeg::Line(l)) = split.finish() {
+                emit(&app, &l);
+                text.push_str(&l);
+            }
+            text
+        })
+    };
+    let out_task = read(Box::new(stdout), app.clone());
+    let err_task = read(Box::new(stderr), app.clone());
+
+    let status = match tokio::time::timeout(std::time::Duration::from_secs(600), child.wait()).await {
+        Ok(r) => r.map_err(|e| format!("could not run winget: {e}"))?,
+        Err(_) => {
+            let _ = child.kill().await;
+            return Err("winget did not finish within 10 minutes".to_string());
+        }
+    };
+    let text = format!("{}\n{}", out_task.await.unwrap_or_default(), err_task.await.unwrap_or_default());
     // winget memberi kode bukan nol bila paket sudah terpasang; anggap sukses.
     let already = text.contains("already installed") || text.contains("No newer package");
-    if !out.status.success() && !already {
-        return Err(format!("winget failed (exit {}). See Logs for details.", out.status.code().unwrap_or(-1)));
+    if !status.success() && !already {
+        return Err(format!("winget failed (exit {}). See Logs for details.", status.code().unwrap_or(-1)));
     }
     if let Some(local) = std::env::var_os("LOCALAPPDATA") {
         let links = PathBuf::from(local).join("Microsoft").join("WinGet").join("Links");
@@ -950,6 +1042,29 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn winget_splitter_separates_lines_and_progress() {
+        let mut s = WingetSplitter::default();
+        let mut segs = s.push(b"Found mise [jdx.mise] Version 2026.11.2\r\nDownloading https://x/mise.zip\n  \xe2\x96\x88\xe2\x96\x88  1.00 MB / 6.40 MB\r  \xe2\x96\x88\xe2\x96\x88\xe2\x96\x88  6.40 MB / 6.40 MB\r");
+        segs.extend(s.push(b"\nSuccessfully ins"));
+        segs.extend(s.push(b"talled\n"));
+        assert_eq!(
+            segs,
+            vec![
+                WingetSeg::Line("Found mise [jdx.mise] Version 2026.11.2".into()),
+                WingetSeg::Line("Downloading https://x/mise.zip".into()),
+                WingetSeg::Progress("1.00 MB / 6.40 MB".into()),
+                WingetSeg::Line("6.40 MB / 6.40 MB".into()),
+                WingetSeg::Line("Successfully installed".into()),
+            ]
+        );
+        // `\r` di ujung potongan: belum bisa diputuskan sampai byte berikutnya.
+        assert_eq!(s.push(b"50%\r"), vec![]);
+        assert_eq!(s.push(b"\n"), vec![WingetSeg::Line("50%".into())]);
+        assert_eq!(s.push(b"tail"), vec![]);
+        assert_eq!(s.finish(), Some(WingetSeg::Line("tail".into())));
+    }
 
     #[test]
     fn version_rows_merge_installed_global_and_projects() {
