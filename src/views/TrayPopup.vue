@@ -140,7 +140,7 @@ interface Row {
   disabled: boolean
 }
 
-const rows = computed<Row[]>(() =>
+const allRows = computed<Row[]>(() =>
   config.value.projects.map((p) => {
     const info = runtime.value[p.id]
     const state = stateOf(p.id)
@@ -158,6 +158,42 @@ const rows = computed<Row[]>(() =>
     return { project: p, dot: 'stopped', hint: 'Start', label: `${name}, stopped. Start`, disabled: false }
   }),
 )
+
+// v3.14.1: daftar project tidak lagi memanjangkan popup tanpa batas.
+// Project aktif (berjalan, memulai, tidak menjawab, keluar dengan error)
+// naik ke atas; sisanya tetap urut seperti di Kova. Tertutup = PROJECT_LIMIT
+// baris pertama; "Show all" membuka daftar lengkap di kotak bergulir, dengan
+// kolom pencarian bila lebih dari FILTER_FROM project.
+const PROJECT_LIMIT = 5
+// Tinggi maksimal popup: MAX_HEIGHT di tray_popup.rs, atau tinggi work area
+// monitor dikurangi margin bila layarnya lebih pendek.
+const MAX_HEIGHT = 760
+function computeMaxHeight(): number {
+  const avail = window.screen?.availHeight || MAX_HEIGHT
+  return Math.max(320, Math.min(MAX_HEIGHT, avail - 16))
+}
+const maxHeight = ref(computeMaxHeight())
+const FILTER_FROM = 8
+const ACTIVE: DotState[] = ['running', 'unresponsive', 'starting', 'exited']
+const showAll = ref(false)
+const filter = ref('')
+const sortedRows = computed(() => {
+  const active = allRows.value.filter((r) => ACTIVE.includes(r.dot))
+  return [...active, ...allRows.value.filter((r) => !ACTIVE.includes(r.dot))]
+})
+const activeCount = computed(() => allRows.value.filter((r) => r.dot === 'running' || r.dot === 'unresponsive').length)
+const overflow = computed(() => sortedRows.value.length > PROJECT_LIMIT)
+const showFilter = computed(() => showAll.value && sortedRows.value.length > FILTER_FROM)
+const rows = computed<Row[]>(() => {
+  if (!showAll.value) return sortedRows.value.slice(0, PROJECT_LIMIT)
+  const q = filter.value.trim().toLowerCase()
+  return q ? sortedRows.value.filter((r) => r.project.name.toLowerCase().includes(q)) : sortedRows.value
+})
+const hiddenCount = computed(() => sortedRows.value.length - PROJECT_LIMIT)
+function toggleShowAll(): void {
+  showAll.value = !showAll.value
+  filter.value = ''
+}
 
 async function hide(): Promise<void> {
   await invoke('tray_popup_hide').catch(() => {})
@@ -224,7 +260,9 @@ async function refresh(): Promise<void> {
 function onKey(e: KeyboardEvent): void {
   if (e.key === 'Escape') {
     e.preventDefault()
-    void hide()
+    // Esc pertama mengosongkan pencarian; berikutnya menutup popup.
+    if (filter.value) filter.value = ''
+    else void hide()
     return
   }
   if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
@@ -268,6 +306,12 @@ onMounted(async () => {
       settlePending()
     }),
     await listen('tray-popup-shown', async () => {
+      // Tiap kali dibuka mulai dari tampilan ringkas.
+      showAll.value = false
+      filter.value = ''
+      expanded.value = null
+      // Bisa dibuka di monitor lain dengan tinggi berbeda.
+      maxHeight.value = computeMaxHeight()
       await refresh()
       await nextTick()
       focusFirst()
@@ -288,25 +332,45 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="root" class="tp" role="dialog" aria-label="Kova" tabindex="-1" @keydown="onKey">
+  <div ref="root" class="tp" :style="{ maxHeight: `${maxHeight}px` }" role="dialog" aria-label="Kova" tabindex="-1" @keydown="onKey">
     <header class="tp-head">
       <KovaMark :size="18" />
       <span class="tp-name">Kova</span>
       <span class="tp-ver">{{ version }}</span>
     </header>
 
-    <section v-if="rows.length" class="tp-sect" aria-labelledby="tp-projects">
-      <h2 id="tp-projects" class="tp-label">Projects</h2>
+    <section v-if="allRows.length" class="tp-sect tp-sect--projects" aria-labelledby="tp-projects">
+      <h2 id="tp-projects" class="tp-label">
+        Projects
+        <span class="tp-count">{{ activeCount ? `${activeCount} running · ` : '' }}{{ allRows.length }}</span>
+      </h2>
+      <label v-if="showFilter" class="tp-filter">
+        <span class="sr-only">Find a project</span>
+        <input v-model="filter" type="search" placeholder="Find a project" spellcheck="false" autocomplete="off" />
+      </label>
+      <div id="tp-project-list" class="tp-list" :class="{ 'tp-list--all': showAll, 'tp-list--keep': rows.length > 1 }">
+        <button
+          v-for="r in rows"
+          :key="r.project.id"
+          class="tp-item"
+          :disabled="r.disabled || busy[r.project.id]"
+          @click="onProject(r)"
+        >
+          <StatusDot :state="r.dot" />
+          <span class="tp-text">{{ r.project.name }}<span class="sr-only">{{ r.label.slice(r.project.name.length) }}</span></span>
+          <span class="tp-hint" :class="{ 'tp-hint--err': r.dot === 'exited' }" aria-hidden="true">{{ r.hint }}</span>
+        </button>
+        <p v-if="showAll && !rows.length" class="tp-empty">No project matches “{{ filter.trim() }}”.</p>
+      </div>
       <button
-        v-for="r in rows"
-        :key="r.project.id"
-        class="tp-item"
-        :disabled="r.disabled || busy[r.project.id]"
-        @click="onProject(r)"
+        v-if="overflow"
+        class="tp-item tp-more"
+        :aria-expanded="showAll"
+        aria-controls="tp-project-list"
+        @click="toggleShowAll"
       >
-        <StatusDot :state="r.dot" />
-        <span class="tp-text">{{ r.project.name }}<span class="sr-only">{{ r.label.slice(r.project.name.length) }}</span></span>
-        <span class="tp-hint" :class="{ 'tp-hint--err': r.dot === 'exited' }" aria-hidden="true">{{ r.hint }}</span>
+        <span class="tp-text">{{ showAll ? 'Show fewer' : `Show all ${allRows.length} projects` }}</span>
+        <span v-if="!showAll" class="tp-hint tp-hint--value">+{{ hiddenCount }}</span>
       </button>
     </section>
 
@@ -386,6 +450,9 @@ onUnmounted(() => {
 .tp {
   display: flex;
   flex-direction: column;
+  /* Batas tinggi dari `maxHeight` (≤ MAX_HEIGHT di tray_popup.rs). Lebih dari
+     ini, hanya daftar project yang menyusut dan digulir (v3.14.1). */
+  box-sizing: border-box;
   padding: 6px;
   color: var(--text);
   font-size: var(--text-sm);
@@ -401,6 +468,7 @@ onUnmounted(() => {
 .tp-ver { margin-left: auto; font: 400 var(--text-xs) var(--font-mono); color: var(--faint); }
 .tp-sect {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: 1px;
   padding: 4px 0;
@@ -450,6 +518,35 @@ onUnmounted(() => {
 .tp-item--sub { padding-left: 18px; }
 .tp-check { flex: none; width: 12px; color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { .tp-caret { transition: none; } }
+.tp-sect--projects { flex: 0 1 auto; min-height: 0; }
+.tp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+/* Paling sedikit dua baris tetap terlihat saat popup penuh. */
+.tp-list--keep { min-height: 62px; }
+/* Daftar lengkap: kira-kira 8 baris, sisanya digulir di dalam kotak ini,
+   jadi Services, versi global, Open Kova, dan Quit Kova tetap terlihat. */
+.tp-list--all { max-height: 250px; }
+.tp-more .tp-text { color: var(--muted); }
+.tp-filter { display: block; padding: 2px 4px 4px; }
+.tp-filter input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text);
+  font: inherit;
+}
+.tp-filter input:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.tp-empty { margin: 0; padding: 6px 10px; font-size: var(--text-xs); color: var(--muted); }
 .tp-error { margin: 0; padding: 6px 10px; font-size: var(--text-xs); color: var(--red); border-top: 1px solid var(--border); }
 </style>
 
