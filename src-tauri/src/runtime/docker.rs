@@ -106,16 +106,6 @@ pub async fn diagnose() -> Option<DockerProblem> {
     }
 }
 
-/// Daemon bisa dihubungi.
-pub async fn is_running() -> bool {
-    silent_command("docker")
-        .arg("info")
-        .status()
-        .await
-        .map(|s| s.success())
-        .unwrap_or(false)
-}
-
 pub async fn version() -> Option<String> {
     let out = silent_command("docker")
         .arg("--version")

@@ -8,7 +8,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 
 | Putaran | Versi Kova | OS (W / L) | Engine | mise | Tanggal | Penguji |
 |---|---|---|---|---|---|---|
-| 1 | v3.10.3 | Windows 11 … / Ubuntu … | wslc … / Docker Engine … + Compose … | … | … | … |
+| 1 | v3.14.0 | Windows 11 … / Ubuntu … | wslc … / Docker Engine … + Compose … | … | … | … |
 
 ## Ringkasan
 
@@ -22,7 +22,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | F · Update | 6 | 0 | 0 | v3.13.0 |
 | G · Logs | 5 | 0 | 0 | v3.11.0 |
 | H · Environments | 6 | 0 | 0 | v3.10.x |
-| S · Scripts / dev server | 4 | 0 | 0 | v3.11.0 |
+| S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | T · Tray & jendela | 5 | 0 | 0 | v3.10.x |
 | U · Tampilan & aksesibilitas | 5 | 0 | 0 | v3.14.0 |
 | W · Khusus Windows | 4 | 0 | ➖ | v3.10.x |
@@ -76,7 +76,7 @@ Persiapan: project yang gagal karena env, mis. Laravel tanpa `DB_*` padahal butu
 | ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
 |---|---|---|---|---|---|---|
 | TC-D1 | Buka Services. | Semua service tampil (grup core/additional) dengan toggle; pemilih profil di header. | ⬜ | ⬜ | | |
-| TC-D2 | Ganti profil, lalu Start selected. | Toggle mengikuti profil; service terpilih mulai. *Artboard D2 memakai tombol "Start profile"; keputusan final ada di v3.14.0.* | ⬜ | ⬜ | | 🔜 v3.14.0 untuk keputusan D2 |
+| TC-D2 | Ganti profil, lalu Start selected. | Toggle mengikuti profil; service terpilih mulai. *Artboard D2 memakai tombol "Start profile"; keputusan final ada di v3.14.0.* | ⬜ | ⬜ | | v3.14.0: tombol "Start <profil>" selama pilihan = isi profil |
 | TC-D3 | Amati saat service mulai (pertama kali: image belum ada). Ulangi dengan port service dipakai program lain. | Tiap baris punya status sendiri; image diunduh dulu. Port bentrok → banner "Port … is already in use". | ⬜ | ⬜ | | |
 | TC-D4 | Buka detail MySQL → Connect. Pilih format Laravel, Copy .env, lalu Copy URL. | Host, port, user, password, database tampil; potongan `.env` sesuai format; URL `mysql://root@127.0.0.1:3306/…`. | ⬜ | ⬜ | | |
 | TC-D5 | Tempel hasil Copy .env ke project. | Toast menyebut jumlah baris yang disalin; nilai bisa langsung dipakai project (lihat C4). | ⬜ | ⬜ | | |
@@ -89,12 +89,12 @@ Persiapan: project yang gagal karena env, mis. Laravel tanpa `DB_*` padahal butu
 |---|---|---|---|---|---|---|
 | TC-E1 | Runtimes → PHP. Ketik versi (mis. 8.4) di Install version, klik Install. | Daftar versi: global, dipakai project, tidak dipakai. Instalasi dimulai. | ⬜ | ⬜ | | |
 | TC-E2 | Amati selama instalasi; ulangi lalu klik Cancel. | Baris progres + baris terakhir output mise; navigasi lain tetap bisa dipakai. Cancel menghentikan proses. Gagal → baris merah dengan pesan mise + Retry. | ⬜ | ⬜ | | |
-| TC-E3 | Setelah terpasang. | Versi baru muncul dengan status Not used dan chip `new`. | 🔜 | 🔜 | | Chip `new` belum ada, v3.13.0 |
+| TC-E3 | Setelah terpasang. | Versi baru muncul dengan status Not used dan chip `new`. | ⬜ | ⬜ | | v3.13.0 |
 | TC-E4 | Klik ⋯ pada versi itu. | Menu: Set as global, Use in project…, Remove. | ⬜ | ⬜ | | |
 | TC-E5 | Pilih Use in project…, pilih project, konfirmasi. | Hanya project PHP yang muncul. `mise.toml` project berisi `php = "<versi>"` (lampirkan isi file). | ⬜ | ⬜ | | |
 | TC-E6 | Nyalakan extension `intl`. | Toast berhasil, menawarkan Restart project. | ⬜ | ⬜ | | |
 | TC-E7 | Nyalakan `xdebug`. | Status *checking…* selama backup `php.ini` → tulis → `php -m`; toggle lain tetap bisa dipakai. | ⬜ | ⬜ | | |
-| TC-E8 | Nyalakan extension yang tidak cocok dengan versi PHP (bila ada). | Toggle kembali off; `php.ini` dikembalikan dari backup (`php.ini.servel-<epoch>.bak`); banner menjelaskan penyebab dan bahwa tidak ada yang berubah. | ⬜ | ⬜ | | Teks banner dicek ulang di v3.13.0 |
+| TC-E8 | Nyalakan extension yang tidak cocok dengan versi PHP (bila ada). | Toggle kembali off; `php.ini` dikembalikan; banner "<ext> was not turned on. Nothing changed." berisi penyebab dan cara memperbaikinya. | ⬜ | ⬜ | | v3.13.0 |
 
 ## F · Update aplikasi (canvas F1–F5)
 
@@ -104,8 +104,8 @@ Persiapan: pasang versi sebelumnya dari Releases.
 |---|---|---|---|---|---|---|
 | TC-F1 | Buka Kova versi lama. | Banner "update available" muncul setelah cek saat launch; Release notes membuka halaman rilis; × menyembunyikan banner. | ⬜ | ⬜ | | |
 | TC-F2 | Klik Update. | Progres unduhan di banner; aplikasi tetap bisa dipakai. | ⬜ | ⬜ | | |
-| TC-F3 | Saat siap, klik Later; tutup Kova; buka lagi. | Sesuai canvas: Later = update dipasang saat Kova ditutup. Saat ini Later hanya menyembunyikan banner. | 🔜 | 🔜 | | v3.13.0 |
-| TC-F4 | Klik Restart now. | Kova terbuka lagi di versi baru; status bar menampilkan versi itu; What's new membuka catatan rilis. | ⬜ | ⬜ | | What's new 🔜 v3.13.0 |
+| TC-F3 | Saat siap, klik Later; cek Settings → About; Quit Kova dari tray; buka lagi. | About menulis "Kova X will be installed when you quit Kova." Setelah Quit, update terpasang; Kova dibuka lagi di versi baru. | ⬜ | ⬜ | | v3.13.0 |
+| TC-F4 | Klik Restart now. | Kova terbuka lagi di versi baru; status bar menampilkan versi itu; What's new membuka catatan rilis. | ⬜ | ⬜ | | What's new: v3.13.0 (toast "Kova updated to X") |
 | TC-F5 | Putus jaringan, lalu Settings → About → Check for updates. | "Could not check for updates" dengan pesan error, Retry, dan Open release page; tidak tampil sebagai "latest version". | ⬜ | ⬜ | | |
 | TC-F6 | Jaringan normal, Check for updates. | "You have the latest version · checked HH:MM", di dalam kartu About tanpa kartu bersarang. | ⬜ | ⬜ | | v3.10.2 |
 
@@ -138,6 +138,9 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-S2 | Command yang lambat menjawab > 90 detik. **W:** `powershell -c "Start-Sleep 100; php -S 127.0.0.1:{port}"`. **L:** `sh -c "sleep 100; python3 -m http.server {port}"`. | Setelah 90 detik status *not answering*; sekitar 10 detik kemudian berubah sendiri menjadi Running. | ⬜ | ⬜ | | v3.10.2 |
 | TC-S3 | Stop project `composer run dev` dari TC-S1. | Semua proses anak berhenti (`php`, `node`/vite, queue, scheduler); port bebas. **W:** tidak ada `php.exe`/`node.exe` sisa di Task Manager. **L:** `pgrep -fa artisan` kosong. | ⬜ | ⬜ | | |
 | TC-S4 | Tutup paksa Kova (Task Manager / `kill -9`) saat project berjalan, lalu buka lagi. | Dev server sisa dari sesi sebelumnya dibersihkan; project bisa di-start lagi tanpa "port in use". | ⬜ | ⬜ | | |
+| TC-S5 | Project settings project Laravel yang punya script `dev` di `composer.json`. | Di bawah Command tampil Suggestions: perintah deteksi, `composer run dev`, `npm run dev` (bila ada). Klik mengisi field. **W:** bila script memuat `pail`, muncul peringatan pcntl. | ⬜ | ⬜ | | v3.11.0 |
+| TC-S6 | Jalankan `composer run dev`, buka Logs → Projects → chip project itu. | Baris chip kedua: All processes, server, queue, vite, … dengan jumlah error; klik satu = hanya baris proses itu. | ⬜ | ⬜ | | v3.11.0 |
+| TC-S7 | Command `programtidakada run dev`, Start. | Exit 127 (L) / 9009 (W); banner project dan log: "programtidakada was not found. …". | ⬜ | ⬜ | | v3.11.0 |
 
 ## T · Tray & jendela
 
@@ -157,7 +160,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-U2 | Buka semua tab Settings (General, Services, About). | Tidak ada kartu bersarang; teks tidak menempel ke tepi kartu. | ⬜ | ⬜ | | v3.10.2–3.10.3 |
 | TC-U3 | Ctrl K, ketik nama project / perintah. | Palet terbuka, hasil bisa dipilih dengan keyboard, Esc menutup. | ⬜ | ⬜ | | |
 | TC-U4 | Navigasi seluruh aplikasi hanya dengan keyboard (Tab, Shift+Tab, Enter, Space, Esc). | Fokus selalu terlihat; semua tombol dan toggle bisa dijangkau; modal mengunci fokus. | ⬜ | ⬜ | | |
-| TC-U5 | **W:** jalankan NVDA, buka Projects, Services, Logs. | Nama tombol, status project, dan badge error dibacakan; perubahan status diumumkan. | 🔜 | ➖ | | v3.14.0 |
+| TC-U5 | **W:** jalankan NVDA, buka Projects, Services, Logs. | Nama tombol, status project, dan badge error dibacakan; perubahan status diumumkan. | ⬜ | ➖ | | v3.14.0 |
 
 ## W · Khusus Windows
 
@@ -177,7 +180,7 @@ Catat di *Catatan putaran*: distro, desktop environment, `docker version`, `dock
 | TC-L1 | `chmod +x Kova_*.AppImage` lalu jalankan. | Kova terbuka. Bila gagal, catat pesan error dan paket yang hilang (mis. `libfuse2`). | ➖ | ⬜ | | |
 | TC-L2 | Docker Engine aktif (`systemctl is-active docker`), user di grup `docker`. Buka Services, start MySQL. | Engine Docker berjalan; service start lewat `docker compose`; `docker context ls` menunjukkan `default`, bukan `desktop-linux`. | ➖ | ⬜ | | |
 | TC-L3 | `sudo systemctl stop docker`, lalu buka Kova / Check again. | Instruksi `sudo systemctl start docker` dengan Copy; setelah daemon dinyalakan, Check again → siap. | ➖ | ⬜ | | |
-| TC-L4 | User **tanpa** grup `docker` (`sudo gpasswd -d $USER docker`, login ulang). Buka Kova. | Pesan jelas berisi instruksi `sudo usermod -aG docker $USER` dan perlu login ulang. Saat ini kemungkinan error mentah `permission denied … docker.sock`. | ➖ | 🔜 | | v3.12.0 |
-| TC-L5 | Tanpa plugin Compose v2 (`docker compose version` gagal). Start service. | Pesan jelas bahwa plugin Compose v2 dibutuhkan dan cara memasangnya. Saat ini kemungkinan error mentah. | ➖ | 🔜 | | v3.12.0 |
+| TC-L4 | User **tanpa** grup `docker` (`sudo gpasswd -d $USER docker`, login ulang). Buka Kova. | Pesan jelas berisi instruksi `sudo usermod -aG docker $USER` dan perlu login ulang. Status engine "No access" di Settings. | ➖ | ⬜ | | v3.12.0 |
+| TC-L5 | Tanpa plugin Compose v2 (`docker compose version` gagal). Start service. | Pesan jelas bahwa plugin Compose v2 dibutuhkan dan cara memasangnya (`sudo apt install docker-compose-plugin`). Start service memberi pesan yang sama. | ➖ | ⬜ | | v3.12.0 |
 | TC-L6 | Settings → Command line → Install, lalu buka terminal baru: `kova status`. | `kova` tersalin ke `~/.local/bin/kova` dan berjalan (bila `~/.local/bin` ada di PATH). | ➖ | ⬜ | | |
 | TC-L7 | Restore database seperti TC-W4. | Sama dengan TC-W4. | ➖ | ⬜ | | |

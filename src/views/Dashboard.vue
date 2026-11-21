@@ -71,6 +71,7 @@ const {
   additionalServices,
   runningCount,
   selectedCount,
+  selectedIds,
   hasStarting,
   hasStopping,
   definitions,
@@ -90,6 +91,21 @@ const {
 const profiles = computed(() => useConfig().config.value.profiles)
 const activeProfileId = computed(() => useConfig().config.value.activeProfileId)
 const activeProfileName = computed(() => profiles.value.find((p) => p.id === activeProfileId.value)?.name ?? 'this profile')
+
+/**
+ * v3.14.0 (canvas D2): tombol utama memakai nama profil selama pilihan sama
+ * dengan isi profil aktif ("Start Astra · 5"). Begitu switch diubah, tombol
+ * kembali menjadi "Start selected".
+ */
+const selectionIsProfile = computed(() => {
+  const p = profiles.value.find((x) => x.id === activeProfileId.value)
+  if (!p || p.serviceIds.length === 0) return false
+  const sel = new Set(selectedIds.value)
+  return sel.size === p.serviceIds.length && p.serviceIds.every((id) => sel.has(id))
+})
+const startLabel = computed(() =>
+  selectionIsProfile.value ? `Start ${activeProfileName.value}` : 'Start selected',
+)
 
 // v3.8 (S1/S5): Start / Retry dari baris service yang dipilih tetapi tidak berjalan.
 function startOne(id: string): void {
@@ -170,10 +186,11 @@ function focusFirstSwitch(): void {
           <UiButton
             variant="primary"
             size="md"
-            :disabled="hasStarting"
+            :disabled="hasStarting || selectedCount === 0"
+            :aria-label="`${startLabel}, ${selectedCount} ${selectedCount === 1 ? 'service' : 'services'}`"
             @click="start()"
           >
-            <UiIcon name="play" />Start selected
+            <UiIcon name="play" />{{ startLabel }}<span v-if="selectedCount > 0" class="sw-start-count">{{ selectedCount }}</span>
           </UiButton>
         </div>
       </header>
@@ -438,6 +455,15 @@ function focusFirstSwitch(): void {
 .sw-counter {
   font: 500 var(--text-sm) var(--font-mono);
   color: var(--muted);
+}
+
+.sw-start-count {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: var(--radius-xs);
+  background: color-mix(in srgb, var(--bg) 22%, transparent);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
 }
 
 .sw-profile {

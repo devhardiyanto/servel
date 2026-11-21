@@ -27,7 +27,7 @@ Docker Desktop for Linux tidak wajib. Kova hanya memanggil CLI `docker` (`docker
 ## Bukti
 
 - Setiap status selain ⬜ dan ➖ harus punya bukti: screenshot, potongan log, atau output perintah.
-- File bukti disimpan di `docs/testing/evidence/<versi>/<ID>-<W|L>.<ext>`, misalnya `evidence/v3.10.3/TC-A2-W.png`. Log pendek boleh langsung ditempel di Catatan.
+- File bukti disimpan di `docs/testing/evidence/<versi>/<ID>-<W|L>.<ext>`, misalnya `evidence/v3.14.0/TC-A2-W.png`. Log pendek boleh langsung ditempel di Catatan.
 - Kolom **Bukti** berisi tautan relatif ke file itu.
 - Isi lembar **Catatan putaran** di bagian atas test-cases.md untuk setiap putaran: versi Kova, versi OS, engine, versi mise, dan tanggal.
 
