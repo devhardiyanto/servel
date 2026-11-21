@@ -607,6 +607,16 @@ Masukan 21 November: teks terasa terlalu besar, dan audit harus mencakup kompone
 
 ## Berikutnya
 
+### Q — Penutup revamp: milestone per minor (disepakati 21 November 2026)
+
+Dasar: audit flow A–H canvas terhadap aplikasi (v3.10.3). Semua minor, tanpa perubahan yang memutus kompatibilitas; yang memutus kompatibilitas tetap di v4.0. Bukti uji di [docs/testing/test-cases.md](docs/testing/test-cases.md).
+
+- [ ] **v3.10.x — baseline uji.** Putaran 1 di Windows (wslc) dan Linux (Docker Engine, tanpa Docker Desktop) dengan v3.10.3; temuan menjadi patch 3.10.x.
+- [ ] **v3.11.0 — Scripts & `composer run dev`.** Pilih script dari `composer.json`/`package.json`; chip sumber log dari prefiks `concurrently` (`[server]`/`[queue]`/`[vite]`); petunjuk bila `composer`/`npm` tidak ditemukan; keputusan default Laravel. Menutup TC-S*, TC-G*.
+- [ ] **v3.12.0 — Linux Docker.** Pesan jelas untuk `docker.sock` permission denied (`usermod -aG docker`), plugin Compose v2 tidak ada, daemon mati; kartu onboarding Linux menyesuaikan. Menutup TC-L*, TC-A2/L, TC-D*/L.
+- [ ] **v3.13.0 — Runtimes & Update.** Chip `new` setelah install (E3), teks rollback extension (E8), Later = pasang saat Kova ditutup (F3), What's new setelah update (F4). Menutup TC-E*, TC-F*.
+- [ ] **v3.14.0 — Penutup revamp.** Keputusan final D2 (Start profile vs toggle), semua ◐ di canvas diselesaikan, canvas final, uji NVDA, regresi penuh A–H di dua OS. Selesai bila tidak ada ◐ tersisa dan semua baris test case ✅/➖.
+
 ### v3.x — kandidat, belum diputuskan
 
 - [x] Catatan status canvas diperbarui per v3.8.4 (21 November 2026), termasuk penyimpangan yang memang benar.
