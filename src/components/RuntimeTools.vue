@@ -5,7 +5,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import UiTabs from '@/components/ui/UiTabs.vue'
+import UiSegmented from '@/components/ui/UiSegmented.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiChip from '@/components/ui/UiChip.vue'
@@ -184,9 +184,10 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
 
 <template>
   <div class="rtt">
-    <h1 class="rtt-title">Runtimes</h1>
+    <!-- v3.10.0 (canvas Runtimes): judul dan pilihan tool satu baris. -->
     <div class="rtt-head">
-      <UiTabs v-model="tool" :tabs="tabs" label="Tools" />
+      <h1 class="rtt-title">Runtimes</h1>
+      <UiSegmented :model-value="tool" :options="tabs" label="Tool" @update:model-value="tool = $event as Tool" />
       <span class="rtt-via">via mise {{ versionCtx.ctx.value?.miseVersion ?? '' }}</span>
     </div>
 
@@ -238,12 +239,13 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
     <UiBanner v-if="actionError" tone="err" title="That did not work">{{ actionError }}</UiBanner>
 
     <div class="rtt-install">
+      <span class="rtt-label" aria-hidden="true">Install version</span>
       <UiInput
         v-model="newVersion"
         width="160px"
         mono
         :placeholder="`e.g. ${meta.example}`"
-        :aria-label="`${meta.label} version to install`"
+        :aria-label="`Install ${meta.label} version`"
         :disabled="!!installing"
         @keydown.enter="install()"
       />
@@ -284,20 +286,21 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
 <style scoped>
 .rtt-title { margin: 0; font-size: var(--text-xl); letter-spacing: -0.015em; font-weight: 600; color: var(--text); }
 .rtt { display: flex; flex-direction: column; gap: var(--space-4); container-type: inline-size; }
-.rtt-head { display: flex; align-items: center; gap: var(--space-4); border-bottom: 1px solid var(--border); }
+.rtt-head { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
 .rtt-via { margin-left: auto; font: 400 var(--text-xs) var(--font-mono); color: var(--faint); }
 .rtt-loading { display: flex; flex-direction: column; gap: var(--space-2); }
 .rtt-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .rtt-table th { text-align: left; font-size: var(--text-xs); font-weight: 500; color: var(--faint); padding: 0 var(--space-3) var(--space-2); }
 .rtt-table td { padding: var(--space-2) var(--space-3); border-top: 1px solid var(--border); vertical-align: middle; }
 .rtt-table td:first-child, .rtt-table th:first-child { padding-left: 0; }
-.rtt-ver { font-weight: 500; }
+.rtt-ver { font-size: var(--text-md) !important; font-weight: 600; }
 .rtt-used { color: var(--muted); }
 .rtt-act { text-align: right; width: 40px; }
 .rtt-mono { font-family: var(--font-mono); font-size: var(--text-xs); }
 .rtt-dim { color: var(--faint); font-size: var(--text-xs); }
 .rtt-install { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .rtt-install .rtt-dim { flex-basis: 100%; }
+.rtt-label { font-size: var(--text-xs); font-weight: 500; color: var(--muted); }
 .rtt-cols { display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; }
 .rtt-main { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 @container (min-width: 860px) {

@@ -140,6 +140,9 @@ pub struct ConfigState {
     pub remember_session: bool,
     #[serde(default = "default_true")]
     pub minimize_to_tray: bool,
+    /// Skala antarmuka (v3.10.0): zoom webview, 0.9 / 1.0 / 1.1.
+    #[serde(default = "default_ui_scale")]
+    pub ui_scale: f64,
     /// Engine container: `auto` | `docker` | `wslc`. Lihat `crate::runtime::resolve`.
     /// Config lama tanpa field ini → `auto` (migrasi v4→v5).
     #[serde(default = "default_runtime")]
@@ -163,6 +166,10 @@ pub struct ConfigState {
 
 fn default_true() -> bool {
     true
+}
+
+fn default_ui_scale() -> f64 {
+    1.0
 }
 
 fn default_runtime() -> String {
@@ -338,6 +345,7 @@ impl Default for ConfigState {
             auto_start: false,
             remember_session: true,
             minimize_to_tray: true,
+            ui_scale: 1.0,
             container_runtime: default_runtime(),
             version_provider: default_runtime(),
             projects: Vec::new(),
@@ -578,6 +586,7 @@ mod tests {
             auto_start: true,
             remember_session: false,
             minimize_to_tray: true,
+            ui_scale: 1.0,
             container_runtime: "auto".to_string(),
             version_provider: "auto".to_string(),
             projects: Vec::new(),
@@ -660,6 +669,7 @@ mod tests {
             auto_start: true,
             remember_session: true,
             minimize_to_tray: false,
+            ui_scale: 1.0,
             container_runtime: "wslc".to_string(),
             version_provider: "mise".to_string(),
             projects: vec![Project {

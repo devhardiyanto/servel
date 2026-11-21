@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, provide, onMounted, onUnmounted, h } from 'vue'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { ref, computed, provide, onMounted, onUnmounted, h, watch } from 'vue'
 import { useStatusAnnouncer } from '@/composables/useStatusAnnouncer'
 import { listen } from '@tauri-apps/api/event'
 import type { Component } from 'vue'
@@ -54,6 +55,16 @@ provide(SetViewKey, setView)
 const { runAutoStartOnce } = useAutoStart()
 const { refresh: refreshEngineStatus } = useEngineStatus()
 const { check: checkUpdate, startAutoCheck } = useUpdateCheck()
+
+// v3.10.0: Settings → General → Interface size (zoom webview).
+const uiCfg = useConfig()
+watch(
+  () => uiCfg.config.value.uiScale ?? 1,
+  (scale) => {
+    void getCurrentWebview().setZoom(scale).catch(() => {})
+  },
+  { immediate: true },
+)
 const { load: loadServices, setSelectedIds, reconcileSelectedWithRunning } = useServices()
 
 // Pilihan service dipulihkan di sini juga, bukan hanya saat layar Services

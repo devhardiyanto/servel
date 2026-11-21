@@ -93,9 +93,10 @@ async function howDetection(): Promise<void> {
   grid-template-columns: auto minmax(0, 1fr) auto minmax(64px, max-content) 96px;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  min-height: 56px;
+  padding: 9px 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -107,7 +108,7 @@ async function howDetection(): Promise<void> {
 .pl-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .pl-card--sel { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--surface2); }
 .pl-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.pl-name { font-size: var(--text-sm); font-weight: 600; }
+.pl-name { font-size: var(--text-md); font-weight: 600; }
 .pl-path { font: 400 var(--text-xs) var(--font-mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl-port { font: 400 var(--text-xs) var(--font-mono); color: var(--muted); text-align: right; }
 .pl-state { justify-self: end; }

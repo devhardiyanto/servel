@@ -117,13 +117,15 @@ const items = computed(() => [
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  padding: 7px var(--space-3);
+  height: 34px;
+  padding: 0 10px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);

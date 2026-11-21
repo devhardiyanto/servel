@@ -43,7 +43,7 @@ const runningServices = computed(() =>
 )
 
 // Panel detail: lebar bisa diseret dan panel bisa ditutup (v3.7.0).
-const PANEL = { default: 400, min: 320, max: 640 }
+const PANEL = { default: 430, min: 320, max: 640 }
 const panel = usePanelWidth('projects', PANEL)
 
 const selectedId = ref<string | null>(null)
@@ -108,7 +108,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
         </div>
         <span class="pv-sp"></span>
         <!-- Tanpa project, Add project ada di empty state; jangan dobel (v3.6.1). -->
-        <UiButton v-if="config.projects.length" variant="primary" @click="actions.adding.value = true"><UiIcon name="plus" />Add project</UiButton>
+        <UiButton v-if="config.projects.length" variant="primary" size="md" @click="actions.adding.value = true"><UiIcon name="plus" />Add project</UiButton>
       </header>
       <ProjectsPanel :selected-id="selectedId" :query="query" @select="choose" />
       <div v-if="config.projects.length" class="pv-strip">
@@ -175,14 +175,15 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: var(--space-6) var(--space-6) var(--space-6) var(--space-8);
+  /* v3.10.0: canvas .k-head 18/20, .k-list 0 20 16. */
+  padding: 18px 20px 16px;
 }
 .pv-detail {
   flex: none;
   max-width: 60%;
   overflow-y: auto;
-  padding: var(--space-6) var(--space-5);
-  background: var(--bg-sunken);
+  padding: 16px;
+  background: var(--surface);
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;

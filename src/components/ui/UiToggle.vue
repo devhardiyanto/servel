@@ -29,7 +29,8 @@ withDefaults(
 
 <style scoped>
 .ui-toggle {
-  --w: 36px;
+  /* v3.10.0: 34×20 seperti canvas .k-tog. */
+  --w: 34px;
   --h: 20px;
   --k: 14px;
   position: relative;

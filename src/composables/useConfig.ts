@@ -20,6 +20,8 @@ export interface ConfigState {
   autoStart: boolean
   rememberSession: boolean
   minimizeToTray: boolean
+  /** v3.10.0: skala antarmuka (zoom webview). */
+  uiScale?: number
   // Engine container: 'auto' | 'docker' | 'wslc' (v1.6, config v5).
   containerRuntime: EnginePreference
   // Version manager PHP/Node: 'auto' (mise bila terpasang) | 'mise' | 'legacy' (phpvm/fnm). v1.7, config v6.
@@ -45,6 +47,7 @@ const DEFAULT_CONFIG: ConfigState = {
   autoStart: false,
   rememberSession: true,
   minimizeToTray: true,
+  uiScale: 1,
   containerRuntime: 'auto',
   versionProvider: 'auto',
   projects: [],
@@ -129,6 +132,11 @@ export function useConfig() {
     if (config.value.onboarded) return
     config.value.onboarded = true
     await writeNow()
+  }
+
+  function setUiScale(value: number): void {
+    config.value.uiScale = value
+    scheduleSave()
   }
 
   function setMinimizeToTray(value: boolean): void {
@@ -286,6 +294,7 @@ export function useConfig() {
     setStopServicesOnQuit,
     markOnboarded,
     setContainerRuntime,
+    setUiScale,
     addProject,
     removeProject,
     updateProject,

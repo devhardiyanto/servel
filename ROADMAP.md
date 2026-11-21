@@ -582,6 +582,15 @@ Keputusan 21 November: model B (Default + override), nama "Environments", H3 mem
 - [x] Tab Environment: pemilih environment, New environment (salin perubahan dari environment lain), baris Default dengan placeholder, × = kembali ke Default, Delete environment, paste bulk dan Edit as .env per environment.
 - [x] Banner "Running with … · Restart to use …"; environment aktif di kartu project, status detail, Overview, dan popup tray.
 
+### P — v3.10.0: komponen, font, dan penempatan sesuai canvas
+
+Masukan 21 November: teks terasa terlalu besar, dan audit harus mencakup komponen UI, font, serta penempatan layout di lima layar. Ukuran yang dirender diukur langsung terhadap `kova.css`.
+
+- [x] Komponen: kartu project 56 px/r8, tombol sm 26 px/500 dan md 32 px, navigasi 34 px, toggle 34×20, tab 36 px, panel detail `surface` padding 16, RAM abu.
+- [x] Font: body 13 px/1.45 (dulu 14/1.5); nama project/service 14 px, versi runtime 14/600, mono detail 12 px, sub-navigasi Settings 13 px.
+- [x] Penempatan: padding Projects 18/20; footer detail satu baris; ringkasan Services; judul + pilihan tool Runtimes satu baris; ikon search Logs; Settings dua kolom seperti canvas.
+- [x] Interface size (Compact / Default / Large) lewat zoom webview.
+
 ## Berikutnya
 
 ### v3.x — kandidat, belum diputuskan

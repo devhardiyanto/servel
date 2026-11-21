@@ -61,8 +61,8 @@ withDefaults(
 }
 
 /* Sizes */
-.ui-btn--sm { font-size: var(--text-xs); padding: 4px 12px; }
-.ui-btn--md { font-size: var(--text-sm); font-weight: 500; padding: 6px 14px; border-radius: var(--radius-sm); }
+.ui-btn--sm { font-size: var(--text-xs); font-weight: 500; min-height: 26px; padding: 0 10px; }
+.ui-btn--md { font-size: var(--text-sm); font-weight: 500; min-height: 32px; padding: 0 12px; border-radius: var(--radius-sm); }
 .ui-btn--lg { font-size: var(--text-md); font-weight: 500; padding: var(--space-2) var(--space-6); border-radius: var(--radius-sm); }
 
 /* Variants */
