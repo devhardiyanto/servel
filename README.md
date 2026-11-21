@@ -32,6 +32,7 @@ No more juggling three terminals every morning.
 - MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg. Toggle what you need, click Start.
 - Windows: runs on WSL containers (`wslc`, built into WSL 3.0.1+). No Docker Desktop and no extra Linux distro needed. Docker stays available.
 - A service shows "up" only once it accepts connections.
+- A service that is switched on but not running (for example because it stopped, or the saved services could not start when Kova opened) shows **not running** with a **Start** link; one that failed to start or stop shows **failed** with **Retry**, and the reason in its tooltip.
 - **Connect** on each service opens a resizable side panel with tabs: **Connect** (host, port, credentials, `.env` lines as Laravel keys, a single URL, or Go-style DSN), **Data** (volumes, restore a `.sql` dump) and **Logs**.
 - Service profiles and database restore from a `.sql` dump.
 
@@ -116,7 +117,7 @@ wsl --update
 wsl --version   # WSL version must be 3.0.1 or newer
 ```
 
-Kova picks the engine automatically (**Settings → General → Container engine → Auto**). Since v2.0, WSL containers are the default on Windows; Kova stays on Docker only when `wslc` is missing or Docker still holds your `servel_*` containers. You can force either one in Settings. If Auto already uses Docker, installing WSL containers later does not switch it; choose **WSL containers** in Settings to move.
+Kova picks the engine automatically (**Settings → General → Container engine → Auto**). Since v2.0, WSL containers are the default on Windows; Kova stays on Docker only when `wslc` is missing or Docker still holds your `servel_*` containers. You can force either one in Settings. If Auto already uses Docker, installing WSL containers later does not switch it; Settings then shows **WSL containers are available on this PC** with a **Use WSL containers** button. **Check again** next to the engine status checks the engine again and shows when it last checked.
 
 Notes:
 

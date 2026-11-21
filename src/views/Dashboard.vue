@@ -14,6 +14,7 @@ import PanelSplitter from '@/components/ui/PanelSplitter.vue'
 import { usePanelWidth } from '@/composables/usePanelWidth'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
+import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
 
 const SKELETON_ROW_COUNT = 9
 
@@ -89,6 +90,18 @@ const profiles = computed(() => useConfig().config.value.profiles)
 const activeProfileId = computed(() => useConfig().config.value.activeProfileId)
 const activeProfileName = computed(() => profiles.value.find((p) => p.id === activeProfileId.value)?.name ?? 'this profile')
 
+// v3.8 (S1/S5): Start / Retry dari baris service yang dipilih tetapi tidak berjalan.
+function startOne(id: string): void {
+  void start([id])
+}
+
+// Banner error service: Retry menyalakan lagi service yang gagal.
+const failedIds = computed(() => Object.values(uiState.value).filter((s) => s.error && s.status !== 'running').map((s) => s.id))
+function retryFailed(): void {
+  serviceError.value = null
+  if (failedIds.value.length) void start(failedIds.value)
+}
+
 function onProfileChange(id: string): void {
   if (id) applyProfile(id)
 }
@@ -148,7 +161,16 @@ onUnmounted(() => {
       </template>
     </UiBanner>
 
-    <UiBanner v-if="serviceError" tone="err" title="A service did not start">{{ serviceError }}</UiBanner>
+    <UiStatusNotice
+      v-if="serviceError"
+      tone="err"
+      title="A service did not start"
+      :detail="serviceError"
+      :retryable="failedIds.length > 0"
+      dismissible
+      @retry="retryFailed"
+      @dismiss="serviceError = null"
+    />
 
     <section class="services-wrap">
       <header class="sw-header">
@@ -201,6 +223,7 @@ onUnmounted(() => {
               :unknown="engineStatus === 'down' || engineStatus === 'missing'"
               @toggle="toggle"
               @connect="toggleConnect"
+              @start="startOne"
             />
           </template>
         </template>
@@ -214,6 +237,7 @@ onUnmounted(() => {
               :unknown="engineStatus === 'down' || engineStatus === 'missing'"
               @toggle="toggle"
               @connect="toggleConnect"
+              @start="startOne"
             />
           </template>
         </template>

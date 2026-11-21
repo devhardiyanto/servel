@@ -67,7 +67,8 @@ function syncStatuses(): void {
     const current = uiState.value[id]
     const derived = deriveStatus(id)
     if (current.status !== 'starting' && current.status !== 'stopping') {
-      uiState.value[id] = { ...current, status: derived }
+      // Pesan gagal disimpan sampai service berjalan atau dicoba lagi (v3.8).
+      uiState.value[id] = { ...current, status: derived, error: derived === 'running' ? undefined : current.error }
     }
   }
 }
@@ -96,6 +97,7 @@ function applyStatusChange(id: string, running: boolean): void {
       uiState.value[id] = {
         ...current,
         status: running ? 'running' : 'stopped',
+        error: running ? undefined : current.error,
         // Continuous reconcile: container yang terobservasi running → switch ON.
         // Jaga selectedIds selalu ⊇ running supaya `start` mengirim full set dan
         // --remove-orphans (backend) tak menghancurkan yang running. Tidak
@@ -389,7 +391,7 @@ export function useServices() {
     serviceError.value = null
     for (const id of newOnes) {
       if (uiState.value[id]) {
-        uiState.value[id] = { ...uiState.value[id], status: 'starting' }
+        uiState.value[id] = { ...uiState.value[id], status: 'starting', error: undefined }
         delete settledAt[id]
       }
     }
@@ -406,7 +408,7 @@ export function useServices() {
       for (const id of newOnes) {
         const current = uiState.value[id]
         if (current?.status === 'starting') {
-          uiState.value[id] = { ...current, status: 'error' }
+          uiState.value[id] = { ...current, status: 'error', error: msg }
         }
       }
       return { kind: 'failed', error: msg }
@@ -419,7 +421,7 @@ export function useServices() {
     serviceError.value = null
     for (const id of ids) {
       if (uiState.value[id]) {
-        uiState.value[id] = { ...uiState.value[id], status: 'stopping' }
+        uiState.value[id] = { ...uiState.value[id], status: 'stopping', error: undefined }
         delete settledAt[id]
       }
     }
@@ -433,7 +435,7 @@ export function useServices() {
       for (const id of ids) {
         const current = uiState.value[id]
         if (current?.status === 'stopping') {
-          uiState.value[id] = { ...current, status: 'error' }
+          uiState.value[id] = { ...current, status: 'error', error: msg }
         }
       }
     }
@@ -488,7 +490,7 @@ export function useServices() {
       for (const id of Object.keys(uiState.value)) {
         const current = uiState.value[id]
         if (current?.status === 'stopping') {
-          uiState.value[id] = { ...current, status: 'error' }
+          uiState.value[id] = { ...current, status: 'error', error: msg }
         }
       }
     }

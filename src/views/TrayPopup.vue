@@ -253,9 +253,15 @@ onUnmounted(() => {
         <span class="tp-count">{{ runningServices.length ? `${runningServices.length} running` : 'none running' }}</span>
       </h2>
       <p v-if="runningServices.length" class="tp-names">{{ runningServices.join(' · ') }}</p>
-      <button class="tp-item" :disabled="!selectedIds.length" @click="startServices">
+      <!-- v3.8 (S4): pilihan kosong dijelaskan, bukan sekadar "0 selected". -->
+      <button
+        class="tp-item"
+        :disabled="!selectedIds.length"
+        :title="selectedIds.length ? undefined : 'Choose services in Kova → Services first'"
+        @click="startServices"
+      >
         <span class="tp-text">Start selected services</span>
-        <span class="tp-hint" aria-hidden="true">{{ selectedIds.length }} selected</span>
+        <span class="tp-hint" aria-hidden="true">{{ selectedIds.length ? `${selectedIds.length} selected` : 'none selected' }}</span>
       </button>
       <button v-if="runningServices.length" class="tp-item" @click="stopServices">
         <span class="tp-text">Stop all services</span>

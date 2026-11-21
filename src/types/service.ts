@@ -29,6 +29,8 @@ export interface ServiceUiState {
   selected: boolean
   status: 'not_created' | 'stopped' | 'running' | 'starting' | 'stopping' | 'error'
   memMb: number | null
+  /** Pesan dari start/stop terakhir yang gagal (v3.8); dihapus saat dicoba lagi. */
+  error?: string
 }
 
 export interface ContainerMemStat {
