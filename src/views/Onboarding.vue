@@ -1,20 +1,28 @@
 <script setup lang="ts">
+// Onboarding tiga langkah (canvas Flow A, artboard A1–A7).
+// v3.8.2: satu kartu ringkas seperti canvas. Langkah Engine menampilkan
+// WSL containers dan Docker berdampingan dengan hasil pemeriksaannya, plus
+// pilihan engine (WSL containers / Docker / Auto). Langkah Runtimes memakai
+// judul, log, dan state gagal dari A3–A5.
 import { openExternal } from '@/utils/openExternal'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiBanner from '@/components/ui/UiBanner.vue'
+import UiChip from '@/components/ui/UiChip.vue'
+import UiSegmented from '@/components/ui/UiSegmented.vue'
 import { inject, computed, ref, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { SetViewKey } from '../types/navigation'
 import { usePrereq } from '@/composables/usePrereq'
 import { useTauri } from '@/composables/useTauri'
 import { useConfig } from '@/composables/useConfig'
-import PrereqCard from '@/components/PrereqCard.vue'
-import type { PrereqAction } from '@/components/PrereqCard.vue'
-import SkeletonBox from '@/components/ui/SkeletonBox.vue'
+import { useToast } from '@/composables/useToast'
+import type { EnginePreference } from '@/types/prereq'
 import KovaMark from '@/components/shell/KovaMark.vue'
 import AddProjectForm from '@/components/AddProjectForm.vue'
 import { open as openFolderDialog } from '@tauri-apps/plugin-dialog'
 
 const setView = inject(SetViewKey)!
+const toast = useToast()
 
 // Platform dipakai untuk menampilkan instruksi prasyarat yang sesuai OS.
 // Default "windows" (target utama) sampai command resolve.
@@ -25,6 +33,7 @@ onMounted(async () => {
   if (p) platform.value = p
 })
 const isLinux = computed<boolean>(() => platform.value === 'linux')
+const isWindows = computed<boolean>(() => platform.value === 'windows')
 
 const {
   status,
@@ -33,18 +42,15 @@ const {
   startEngineError,
   canContinue,
   engineInstalledButNotRunning,
-  engineLabel,
-  canSwitchToWslc,
   check,
   startEngine,
 } = usePrereq()
 
-const isWindows = computed<boolean>(() => platform.value === 'windows')
 const isWslc = computed<boolean>(() => status.value?.engine === 'wslc')
 
-const { setContainerRuntime } = useConfig()
+const { config: cfg, markOnboarded, setContainerRuntime } = useConfig()
 const switching = ref(false)
-async function useEngine(kind: 'wslc' | 'docker'): Promise<void> {
+async function useEngine(kind: EnginePreference): Promise<void> {
   switching.value = true
   try {
     await setContainerRuntime(kind)
@@ -54,122 +60,119 @@ async function useEngine(kind: 'wslc' | 'docker'): Promise<void> {
   }
 }
 
-// v3: mise satu-satunya pengelola versi PHP/Node.
-const usesMise = computed<boolean>(() => !!status.value?.mise_installed)
-
-const miseOkDesc = computed<string>(() => {
-  const v = status.value?.mise_version
-  return `Manages PHP and Node per project${v ? ` — v${v} detected` : ''}`
-})
-
 function openUrl(url: string): void {
   void openExternal(url)
 }
 
+async function copy(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text)
+    toast.show(`Copied ${text}`)
+  } catch {
+    /* clipboard ditolak: teks tetap terlihat dan bisa dipilih */
+  }
+}
+
+const DOCKER_DESKTOP_URL = 'https://www.docker.com/products/docker-desktop/'
 const WSL_RELEASES_URL = 'https://github.com/microsoft/WSL/releases'
 
-const engineActions = computed<PrereqAction[]>(() => {
+// --- Langkah 1: engine -------------------------------------------------------
+
+const ENGINE_OPTIONS = [
+  { value: 'wslc', label: 'WSL containers' },
+  { value: 'docker', label: 'Docker' },
+  { value: 'auto', label: 'Auto' },
+]
+const enginePref = computed<EnginePreference>(() => cfg.value.containerRuntime)
+function onEnginePref(v: string): void {
+  if (v !== enginePref.value) void useEngine(v as EnginePreference)
+}
+
+type RowState = 'checking' | 'ok' | 'warn' | 'off'
+interface EngineRow {
+  id: 'wslc' | 'docker'
+  name: string
+  state: RowState
+  text: string
+  recommended: boolean
+  inUse: boolean
+}
+
+/** A1/A2: satu baris per engine, dengan hasil pemeriksaannya. */
+const engineRows = computed<EngineRow[]>(() => {
+  const s = status.value
+  const rows: EngineRow[] = []
   if (isWindows.value) {
-    if (isWslc.value) {
-      return [
-        { label: 'WSL release notes ↗', primary: true, onClick: () => openUrl(WSL_RELEASES_URL) },
-        { label: 'Use Docker Desktop instead', onClick: () => void useEngine('docker') },
-      ]
+    let state: RowState = 'checking'
+    let text = 'Checking wsl --version…'
+    if (s) {
+      if (s.wslc_available) {
+        const quiet = s.engine === 'wslc' && !s.engine_running
+        state = quiet ? 'warn' : 'ok'
+        text = quiet ? 'Installed, but not responding' : `Ready${s.wsl_version ? ` · WSL ${s.wsl_version}` : ''}`
+      } else if (s.wsl_version) {
+        state = 'warn'
+        text = `WSL ${s.wsl_version} is too old · needs 3.0.1 or newer`
+      } else {
+        state = 'off'
+        text = 'Not found'
+      }
     }
-    if (status.value?.wslc_available) {
-      return [
-        { label: 'Use WSL containers', primary: true, onClick: () => void useEngine('wslc') },
-        {
-          label: 'Docker Desktop ↗',
-          onClick: () => openUrl('https://www.docker.com/products/docker-desktop/'),
-        },
-      ]
+    rows.push({ id: 'wslc', name: 'WSL containers', state, text, recommended: true, inUse: !!s && s.engine === 'wslc' })
+  }
+  let state: RowState = 'checking'
+  let text = 'Checking…'
+  if (s) {
+    const active = s.engine === 'docker'
+    if (active && s.engine_running) {
+      state = 'ok'
+      text = `Running${s.engine_version ? ` · v${s.engine_version}` : ''}`
+    } else if (s.docker_available || (active && s.engine_installed)) {
+      state = active ? 'warn' : 'ok'
+      text = active ? 'Installed, but not running' : 'Installed'
+    } else {
+      state = 'off'
+      text = isWindows.value && s.wslc_available ? 'Not found · not needed on Windows' : 'Not found'
     }
-    return [
-      { label: 'Use WSL containers', primary: true, onClick: () => void useEngine('wslc') },
-      {
-        label: 'Docker Desktop ↗',
-        onClick: () => openUrl('https://www.docker.com/products/docker-desktop/'),
-      },
-    ]
   }
-  if (isLinux.value) {
-    return [
-      {
-        label: '⬇ Install Docker Engine',
-        primary: true,
-        onClick: () => openUrl('https://docs.docker.com/engine/install/'),
-      },
-      {
-        label: 'Post-install (grup docker / rootless) ↗',
-        onClick: () => openUrl('https://docs.docker.com/engine/install/linux-postinstall/'),
-      },
-    ]
-  }
-  if (platform.value === 'macos') {
-    return [
-      {
-        label: '⬇ Download Docker Desktop',
-        primary: true,
-        onClick: () => openUrl('https://www.docker.com/products/docker-desktop/'),
-      },
-    ]
-  }
-  return [
-    {
-      label: '⬇ Download Docker Desktop',
-      primary: true,
-      onClick: () => openUrl('https://www.docker.com/products/docker-desktop/'),
-    },
-    {
-      label: 'WSL2 + Docker Engine Guide ↗',
-      onClick: () => openUrl('https://docs.docker.com/desktop/wsl/'),
-    },
-  ]
+  rows.push({ id: 'docker', name: 'Docker', state, text, recommended: false, inUse: !!s && s.engine === 'docker' })
+  return rows
 })
 
-const engineIcon = computed<string>(() => (isWslc.value ? '\u{1F4E6}' : '\u{1F433}'))
-
-const engineOkDesc = computed<string>(() => {
-  const v = status.value?.engine_version
-  if (isWslc.value) {
-    return `Built into WSL${v ? ` — wslc v${v}` : ''}. No Docker Desktop needed.`
-  }
-  return v ? `Docker v${v} detected and running` : 'Docker Engine detected and running'
+/** WSL terlalu lama / belum ada, sementara engine yang dipakai WSL containers. */
+const wslTooOld = computed<boolean>(
+  () => isWindows.value && !!status.value && isWslc.value && !status.value.engine_installed,
+)
+const wslTooOldTitle = computed<string>(() => {
+  const v = status.value?.wsl_version
+  return v ? `WSL ${v} is too old for WSL containers` : 'WSL containers need WSL 3.0.1 or newer'
 })
 
-const engineMissingDesc = computed<string>(() => {
-  if (isWindows.value) {
-    if (isWslc.value) {
-      const v = status.value?.wsl_version
-      return `WSL containers need WSL 3.0.1 or newer${v ? ` (this PC has WSL ${v})` : ''}. Update WSL, then refresh.`
-    }
-    // v3.7.2: WSL containers sudah terpasang, jadi tidak perlu `wsl --update`.
-    if (status.value?.wslc_available) {
-      const v = status.value?.wsl_version
-      return `Docker is not installed, but WSL containers${v ? ` (WSL ${v})` : ''} are already on this PC and can run your services without Docker Desktop.`
-    }
-    return 'Needed to run services. Built-in WSL containers (WSL 3.0.1+) replace Docker Desktop.'
-  }
-  return 'Required to run infra services (MySQL, Redis, etc)'
-})
-
-// `wsl --update` cukup untuk mendapatkan wslc di Windows.
-// Tidak ditampilkan bila WSL containers sudah tersedia (memilih Docker lalu
-// menjalankan setup lagi dulu tetap menyarankan `wsl --update`).
-const engineCode = computed<string | undefined>(() =>
-  isWindows.value && !status.value?.engine_installed && !status.value?.wslc_available ? 'wsl --update' : undefined,
+/** Docker dipakai tapi belum terpasang. */
+const dockerMissing = computed<boolean>(
+  () => !!status.value && status.value.engine === 'docker' && !status.value.engine_installed,
+)
+const dockerInstallUrl = computed<string>(() =>
+  isLinux.value ? 'https://docs.docker.com/engine/install/' : DOCKER_DESKTOP_URL,
 )
 
 const showElevatedWarning = computed<boolean>(
   () => isWindows.value && isWslc.value && !!status.value?.elevated,
 )
 
+// --- Langkah 2: mise --------------------------------------------------------
+
+// v3: mise satu-satunya pengelola versi PHP/Node.
+const usesMise = computed<boolean>(() => !!status.value?.mise_installed)
+
 // mise belum ada (v2.11): Windows dipasang satu klik lewat winget; macOS/Linux
 // diberi perintah resminya.
 const installingMise = ref(false)
 const miseInstallMsg = ref('')
 const miseInstallErr = ref('')
+/** "I'll install it myself": tampilkan perintahnya, lalu Check again / Skip. */
+const miseManual = ref(false)
+
 async function installMise(): Promise<void> {
   installingMise.value = true
   miseInstallErr.value = ''
@@ -183,15 +186,44 @@ async function installMise(): Promise<void> {
     installingMise.value = false
   }
 }
-const miseActions = computed<PrereqAction[]>(() => [
-  ...(isWindows.value && !miseManual.value
-    ? [{ label: installingMise.value ? 'Installing…' : 'Install mise', primary: true, onClick: () => void installMise() }]
-    : []),
-  ...(isWindows.value && !miseManual.value
-    ? [{ label: "I'll install it myself", onClick: () => (miseManual.value = true) }]
-    : []),
-  { label: 'mise.jdx.dev ↗', onClick: () => openUrl('https://mise.jdx.dev/getting-started.html') },
-])
+
+const miseInstallCmd = computed<string>(() => {
+  if (isWindows.value) return 'winget install jdx.mise'
+  if (platform.value === 'macos') return 'brew install mise'
+  return 'curl https://mise.run | sh'
+})
+
+/** A3 minta pasang · A4 memasang · A5 selesai · gagal · pasang sendiri. */
+const misePhase = computed<'ask' | 'running' | 'done' | 'failed' | 'manual'>(() => {
+  if (usesMise.value) return 'done'
+  if (installingMise.value) return 'running'
+  if (miseInstallErr.value) return 'failed'
+  if (!isWindows.value || miseManual.value) return 'manual'
+  return 'ask'
+})
+const wingetMissing = computed<boolean>(() => /winget is not available/i.test(miseInstallErr.value))
+const miseTitle = computed<string>(() =>
+  misePhase.value === 'done' ? 'mise is installed' : 'Install mise to manage PHP, Node, Go and Python',
+)
+const miseText = computed<string>(() => {
+  if (misePhase.value === 'done') {
+    const v = status.value?.mise_version
+    return `${v ? `mise ${v}. ` : ''}Kova uses it for every runtime version.`
+  }
+  if (misePhase.value === 'manual') return `Run this in a terminal, then press Check again. You can also continue without it.`
+  return 'Kova uses mise for versions. It is not installed yet.'
+})
+/** Baris log di kartu: perintah, lalu hasil (A4/A5). */
+const miseLog = computed<{ x: string; cmd?: boolean }[]>(() => {
+  if (misePhase.value === 'ask' || misePhase.value === 'manual') return []
+  if (!installingMise.value && !miseInstallMsg.value && !miseInstallErr.value) return []
+  const lines: { x: string; cmd?: boolean }[] = [{ x: `> ${miseInstallCmd.value}`, cmd: true }]
+  if (miseInstallMsg.value) lines.push(...miseInstallMsg.value.split('\n').filter((l) => l.trim()).map((x) => ({ x })))
+  return lines
+})
+
+// --- Langkah 3: project pertama --------------------------------------------
+
 // v3.4 (canvas Flow A): tiga langkah — Engine, Runtimes, First project.
 const step = ref<1 | 2 | 3>(1)
 const steps = [
@@ -199,10 +231,7 @@ const steps = [
   { n: 2, label: 'Runtimes' },
   { n: 3, label: 'First project' },
 ] as const
-/** "I'll install it myself": tampilkan perintahnya, lalu Check again / Skip. */
-const miseManual = ref(false)
 
-const { config: cfg, markOnboarded } = useConfig()
 const hasProjects = computed(() => cfg.value.projects.length > 0)
 const firstPath = ref('')
 const firstForm = ref<InstanceType<typeof AddProjectForm> | null>(null)
@@ -232,203 +261,206 @@ async function addFirst(start: boolean): Promise<void> {
   const p = await firstForm.value?.save(start)
   if (p) finish()
 }
-
-const miseInstallCmd = computed<string>(() => {
-  if (isWindows.value) return 'winget install jdx.mise'
-  if (platform.value === 'macos') return 'brew install mise'
-  return 'curl https://mise.run | sh'
-})
 </script>
 
 <template>
   <div class="ob-viewport">
     <div class="ob-main">
-      <div class="ob-inner">
-        <div class="ob-mark">
-          <KovaMark :size="40" />
-        </div>
+      <section class="ob-card" aria-labelledby="ob-title">
+        <header class="ob-head">
+          <KovaMark :size="20" />
+          <h1 id="ob-title" class="ob-brand">Welcome to Kova</h1>
+          <span class="ob-sp"></span>
+          <ol class="ob-steps" aria-label="Setup steps">
+            <template v-for="(st, i) in steps" :key="st.n">
+              <li
+                class="ob-step"
+                :class="{ 'ob-step--on': step === st.n, 'ob-step--done': step > st.n }"
+                :aria-current="step === st.n ? 'step' : undefined"
+              >
+                <span class="ob-step__n">{{ step > st.n ? '✓' : st.n }}</span>{{ st.label }}
+              </li>
+              <li v-if="i < steps.length - 1" class="ob-step__ln" aria-hidden="true"></li>
+            </template>
+          </ol>
+        </header>
 
-        <h1 class="ob-heading">Welcome to Kova</h1>
-        <p class="ob-sub">
-          Every local project, running in one click. Kova checks two things first: a container engine for
-          your services, and mise for PHP, Node, Go and Python versions.
-        </p>
+        <!-- Langkah 1: engine (A1, A2) -->
+        <template v-if="step === 1">
+          <div class="ob-intro">
+            <h2 class="ob-title">Choose where services run</h2>
+            <p class="ob-text">MySQL, Redis and the other services run in containers. Kova checks what this PC has.</p>
+          </div>
 
-        <ol class="ob-steps" aria-label="Setup steps">
-          <li
-            v-for="st in steps"
-            :key="st.n"
-            class="ob-step"
-            :class="{ 'ob-step--on': step === st.n, 'ob-step--done': step > st.n }"
-            :aria-current="step === st.n ? 'step' : undefined"
+          <ul class="ob-rows" :aria-busy="status === null" aria-label="Container engines">
+            <li v-for="r in engineRows" :key="r.id" class="ob-row" :class="{ 'ob-row--use': r.inUse }">
+              <span class="ob-row__ico" aria-hidden="true">
+                <span v-if="r.state === 'checking'" class="ob-spinner ob-spinner--amber"></span>
+                <svg v-else-if="r.state === 'ok'" class="ob-i ob-i--ok" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7" /></svg>
+                <svg v-else-if="r.state === 'warn'" class="ob-i ob-i--warn" viewBox="0 0 16 16"><path d="M8 2.5L14 13H2zM8 7v2.5M8 11.2h.01" /></svg>
+                <span v-else class="ob-ring"></span>
+              </span>
+              <span class="ob-row__lbl">
+                <b>{{ r.name }}</b>
+                <span>{{ r.text }}</span>
+              </span>
+              <UiChip v-if="r.inUse && status" tone="neutral">in use</UiChip>
+              <UiChip v-if="r.recommended" tone="accent">recommended on Windows</UiChip>
+            </li>
+          </ul>
+
+          <UiBanner v-if="wslTooOld" tone="warn" :title="wslTooOldTitle">
+            Update WSL, then check again. Nothing else on this PC changes.
+            <code class="ob-code">wsl --update</code>
+            <template #actions>
+              <UiButton @click="copy('wsl --update')">Copy</UiButton>
+              <UiButton variant="quiet" @click="openUrl(WSL_RELEASES_URL)">WSL releases ↗</UiButton>
+            </template>
+          </UiBanner>
+
+          <UiBanner v-else-if="dockerMissing" tone="info" title="Docker is not installed">
+            <template v-if="isWindows && status?.wslc_available">WSL containers are on this PC and run your services without Docker Desktop.</template>
+            <template v-else-if="isLinux">Install Docker Engine, then check again.</template>
+            <template v-else>Install Docker Desktop, then check again.</template>
+            <template #actions>
+              <UiButton v-if="isWindows && status?.wslc_available" variant="accent" :disabled="switching" @click="useEngine('wslc')">Use WSL containers</UiButton>
+              <UiButton variant="quiet" @click="openUrl(dockerInstallUrl)">{{ isLinux ? 'Docker Engine ↗' : 'Docker Desktop ↗' }}</UiButton>
+            </template>
+          </UiBanner>
+
+          <UiBanner
+            v-else-if="engineInstalledButNotRunning && isLinux"
+            tone="warn"
+            title="Docker is installed but not running"
           >
-            <span class="ob-step__n">{{ step > st.n ? '✓' : st.n }}</span>{{ st.label }}
-          </li>
-        </ol>
+            Start it, then check again.
+            <code class="ob-code">sudo systemctl start docker</code>
+            <template #actions>
+              <UiButton @click="copy('sudo systemctl start docker')">Copy</UiButton>
+            </template>
+          </UiBanner>
 
-        <div v-if="status === null && step < 3" class="ob-cards" aria-busy="true" aria-label="Checking prerequisites">
-          <div v-for="i in 2" :key="`prereq-skel-${i}`" class="prereq-skel">
-            <SkeletonBox width="36px" height="36px" radius="8px" />
-            <div class="prereq-skel__body">
-              <div class="prereq-skel__row">
-                <SkeletonBox width="100px" height="14px" />
-                <SkeletonBox variant="chip" width="76px" height="16px" />
-              </div>
-              <SkeletonBox width="70%" height="11px" />
+          <UiBanner
+            v-else-if="engineInstalledButNotRunning"
+            tone="warn"
+            :title="isWslc ? 'WSL containers are installed but not responding' : 'Docker is installed but not running'"
+          >
+            {{ isWslc ? 'The WSL session can take a few seconds to start.' : 'Start Docker Desktop, then check again.' }}
+            <template #actions>
+              <UiButton variant="accent" :loading="startingEngine" @click="startEngine">
+                {{ isWslc ? (startingEngine ? 'Connecting…' : 'Retry WSL containers') : (startingEngine ? 'Starting Docker…' : 'Start Docker') }}
+              </UiButton>
+              <UiButton v-if="!isWslc && isWindows && status?.wslc_available" variant="quiet" :disabled="switching" @click="useEngine('wslc')">
+                Use WSL containers instead
+              </UiButton>
+            </template>
+          </UiBanner>
+
+          <UiBanner v-if="showElevatedWarning" tone="warn" title="Kova is running as Administrator">
+            WSL containers keep a separate session per elevation, so containers created from a normal window will not
+            appear here. Restart Kova without "Run as administrator".
+          </UiBanner>
+
+          <UiBanner v-if="startEngineError && !isLinux" tone="err" title="The engine did not start">
+            {{ startEngineError }}
+          </UiBanner>
+
+          <div class="ob-foot">
+            <template v-if="isWindows">
+              <span class="ob-label">Engine</span>
+              <UiSegmented
+                :model-value="enginePref"
+                :options="ENGINE_OPTIONS.map((o) => ({ ...o, disabled: switching }))"
+                label="Container engine"
+                @update:model-value="onEnginePref"
+              />
+            </template>
+            <span class="ob-sp"></span>
+            <UiButton variant="quiet" size="md" :loading="checking && status !== null" :disabled="checking" @click="check">
+              Check again
+            </UiButton>
+            <UiButton variant="primary" size="md" :disabled="!canContinue" @click="step = 2">Continue</UiButton>
+          </div>
+        </template>
+
+        <!-- Langkah 2: mise (A3, A4, A5) -->
+        <template v-else-if="step === 2">
+          <div class="ob-intro">
+            <h2 class="ob-title">{{ miseTitle }}</h2>
+            <p class="ob-text">{{ miseText }}</p>
+          </div>
+
+          <div v-if="misePhase === 'manual'" class="ob-out">
+            <div class="ob-ol ob-ol--cmd">
+              <span class="ob-ol__x">{{ miseInstallCmd }}</span>
+              <UiButton variant="quiet" @click="copy(miseInstallCmd)">Copy</UiButton>
             </div>
           </div>
-        </div>
 
-        <div v-else-if="step === 1" class="ob-cards">
-          <PrereqCard
-            :name="engineLabel"
-            :installed="status?.engine_installed ?? false"
-            :running="status?.engine_running"
-            :icon="engineIcon"
-            :ok-desc="engineOkDesc"
-            :not-found-desc="engineMissingDesc"
-            :actions="engineActions"
-            :code="engineCode"
-          >
-            <template v-if="engineInstalledButNotRunning">
-              {{ isWslc ? ' WSL containers are installed but not responding.' : ' Docker is installed but not running.' }}
-            </template>
-          </PrereqCard>
-        </div>
-
-        <div v-else-if="step === 2" class="ob-cards">
-          <PrereqCard
-            v-if="usesMise"
-            name="mise"
-            :installed="true"
-            icon="&#x1F9F0;"
-            :ok-desc="miseOkDesc"
-          />
-
-          <PrereqCard
-            v-if="!usesMise"
-            name="mise"
-            :installed="false"
-            icon="&#x1F9F0;"
-            not-found-desc="Manages PHP, Node, Go and Python per project. Needed to pick versions; you can continue without it."
-            :actions="miseActions"
-            :code="!isWindows || miseManual ? miseInstallCmd : undefined"
-          />
-          <p v-if="miseInstallMsg" class="ob-note">{{ miseInstallMsg }}</p>
-          <p v-if="miseInstallErr" class="ob-error ob-error--soft">{{ miseInstallErr }}</p>
-        </div>
-
-        <div v-else-if="step === 3" class="ob-cards">
-          <div class="ob-first">
-            <h2 class="ob-first__title">Add your first project</h2>
-            <template v-if="!firstPath">
-              <p class="ob-first__text">Pick a folder. Kova detects how to run it and gives it a fixed localhost port.</p>
-              <p class="ob-first__kinds">Laravel, WordPress, PHP, Django, FastAPI, Flask, Vite, Next, Nuxt, Angular, Node, Go</p>
-              <p v-if="pickErr" class="ob-error ob-error--soft">{{ pickErr }}</p>
-            </template>
-            <AddProjectForm v-else ref="firstForm" :key="firstPath" :path="firstPath" compact />
+          <div v-if="miseLog.length > 0" class="ob-out" aria-label="winget output">
+            <div v-for="(l, i) in miseLog" :key="i" class="ob-ol" :class="{ 'ob-ol--cmd': l.cmd }"><span class="ob-ol__x">{{ l.x }}</span></div>
           </div>
-        </div>
 
-        <div v-if="step === 1 && showElevatedWarning" class="ob-error ob-error--soft">
-          Kova is running as Administrator. WSL containers keep a separate session per
-          elevation, so containers created from a normal window will not appear here.
-          Restart Kova without "Run as administrator".
-        </div>
+          <div v-if="misePhase === 'running'" class="ob-prog" role="progressbar" aria-label="Installing mise"><span></span></div>
 
-        <div v-if="step === 1 && startEngineError && !isLinux" class="ob-error">
-          {{ startEngineError }}
-        </div>
-
-        <div v-if="step === 1 && isLinux && engineInstalledButNotRunning" class="ob-instruction">
-          <p class="ob-instruction__title">Start Docker manually:</p>
-          <code class="ob-instruction__cmd">sudo systemctl start docker</code>
-          <p class="ob-instruction__hint">Then click "Refresh checks" to update the status.</p>
-        </div>
-
-        <p v-if="step === 1" class="ob-note">Already installed everything? Click Refresh to re-check.</p>
-
-        <!-- Langkah 2: mise -->
-        <div v-if="step === 2" class="ob-cta-row">
-          <UiButton variant="quiet" size="lg" @click="step = 1">Back</UiButton>
-          <UiButton v-if="usesMise" variant="primary" size="lg" @click="afterRuntimes">Continue &#x2192;</UiButton>
-          <template v-else>
-            <UiButton size="lg" :disabled="checking || installingMise" @click="check">
-              {{ checking ? 'Checking…' : 'Check again' }}
-            </UiButton>
-            <UiButton variant="quiet" size="lg" :disabled="installingMise" @click="afterRuntimes">Skip for now</UiButton>
-          </template>
-        </div>
-
-        <!-- Langkah 3: project pertama -->
-        <div v-else-if="step === 3" class="ob-cta-row">
-          <UiButton variant="quiet" size="lg" @click="firstPath ? (firstPath = '') : (step = 2)">Back</UiButton>
-          <template v-if="!firstPath">
-            <UiButton variant="quiet" size="lg" @click="finish">Skip for now</UiButton>
-            <UiButton variant="primary" size="lg" @click="chooseFirstFolder">Choose folder</UiButton>
-          </template>
-          <template v-else>
-            <UiButton size="lg" :disabled="!firstForm?.ready || firstForm?.saving" @click="addFirst(false)">Add</UiButton>
-            <UiButton
-              variant="primary"
-              size="lg"
-              :disabled="!firstForm?.ready || !firstForm?.canStart || firstForm?.saving"
-              @click="addFirst(true)"
-            >Add &amp; start</UiButton>
-          </template>
-        </div>
-
-        <div v-else class="ob-cta-row">
-          <UiButton
-            variant="accent"
-            size="lg"
-            v-if="engineInstalledButNotRunning && !isLinux"
-            :disabled="startingEngine"
-            @click="startEngine"
+          <UiBanner
+            v-if="misePhase === 'failed'"
+            tone="err"
+            :title="wingetMissing ? 'winget isn\'t available on this PC' : 'mise was not installed'"
           >
-            <span v-if="startingEngine" class="ob-spinner"></span>
-            <template v-if="isWslc">{{ startingEngine ? 'Connecting...' : 'Retry WSL containers' }}</template>
-            <template v-else>{{ startingEngine ? 'Starting Docker...' : 'Start Docker' }}</template>
-          </UiButton>
+            <template v-if="wingetMissing">Install mise yourself with one of the commands on mise.jdx.dev, then press Check again.</template>
+            <template v-else>{{ miseInstallErr }}</template>
+            <template #actions>
+              <UiButton variant="quiet" @click="openUrl('https://mise.jdx.dev/getting-started.html')">mise.jdx.dev ↗</UiButton>
+            </template>
+          </UiBanner>
 
-          <UiButton
-            variant="quiet"
-            size="lg"
-            v-if="canSwitchToWslc && engineInstalledButNotRunning"
-            :disabled="switching"
-            @click="useEngine('wslc')"
-          >
-            Use WSL containers instead
-          </UiButton>
+          <div class="ob-foot">
+            <template v-if="misePhase === 'ask'">
+              <UiButton variant="primary" size="md" @click="installMise">Install mise</UiButton>
+              <UiButton variant="quiet" size="md" @click="miseManual = true">I'll install it myself</UiButton>
+            </template>
+            <UiButton v-else-if="misePhase === 'running'" variant="primary" size="md" loading disabled>Installing…</UiButton>
+            <template v-else-if="misePhase === 'failed' || misePhase === 'manual'">
+              <UiButton variant="primary" size="md" :loading="checking" @click="check">Check again</UiButton>
+              <UiButton variant="quiet" size="md" @click="afterRuntimes">Skip for now</UiButton>
+            </template>
+            <span class="ob-sp"></span>
+            <UiButton variant="quiet" size="md" @click="step = 1">Back</UiButton>
+            <UiButton v-if="misePhase === 'done'" variant="primary" size="md" @click="afterRuntimes">Continue</UiButton>
+          </div>
+        </template>
 
-          <UiButton
-            variant="primary"
-            size="lg"
-            v-if="canContinue"
-            @click="step = 2"
-          >
-            Continue &#x2192;
-          </UiButton>
+        <!-- Langkah 3: project pertama (A6, A7) -->
+        <template v-else>
+          <div class="ob-intro">
+            <h2 class="ob-title">Add your first project</h2>
+            <p v-if="!firstPath" class="ob-text">Pick a folder. Kova detects how to run it and gives it a fixed localhost port.</p>
+          </div>
 
-          <UiButton
-            size="lg"
-            v-if="!canContinue"
-            disabled
-          >
-            Continue &#x2192;
-          </UiButton>
+          <div v-if="!firstPath" class="ob-drop">
+            <span class="ob-text ob-text--faint">Laravel, WordPress, PHP, Django, FastAPI, Flask, Vite, Next, Nuxt, Angular, Node, Go</span>
+            <UiButton variant="primary" size="md" @click="chooseFirstFolder">Choose folder</UiButton>
+          </div>
+          <UiBanner v-if="pickErr" tone="err" title="The folder could not be opened">{{ pickErr }}</UiBanner>
+          <AddProjectForm v-if="firstPath" ref="firstForm" :key="firstPath" :path="firstPath" compact />
 
-          <UiButton
-            variant="quiet"
-            size="lg"
-            :disabled="checking"
-            @click="check"
-          >
-            <span v-if="checking" class="ob-spinner"></span>
-            {{ checking ? 'Checking...' : '&#x21BB; Refresh checks' }}
-          </UiButton>
-        </div>
-      </div>
+          <div class="ob-foot">
+            <UiButton variant="quiet" size="md" @click="firstPath ? (firstPath = '') : (step = 2)">Back</UiButton>
+            <span class="ob-sp"></span>
+            <UiButton v-if="!firstPath" variant="quiet" size="md" @click="finish">Skip for now</UiButton>
+            <template v-else>
+              <UiButton size="md" :disabled="!firstForm?.ready || firstForm?.saving" @click="addFirst(false)">Add</UiButton>
+              <UiButton
+                variant="primary"
+                size="md"
+                :disabled="!firstForm?.ready || !firstForm?.canStart || firstForm?.saving"
+                @click="addFirst(true)"
+              >Add &amp; start</UiButton>
+            </template>
+          </div>
+        </template>
+      </section>
     </div>
   </div>
 </template>
@@ -443,8 +475,7 @@ const miseInstallCmd = computed<string>(() => {
   display: flex;
   flex-direction: column;
   /* Tinggi tetap, bukan min-height: body overflow hidden, jadi scroll harus
-     terjadi di .ob-main. Dengan min-height viewport ikut tumbuh dan konten
-     terpotong saat jendela tidak di-maximize. */
+     terjadi di .ob-main. */
   height: 100vh;
   background: var(--bg);
   color: var(--text);
@@ -458,160 +489,120 @@ const miseInstallCmd = computed<string>(() => {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 48px var(--space-4) var(--space-8);
+  padding: var(--space-8) var(--space-4);
 }
 
-.ob-inner {
+/* Kartu ringkas (canvas .k-obcard). `margin-block: auto` menengahkan secara
+   vertikal tanpa memotong kartu yang lebih tinggi dari jendela. */
+.ob-card {
   width: 100%;
-  max-width: 560px;
-  /* Tengah vertikal bila konten lebih pendek dari jendela. `margin: auto`
-     (bukan align-items: center) supaya konten yang lebih tinggi tetap bisa
-     di-scroll dari atas, tidak terpotong. */
+  max-width: 600px;
   margin-block: auto;
-}
-
-.ob-mark {
   display: flex;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: var(--space-6);
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
 }
 
-.ob-heading {
-  font-size: var(--text-xl);
-  font-weight: 600;
-  color: var(--text);
-  margin: 0 0 var(--space-2) 0;
-}
-
-.ob-sub {
-  font-size: var(--text-md);
-  color: var(--muted);
-  margin: 0 0 var(--space-6) 0;
-}
+.ob-head { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.ob-brand { margin: 0; font-size: var(--text-md); font-weight: 600; }
+.ob-sp { flex: 1; }
 
 .ob-steps {
   list-style: none;
-  margin: 0 0 var(--space-6);
+  margin: 0;
   padding: 0;
   display: flex;
-  gap: var(--space-4);
+  align-items: center;
+  gap: var(--space-2);
   font-size: var(--text-sm);
-  color: var(--faint);
+  color: var(--muted);
 }
-.ob-step { display: inline-flex; align-items: center; gap: var(--space-2); }
+.ob-step { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ob-step__ln { width: 20px; height: 1px; background: var(--border-strong); }
 .ob-step__n {
   display: inline-grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   border: 1px solid var(--border-strong);
   font: 500 var(--text-xs) var(--font-mono);
 }
 .ob-step--on { color: var(--text); }
-.ob-step--on .ob-step__n { border-color: var(--accent); color: var(--accent); }
-.ob-step--done { color: var(--muted); }
+.ob-step--on .ob-step__n { border-color: var(--accent); background: var(--accent); color: var(--bg); }
 .ob-step--done .ob-step__n { border-color: transparent; background: color-mix(in srgb, var(--green) 20%, transparent); color: var(--green); }
 
-.ob-first { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
-.ob-first__title { margin: 0; font-size: var(--text-md); font-weight: 600; color: var(--text); }
-.ob-first__text { margin: 0; color: var(--muted); font-size: var(--text-sm); }
-.ob-first__kinds { margin: 0; color: var(--faint); font-size: var(--text-xs); }
+.ob-intro { display: flex; flex-direction: column; gap: var(--space-1); }
+.ob-title { margin: 0; font-size: var(--text-xl); font-weight: 600; color: var(--text); }
+.ob-text { margin: 0; font-size: var(--text-sm); color: var(--muted); line-height: 1.5; }
+.ob-text--faint { color: var(--faint); font-size: var(--text-xs); }
 
-.ob-cards {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-bottom: var(--space-6);
-}
-
-/* Skeleton mirror layout PrereqCard supaya tidak ada layout shift saat status arrive */
-.prereq-skel {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-4);
-}
-
-.prereq-skel__body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  padding-top: 4px;
-}
-
-.prereq-skel__row {
+.ob-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.ob-row {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-}
-
-.ob-error {
+  gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: color-mix(in srgb, var(--red) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--red) 30%, transparent);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  color: var(--red);
-  margin-bottom: var(--space-4);
+  background: var(--bg);
 }
+.ob-row--use { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.ob-row__ico { display: inline-grid; place-items: center; width: 18px; flex: none; }
+.ob-row__lbl { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; font-size: var(--text-sm); }
+.ob-row__lbl b { font-weight: 600; color: var(--text); }
+.ob-row__lbl span { color: var(--muted); font-size: var(--text-xs); }
 
-.ob-error--soft {
-  background: color-mix(in srgb, var(--amber) 10%, transparent);
-  border-color: color-mix(in srgb, var(--amber) 30%, transparent);
-  color: var(--amber);
-  line-height: 1.55;
-}
+.ob-i { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ob-i--ok { color: var(--green); }
+.ob-i--warn { color: var(--amber); }
+.ob-ring { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--faint); }
 
-.ob-instruction {
-  padding: var(--space-4);
-  background: color-mix(in srgb, var(--amber) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--amber) 25%, transparent);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-4);
-}
-
-.ob-instruction__title {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--amber);
-  margin: 0 0 var(--space-2) 0;
-}
-
-.ob-instruction__cmd {
+.ob-code {
   display: block;
+  margin-top: var(--space-2);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--text);
-  background: var(--surface2);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  margin-bottom: var(--space-2);
 }
 
-.ob-instruction__hint {
-  font-size: var(--text-xs);
-  color: var(--muted);
-  margin: 0;
-}
+.ob-foot { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.ob-label { font-size: var(--text-xs); color: var(--muted); margin-right: var(--space-1); }
 
-.ob-note {
-  font-size: var(--text-sm);
-  color: var(--muted);
-  margin: 0 0 var(--space-4) 0;
-}
-
-.ob-cta-row {
+.ob-out {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
+  flex-direction: column;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font: var(--text-xs) / 1.6 var(--font-mono);
+  color: var(--text);
+  max-height: 180px;
+  overflow-y: auto;
+}
+.ob-ol { display: flex; align-items: center; gap: var(--space-2); }
+.ob-ol__x { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.ob-ol--cmd { color: var(--muted); }
+
+/* Progres tanpa angka: winget tidak memberi persentase yang bisa dibaca. */
+.ob-prog { position: relative; height: 3px; border-radius: 2px; background: var(--surface2); overflow: hidden; }
+.ob-prog span { position: absolute; inset: 0 auto 0 0; width: 35%; background: var(--accent); border-radius: 2px; animation: ob-slide 1.4s ease-in-out infinite; }
+@keyframes ob-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+
+.ob-drop {
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  text-align: center;
 }
 
 .ob-spinner {
@@ -623,8 +614,13 @@ const miseInstallCmd = computed<string>(() => {
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
+.ob-spinner--amber { color: var(--amber); }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-prog span, .ob-spinner { animation-duration: 3s; }
 }
 </style>

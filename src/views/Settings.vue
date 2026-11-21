@@ -94,6 +94,7 @@ const {
   updateAvailable,
   checking: checkingUpdate,
   lastChecked,
+  checkError: updateCheckError,
   canInstall,
   phase: updatePhase,
   bannerVisible: updateBannerVisible,
@@ -102,6 +103,10 @@ const {
   apply: applyUpdate,
   openReleasePage,
 } = useUpdateCheck()
+
+const updateCheckedText = computed(() =>
+  lastChecked.value ? new Date(lastChecked.value).toTimeString().slice(0, 5) : '',
+)
 
 const composePath = ref<string>('')
 const engineInfo = ref<PrereqStatus | null>(null)
@@ -715,11 +720,27 @@ onMounted(async () => {
               </span>
             </div>
 
+            <!-- v3.8.2: hasil lama disembunyikan saat memeriksa; gagal tidak
+                 lagi tampil sebagai "latest version". -->
+            <UiStatusNotice
+              v-if="updateCheckError && !checkingUpdate"
+              tone="err"
+              title="Could not check for updates"
+              :detail="updateCheckError"
+              retryable
+              @retry="checkUpdate"
+            >
+              <template #actions>
+                <UiButton variant="quiet" @click="openReleasePage">Open release page</UiButton>
+              </template>
+            </UiStatusNotice>
             <div class="update-row">
-              <UiButton :disabled="checkingUpdate" @click="checkUpdate">
+              <UiButton :loading="checkingUpdate" :disabled="checkingUpdate" @click="checkUpdate">
                 {{ checkingUpdate ? 'Checking…' : 'Check for updates' }}
               </UiButton>
-              <span v-if="!updateAvailable && lastChecked" class="update-uptodate">You have the latest version</span>
+              <span v-if="!checkingUpdate && !updateAvailable && !updateCheckError && lastChecked" class="update-uptodate">
+                You have the latest version · checked {{ updateCheckedText }}
+              </span>
             </div>
           </div>
 

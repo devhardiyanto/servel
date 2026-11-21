@@ -540,11 +540,19 @@ Diuji di Windows (21 November 2026, v3.8.0): start/stop satu service dari popup 
 - [x] Logs: output wslc yang hanya mengulang nama container setelah start/stop/remove tidak ditampilkan.
 - [x] Test `port_checks_see_a_listener` tidak lagi bergantung pada port yang baru dilepas (bisa direbut test paralel).
 
+### N.2 — v3.8.2: onboarding sesuai canvas, pengecekan update yang jujur
+
+Audit ulang canvas (21 November 2026, per artboard, di level markup): selisih besar hanya di onboarding A1–A5 dan konsep daftar Services. Services tetap memakai model toggle (canvas yang diperbarui).
+
+- [x] Onboarding satu kartu: dua baris engine dengan hasil pemeriksaan, pilihan Engine (WSL containers / Docker / Auto), banner WSL terlalu lama, Docker belum ada/berhenti, WSL tidak merespons, Administrator.
+- [x] Runtimes: judul dan state A3–A5, winget tidak ada, pasang sendiri dengan Copy.
+- [x] Pengecekan update gagal tampil sebagai error dengan Retry (dulu "You have the latest version"); hasil lama disembunyikan saat memeriksa; cek berkala 6 jam dan saat fokus.
+
 ## Berikutnya
 
 ### v3.x — kandidat, belum diputuskan
 
-- [ ] Perbarui catatan status di canvas design (v3.6.1–v3.8.1). Alasan: canvas masih mencatat keadaan v3.6.0, sedangkan popup tray, panel yang bisa diseret, dan perubahan onboarding sudah berbeda.
+- [ ] Perbarui catatan status di canvas design (v3.6.1–v3.8.4). Alasan: canvas masih mencatat keadaan v3.6.0, sedangkan popup tray, panel yang bisa diseret, dan perubahan onboarding sudah berbeda.
 
 ### Ditunda — sampai ada kebutuhan pengguna
 
