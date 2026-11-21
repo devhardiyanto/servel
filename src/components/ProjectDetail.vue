@@ -596,6 +596,7 @@ const tabs = computed(() => [
 .pd-titlerow { display: flex; align-items: flex-start; gap: var(--space-2); }
 .pd-titlerow .pd-title { flex: 1; min-width: 0; }
 .pd-muted { color: var(--muted) !important; }
+.pd-grid .pd-mono { font-size: var(--text-xs); }
 .pd-rt { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .pd-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .pd-chips :deep(.ui-chip) { display: inline-flex; align-items: center; gap: 6px; }

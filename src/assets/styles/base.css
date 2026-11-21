@@ -20,8 +20,9 @@ body {
   background-color: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size: var(--text-md);
-  line-height: 1.5;
+  /* v3.10.0: 13px/1.45 seperti canvas (.wb), dulu 14px/1.5. */
+  font-size: var(--text-sm);
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* Native app feel: chrome non-selectable by default,

@@ -4,6 +4,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import UiSegmented from '@/components/ui/UiSegmented.vue'
+import UiIcon from '@/components/ui/UiIcon.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
 import { useLogFocus } from '@/composables/useLogFocus'
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
@@ -286,6 +287,8 @@ function triggerDownload(text: string, filename: string): void {
         @update:model-value="activeTab = $event as Tab"
       />
       <div class="lv-header__right">
+        <div class="lv-search">
+        <UiIcon name="search" class="lv-search__i" />
         <UiInput
           ref="filterEl"
           v-model="textFilter"
@@ -295,6 +298,7 @@ function triggerDownload(text: string, filename: string): void {
           aria-label="Filter log lines by text"
           @keydown.esc="textFilter = ''"
         />
+        </div>
         <!-- v3.8.4 (canvas G2/G3): level sebagai pilihan, bukan tombol tekan. -->
         <UiSegmented
           label="Log level"
@@ -466,6 +470,9 @@ function triggerDownload(text: string, filename: string): void {
 }
 .lv-header__left { flex-basis: 100%; }
 .lv-sp { flex: 1; }
+.lv-search { position: relative; }
+.lv-search__i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; z-index: 1; }
+.lv-search :deep(input) { padding-left: 32px; }
 
 .lv-chips {
   display: flex;

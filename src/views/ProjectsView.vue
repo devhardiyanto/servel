@@ -43,7 +43,7 @@ const runningServices = computed(() =>
 )
 
 // Panel detail: lebar bisa diseret dan panel bisa ditutup (v3.7.0).
-const PANEL = { default: 400, min: 320, max: 640 }
+const PANEL = { default: 430, min: 320, max: 640 }
 const panel = usePanelWidth('projects', PANEL)
 
 const selectedId = ref<string | null>(null)
@@ -108,7 +108,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
         </div>
         <span class="pv-sp"></span>
         <!-- Tanpa project, Add project ada di empty state; jangan dobel (v3.6.1). -->
-        <UiButton v-if="config.projects.length" variant="primary" @click="actions.adding.value = true"><UiIcon name="plus" />Add project</UiButton>
+        <UiButton v-if="config.projects.length" variant="primary" size="md" @click="actions.adding.value = true"><UiIcon name="plus" />Add project</UiButton>
       </header>
       <ProjectsPanel :selected-id="selectedId" :query="query" @select="choose" />
       <div v-if="config.projects.length" class="pv-strip">

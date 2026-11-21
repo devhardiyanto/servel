@@ -107,7 +107,7 @@ async function howDetection(): Promise<void> {
 .pl-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .pl-card--sel { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--surface2); }
 .pl-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.pl-name { font-size: var(--text-sm); font-weight: 600; }
+.pl-name { font-size: var(--text-md); font-weight: 600; }
 .pl-path { font: 400 var(--text-xs) var(--font-mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl-port { font: 400 var(--text-xs) var(--font-mono); color: var(--muted); text-align: right; }
 .pl-state { justify-self: end; }

@@ -124,6 +124,7 @@ const items = computed(() => [
   color: var(--muted);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);

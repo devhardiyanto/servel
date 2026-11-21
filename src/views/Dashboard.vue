@@ -156,6 +156,7 @@ function focusFirstSwitch(): void {
         </div>
         <div class="sw-actions">
           <UiButton
+            size="md"
             :disabled="hasStopping || runningCount === 0"
             @click="stopAll"
           >
@@ -163,6 +164,7 @@ function focusFirstSwitch(): void {
           </UiButton>
           <UiButton
             variant="primary"
+            size="md"
             :disabled="hasStarting"
             @click="start()"
           >

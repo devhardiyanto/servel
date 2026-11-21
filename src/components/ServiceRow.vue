@@ -163,7 +163,8 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
 
 .svc-name {
   color: var(--text);
-  font-weight: 500;
+  font-size: var(--text-md);
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -183,7 +184,8 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
 
 .svc-ram {
   font-family: var(--font-mono);
-  color: var(--amber);
+  /* v3.10.0: abu seperti canvas (.k-scard .meta); bukan peringatan. */
+  color: var(--muted);
   text-align: right;
   font-size: var(--text-xs);
 }

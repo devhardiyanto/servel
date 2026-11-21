@@ -34,6 +34,7 @@ const {
   setAutoStart,
   setRememberSession,
   setMinimizeToTray,
+  setUiScale,
   setStopServicesOnQuit,
   setContainerRuntime,
   createProfile,
@@ -441,6 +442,18 @@ onMounted(async () => {
           </div>
 
           <div class="section-block">
+            <div class="section-title">APPEARANCE</div>
+            <SettingRow label="Interface size" desc="Text and controls in every Kova window. Default matches the design.">
+              <UiSegmented
+                label="Interface size"
+                :model-value="String(config.uiScale ?? 1)"
+                :options="[{ value: '0.9', label: 'Compact' }, { value: '1', label: 'Default' }, { value: '1.1', label: 'Large' }]"
+                @update:model-value="setUiScale(Number($event))"
+              />
+            </SettingRow>
+          </div>
+
+          <div class="section-block">
             <div class="section-title">WINDOW &amp; QUIT</div>
 
             <SettingRow
@@ -843,7 +856,7 @@ onMounted(async () => {
   border-left: 2px solid transparent;
   padding: var(--space-2) var(--space-4);
   font-family: var(--font-sans);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   letter-spacing: 0.06em;
   color: var(--muted);
   cursor: pointer;
