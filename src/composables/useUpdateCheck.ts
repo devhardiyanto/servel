@@ -37,6 +37,8 @@ const latestVersion = ref<string>('')
 const updateAvailable = ref(false)
 const checking = ref(false)
 const lastChecked = ref<number | null>(null)
+/** v3.8.2: pengecekan terakhir gagal (jaringan, cache GitHub, latest.json). */
+const checkError = ref('')
 // In-app updater (v2.1). `canInstall` = updater bawaan menemukan versi yang
 // sama dan bisa memasangnya; bila false, banner hanya menawarkan halaman rilis.
 const canInstall = ref(false)
@@ -84,8 +86,11 @@ async function probeInstaller(): Promise<void> {
       if (phase.value === 'idle') phase.value = 'available'
     }
   } catch (err) {
-    console.warn('[update-check] built-in updater not available:', err)
+    // v3.8.2: dulu hanya ke console, sehingga pengecekan yang gagal tampil
+    // sebagai "You have the latest version".
+    console.warn('[update-check] could not check:', err)
     canInstall.value = false
+    checkError.value = String(err).replace(/^could not check for updates:\s*/i, '')
   }
 }
 
@@ -166,6 +171,7 @@ async function runCheck(): Promise<void> {
     // v3: hanya updater bawaan (latest.json bertanda tangan). Cadangan lewat
     // GitHub API dihapus: ia bisa menawarkan versi yang tidak bisa dipasang.
     updateAvailable.value = false
+    checkError.value = ''
     await probeInstaller()
   } catch (err) {
     console.error('[update-check]', err)
@@ -173,6 +179,24 @@ async function runCheck(): Promise<void> {
     checking.value = false
     lastChecked.value = Date.now()
   }
+}
+
+// v3.8.2: Kova yang dibiarkan terbuka tidak tahu rilis baru sampai dibuka
+// ulang. Periksa lagi setiap 6 jam, dan saat jendela kembali difokuskan bila
+// pemeriksaan terakhir lebih dari 30 menit lalu.
+const PERIODIC_MS = 6 * 60 * 60 * 1000
+const FOCUS_MIN_MS = 30 * 60 * 1000
+let autoTimer: ReturnType<typeof setInterval> | null = null
+function maybeCheck(minAgeMs: number): void {
+  // Jangan mengganggu unduhan atau update yang menunggu restart.
+  if (phase.value === 'downloading' || phase.value === 'ready') return
+  if (lastChecked.value !== null && Date.now() - lastChecked.value < minAgeMs) return
+  void runCheck()
+}
+function startAutoCheck(): void {
+  if (autoTimer) return
+  autoTimer = setInterval(() => maybeCheck(PERIODIC_MS - 60_000), PERIODIC_MS)
+  window.addEventListener('focus', () => maybeCheck(FOCUS_MIN_MS))
 }
 
 /** Banner update di atas jendela sedang tampil (v3.6.1: About tidak menduplikasinya). */
@@ -193,6 +217,7 @@ export function useUpdateCheck() {
     updateAvailable,
     checking,
     lastChecked,
+    checkError,
     canInstall,
     installing,
     installPercent,
@@ -209,6 +234,7 @@ export function useUpdateCheck() {
     dismiss,
     hideBanner: () => (bannerHidden.value = true),
     check: runCheck,
+    startAutoCheck,
     install: runInstall,
     openReleasePage,
   }

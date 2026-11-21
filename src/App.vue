@@ -53,7 +53,7 @@ provide(SetViewKey, setView)
 
 const { runAutoStartOnce } = useAutoStart()
 const { refresh: refreshEngineStatus } = useEngineStatus()
-const { check: checkUpdate } = useUpdateCheck()
+const { check: checkUpdate, startAutoCheck } = useUpdateCheck()
 const { load: loadServices, setSelectedIds, reconcileSelectedWithRunning } = useServices()
 
 // Pilihan service dipulihkan di sini juga, bukan hanya saat layar Services
@@ -100,6 +100,7 @@ onMounted(() => {
   void runAutoStartOnce()
   void refreshEngineStatus()
   void checkUpdate()
+  startAutoCheck()
   void restoreServiceSelection()
   lastFocusCheck = Date.now()
   window.addEventListener('focus', onWindowFocus)
