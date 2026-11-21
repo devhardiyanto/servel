@@ -24,7 +24,8 @@ export type StartOutcome =
   | { kind: 'failed'; error: string }
 
 interface ServicesActionPayload {
-  action: 'start' | 'stop_all'
+  /** `stop` (v3.8): satu service dihentikan dari popup tray. */
+  action: 'start' | 'stop' | 'stop_all'
   services: string[]
 }
 
