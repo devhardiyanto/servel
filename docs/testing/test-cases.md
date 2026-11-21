@@ -151,7 +151,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-T3 | Quit dari tray dengan "Stop services when Kova quits" aktif. | Service berhenti sebelum Kova keluar; data volume tetap ada. | ⬜ | ⬜ | | |
 | TC-T4 | Aktifkan "Start Kova when you sign in", logout/login. | Kova mulai sendiri (di tray bila minimize to tray aktif). | ⬜ | ⬜ | | |
 | TC-T5 | Buka Kova untuk kedua kalinya. | Hanya satu instance; jendela yang ada muncul ke depan. | ⬜ | ⬜ | | |
-| TC-T6 | Tambahkan lebih dari 5 project (idealnya 10+), jalankan 1–2 di antaranya; buka tray. | **W:** popup hanya menampilkan 5 baris project, yang berjalan/keluar di atas, lalu "Show all N projects". Klik → daftar lengkap bergulir di dalam kotak, kolom "Find a project" muncul bila >8; Esc mengosongkan pencarian. Services, versi global, Open/Quit Kova tetap terlihat tanpa menggulir popup. **L:** 5 project di menu, sisanya di submenu "More projects (N)". | ⬜ | ⬜ | | v3.14.1 |
+| TC-T6 | Tambahkan lebih dari 5 project (idealnya 10+), jalankan 1–2 di antaranya; buka tray. | **W:** popup hanya menampilkan 5 baris project, yang berjalan/keluar di atas, lalu "Show all N projects". Klik → daftar lengkap bergulir di dalam kotak, kolom "Find a project" ikut muncul; Esc mengosongkan pencarian. Services, versi global, Open/Quit Kova tetap terlihat tanpa menggulir popup. **L:** 5 project di menu, sisanya di submenu "More projects (N)". | ⬜ | ⬜ | | v3.14.1 |
 
 ## U · Tampilan & aksesibilitas
 

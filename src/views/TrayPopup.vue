@@ -162,8 +162,8 @@ const allRows = computed<Row[]>(() =>
 // v3.14.1: daftar project tidak lagi memanjangkan popup tanpa batas.
 // Project aktif (berjalan, memulai, tidak menjawab, keluar dengan error)
 // naik ke atas; sisanya tetap urut seperti di Kova. Tertutup = PROJECT_LIMIT
-// baris pertama; "Show all" membuka daftar lengkap di kotak bergulir, dengan
-// kolom pencarian bila lebih dari FILTER_FROM project.
+// baris pertama; lebih dari itu, "Show all" membuka daftar lengkap di kotak
+// bergulir beserta kolom pencarian.
 const PROJECT_LIMIT = 5
 // Tinggi maksimal popup: MAX_HEIGHT di tray_popup.rs, atau tinggi work area
 // monitor dikurangi margin bila layarnya lebih pendek.
@@ -173,7 +173,6 @@ function computeMaxHeight(): number {
   return Math.max(320, Math.min(MAX_HEIGHT, avail - 16))
 }
 const maxHeight = ref(computeMaxHeight())
-const FILTER_FROM = 8
 const ACTIVE: DotState[] = ['running', 'unresponsive', 'starting', 'exited']
 const showAll = ref(false)
 const filter = ref('')
@@ -183,7 +182,7 @@ const sortedRows = computed(() => {
 })
 const activeCount = computed(() => allRows.value.filter((r) => r.dot === 'running' || r.dot === 'unresponsive').length)
 const overflow = computed(() => sortedRows.value.length > PROJECT_LIMIT)
-const showFilter = computed(() => showAll.value && sortedRows.value.length > FILTER_FROM)
+const showFilter = computed(() => showAll.value && overflow.value)
 const rows = computed<Row[]>(() => {
   if (!showAll.value) return sortedRows.value.slice(0, PROJECT_LIMIT)
   const q = filter.value.trim().toLowerCase()
