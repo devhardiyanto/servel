@@ -112,6 +112,34 @@ pub async fn update_apply(app: AppHandle) -> Result<(), String> {
     app.restart();
 }
 
+/// v3.13.0 (canvas F3): "Later" = pasang saat Kova ditutup.
+static INSTALL_ON_QUIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[tauri::command]
+pub fn update_install_on_quit(enabled: bool) -> Result<bool, String> {
+    if enabled && READY.lock().map_err(|e| e.to_string())?.is_none() {
+        return Err("the update is not downloaded yet".to_string());
+    }
+    INSTALL_ON_QUIT.store(enabled, std::sync::atomic::Ordering::SeqCst);
+    Ok(enabled)
+}
+
+/// Dipanggil `shutdown::begin` setelah dev server dan service dihentikan.
+/// Di Windows installer menutup proses ini sendiri; di OS lain berkas
+/// aplikasi diganti lalu Kova keluar seperti biasa.
+pub fn install_pending_on_quit(app: &AppHandle) {
+    if !INSTALL_ON_QUIT.swap(false, std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    let Some((update, bytes)) = READY.lock().ok().and_then(|mut r| r.take()) else {
+        return;
+    };
+    crate::control::forget();
+    if let Err(e) = update.install(bytes) {
+        crate::commands::util::emit_log_line(app, "KOVA", &format!("quit: could not install the update: {}", e));
+    }
+}
+
 /// Unduh lalu langsung pasang (dipakai alur lama dan tray).
 #[tauri::command]
 pub async fn update_install(app: AppHandle) -> Result<(), String> {

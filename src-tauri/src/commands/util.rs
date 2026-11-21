@@ -409,7 +409,9 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
             .lock()
             .map(|b| b.join("\n"))
             .unwrap_or_default();
-        let msg = parse_docker_error(&acc)
+        // v3.12.0: compose tidak ada / socket ditolak → pesan dengan langkah perbaikan.
+        let msg = crate::runtime::docker::friendly_error(&acc)
+            .or_else(|| parse_docker_error(&acc))
             .unwrap_or_else(|| format!("docker compose failed (exit {})", status));
         let _ = app.emit(
             "cmd-output",

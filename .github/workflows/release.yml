@@ -19,7 +19,6 @@ jobs:
   changelog:
     runs-on: ubuntu-latest
     outputs:
-      changelog: ${{ steps.gen.outputs.changelog }}
       tag: ${{ steps.tag.outputs.tag }}
       prerelease: ${{ steps.flag.outputs.prerelease }}
       release_id: ${{ steps.draft.outputs.release_id }}
@@ -62,30 +61,23 @@ jobs:
           fi
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Generate changelog
+      # Isi draft: catatan docs/releases/ untuk semua versi sejak tag
+      # sebelumnya (rilis gabungan mendapat semuanya), commit, cara instal.
+      # Lihat scripts/release-notes.sh. Draft disunting manual sebelum publish.
+      - name: Generate release notes
         id: gen
         shell: bash
         env:
           CURRENT_TAG: ${{ steps.tag.outputs.tag }}
         run: |
           set -e
-          PREV_TAG="$(git describe --tags --abbrev=0 "${CURRENT_TAG}^" 2>/dev/null || echo '')"
-          if [ -z "$PREV_TAG" ]; then
-            RANGE="${CURRENT_TAG}"
-            LOG="$(git log --pretty='* %s' "$CURRENT_TAG")"
-          else
-            RANGE="${PREV_TAG}..${CURRENT_TAG}"
-            LOG="$(git log --pretty='* %s' "$RANGE")"
-          fi
+          bash scripts/release-notes.sh "$CURRENT_TAG" > "$RUNNER_TEMP/notes.md"
+          echo "notes_file=$RUNNER_TEMP/notes.md" >> "$GITHUB_OUTPUT"
           {
-            echo "changelog<<EOF"
-            echo "## What's Changed"
-            echo ""
-            echo "$LOG"
-            echo ""
-            echo "**Range:** \`${RANGE}\`"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+            echo "## Draft notes for ${CURRENT_TAG}"
+            echo
+            cat "$RUNNER_TEMP/notes.md"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       # Gagal lebih awal dengan pesan jelas, sebelum 4 build berjalan.
       - name: Check updater signing setup
@@ -123,16 +115,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
-          NOTES: |
-            ${{ steps.gen.outputs.changelog }}
-
-            ## Install
-
-            - **Windows:** download `.exe` (NSIS installer), run, follow prompts.
-            - **macOS:** download `.dmg`, open, drag Kova.app to Applications.
-            - **Linux:** download `.AppImage`, `chmod +x`, run.
-
-            See [README](https://github.com/${{ github.repository }}#readme) for prerequisites (Windows: WSL 3.0.1+ for built-in WSL containers, or Docker Desktop; macOS/Linux: Docker).
+          NOTES_FILE: ${{ steps.gen.outputs.notes_file }}
         run: |
           set -e
           # Re-run workflow: pakai rilis yang sudah ada untuk tag ini.
@@ -146,7 +129,7 @@ jobs:
             ID="$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases" \
               -f tag_name="$TAG" \
               -f name="Kova ${TAG}" \
-              -f body="$NOTES" \
+              -F body=@"$NOTES_FILE" \
               -F draft=true \
               -F prerelease=${{ steps.flag.outputs.prerelease }} \
               --jq .id)"

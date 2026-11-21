@@ -85,6 +85,16 @@ pub async fn project_detect(path: String, taken: Vec<u16>) -> Result<ProjectSugg
     })
 }
 
+/// Pilihan perintah untuk field Command (v3.11.0).
+#[tauri::command]
+pub async fn project_scripts(path: String) -> Result<Vec<detect::ScriptOption>, String> {
+    let dir = Path::new(&path);
+    if !dir.is_dir() {
+        return Err(format!("folder not found: {}", path));
+    }
+    Ok(detect::script_options(dir, cfg!(windows)))
+}
+
 #[tauri::command]
 pub async fn sites_runtime(app: AppHandle) -> Vec<SiteRuntime> {
     process::snapshot(&app)

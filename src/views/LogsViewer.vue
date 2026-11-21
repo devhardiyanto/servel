@@ -94,11 +94,47 @@ watch(projectNames, (names) => {
   if (projectFilter.value && !names.includes(projectFilter.value)) projectFilter.value = ''
 })
 
+// v3.11.0: `composer run dev` / `concurrently` memberi prefiks `[server]`,
+// `[queue]`, `[vite]` pada tiap baris. Bila satu project punya ≥ 2 prefiks,
+// tampil sebagai chip kedua supaya satu proses bisa dilihat sendiri.
+const PART_PREFIX = /^\[([A-Za-z0-9_.:-]{1,24})\](?:\s|$)/
+function partOf(text: string): string {
+  return PART_PREFIX.exec(text)?.[1] ?? ''
+}
+const scopedProject = computed(() => {
+  if (activeTab.value !== 'Projects') return ''
+  if (projectFilter.value) return projectFilter.value
+  return projectChips.value.length === 1 ? projectChips.value[0].name : ''
+})
+const partFilter = ref('')
+const partChips = computed(() => {
+  const name = scopedProject.value
+  if (!name) return []
+  const counts = new Map<string, { total: number; errors: number }>()
+  for (const l of lines.value) {
+    if (l.src !== name) continue
+    const part = partOf(l.text)
+    if (!part) continue
+    const c = counts.get(part) ?? { total: 0, errors: 0 }
+    c.total++
+    if (l.level === 'error') c.errors++
+    counts.set(part, c)
+  }
+  return counts.size >= 2 ? [...counts].map(([part, c]) => ({ part, ...c })) : []
+})
+watch(scopedProject, () => (partFilter.value = ''))
+watch(partChips, (chips) => {
+  if (partFilter.value && !chips.some((c) => c.part === partFilter.value)) partFilter.value = ''
+})
+
 const tabLines = computed(() => {
   if (activeTab.value === 'All') return lines.value
   const tab = activeTab.value
   // Output dev server memakai nama project sebagai sumber.
   if (tab === 'Projects') {
+    if (scopedProject.value && partFilter.value) {
+      return lines.value.filter((l) => l.src === scopedProject.value && partOf(l.text) === partFilter.value)
+    }
     if (projectFilter.value) return lines.value.filter((l) => l.src === projectFilter.value)
     const names = new Set(projectNames.value)
     return lines.value.filter((l) => names.has(l.src))
@@ -339,6 +375,28 @@ function triggerDownload(text: string, filename: string): void {
       </button>
     </div>
 
+    <!-- v3.11.0: proses di dalam satu project (prefiks concurrently). -->
+    <div v-if="partChips.length > 0" class="lv-chips lv-chips--parts" role="group" :aria-label="`Processes in ${scopedProject}`">
+      <button
+        class="lv-chip"
+        :class="{ 'lv-chip--active': partFilter === '' }"
+        :aria-pressed="partFilter === ''"
+        @click="partFilter = ''"
+      >
+        All processes
+      </button>
+      <button
+        v-for="c in partChips"
+        :key="c.part"
+        class="lv-chip"
+        :class="{ 'lv-chip--active': partFilter === c.part }"
+        :aria-pressed="partFilter === c.part"
+        @click="partFilter = c.part"
+      >
+        {{ c.part }}<span v-if="c.errors > 0" class="lv-chip__err">{{ c.errors }}</span>
+      </button>
+    </div>
+
     <!-- Project berhenti: baris sampai saat berhenti tetap ditampilkan. -->
     <UiBanner
       v-if="focusedProject && focusedState === 'exited' && tabLines.length > 0"
@@ -483,6 +541,9 @@ function triggerDownload(text: string, filename: string): void {
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
+
+/* Baris kedua: proses di dalam project terpilih, sedikit menjorok. */
+.lv-chips--parts { padding-left: calc(var(--space-4) + var(--space-3)); }
 
 .lv-chip {
   display: inline-flex;

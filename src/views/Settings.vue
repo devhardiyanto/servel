@@ -99,6 +99,7 @@ const {
   canInstall,
   phase: updatePhase,
   bannerVisible: updateBannerVisible,
+  installOnQuit,
   check: checkUpdate,
   download: downloadUpdate,
   apply: applyUpdate,
@@ -506,7 +507,7 @@ onMounted(async () => {
                 <span class="status-dot"></span>
                 <span v-if="engineRunning === true">Running</span>
                 <span v-else-if="engineRunning === false">
-                  {{ engineInfo?.engine_installed ? 'Stopped' : 'Not installed' }}
+                  {{ engineInfo?.engine_problem === 'permission' ? 'No access' : engineInfo?.engine_installed ? 'Stopped' : 'Not installed' }}
                 </span>
                 <span v-else>—</span>
               </span>
@@ -546,6 +547,15 @@ onMounted(async () => {
               <span class="setting-value-mono">{{ composePath || '—' }}</span>
             </SettingRow>
 
+            <!-- v3.12.0: masalah Docker yang bisa diperbaiki pengguna. -->
+            <p v-if="engineInfo?.engine === 'docker' && engineInfo.engine_problem === 'permission'" class="section-hint section-hint--note restore-error">
+              Permission denied on the Docker socket. Add your user to the docker group with
+              <code>sudo usermod -aG docker $USER</code>, then log out and back in.
+            </p>
+            <p v-else-if="engineInfo?.engine === 'docker' && engineInfo.engine_problem === 'compose'" class="section-hint section-hint--note restore-error">
+              Docker Compose v2 is missing, so services cannot start. Install the docker-compose-plugin package
+              (Debian/Ubuntu: <code>sudo apt install docker-compose-plugin</code>).
+            </p>
             <p v-if="engineInfo?.engine === 'wslc'" class="section-hint section-hint--note">
               WSL containers keep their own images and volumes, separate from Docker Desktop.
               Databases created under Docker will not appear here until you restore them.
@@ -742,6 +752,10 @@ onMounted(async () => {
                 <UiButton v-else-if="!canInstall" variant="primary" @click="openReleasePage">Open release page</UiButton>
               </span>
             </div>
+
+            <p v-if="installOnQuit && updatePhase === 'ready'" class="update-progress-note">
+              Kova {{ latestVersion }} will be installed when you quit Kova.
+            </p>
 
             <!-- v3.8.2: hasil lama disembunyikan saat memeriksa; gagal tidak
                  lagi tampil sebagai "latest version". -->
@@ -1189,6 +1203,7 @@ onMounted(async () => {
   color: var(--muted);
   line-height: 1.6;
 }
+.section-hint code { font-family: var(--font-mono); color: var(--text); user-select: text; }
 .settings-note code {
   display: block;
   margin-top: 4px;

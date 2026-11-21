@@ -33,14 +33,77 @@ pub async fn has_servel_containers() -> Option<bool> {
     Some(!String::from_utf8_lossy(&out.stdout).trim().is_empty())
 }
 
-/// Daemon bisa dihubungi.
-pub async fn is_running() -> bool {
-    silent_command("docker")
-        .arg("info")
+/// v3.12.0: kenapa Docker belum bisa dipakai, untuk pesan yang bisa
+/// ditindaklanjuti (terutama Linux dengan Docker Engine tanpa Desktop).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DockerProblem {
+    /// `permission denied` ke socket: user belum di grup `docker`.
+    Permission,
+    /// Daemon tidak bisa dihubungi (mati / belum dinyalakan).
+    Daemon,
+    /// Daemon hidup, tetapi plugin Compose v2 (`docker compose`) tidak ada.
+    Compose,
+}
+
+impl DockerProblem {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            DockerProblem::Permission => "permission",
+            DockerProblem::Daemon => "daemon",
+            DockerProblem::Compose => "compose",
+        }
+    }
+}
+
+/// Klasifikasi stderr `docker info` yang gagal.
+pub fn classify_info_error(stderr: &str) -> DockerProblem {
+    let s = stderr.to_lowercase();
+    if s.contains("permission denied") && (s.contains("docker.sock") || s.contains("docker daemon socket")) {
+        DockerProblem::Permission
+    } else {
+        DockerProblem::Daemon
+    }
+}
+
+/// Pesan pengganti untuk error compose yang dikenal; `None` = pakai aslinya.
+pub fn friendly_error(stderr: &str) -> Option<String> {
+    let s = stderr.to_lowercase();
+    if s.contains("'compose' is not a docker command") || s.contains("unknown command \"compose\"") {
+        return Some(
+            "Docker Compose v2 is not installed. Install the docker-compose-plugin package (Debian/Ubuntu: sudo apt install docker-compose-plugin), then try again.".to_string(),
+        );
+    }
+    if s.contains("permission denied") && s.contains("docker.sock") {
+        return Some(
+            "Permission denied on the Docker socket. Add your user to the docker group (sudo usermod -aG docker $USER), then log out and back in.".to_string(),
+        );
+    }
+    None
+}
+
+/// `None` = daemon terjangkau dan Compose v2 ada.
+pub async fn diagnose() -> Option<DockerProblem> {
+    let fut = silent_command("docker").arg("info").stdout(Stdio::null()).stderr(Stdio::piped()).output();
+    let out = match tokio::time::timeout(std::time::Duration::from_secs(15), fut).await {
+        Ok(Ok(o)) => o,
+        _ => return Some(DockerProblem::Daemon),
+    };
+    if !out.status.success() {
+        return Some(classify_info_error(&String::from_utf8_lossy(&out.stderr)));
+    }
+    let compose = silent_command("docker")
+        .args(["compose", "version"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .status()
         .await
         .map(|s| s.success())
-        .unwrap_or(false)
+        .unwrap_or(false);
+    if compose {
+        None
+    } else {
+        Some(DockerProblem::Compose)
+    }
 }
 
 pub async fn version() -> Option<String> {
@@ -171,4 +234,19 @@ pub async fn stop_all(app: &AppHandle) -> Result<(), String> {
     let mut cmd = silent_command("docker");
     cmd.args(["compose", "-f", &path, "down"]);
     stream_and_wait_app(cmd, app).await
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn docker_info_errors_are_classified() {
+        use super::{classify_info_error, friendly_error, DockerProblem};
+        let perm = "permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Get \"http://%2Fvar%2Frun%2Fdocker.sock/v1.47/info\": dial unix /var/run/docker.sock: connect: permission denied";
+        assert_eq!(classify_info_error(perm), DockerProblem::Permission);
+        let down = "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?";
+        assert_eq!(classify_info_error(down), DockerProblem::Daemon);
+        assert!(friendly_error("docker: 'compose' is not a docker command.\nSee 'docker --help'").unwrap().contains("docker-compose-plugin"));
+        assert!(friendly_error(perm).unwrap().contains("usermod"));
+        assert_eq!(friendly_error("no such service: mysql"), None);
+    }
 }

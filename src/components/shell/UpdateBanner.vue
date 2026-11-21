@@ -59,9 +59,9 @@ const progressText = computed(() => {
     </UiBanner>
 
     <UiBanner v-else-if="u.phase.value === 'ready'" tone="ok" :title="`Kova ${u.readyVersion.value} is ready`">
-      Restart to finish. Service containers keep running; dev servers stop and start again if marked "start on launch".
+      Restart to finish, or choose Later to install it when you quit Kova. Service containers keep running; dev servers stop and start again if marked "start on launch".
       <template #actions>
-        <UiButton variant="quiet" @click="u.hideBanner()">Later</UiButton>
+        <UiButton variant="quiet" @click="u.later()">Later</UiButton>
         <UiButton variant="primary" :loading="u.installing.value" @click="u.apply()">Restart now</UiButton>
       </template>
     </UiBanner>

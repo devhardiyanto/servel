@@ -21,6 +21,8 @@ export interface PrereqStatus {
   /** v3: satu-satunya pengelola versi PHP/Node. */
   mise_installed: boolean
   mise_version: string | null
+  /** v3.12.0, engine Docker: kenapa belum bisa dipakai. */
+  engine_problem?: 'permission' | 'daemon' | 'compose' | null
 }
 
 export const ENGINE_LABEL: Record<EngineKind, string> = {

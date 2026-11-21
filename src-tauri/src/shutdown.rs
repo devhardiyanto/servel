@@ -75,6 +75,7 @@ pub fn begin(app: &AppHandle) {
             }
         }
 
+        crate::updater::install_pending_on_quit(&app);
         DONE.store(true, Ordering::SeqCst);
         app.exit(0);
     });

@@ -2,6 +2,7 @@
 import UiButton from '@/components/ui/UiButton.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
 import UiInput from '@/components/ui/UiInput.vue'
+import UiBanner from '@/components/ui/UiBanner.vue'
 import { ref, computed, onMounted } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -81,9 +82,19 @@ async function chooseVersion(v: string): Promise<void> {
   await load()
 }
 
+/**
+ * v3.13.0 (canvas E8): extension yang ditolak PHP → php.ini dikembalikan.
+ * Ditampilkan sebagai banner: penyebab, bahwa tidak ada yang berubah, dan
+ * cara memperbaikinya.
+ */
+const rolledBackExt = ref('')
+const rolledBack = computed(() => !!rolledBackExt.value && /put back as it was/i.test(actionError.value))
+const rollbackCause = computed(() => actionError.value.replace(/\.?\s*php\.ini was put back as it was\.?$/i, '').trim())
+
 async function toggle(ext: PhpExt): Promise<void> {
   if (busy.value) return
   busy.value = ext.name
+  rolledBackExt.value = ''
   actionError.value = ''
   notice.value = ''
   try {
@@ -95,6 +106,7 @@ async function toggle(ext: PhpExt): Promise<void> {
     notice.value = `${ext.name} ${ext.loaded ? 'disabled' : 'enabled'}. Restart running PHP projects to pick it up.`
   } catch (err) {
     actionError.value = String(err)
+    rolledBackExt.value = ext.loaded ? '' : ext.name
   } finally {
     busy.value = null
   }
@@ -210,7 +222,16 @@ onMounted(async () => {
       </div>
 
       <p v-if="notice" class="px-notice">{{ notice }}</p>
-      <p v-if="actionError" class="px-error">{{ actionError }}</p>
+      <UiBanner
+        v-if="rolledBack"
+        tone="err"
+        :title="`${rolledBackExt} was not turned on. Nothing changed.`"
+      >
+        {{ rollbackCause }}. Kova put php.ini back as it was, so PHP and your projects work as before.
+        To use {{ rolledBackExt }}, get a build made for this PHP version (same version, thread safety and
+        architecture) and install it below.
+      </UiBanner>
+      <p v-else-if="actionError" class="px-error">{{ actionError }}</p>
 
       <details v-if="builtin.length" class="px-builtin">
         <summary>{{ builtin.length }} built into this PHP (always on)</summary>

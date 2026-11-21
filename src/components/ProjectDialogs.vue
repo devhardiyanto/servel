@@ -8,6 +8,7 @@ import UiDrawer from '@/components/ui/UiDrawer.vue'
 import UiModal from '@/components/ui/UiModal.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import CommandSuggestions from '@/components/CommandSuggestions.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
 import { useConfig } from '@/composables/useConfig'
@@ -167,6 +168,7 @@ async function confirmRemove(): Promise<void> {
         />
         <UiButton class="pdl-row__btn" @click="redetect">Detect</UiButton>
       </div>
+      <CommandSuggestions v-model="form.command" :path="form.path" />
       <UiInput
         v-model="form.port"
         label="Port"

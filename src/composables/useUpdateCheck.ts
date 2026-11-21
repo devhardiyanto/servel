@@ -54,6 +54,41 @@ const readyVersion = ref('')
 const DISMISS_KEY = 'kova.update.dismissed'
 const dismissedVersion = ref<string>(readDismissed())
 const bannerHidden = ref(false)
+/** v3.13.0 (canvas F3): Later = pasang saat Kova ditutup. */
+const installOnQuit = ref(false)
+
+async function later(): Promise<void> {
+  bannerHidden.value = true
+  try {
+    installOnQuit.value = await invoke<boolean>('update_install_on_quit', { enabled: true })
+  } catch (err) {
+    console.warn('[update] install on quit not available:', err)
+    installOnQuit.value = false
+  }
+}
+
+/**
+ * v3.13.0 (canvas F4): versi yang terakhir dijalankan disimpan; bila versi
+ * sekarang lebih baru, Kova baru saja diperbarui → tawarkan What's new.
+ */
+const LAST_RUN_KEY = 'kova.lastRunVersion'
+async function consumeJustUpdated(): Promise<{ from: string; to: string; url: string } | null> {
+  let current = ''
+  try {
+    current = await getVersion()
+  } catch {
+    return null
+  }
+  let last = ''
+  try {
+    last = localStorage.getItem(LAST_RUN_KEY) ?? ''
+    localStorage.setItem(LAST_RUN_KEY, current)
+  } catch {
+    return null
+  }
+  if (!last || compareSemver(current, last) <= 0) return null
+  return { from: last, to: current, url: `https://github.com/${REPO}/releases/tag/v${current}` }
+}
 
 function readDismissed(): string {
   try {
@@ -233,6 +268,9 @@ export function useUpdateCheck() {
     apply: runApply,
     dismiss,
     hideBanner: () => (bannerHidden.value = true),
+    later,
+    installOnQuit,
+    consumeJustUpdated,
     check: runCheck,
     startAutoCheck,
     install: runInstall,

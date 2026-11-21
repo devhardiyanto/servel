@@ -125,7 +125,13 @@ const engineRows = computed<EngineRow[]>(() => {
   let text = 'Checking…'
   if (s) {
     const active = s.engine === 'docker'
-    if (active && s.engine_running) {
+    if (active && s.engine_problem === 'permission') {
+      state = 'warn'
+      text = 'Installed · permission denied on the Docker socket'
+    } else if (active && s.engine_running && s.engine_problem === 'compose') {
+      state = 'warn'
+      text = `Running${s.engine_version ? ` · v${s.engine_version}` : ''} · Compose v2 missing`
+    } else if (active && s.engine_running) {
       state = 'ok'
       text = `Running${s.engine_version ? ` · v${s.engine_version}` : ''}`
     } else if (s.docker_available || (active && s.engine_installed)) {
@@ -148,6 +154,12 @@ const wslTooOldTitle = computed<string>(() => {
   const v = status.value?.wsl_version
   return v ? `WSL ${v} is too old for WSL containers` : 'WSL containers need WSL 3.0.1 or newer'
 })
+
+/** v3.12.0: Docker terpasang tetapi user belum di grup `docker` / Compose v2 tidak ada. */
+const dockerProblem = computed(() => (status.value?.engine === 'docker' ? status.value.engine_problem ?? null : null))
+const DOCKER_GROUP_CMD = 'sudo usermod -aG docker $USER'
+const COMPOSE_CMD = 'sudo apt install docker-compose-plugin'
+const COMPOSE_DOCS_URL = 'https://docs.docker.com/compose/install/linux/'
 
 /** Docker dipakai tapi belum terpasang. */
 const dockerMissing = computed<boolean>(
@@ -346,6 +358,32 @@ async function addFirst(start: boolean): Promise<void> {
             <template #actions>
               <UiButton v-if="isWindows && status?.wslc_available" variant="accent" :disabled="switching" @click="useEngine('wslc')">Use WSL containers</UiButton>
               <UiButton variant="quiet" @click="openUrl(dockerInstallUrl)">{{ isLinux ? 'Docker Engine ↗' : 'Docker Desktop ↗' }}</UiButton>
+            </template>
+          </UiBanner>
+
+          <UiBanner
+            v-else-if="dockerProblem === 'permission'"
+            tone="warn"
+            title="Docker is running, but Kova is not allowed to use it"
+          >
+            Your user is not in the docker group, so the Docker socket refuses the connection. Add it, then log out and back in
+            (or restart) and check again.
+            <code class="ob-code">{{ DOCKER_GROUP_CMD }}</code>
+            <template #actions>
+              <UiButton @click="copy(DOCKER_GROUP_CMD)">Copy</UiButton>
+            </template>
+          </UiBanner>
+
+          <UiBanner
+            v-else-if="dockerProblem === 'compose'"
+            tone="warn"
+            title="Docker Compose v2 is missing"
+          >
+            Kova starts services with docker compose. Install the Compose plugin, then check again. On Debian and Ubuntu:
+            <code class="ob-code">{{ COMPOSE_CMD }}</code>
+            <template #actions>
+              <UiButton @click="copy(COMPOSE_CMD)">Copy</UiButton>
+              <UiButton variant="quiet" @click="openUrl(COMPOSE_DOCS_URL)">Install guide ↗</UiButton>
             </template>
           </UiBanner>
 

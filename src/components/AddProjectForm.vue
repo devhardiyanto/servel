@@ -7,6 +7,7 @@ import { invoke } from '@tauri-apps/api/core'
 import UiInput from '@/components/ui/UiInput.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import CommandSuggestions from '@/components/CommandSuggestions.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 import { useConfig } from '@/composables/useConfig'
@@ -171,6 +172,7 @@ defineExpose({ save, ready, saving, canStart: computed(() => !!form.value.comman
         placeholder="e.g. npm run dev -- --port {port}"
         help="{port} is replaced by the port above."
       />
+      <CommandSuggestions v-model="form.command" :path="props.path" />
 
       <template v-if="!compact">
         <UiInput v-model="form.profileId" label="Services" as="select" :options="profileOptions" />
