@@ -737,8 +737,31 @@ mod tests {
         assert!(port_open(port).await);
         assert!(!port_free(port).await);
         drop(listener);
-        assert!(!port_open(port).await);
-        assert!(port_free(port).await);
+
+        // Port yang baru dilepas bisa langsung diambil test lain yang berjalan
+        // paralel (mis. `start_then_stop_frees_the_port` memilih port lewat
+        // bind ke 0), sehingga "tidak ada yang mendengarkan" di port itu tidak
+        // bisa dijamin. Untuk kasus tertutup, port dipegang socket yang di-bind
+        // tetapi tidak listen (tanpa SO_REUSEADDR): koneksi ditolak dan tidak
+        // ada test lain yang bisa memakainya.
+        let held = tokio::net::TcpSocket::new_v4().unwrap();
+        held.bind(SocketAddr::from((Ipv4Addr::LOCALHOST, 0))).unwrap();
+        let held_port = held.local_addr().unwrap().port();
+        assert!(!port_open(held_port).await);
+        assert!(!port_free(held_port).await);
+        drop(held);
+
+        // Kasus bebas: tetap bisa direbut test lain di sela waktu, jadi coba
+        // beberapa port baru; gagal hanya bila semuanya bentrok.
+        let mut found_free = false;
+        for _ in 0..5 {
+            let p = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap().local_addr().unwrap().port();
+            if port_free(p).await {
+                found_free = true;
+                break;
+            }
+        }
+        assert!(found_free, "port_free harus true untuk port yang tidak dipakai");
     }
 
     /// Uji ujung ke ujung di Unix: jalankan server sungguhan lewat shell,
