@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { ref, computed, provide, onMounted, onUnmounted, h, watch } from 'vue'
 import { useStatusAnnouncer } from '@/composables/useStatusAnnouncer'
@@ -55,6 +56,17 @@ provide(SetViewKey, setView)
 const { runAutoStartOnce } = useAutoStart()
 const { refresh: refreshEngineStatus } = useEngineStatus()
 const { check: checkUpdate, startAutoCheck } = useUpdateCheck()
+
+// v3.10.1: polling RAM cepat saat Services terlihat, jeda saat jendela tersembunyi.
+const docHidden = ref(document.hidden)
+document.addEventListener('visibilitychange', () => (docHidden.value = document.hidden))
+watch(
+  () => (docHidden.value ? 'paused' : currentView.value === 'services' ? 'fast' : 'normal'),
+  (mode) => {
+    void invoke('stats_set_mode', { mode }).catch(() => {})
+  },
+  { immediate: true },
+)
 
 // v3.10.0: Settings → General → Interface size (zoom webview).
 const uiCfg = useConfig()

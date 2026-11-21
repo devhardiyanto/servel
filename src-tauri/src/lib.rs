@@ -117,6 +117,7 @@ pub fn run() {
         .manage(sites::process::SiteProcs::default())
         .invoke_handler(tauri::generate_handler![
             updater::update_check,
+            commands::stats::stats_set_mode,
             updater::update_install,
             updater::update_download,
             updater::update_apply,
@@ -427,10 +428,8 @@ pub fn run() {
             let stats_daemon_ready = daemon_ready.clone();
             let stats_shutting_down = shutting_down.clone();
             tauri::async_runtime::spawn(async move {
-                let base_delay = tokio::time::Duration::from_secs(5);
+                use commands::stats::{interval_for, mode, sleep_or_mode_change};
                 let down_delay = tokio::time::Duration::from_secs(30);
-                #[allow(unused_assignments)]
-                let mut current_delay = base_delay;
                 let mut consecutive_failures: u32 = 0;
 
                 loop {
@@ -438,32 +437,38 @@ pub fn run() {
                         break;
                     }
 
+                    // v3.10.1: jendela tersembunyi = jeda (tidak ada yang melihat
+                    // angka RAM); layar Services terbuka = tiap 2 detik.
+                    let Some(base_delay) = interval_for(mode()) else {
+                        sleep_or_mode_change(down_delay).await;
+                        continue;
+                    };
+
                     // Jangan spawn `docker stats` saat daemon down — itu yang memicu
                     // loader-error popup docker.exe/wsl.exe. Tunggu status loop melaporkan UP.
                     if !stats_daemon_ready.load(Ordering::Relaxed) {
-                        tokio::time::sleep(down_delay).await;
+                        sleep_or_mode_change(down_delay).await;
                         continue;
                     }
 
-                    match commands::stats::fetch_container_stats().await {
+                    let current_delay = match commands::stats::fetch_container_stats().await {
                         Ok(stats) => {
                             consecutive_failures = 0;
-                            current_delay = base_delay;
-
-                            if !stats.is_empty() {
-                                let _ = stats_handle.emit("container-stats-changed", &stats);
-                            }
+                            // v3.10.1: kirim juga snapshot kosong, supaya nilai lama
+                            // terhapus setelah semua service berhenti.
+                            let _ = stats_handle.emit("container-stats-changed", &stats);
+                            base_delay
                         }
                         Err(_) => {
                             consecutive_failures = consecutive_failures.saturating_add(1);
-                            current_delay = match consecutive_failures {
+                            match consecutive_failures {
                                 1..=2 => tokio::time::Duration::from_secs(10),
                                 _ => tokio::time::Duration::from_secs(30),
-                            };
+                            }
                         }
-                    }
+                    };
 
-                    tokio::time::sleep(current_delay).await;
+                    sleep_or_mode_change(current_delay).await;
                 }
             });
 
