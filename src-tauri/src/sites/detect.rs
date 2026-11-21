@@ -335,6 +335,86 @@ pub fn evidence(dir: &Path) -> Vec<String> {
     MARKERS.iter().filter(|f| dir.join(f).is_file()).take(4).map(|f| f.to_string()).collect()
 }
 
+/// Pilihan perintah untuk field Command (v3.11.0): hasil deteksi, lalu script
+/// dari `composer.json` dan `package.json`.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ScriptOption {
+    /// Teks tombol, mis. "composer run dev".
+    pub label: String,
+    pub command: String,
+    /// `detected`, `composer.json` atau `package.json`.
+    pub source: String,
+    /// Peringatan singkat bila script kemungkinan bermasalah di OS ini.
+    pub note: Option<String>,
+}
+
+/// Isi script composer: string atau array perintah.
+fn composer_script_text(v: &Value) -> String {
+    match v {
+        Value::String(s) => s.clone(),
+        Value::Array(items) => items.iter().filter_map(Value::as_str).collect::<Vec<_>>().join(" "),
+        _ => String::new(),
+    }
+}
+
+/// `php artisan pail` butuh ekstensi `pcntl`, yang tidak ada di PHP Windows.
+/// Dengan `concurrently --kill-others`, pail yang mati menghentikan semuanya.
+fn composer_note(text: &str, windows: bool) -> Option<String> {
+    if windows && text.contains("artisan pail") {
+        return Some(
+            "Runs php artisan pail, which needs the pcntl extension that PHP on Windows does not have. The script may stop right after it starts."
+                .to_string(),
+        );
+    }
+    if !text.contains("disableProcessTimeout") && (text.contains("concurrently") || text.contains("artisan serve")) {
+        return Some(
+            "Composer stops scripts after 300 seconds unless the script starts with Composer\\Config::disableProcessTimeout."
+                .to_string(),
+        );
+    }
+    None
+}
+
+pub fn script_options(dir: &Path, windows: bool) -> Vec<ScriptOption> {
+    let mut out: Vec<ScriptOption> = Vec::new();
+    let mut push = |o: ScriptOption| {
+        if !o.command.is_empty() && !out.iter().any(|e| e.command == o.command) {
+            out.push(o);
+        }
+    };
+    let d = detect(dir);
+    push(ScriptOption { label: d.command.clone(), command: d.command.clone(), source: "detected".into(), note: None });
+
+    if let Some(scripts) = read_json(&dir.join("composer.json")).and_then(|c| c.get("scripts").cloned()) {
+        for key in ["dev", "serve", "start"] {
+            if let Some(v) = scripts.get(key) {
+                let command = format!("composer run {}", key);
+                push(ScriptOption {
+                    label: command.clone(),
+                    command,
+                    source: "composer.json".into(),
+                    note: composer_note(&composer_script_text(v), windows),
+                });
+            }
+        }
+    }
+    if let Some(pkg) = read_json(&dir.join("package.json")) {
+        let pm = package_manager(dir);
+        for key in ["dev", "start", "serve", "preview"] {
+            if has_script(&pkg, key) {
+                let command = run_script(pm, key, "");
+                // Hasil deteksi sudah memuat script yang sama dengan `--port`.
+                if d.command.starts_with(&command) {
+                    continue;
+                }
+                push(ScriptOption { label: command.clone(), command, source: "package.json".into(), note: None });
+            }
+        }
+    }
+    out
+}
+
 /// Port pertama ≥ `start` yang tidak ada di `taken` dan lolos `is_free`.
 pub fn pick_port(start: u16, taken: &HashSet<u16>, is_free: impl Fn(u16) -> bool) -> Option<u16> {
     (start.max(1024)..=u16::MAX).find(|p| !taken.contains(p) && is_free(*p))
@@ -381,6 +461,52 @@ mod tests {
         fn detect(&self) -> Detection {
             detect(&self.0)
         }
+    }
+
+    impl Proj {
+        fn scripts(&self, windows: bool) -> Vec<(String, String, bool)> {
+            script_options(&self.0, windows)
+                .into_iter()
+                .map(|o| (o.command, o.source, o.note.is_some()))
+                .collect()
+        }
+    }
+
+    #[test]
+    fn laravel_offers_artisan_serve_then_composer_and_npm_scripts() {
+        let p = Proj::new("scripts-laravel");
+        p.file("artisan", "")
+            .file(
+                "composer.json",
+                r#"{"require":{"laravel/framework":"^12.0"},"scripts":{"dev":["Composer\\Config::disableProcessTimeout","npx concurrently \"php artisan serve\" \"php artisan pail --timeout=0\" \"npm run dev\""]}}"#,
+            )
+            .file("package.json", r#"{"scripts":{"dev":"vite","build":"vite build"}}"#);
+        let s = p.scripts(false);
+        assert_eq!(s[0].0, "php artisan serve --host=127.0.0.1 --port={port}");
+        assert_eq!(s[0].1, "detected");
+        assert_eq!((s[1].0.as_str(), s[1].1.as_str(), s[1].2), ("composer run dev", "composer.json", false));
+        assert_eq!(s[2].0, "npm run dev");
+        assert_eq!(s.len(), 3, "build bukan dev server");
+        // Di Windows, pail memberi peringatan.
+        assert!(p.scripts(true)[1].2);
+    }
+
+    #[test]
+    fn composer_script_without_disabled_timeout_gets_a_note() {
+        let p = Proj::new("scripts-timeout");
+        p.file("composer.json", r#"{"scripts":{"dev":"npx concurrently \"php artisan serve\" \"npm run dev\""}}"#);
+        let s = p.scripts(false);
+        let dev = s.iter().find(|o| o.0 == "composer run dev").unwrap();
+        assert!(dev.2);
+    }
+
+    #[test]
+    fn node_script_already_in_detection_is_not_repeated() {
+        let p = Proj::new("scripts-vite");
+        p.file("package.json", r#"{"devDependencies":{"vite":"^5"},"scripts":{"dev":"vite","preview":"vite preview"}}"#);
+        let s = p.scripts(false);
+        assert_eq!(s[0].0, "npm run dev -- --port {port} --strictPort");
+        assert_eq!(s.iter().map(|o| o.0.as_str()).collect::<Vec<_>>(), ["npm run dev -- --port {port} --strictPort", "npm run preview"]);
     }
 
     impl Drop for Proj {

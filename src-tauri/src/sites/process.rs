@@ -30,6 +30,24 @@ const READY_INTERVAL: Duration = Duration::from_millis(500);
 /// server akhirnya menjawab, bukan macet di `unresponsive`.
 const LATE_INTERVAL: Duration = Duration::from_secs(2);
 
+/// v3.11.0: shell keluar dengan 127 (`sh`) atau 9009 (`cmd`) bila program
+/// pertama tidak ditemukan. Pesan shell berbeda per OS, jadi Kova menulis
+/// petunjuknya sendiri, dengan nama programnya.
+fn not_found_hint(code: Option<i32>, command: &str) -> Option<String> {
+    if !matches!(code, Some(127) | Some(9009)) {
+        return None;
+    }
+    let program = command.split_whitespace().next()?.trim_matches('"');
+    let how = match program {
+        "composer" => " Install Composer (getcomposer.org) and make sure it is on PATH, then restart Kova so the new PATH is used.",
+        "npm" | "npx" | "node" => " Install Node with Runtimes → Node, or set a Node version for this project.",
+        "pnpm" | "yarn" | "bun" => " Install it (for example with corepack enable or mise), then restart Kova.",
+        "php" => " Install PHP with Runtimes → PHP, or set a PHP version for this project.",
+        _ => " Install it or add it to PATH, then restart Kova.",
+    };
+    Some(format!("{} was not found.{}", program, how))
+}
+
 /// Status berikutnya dari pengecekan port. `None` = tidak berubah.
 fn ready_transition(state: SiteState, open: bool, timed_out: bool) -> Option<SiteState> {
     match (state, open, timed_out) {
@@ -539,6 +557,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     let wait_app = app.clone();
     let wait_id = site.id.clone();
     let wait_src = source.clone();
+    let wait_cmd = line.clone();
     tauri::async_runtime::spawn(async move {
         let code = child.wait().await.ok().and_then(|s| s.code());
         let procs = wait_app.state::<SiteProcs>();
@@ -567,6 +586,13 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
                 None => "the process ended".to_string(),
             };
             emit_log(&wait_app, &wait_src, &msg, Some("error"));
+            if let Some(hint) = not_found_hint(code, &wait_cmd) {
+                emit_log(&wait_app, &wait_src, &hint, Some("error"));
+                let mut map = procs.entries.lock().unwrap();
+                if let Some(e) = map.get_mut(&wait_id).filter(|e| e.generation == generation) {
+                    e.last_line = Some(hint);
+                }
+            }
         }
         emit_status(&wait_app);
     });
@@ -718,6 +744,16 @@ pub fn snapshot<R: Runtime>(app: &AppHandle<R>) -> Vec<SiteRuntime> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn missing_program_gets_a_named_hint() {
+        use super::not_found_hint;
+        assert!(not_found_hint(Some(127), "composer run dev").unwrap().starts_with("composer was not found."));
+        assert!(not_found_hint(Some(9009), "pnpm run dev --port 3000").unwrap().contains("corepack"));
+        assert!(not_found_hint(Some(9009), "\"my tool\" x").is_some());
+        assert_eq!(not_found_hint(Some(1), "composer run dev"), None);
+        assert_eq!(not_found_hint(None, "composer run dev"), None);
+    }
+
     #[test]
     fn late_answer_moves_unresponsive_to_running() {
         use super::{ready_transition, SiteState::*};

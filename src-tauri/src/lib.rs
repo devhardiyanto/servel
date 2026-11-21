@@ -171,6 +171,7 @@ pub fn run() {
             php_ext::php_ext_install,
             php_ext::php_ext_fix_https,
             sites::project_detect,
+            sites::project_scripts,
             sites::project_port_check,
             sites::sites_runtime,
             sites::site_start,
