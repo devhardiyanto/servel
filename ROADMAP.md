@@ -565,12 +565,29 @@ Audit ulang canvas (21 November 2026, per artboard, di level markup): selisih be
 - [x] Edit as .env / Edit as rows; Save dari mode teks. Parser: komentar, `export`, kutip, `=` pertama, `PORT` dilewati.
 - [x] Canvas Flow H (Environments, model B: Default + override) digambar; H3 memakai placeholder nilai Default tanpa chip (masukan 21 November).
 
+### N.6 — v3.8.6: tata letak sesuai artboard
+
+Masukan 21 November: fungsi sudah sesuai canvas, tetapi susunan layar terlalu polos. Audit sebelumnya membandingkan markup dan teks, sehingga kepadatan visual (ikon di tombol, chip, kotak output, kartu pengaturan) tidak tertangkap.
+
+- [x] `UiIcon` (ikon stroke canvas) di tombol utama semua layar.
+- [x] Projects: pencarian selalu ada, titik status di kartu; detail: runtime + chip sumber, chip service, kotak output, menu ⋯ di judul, footer Open folder / Terminal / VS Code.
+- [x] Services, Logs, Settings: judul layar; Settings berupa kartu per bagian dalam dua kolom. Runtimes: PHP extensions sebagai panel kanan.
+
+### O — v3.9.0: Environments per project
+
+Keputusan 21 November: model B (Default + override), nama "Environments", H3 memakai placeholder nilai Default tanpa chip.
+
+- [x] Config: `envs` (nama + nilai yang berbeda dari Default) dan `activeEnv`; ditulis hanya bila dipakai. `Project::effective_env` = Default + override; nama usang = Default.
+- [x] Start/restart memakai environment aktif; log `env (<nama>): …`; status proses membawa `envName`.
+- [x] Tab Environment: pemilih environment, New environment (salin perubahan dari environment lain), baris Default dengan placeholder, × = kembali ke Default, Delete environment, paste bulk dan Edit as .env per environment.
+- [x] Banner "Running with … · Restart to use …"; environment aktif di kartu project, status detail, Overview, dan popup tray.
+
 ## Berikutnya
 
 ### v3.x — kandidat, belum diputuskan
 
 - [x] Catatan status canvas diperbarui per v3.8.4 (21 November 2026), termasuk penyimpangan yang memang benar.
-- [ ] v3.9.0 — Environments per project (canvas Flow H): Default + override, pemilih environment, New environment, banner "Restart to use …", environment aktif di baris project dan popup tray.
+- [x] v3.9.0 — Environments per project (canvas Flow H): lihat O di atas.
 
 ### Ditunda — sampai ada kebutuhan pengguna
 

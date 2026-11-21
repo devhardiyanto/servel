@@ -16,7 +16,12 @@ const props = defineProps<{ selectedId?: string | null; query?: string }>()
 const emit = defineEmits<{ select: [id: string] }>()
 
 const { config } = useConfig()
-const { stateOf } = useProjectRuntime()
+const { stateOf, infoOf } = useProjectRuntime()
+/** v3.9.0 (canvas H6): environment proses yang jalan, bila bukan Default. */
+function envOf(id: string): string {
+  const i = infoOf(id)
+  return i && (i.state === 'running' || i.state === 'starting' || i.state === 'unresponsive') ? (i.envName ?? '') : ''
+}
 const actions = useProjectActions()
 
 const all = computed<Project[]>(() => config.value.projects)
@@ -61,24 +66,31 @@ async function howDetection(): Promise<void> {
         :aria-current="selectedId === p.id ? 'true' : undefined"
         @click="emit('select', p.id)"
       >
+        <StatusDot class="pl-dot" :state="stateOf(p.id)" />
         <span class="pl-main">
           <span class="pl-name">{{ p.name }}</span>
           <span class="pl-path">{{ p.path || 'Folder not chosen yet' }}</span>
         </span>
         <UiChip v-if="p.kind">{{ p.kind }}</UiChip>
-        <span class="pl-port">{{ (p.port ?? 0) > 0 ? `:${p.port}` : '' }}</span>
-        <StatusDot class="pl-state" :state="stateOf(p.id)" :label="actions.stateLabel(p)" />
+        <span class="pl-port">{{ (p.port ?? 0) > 0 ? `:${p.port}` : '' }}<template v-if="envOf(p.id)"> · {{ envOf(p.id) }}</template></span>
+        <span class="pl-state" :class="`pl-state--${stateOf(p.id)}`">{{ actions.stateLabel(p) }}</span>
       </button>
     </li>
   </ul>
 </template>
 
 <style scoped>
+.pl-dot { flex: none; }
+.pl-state { font-size: var(--text-xs); color: var(--muted); white-space: nowrap; }
+.pl-state--running { color: var(--green); }
+.pl-state--starting, .pl-state--unresponsive { color: var(--amber); }
+.pl-state--exited { color: var(--red); }
+
 .pl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .pl-card {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 64px 112px;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(64px, max-content) 96px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
@@ -100,7 +112,7 @@ async function howDetection(): Promise<void> {
 .pl-port { font: 400 var(--text-xs) var(--font-mono); color: var(--muted); text-align: right; }
 .pl-state { justify-self: end; }
 @media (max-width: 760px) {
-  .pl-card { grid-template-columns: minmax(0, 1fr) auto; }
+  .pl-card { grid-template-columns: auto minmax(0, 1fr) auto; }
   .pl-card :deep(.ui-chip), .pl-port { display: none; }
 }
 </style>

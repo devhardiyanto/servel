@@ -46,6 +46,9 @@ pub struct SiteRuntime {
     pub exit_code: Option<i32>,
     /// Baris output terakhir sebelum proses berhenti.
     pub last_line: Option<String>,
+    /// Environment yang dipakai saat proses ini dimulai (v3.9.0). `None` =
+    /// Default. Dipakai UI untuk "Restart to use …".
+    pub env_name: Option<String>,
 }
 
 struct Entry {
@@ -57,6 +60,7 @@ struct Entry {
     stopping: bool,
     /// Membedakan start lama dan baru untuk site yang sama.
     generation: u64,
+    env_name: Option<String>,
 }
 
 #[derive(Default)]
@@ -88,6 +92,7 @@ impl SiteProcs {
                 state: e.state,
                 exit_code: e.exit_code,
                 last_line: e.last_line.clone(),
+                env_name: e.env_name.clone(),
             })
             .collect();
         out.sort_by(|a, b| a.id.cmp(&b.id));
@@ -388,6 +393,11 @@ pub fn validate(site: &Project) -> Result<(), String> {
     for (key, value) in &site.env {
         validate_env(key, value)?;
     }
+    for e in &site.envs {
+        for (key, value) in &e.vars {
+            validate_env(key, value).map_err(|err| format!("{} ({})", err, e.name))?;
+        }
+    }
     Ok(())
 }
 
@@ -446,10 +456,15 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
         }
     }
     // Environment milik project dipasang paling akhir, jadi menimpa nilai mise.
-    if !site.env.is_empty() {
-        cmd.envs(&site.env);
-        let keys: Vec<&str> = site.env.keys().map(String::as_str).collect();
-        emit_log(app, &source, &format!("env: {}", keys.join(", ")), None);
+    // v3.9.0: Default lalu override environment aktif.
+    let env = site.effective_env();
+    let env_label = site.active_env_entry().map(|e| e.name.as_str()).unwrap_or("Default");
+    if !env.is_empty() {
+        cmd.envs(&env);
+        let keys: Vec<&str> = env.keys().map(String::as_str).collect();
+        emit_log(app, &source, &format!("env ({}): {}", env_label, keys.join(", ")), None);
+    } else if site.active_env_entry().is_some() {
+        emit_log(app, &source, &format!("env ({}): none", env_label), None);
     }
 
     emit_log(app, &source, &format!("$ {}  (in {})", line, site.path), None);
@@ -482,6 +497,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
             last_line: None,
             stopping: false,
             generation,
+            env_name: site.active_env_entry().map(|e| e.name.clone()),
         },
     );
     emit_status(app);
@@ -688,6 +704,8 @@ mod tests {
             port,
             auto_start: false,
             env: Default::default(),
+            envs: Vec::new(),
+            active_env: None,
             start_services: false,
         }
     }

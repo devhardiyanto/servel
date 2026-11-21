@@ -6,6 +6,7 @@ import ProjectDetail from '@/components/ProjectDetail.vue'
 import ProjectDialogs from '@/components/ProjectDialogs.vue'
 import AddProjectModal from '@/components/AddProjectModal.vue'
 import UiInput from '@/components/ui/UiInput.vue'
+import UiIcon from '@/components/ui/UiIcon.vue'
 import { useProjectActions } from '@/composables/useProjectActions'
 import { useServices } from '@/composables/useServices'
 import { SetViewKey } from '@/types/navigation'
@@ -94,17 +95,20 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
     <section class="pv-list" aria-label="Project list">
       <header class="pv-bar">
         <h1 class="pv-title">Projects <span v-if="config.projects.length" class="pv-count">{{ config.projects.length }}</span></h1>
-        <UiInput
-          v-if="config.projects.length > 3"
-          v-model="query"
-          type="search"
-          width="220px"
-          placeholder="Search projects"
-          aria-label="Search projects"
-          @keydown.esc="query = ''"
-        />
+        <!-- v3.8.6 (canvas Projects): pencarian selalu ada bila ada project. -->
+        <div v-if="config.projects.length" class="pv-search">
+          <UiIcon name="search" class="pv-search__i" />
+          <UiInput
+            v-model="query"
+            type="search"
+            placeholder="Search projects"
+            aria-label="Search projects"
+            @keydown.esc="query = ''"
+          />
+        </div>
+        <span class="pv-sp"></span>
         <!-- Tanpa project, Add project ada di empty state; jangan dobel (v3.6.1). -->
-        <UiButton v-if="config.projects.length" variant="primary" @click="actions.adding.value = true">Add project</UiButton>
+        <UiButton v-if="config.projects.length" variant="primary" @click="actions.adding.value = true"><UiIcon name="plus" />Add project</UiButton>
       </header>
       <ProjectsPanel :selected-id="selectedId" :query="query" @select="choose" />
       <div v-if="config.projects.length" class="pv-strip">
@@ -145,6 +149,12 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
 </template>
 
 <style scoped>
+.pv-search { position: relative; flex: 0 1 320px; min-width: 140px; }
+.pv-search :deep(.ui-field) { width: 100%; }
+.pv-search__i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; z-index: 1; }
+.pv-search :deep(input) { padding-left: 32px; }
+.pv-sp { flex: 1; }
+
 .pv-state { padding: var(--space-6) var(--space-8); display: flex; flex-direction: column; gap: var(--space-3); max-width: 720px; }
 .pv-skel {
   display: flex;
@@ -180,7 +190,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
 }
 .pv-list { display: flex; flex-direction: column; gap: var(--space-4); }
 .pv-bar { display: flex; align-items: center; gap: var(--space-3); }
-.pv-title { margin: 0 auto 0 0; font-size: var(--text-lg); font-weight: 600; color: var(--text); }
+.pv-title { margin: 0; font-size: var(--text-xl); white-space: nowrap; font-weight: 600; color: var(--text); }
 .pv-count { font: 400 var(--text-xs) var(--font-mono); color: var(--faint); margin-left: var(--space-1); }
 .pv-strip {
   margin-top: auto;
