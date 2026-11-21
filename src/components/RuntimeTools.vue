@@ -5,7 +5,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import UiTabs from '@/components/ui/UiTabs.vue'
+import UiSegmented from '@/components/ui/UiSegmented.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiChip from '@/components/ui/UiChip.vue'
@@ -184,9 +184,10 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
 
 <template>
   <div class="rtt">
-    <h1 class="rtt-title">Runtimes</h1>
+    <!-- v3.10.0 (canvas Runtimes): judul dan pilihan tool satu baris. -->
     <div class="rtt-head">
-      <UiTabs v-model="tool" :tabs="tabs" label="Tools" />
+      <h1 class="rtt-title">Runtimes</h1>
+      <UiSegmented :model-value="tool" :options="tabs" label="Tool" @update:model-value="tool = $event as Tool" />
       <span class="rtt-via">via mise {{ versionCtx.ctx.value?.miseVersion ?? '' }}</span>
     </div>
 
@@ -285,7 +286,7 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
 <style scoped>
 .rtt-title { margin: 0; font-size: var(--text-xl); letter-spacing: -0.015em; font-weight: 600; color: var(--text); }
 .rtt { display: flex; flex-direction: column; gap: var(--space-4); container-type: inline-size; }
-.rtt-head { display: flex; align-items: center; gap: var(--space-4); border-bottom: 1px solid var(--border); }
+.rtt-head { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
 .rtt-via { margin-left: auto; font: 400 var(--text-xs) var(--font-mono); color: var(--faint); }
 .rtt-loading { display: flex; flex-direction: column; gap: var(--space-2); }
 .rtt-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }

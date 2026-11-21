@@ -56,7 +56,7 @@ function current(): number {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 34px;
+  height: 36px;
   padding: 0;
   border: 0;
   border-bottom: 2px solid transparent;

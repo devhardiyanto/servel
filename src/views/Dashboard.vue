@@ -97,6 +97,11 @@ function startOne(id: string): void {
 }
 
 // Banner error service: Retry menyalakan lagi service yang gagal.
+const runningRamMb = computed(() =>
+  Object.values(uiState.value)
+    .filter((s) => s.status === 'running' && s.memMb != null)
+    .reduce((sum, s) => sum + (s.memMb ?? 0), 0),
+)
 const failedIds = computed(() => Object.values(uiState.value).filter((s) => s.error && s.status !== 'running').map((s) => s.id))
 function retryFailed(): void {
   serviceError.value = null
@@ -274,6 +279,12 @@ function focusFirstSwitch(): void {
           </div>
         </template>
       </div>
+      <!-- v3.10.0 (canvas .k-list footer): ringkasan di bawah daftar. -->
+      <div v-if="definitions.length > 0" class="sw-summary">
+        <span>{{ runningCount }} running<template v-if="runningRamMb > 0"> · {{ runningRamMb >= 1024 ? `${(runningRamMb / 1024).toFixed(1)} GB` : `${Math.round(runningRamMb)} MB` }}</template></span>
+        <span class="sw-sp"></span>
+        <span>Engine: {{ engineLabel }}</span>
+      </div>
     </section>
 
     <section class="log-wrap">
@@ -396,7 +407,7 @@ function focusFirstSwitch(): void {
   margin: 0;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   overflow: hidden;
   display: flex;
@@ -442,6 +453,17 @@ function focusFirstSwitch(): void {
   font-size: var(--text-xs);
   color: var(--muted);
 }
+
+.sw-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+.sw-sp { flex: 1; }
 
 .sw-actions {
   display: flex;

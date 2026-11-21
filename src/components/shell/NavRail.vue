@@ -117,7 +117,8 @@ const items = computed(() => [
   align-items: center;
   gap: var(--space-2);
   width: 100%;
-  padding: 7px var(--space-3);
+  height: 34px;
+  padding: 0 10px;
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;

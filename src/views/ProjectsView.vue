@@ -175,14 +175,15 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: var(--space-6) var(--space-6) var(--space-6) var(--space-8);
+  /* v3.10.0: canvas .k-head 18/20, .k-list 0 20 16. */
+  padding: 18px 20px 16px;
 }
 .pv-detail {
   flex: none;
   max-width: 60%;
   overflow-y: auto;
-  padding: var(--space-6) var(--space-5);
-  background: var(--bg-sunken);
+  padding: 16px;
+  background: var(--surface);
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;

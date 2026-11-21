@@ -582,12 +582,13 @@ Keputusan 21 November: model B (Default + override), nama "Environments", H3 mem
 - [x] Tab Environment: pemilih environment, New environment (salin perubahan dari environment lain), baris Default dengan placeholder, × = kembali ke Default, Delete environment, paste bulk dan Edit as .env per environment.
 - [x] Banner "Running with … · Restart to use …"; environment aktif di kartu project, status detail, Overview, dan popup tray.
 
-### P — v3.10.0: ukuran teks dan polish per layar
+### P — v3.10.0: komponen, font, dan penempatan sesuai canvas
 
-Masukan 21 November: teks terasa terlalu besar dibanding artboard. Audit ukuran yang dirender di kelima layar terhadap `kova.css`: token sudah sama, tetapi font dasar body 14 px (canvas 13 px) dan beberapa elemen berbeda.
+Masukan 21 November: teks terasa terlalu besar, dan audit harus mencakup komponen UI, font, serta penempatan layout di lima layar. Ukuran yang dirender diukur langsung terhadap `kova.css`.
 
-- [x] Body 13 px / 1.45; tombol sm 26 px weight 500, md 32 px; navigasi weight 500.
-- [x] Projects: nama 14 px, mono detail 12 px, panel 430 px. Services: nama 14/600, RAM abu. Runtimes: versi 14/600, label Install version. Logs: ikon search. Settings: sub-navigasi 13 px.
+- [x] Komponen: kartu project 56 px/r8, tombol sm 26 px/500 dan md 32 px, navigasi 34 px, toggle 34×20, tab 36 px, panel detail `surface` padding 16, RAM abu.
+- [x] Font: body 13 px/1.45 (dulu 14/1.5); nama project/service 14 px, versi runtime 14/600, mono detail 12 px, sub-navigasi Settings 13 px.
+- [x] Penempatan: padding Projects 18/20; footer detail satu baris; ringkasan Services; judul + pilihan tool Runtimes satu baris; ikon search Logs; Settings dua kolom seperti canvas.
 - [x] Interface size (Compact / Default / Large) lewat zoom webview.
 
 ## Berikutnya

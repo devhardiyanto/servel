@@ -584,14 +584,14 @@ const tabs = computed(() => [
 .pd-lastline { font: 400 var(--text-xs) var(--font-mono); color: var(--red); overflow-wrap: anywhere; }
 .pd-open {
   position: sticky;
-  bottom: calc(-1 * var(--space-6));
-  margin: auto calc(-1 * var(--space-5)) calc(-1 * var(--space-6));
-  padding: var(--space-3) var(--space-5);
+  bottom: -16px;
+  margin: auto -16px -16px;
+  padding: 12px 16px;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
   border-top: 1px solid var(--border);
-  background: var(--bg-sunken);
+  background: var(--surface);
 }
 .pd-titlerow { display: flex; align-items: flex-start; gap: var(--space-2); }
 .pd-titlerow .pd-title { flex: 1; min-width: 0; }

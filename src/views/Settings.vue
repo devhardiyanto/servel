@@ -403,6 +403,8 @@ onMounted(async () => {
 
       <main class="settings-content" :class="{ 'settings-content--cards': props.mode === 'settings' }">
         <template v-if="activeNav === 'general'">
+          <!-- v3.10.0 (canvas Settings): kiri On launch + Window & quit, kanan Container engine + Command line. -->
+          <div class="settings-col">
           <div class="section-block">
             <div class="section-title">ON LAUNCH</div>
 
@@ -441,17 +443,6 @@ onMounted(async () => {
             </SettingRow>
           </div>
 
-          <div class="section-block">
-            <div class="section-title">APPEARANCE</div>
-            <SettingRow label="Interface size" desc="Text and controls in every Kova window. Default matches the design.">
-              <UiSegmented
-                label="Interface size"
-                :model-value="String(config.uiScale ?? 1)"
-                :options="[{ value: '0.9', label: 'Compact' }, { value: '1', label: 'Default' }, { value: '1.1', label: 'Large' }]"
-                @update:model-value="setUiScale(Number($event))"
-              />
-            </SettingRow>
-          </div>
 
           <div class="section-block">
             <div class="section-title">WINDOW &amp; QUIT</div>
@@ -473,21 +464,21 @@ onMounted(async () => {
             </SettingRow>
           </div>
 
-          <div v-if="cli?.supported" class="section-block">
-            <div class="section-title">COMMAND LINE</div>
 
-            <SettingRow label="kova command" :desc="cliDesc">
-              <UiButton :loading="cliBusy" :disabled="cliBusy || (cli.installed && !cli.outdated)" @click="installCli">
-                {{ cli.installed ? (cli.outdated ? 'Update' : 'Installed') : 'Install' }}
-              </UiButton>
+          <div class="section-block">
+            <div class="section-title">APPEARANCE</div>
+            <SettingRow label="Interface size" desc="Text and controls in every Kova window. Default matches the design.">
+              <UiSegmented
+                label="Interface size"
+                :model-value="String(config.uiScale ?? 1)"
+                :options="[{ value: '0.9', label: 'Compact' }, { value: '1', label: 'Default' }, { value: '1.1', label: 'Large' }]"
+                @update:model-value="setUiScale(Number($event))"
+              />
             </SettingRow>
-            <p v-if="cli.installed && !cli.onPath" class="settings-note">
-              The folder is not on your PATH yet. Add this line to your shell profile, then open a new terminal:
-              <code>export PATH="$HOME/.local/bin:$PATH"</code>
-            </p>
-            <p v-if="cliError" class="settings-error">{{ cliError }}</p>
           </div>
 
+          </div>
+          <div class="settings-col">
           <div class="section-block">
             <div class="section-title">CONTAINER ENGINE</div>
 
@@ -564,6 +555,23 @@ onMounted(async () => {
             </p>
           </div>
 
+
+          <div v-if="cli?.supported" class="section-block">
+            <div class="section-title">COMMAND LINE</div>
+
+            <SettingRow label="kova command" :desc="cliDesc">
+              <UiButton :loading="cliBusy" :disabled="cliBusy || (cli.installed && !cli.outdated)" @click="installCli">
+                {{ cli.installed ? (cli.outdated ? 'Update' : 'Installed') : 'Install' }}
+              </UiButton>
+            </SettingRow>
+            <p v-if="cli.installed && !cli.onPath" class="settings-note">
+              The folder is not on your PATH yet. Add this line to your shell profile, then open a new terminal:
+              <code>export PATH="$HOME/.local/bin:$PATH"</code>
+            </p>
+            <p v-if="cliError" class="settings-error">{{ cliError }}</p>
+          </div>
+
+
           <div class="section-block section-block--danger">
             <div class="section-title section-title--red">DANGER ZONE</div>
 
@@ -574,8 +582,8 @@ onMounted(async () => {
               <UiButton variant="danger" @click="handleReset">Reset</UiButton>
             </SettingRow>
           </div>
+          </div>
         </template>
-
         <template v-else-if="activeNav === 'services'">
           <div class="section-block">
             <div class="section-title">PROFILES</div>
@@ -910,12 +918,13 @@ onMounted(async () => {
    (mode "runtimes") memakai komponen ini juga, jadi hanya berlaku di sini. */
 .settings-content--cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
   align-content: start;
   align-items: start;
   padding: var(--space-8) var(--space-6) var(--space-6);
   gap: calc(var(--space-8) + var(--space-2)) var(--space-5);
 }
+.settings-col { display: flex; flex-direction: column; gap: calc(var(--space-8) + var(--space-2)); min-width: 0; }
 .settings-content--cards .section-block {
   position: relative;
   padding: 0 var(--space-4);
