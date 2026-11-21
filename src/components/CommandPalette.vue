@@ -51,7 +51,7 @@ const commands = computed<PaletteCommand[]>(() => {
   }
 
   if (selectedCount.value > 0) {
-    list.push({ id: 's-start', label: 'Start selected services', group: 'Services', keywords: 'up all', run: () => start() })
+    list.push({ id: 's-start', label: 'Start selected services', group: 'Services', keywords: 'up all', run: async () => { await start() } })
   }
   if (runningCount.value > 0) {
     list.push({ id: 's-stop-all', label: 'Stop all services', group: 'Services', keywords: 'down', run: () => stopAll() })
@@ -70,7 +70,8 @@ const commands = computed<PaletteCommand[]>(() => {
       // stop ikut melepas pilihannya.
       run: () => {
         if (up) return st.selected ? toggle(def.id) : stop([def.id])
-        return st.selected ? start([def.id]) : toggle(def.id)
+        if (st.selected) return start([def.id]).then(() => {})
+        return toggle(def.id)
       },
     })
   }

@@ -508,15 +508,19 @@ Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-nav
 
 Revamp canvas selesai dengan v3.6.0 (L): tray, ikon, dan aksesibilitas menutup selisih terakhir antara canvas dan aplikasi. v3.6.1–v3.7.4 (L.1, M–M.4) adalah lanjutan dari pemakaian: toggle service cepat yang tidak lagi macet, panel detail yang bisa diseret dan ditutup, popup tray (klik kiri dan kanan di Windows/macOS, menu native hanya di Linux) dengan versi global PHP/Node, engine dan mise yang baru dipasang terdeteksi tanpa restart, onboarding yang tidak meminta `wsl --update` bila WSL containers sudah ada, dan tautan keluar yang membuka browser sistem.
 
-Belum diuji di perangkat nyata (Windows):
+Diuji di Windows (21 November 2026, v3.7.3–v3.7.4): restart setelah update, popup tray pada skala 125%, klik ulang / klik di luar / Esc menutup popup, klik kanan membuka popup, mengganti versi global PHP/Node dari popup (Runtimes ikut berubah), toggle service cepat saat hidup, wslc terdeteksi tanpa menutup Kova, tombol Docker Desktop ↗ membuka browser, dan baris terakhir Logs saat banner update. Semua lolos.
 
-- Restart setelah update ke v3.6.x–v3.7.x.
-- Posisi popup tray pada skala DPI selain 100% dan multi-monitor.
-- Toggle service cepat dengan WSL containers.
-- PATH dari registry dibaca ulang setelah `wsl --update` (wslc terdeteksi tanpa menutup Kova).
-- Klik kanan ikon tray membuka popup.
-- Mengganti versi global PHP/Node dari popup.
-- Pembaca layar NVDA.
+Belum diuji: popup tray di multi-monitor, pembaca layar NVDA.
+
+### M.5 — v3.7.5: auto-start yang jujur
+
+Ditemukan saat uji: setelah restart, toggle Redis menyala dan log menulis `auto-started: redis`, tetapi Redis tidak berjalan.
+
+- [x] Auto-start memulihkan pilihan service sendiri sebelum start (dulu bergantung pada pemulihan di App.vue yang berjalan bersamaan; bila kalah cepat, `start()` tidak melakukan apa-apa).
+- [x] `start()` mengembalikan hasil (started / already running / port conflict / failed); log auto-start mencatat hasil sebenarnya.
+- [x] Engine yang baru menyala ditunggu sampai 60 detik, bukan langsung dilewati.
+- [x] Banner hasil auto-start (menunggu engine, sedang start, dilewati, gagal) dengan Retry, Open Services, atau Engine settings; berhasil = toast.
+- [x] Status engine `not installed` (bukan "checking" atau "not responding") di status bar dan Services; status bar bisa diklik ke Settings saat engine bermasalah.
 
 ## Berikutnya
 

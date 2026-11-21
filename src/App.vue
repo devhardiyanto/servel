@@ -15,6 +15,7 @@ import StatusBar from './components/shell/StatusBar.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import ToastHost from './components/ui/ToastHost.vue'
 import UpdateBanner from './components/shell/UpdateBanner.vue'
+import AutoStartNotice from './components/shell/AutoStartNotice.vue'
 import { useAutoStart } from './composables/useAutoStart'
 import { useEngineStatus } from './composables/useEngineStatus'
 import { useUpdateCheck } from './composables/useUpdateCheck'
@@ -120,6 +121,7 @@ onUnmounted(() => window.removeEventListener('focus', onWindowFocus))
     <NavRail :current="currentView" @go="setView" @palette="palette?.show()" />
     <main class="shell-main">
       <UpdateBanner />
+      <AutoStartNotice />
       <component :is="viewComponent" />
     </main>
     <StatusBar class="shell-status" />

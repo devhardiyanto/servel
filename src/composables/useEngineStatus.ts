@@ -3,7 +3,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ENGINE_LABEL, type EngineKind, type PrereqStatus } from '@/types/prereq'
 
-export type EngineState = 'up' | 'down' | 'unknown'
+/** `missing` (v3.7.5): engine terpilih tidak terpasang, bukan sekadar tidak menjawab. */
+export type EngineState = 'up' | 'down' | 'missing' | 'unknown'
 
 interface DaemonStatusPayload {
   running: boolean
@@ -23,7 +24,9 @@ async function registerListener(): Promise<void> {
   try {
     // Nama event dipertahankan dari v1.5 (backend emit untuk engine apa pun).
     await listen<DaemonStatusPayload>('docker-daemon-status', (e) => {
-      engineStatus.value = e.payload.running ? 'up' : 'down'
+      // Polling tidak tahu beda "tidak terpasang" dan "mati"; jangan timpa `missing`.
+      if (e.payload.running) engineStatus.value = 'up'
+      else if (engineStatus.value !== 'missing') engineStatus.value = 'down'
       lastError.value = e.payload.error
     })
   } catch (err) {
@@ -37,7 +40,7 @@ async function refresh(): Promise<void> {
     const result = await invoke<PrereqStatus>('check_prerequisites')
     engine.value = result.engine
     wslcAvailable.value = result.wslc_available
-    engineStatus.value = result.engine_running ? 'up' : 'down'
+    engineStatus.value = result.engine_running ? 'up' : result.engine_installed ? 'down' : 'missing'
     if (result.engine_running) {
       lastError.value = null
     }
