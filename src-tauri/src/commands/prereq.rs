@@ -29,6 +29,10 @@ pub struct PrereqStatus {
     /// `mise` terpasang (v3: satu-satunya pengelola versi PHP/Node).
     pub mise_installed: bool,
     pub mise_version: Option<String>,
+    /// v3.12.0, engine Docker saja: `permission` | `daemon` | `compose`.
+    /// `None` = siap atau tidak berlaku.
+    #[serde(default)]
+    pub engine_problem: Option<String>,
 }
 
 /// Probe a tool that prints its version to stdout and extract a semver token.
@@ -126,21 +130,23 @@ pub async fn check_prerequisites() -> PrereqStatus {
         match engine {
             RuntimeKind::Docker => {
                 let installed = runtime::docker::is_installed().await;
-                let running = installed && runtime::docker::is_running().await;
+                let problem = if installed { runtime::docker::diagnose().await } else { None };
+                // Compose yang hilang tidak membuat daemon mati.
+                let running = installed && !matches!(problem, Some(runtime::docker::DockerProblem::Permission | runtime::docker::DockerProblem::Daemon));
                 let version = if installed { runtime::docker::version().await } else { None };
-                (installed, running, version)
+                (installed, running, version, problem.map(|p| p.as_str().to_string()))
             }
             RuntimeKind::Wslc => {
                 let version = runtime::wslc::version().await;
                 let installed = version.is_some();
                 let running = installed && runtime::wslc::is_running().await;
-                (installed, running, version)
+                (installed, running, version, None)
             }
         }
     };
 
     let (
-        (engine_installed, engine_running, engine_version),
+        (engine_installed, engine_running, engine_version, engine_problem),
         wslc_available,
         docker_available,
         wsl_version,
@@ -166,6 +172,7 @@ pub async fn check_prerequisites() -> PrereqStatus {
         elevated,
         mise_installed: mise_version.is_some(),
         mise_version,
+        engine_problem,
     }
 }
 
