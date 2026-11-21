@@ -565,6 +565,14 @@ Audit ulang canvas (21 November 2026, per artboard, di level markup): selisih be
 - [x] Edit as .env / Edit as rows; Save dari mode teks. Parser: komentar, `export`, kutip, `=` pertama, `PORT` dilewati.
 - [x] Canvas Flow H (Environments, model B: Default + override) digambar; H3 memakai placeholder nilai Default tanpa chip (masukan 21 November).
 
+### N.6 — v3.8.6: tata letak sesuai artboard
+
+Masukan 21 November: fungsi sudah sesuai canvas, tetapi susunan layar terlalu polos. Audit sebelumnya membandingkan markup dan teks, sehingga kepadatan visual (ikon di tombol, chip, kotak output, kartu pengaturan) tidak tertangkap.
+
+- [x] `UiIcon` (ikon stroke canvas) di tombol utama semua layar.
+- [x] Projects: pencarian selalu ada, titik status di kartu; detail: runtime + chip sumber, chip service, kotak output, menu ⋯ di judul, footer Open folder / Terminal / VS Code.
+- [x] Services, Logs, Settings: judul layar; Settings berupa kartu per bagian dalam dua kolom. Runtimes: PHP extensions sebagai panel kanan.
+
 ## Berikutnya
 
 ### v3.x — kandidat, belum diputuskan

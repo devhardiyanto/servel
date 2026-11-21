@@ -190,6 +190,9 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
       <span class="rtt-via">via mise {{ versionCtx.ctx.value?.miseVersion ?? '' }}</span>
     </div>
 
+    <!-- v3.8.6 (canvas Runtimes): versi di kiri, PHP extensions sebagai panel di kanan. -->
+    <div class="rtt-cols" :class="{ 'rtt-cols--split': tool === 'php' }">
+    <div class="rtt-main">
     <UiBanner v-if="versionCtx.untrustedPath.value" tone="warn" title="mise.toml is not trusted yet">
       <code class="rtt-mono">{{ versionCtx.untrustedPath.value }}</code> — mise ignores this file until you trust it.
       <template #actions><UiButton @click="versionCtx.trust(versionCtx.untrustedPath.value!)">Trust</UiButton></template>
@@ -247,8 +250,12 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
       <UiButton variant="accent" :disabled="!newVersion.trim() || !!installing || busy" @click="install()">Install</UiButton>
       <span class="rtt-dim">Used by = projects whose mise.toml asks for this version. Global = the version outside any project.</span>
     </div>
+    </div>
 
-    <PhpExtensionsPanel v-if="tool === 'php'" class="rtt-ext" />
+    <aside v-if="tool === 'php'" class="rtt-side" aria-label="PHP extensions">
+      <PhpExtensionsPanel class="rtt-ext" />
+    </aside>
+    </div>
 
     <UiModal :open="!!usingRow" :title="usingRow ? `Use ${meta.label} ${usingRow.version} in a project` : ''" @close="usingRow = null">
       <p class="rtt-text">Kova writes <code class="rtt-mono">{{ tool }} = "{{ usingRow?.version }}"</code> to the project's mise.toml.</p>
@@ -275,8 +282,8 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
 </template>
 
 <style scoped>
-.rtt-title { margin: 0; font-size: var(--text-lg); font-weight: 600; color: var(--text); }
-.rtt { display: flex; flex-direction: column; gap: var(--space-4); }
+.rtt-title { margin: 0; font-size: var(--text-xl); letter-spacing: -0.015em; font-weight: 600; color: var(--text); }
+.rtt { display: flex; flex-direction: column; gap: var(--space-4); container-type: inline-size; }
 .rtt-head { display: flex; align-items: center; gap: var(--space-4); border-bottom: 1px solid var(--border); }
 .rtt-via { margin-left: auto; font: 400 var(--text-xs) var(--font-mono); color: var(--faint); }
 .rtt-loading { display: flex; flex-direction: column; gap: var(--space-2); }
@@ -291,7 +298,13 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
 .rtt-dim { color: var(--faint); font-size: var(--text-xs); }
 .rtt-install { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .rtt-install .rtt-dim { flex-basis: 100%; }
-.rtt-ext { margin-top: var(--space-4); }
+.rtt-cols { display: flex; flex-direction: column; gap: var(--space-6); min-width: 0; }
+.rtt-main { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+@container (min-width: 860px) {
+  .rtt-cols--split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 440px); align-items: start; gap: var(--space-5); }
+}
+.rtt-side { padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); min-width: 0; }
+.rtt-ext { margin: 0; }
 .rtt-text { margin: 0 0 var(--space-3); line-height: 1.6; }
 .rtt-pick { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .rtt-pick__btn {

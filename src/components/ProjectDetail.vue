@@ -9,6 +9,8 @@ import UiMenu from '@/components/ui/UiMenu.vue'
 import UiTabs from '@/components/ui/UiTabs.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import StatusDot from '@/components/ui/StatusDot.vue'
+import UiIcon from '@/components/ui/UiIcon.vue'
+import UiChip from '@/components/ui/UiChip.vue'
 import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
 import { parseDotenv, serializeDotenv, mergeRows, summarize, type SkippedLine } from '@/utils/dotenv'
 import LogTail from '@/components/LogTail.vue'
@@ -68,6 +70,11 @@ const profileServices = computed(() =>
 const projectLines = computed(() => lines.value.filter((l) => l.src === p.value.name))
 const recent = computed(() => projectLines.value.slice(-12))
 const last500 = computed(() => projectLines.value.slice(-500))
+
+const TOOL_LABEL: Record<string, string> = { php: 'PHP', node: 'Node', go: 'Go', python: 'Python' }
+function toolLabel(t: ToolCurrent): string {
+  return TOOL_LABEL[t.tool] ?? t.tool
+}
 
 function sourceLabel(t: ToolCurrent): string {
   if (t.scope === 'global') return 'global'
@@ -208,9 +215,12 @@ const tabs = computed(() => [
 <template>
   <div class="pd">
     <header class="pd-head">
-      <div class="pd-title">
-        <h2 class="pd-name">{{ p.name }}</h2>
-        <StatusDot :state="state" :label="statusLine" />
+      <div class="pd-titlerow">
+        <div class="pd-title">
+          <h2 class="pd-name">{{ p.name }}</h2>
+          <StatusDot :state="state" :label="statusLine" />
+        </div>
+        <UiMenu :items="actions.menuItems(p)" :label="`More actions for ${p.name}`" @select="actions.onMenu(p, $event)" />
       </div>
       <div class="pd-actions">
         <template v-if="!p.path">
@@ -220,16 +230,16 @@ const tabs = computed(() => [
           <UiButton variant="accent" @click="actions.editingId.value = p.id">Project settings</UiButton>
         </template>
         <template v-else-if="up">
-          <UiButton variant="accent" @click="actions.open(p)">Open localhost:{{ p.port }}</UiButton>
-          <UiButton :disabled="busy" @click="actions.stop(p)">Stop</UiButton>
-          <UiButton :disabled="busy" @click="actions.restart(p)">Restart</UiButton>
+          <UiButton variant="accent" @click="actions.open(p)"><UiIcon name="external" />Open localhost:{{ p.port }}</UiButton>
+          <UiButton :disabled="busy" @click="actions.stop(p)"><UiIcon name="stop" />Stop</UiButton>
+          <UiButton :disabled="busy" @click="actions.restart(p)"><UiIcon name="restart" />Restart</UiButton>
         </template>
         <template v-else-if="state === 'starting'">
           <UiButton disabled loading>Starting…</UiButton>
-          <UiButton @click="actions.stop(p)">Stop</UiButton>
+          <UiButton @click="actions.stop(p)"><UiIcon name="stop" />Stop</UiButton>
         </template>
-        <UiButton v-else variant="success" :loading="busy" @click="actions.start(p)">Start</UiButton>
-        <UiMenu :items="actions.menuItems(p)" :label="`More actions for ${p.name}`" @select="actions.onMenu(p, $event)" />
+        <UiButton v-else variant="success" :loading="busy" @click="actions.start(p)"><UiIcon v-if="!busy" name="play" />Start</UiButton>
+
       </div>
     </header>
 
@@ -259,49 +269,51 @@ const tabs = computed(() => [
       </UiBanner>
       <p v-if="!canRun(p)" class="pd-note">{{ missingReason(p) }}</p>
 
+      <!-- v3.8.6 (canvas Projects): versi runtime satu daftar dengan Type/Command/Folder. -->
       <dl class="pd-grid">
         <dt>Type</dt>
         <dd>{{ p.kind || 'Not detected' }}</dd>
         <dt>Command</dt>
-        <dd class="pd-mono">{{ p.command || '—' }}</dd>
+        <dd class="pd-mono pd-wrap">{{ p.command || '—' }}</dd>
         <dt>Folder</dt>
-        <dd class="pd-mono pd-wrap">{{ p.path || 'Not chosen yet' }}</dd>
+        <dd class="pd-mono pd-wrap pd-muted">{{ p.path || 'Not chosen yet' }}</dd>
+        <template v-if="tools === null">
+          <dt>Runtime</dt>
+          <dd class="pd-dim">Checking…</dd>
+        </template>
+        <template v-else-if="tools.length === 0">
+          <dt>Runtime</dt>
+          <dd class="pd-dim">No versions set by mise for this folder.</dd>
+        </template>
+        <template v-else>
+          <template v-for="t in tools" :key="t.tool">
+            <dt>{{ toolLabel(t) }}</dt>
+            <dd class="pd-rt">
+              <span class="pd-mono">{{ t.version }}</span>
+              <UiChip v-if="sourceLabel(t)">{{ sourceLabel(t) }}</UiChip>
+              <UiChip v-if="!t.installed" tone="warn">not installed</UiChip>
+            </dd>
+          </template>
+        </template>
       </dl>
-
-      <section class="pd-sec">
-        <h3 class="pd-label">Runtime</h3>
-        <p v-if="tools === null" class="pd-dim">Checking…</p>
-        <p v-else-if="tools.length === 0" class="pd-dim">No versions set by mise for this folder.</p>
-        <ul v-else class="pd-list">
-          <li v-for="t in tools" :key="t.tool">
-            <span>{{ t.tool }}</span>
-            <b class="pd-mono">{{ t.version }}</b>
-            <span v-if="!t.installed" class="pd-warn">not installed</span>
-            <span class="pd-dim">{{ sourceLabel(t) }}</span>
-          </li>
-        </ul>
-      </section>
 
       <section class="pd-sec">
         <h3 class="pd-label">Services{{ profile ? ` · profile ${profile.name}` : '' }}</h3>
         <p v-if="!profile" class="pd-dim">No service profile. Pick one in Project settings.</p>
         <p v-else-if="profileServices.length === 0" class="pd-dim">This profile has no services.</p>
-        <ul v-else class="pd-list">
-          <li v-for="s in profileServices" :key="s.id"><StatusDot :state="s.state" :label="s.name" /></li>
+        <ul v-else class="pd-chips">
+          <li v-for="s in profileServices" :key="s.id">
+            <UiChip><StatusDot :state="s.state" />{{ s.name }}</UiChip>
+          </li>
         </ul>
       </section>
 
       <section class="pd-sec">
         <h3 class="pd-label">Recent output</h3>
-        <LogTail v-if="recent.length" :lines="recent" max-height="180px" />
+        <div v-if="recent.length" class="pd-out"><LogTail :lines="recent" max-height="180px" /></div>
         <p v-else class="pd-dim">No output yet. Start the project to see it here.</p>
       </section>
 
-      <div class="pd-open">
-        <UiButton variant="quiet" :disabled="!p.path" @click="openIn('folder')">Open folder</UiButton>
-        <UiButton variant="quiet" :disabled="!p.path" @click="openIn('terminal')">Terminal here</UiButton>
-        <UiButton variant="quiet" :disabled="!p.path" @click="openIn('vscode')">Open in VS Code</UiButton>
-      </div>
     </div>
 
     <!-- Environment -->
@@ -370,18 +382,25 @@ const tabs = computed(() => [
         <UiButton @click="actions.viewLog(p)">Open in Logs</UiButton>
       </div>
     </div>
+
+    <!-- v3.8.6 (canvas .k-dfoot): selalu di bawah panel, untuk semua tab. -->
+    <div class="pd-open">
+      <UiButton :disabled="!p.path" @click="openIn('folder')"><UiIcon name="folder" />Open folder</UiButton>
+      <UiButton :disabled="!p.path" @click="openIn('terminal')"><UiIcon name="terminal" />Terminal here</UiButton>
+      <UiButton :disabled="!p.path" @click="openIn('vscode')"><UiIcon name="code" />Open in VS Code</UiButton>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.pd { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.pd { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; min-height: 100%; }
 .pd-head { display: flex; flex-direction: column; gap: var(--space-3); }
 .pd-title { display: flex; flex-direction: column; gap: var(--space-1); }
 .pd-name { margin: 0; font-size: var(--text-lg); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
 .pd-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
 .pd-body { display: flex; flex-direction: column; gap: var(--space-4); font-size: var(--text-sm); }
-.pd-grid { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-4); margin: 0; font-size: var(--text-xs); }
-.pd-grid dt { color: var(--faint); }
+.pd-grid { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: var(--space-2) var(--space-3); margin: 0; font-size: var(--text-sm); align-items: baseline; }
+.pd-grid dt { color: var(--muted); }
 .pd-grid dd { margin: 0; color: var(--text); min-width: 0; }
 .pd-sec { display: flex; flex-direction: column; gap: var(--space-2); }
 .pd-label { margin: 0; font-size: var(--text-xs); font-weight: 500; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -393,7 +412,24 @@ const tabs = computed(() => [
 .pd-warn { color: var(--amber); }
 .pd-note { margin: 0; color: var(--muted); font-size: var(--text-xs); }
 .pd-lastline { font: 400 var(--text-xs) var(--font-mono); color: var(--red); overflow-wrap: anywhere; }
-.pd-open { display: flex; flex-wrap: wrap; gap: var(--space-2); border-top: 1px solid var(--border); padding-top: var(--space-3); }
+.pd-open {
+  position: sticky;
+  bottom: calc(-1 * var(--space-6));
+  margin: auto calc(-1 * var(--space-5)) calc(-1 * var(--space-6));
+  padding: var(--space-3) var(--space-5);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  border-top: 1px solid var(--border);
+  background: var(--bg-sunken);
+}
+.pd-titlerow { display: flex; align-items: flex-start; gap: var(--space-2); }
+.pd-titlerow .pd-title { flex: 1; min-width: 0; }
+.pd-muted { color: var(--muted) !important; }
+.pd-rt { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.pd-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.pd-chips :deep(.ui-chip) { display: inline-flex; align-items: center; gap: 6px; }
+.pd-out { padding: var(--space-2) var(--space-3); background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); }
 .pd-env-head { display: flex; align-items: center; gap: var(--space-2); }
 .pd-env-head .pd-dim { flex: 1; margin: 0; }
 .pd-env { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }

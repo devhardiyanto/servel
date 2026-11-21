@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import UiButton from '@/components/ui/UiButton.vue'
+import UiIcon from '@/components/ui/UiIcon.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import { onMounted, onUnmounted, computed, inject, ref } from 'vue'
 import { useLogs } from '@/composables/useLogs'
@@ -139,6 +140,36 @@ function focusFirstSwitch(): void {
 <template>
   <div class="view view-dashboard">
     <div class="dashboard-content">
+      <header class="sw-header">
+        <h1 class="sw-title">Services</h1>
+        <span class="sw-counter">{{ runningCount }}/{{ definitions.length }}</span>
+        <div v-if="profiles.length > 0" class="sw-profile">
+          <span class="sw-profile__label">profile</span>
+          <UiInput
+            as="select"
+            width="160px"
+            aria-label="Active profile"
+            :model-value="activeProfileId ?? ''"
+            :options="profiles.map((p) => ({ value: p.id, label: p.name }))"
+            @update:model-value="onProfileChange"
+          />
+        </div>
+        <div class="sw-actions">
+          <UiButton
+            :disabled="hasStopping || runningCount === 0"
+            @click="stopAll"
+          >
+            <UiIcon name="stop" />Stop all
+          </UiButton>
+          <UiButton
+            variant="primary"
+            :disabled="hasStarting"
+            @click="start()"
+          >
+            <UiIcon name="play" />Start selected
+          </UiButton>
+        </div>
+      </header>
     <UiBanner
       v-if="engineStatus === 'down' || engineStatus === 'missing'"
       tone="err"
@@ -180,37 +211,6 @@ function focusFirstSwitch(): void {
     />
 
     <section class="services-wrap">
-      <header class="sw-header">
-        <span class="sw-title">Services</span>
-        <span class="sw-counter">{{ runningCount }}/{{ definitions.length }}</span>
-        <div v-if="profiles.length > 0" class="sw-profile">
-          <span class="sw-profile__label">profile</span>
-          <UiInput
-            as="select"
-            width="160px"
-            aria-label="Active profile"
-            :model-value="activeProfileId ?? ''"
-            :options="profiles.map((p) => ({ value: p.id, label: p.name }))"
-            @update:model-value="onProfileChange"
-          />
-        </div>
-        <div class="sw-actions">
-          <UiButton
-            variant="danger"
-            :disabled="hasStopping || runningCount === 0"
-            @click="stopAll"
-          >
-            &#9632; Stop all
-          </UiButton>
-          <UiButton
-            variant="success"
-            :disabled="hasStarting"
-            @click="start()"
-          >
-            &#9654; Start selected
-          </UiButton>
-        </div>
-      </header>
       <UiBanner
         v-if="definitions.length > 0 && selectedCount === 0 && engineStatus !== 'down' && engineStatus !== 'missing'"
         class="sw-empty"
@@ -403,47 +403,42 @@ function focusFirstSwitch(): void {
   min-height: 0;
 }
 
+/* v3.8.6 (canvas Services): judul layar di luar kartu tabel. */
 .sw-header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-  padding: var(--space-3) var(--space-5);
-  background: transparent;
-  border-bottom: 1px solid var(--border);
+  padding: 0 0 var(--space-1);
   flex-shrink: 0;
 }
 
 .sw-title {
+  margin: 0;
   font-family: var(--font-sans);
-  font-size: var(--text-xs);
+  font-size: var(--text-xl);
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  letter-spacing: -0.015em;
+  color: var(--text);
 }
 
 .sw-counter {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--faint);
-  margin-right: auto;
+  font: 500 var(--text-sm) var(--font-mono);
+  color: var(--muted);
 }
 
 .sw-profile {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-right: var(--space-2);
+  margin-right: auto;
+  margin-left: var(--space-3);
 }
 
 .sw-profile__label {
   font-family: var(--font-sans);
   font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .sw-actions {

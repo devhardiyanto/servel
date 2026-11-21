@@ -276,7 +276,7 @@ function triggerDownload(text: string, filename: string): void {
     <!-- Sub-header bar -->
     <header class="lv-header">
       <div class="lv-header__left">
-        <span class="lv-title">LOGS</span>
+        <h1 class="lv-title">Logs</h1>
       </div>
       <UiTabs
         class="lv-tabs"
@@ -290,7 +290,7 @@ function triggerDownload(text: string, filename: string): void {
           ref="filterEl"
           v-model="textFilter"
           type="search"
-          width="180px"
+          width="260px"
           placeholder="Filter lines"
           aria-label="Filter log lines by text"
           @keydown.esc="textFilter = ''"
@@ -302,6 +302,7 @@ function triggerDownload(text: string, filename: string): void {
           :options="[{ value: 'all', label: 'All' }, { value: 'problems', label: 'Errors & warnings' }]"
           @update:model-value="problemsOnly = $event === 'problems'"
         />
+        <span class="lv-sp"></span>
         <UiButton v-if="focusedProject" @click="projectActions.openProject(focusedProject)">Open project</UiButton>
         <label class="lv-follow" title="Keep the newest line in view">
           <UiToggle size="sm" label="Follow" :on="autoScroll" @click="autoScroll = !autoScroll" />
@@ -419,13 +420,14 @@ function triggerDownload(text: string, filename: string): void {
 
 /* Sub-header */
 .lv-header {
+  /* v3.8.6 (canvas Logs): judul, lalu tab sumber, lalu baris filter. */
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  padding: var(--space-1) var(--space-4);
+  padding: var(--space-5) var(--space-5) var(--space-3);
   min-height: 40px;
-  background: var(--surface);
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   gap: var(--space-2) var(--space-4);
@@ -455,13 +457,15 @@ function triggerDownload(text: string, filename: string): void {
 }
 
 .lv-title {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-xl);
   font-weight: 600;
-  letter-spacing: 0.1em;
-  color: var(--muted);
-  text-transform: uppercase;
+  letter-spacing: -0.015em;
+  color: var(--text);
 }
+.lv-header__left { flex-basis: 100%; }
+.lv-sp { flex: 1; }
 
 .lv-chips {
   display: flex;
@@ -507,13 +511,14 @@ function triggerDownload(text: string, filename: string): void {
   outline-offset: 1px;
 }
 
-.lv-tabs { flex: 1 1 auto; }
+.lv-tabs { flex: 1 1 100%; }
 
 .lv-header__right {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  flex-shrink: 0;
+  flex: 1 1 100%;
 }
 
 /* Log area */

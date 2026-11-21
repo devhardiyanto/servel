@@ -376,6 +376,8 @@ onMounted(async () => {
 
 <template>
   <div class="view view-settings">
+    <!-- v3.8.6 (canvas Settings): judul layar seperti layar lain. -->
+    <header v-if="props.mode === 'settings'" class="settings-head"><h1 class="settings-h1">Settings</h1></header>
     <div class="settings-body">
       <nav v-if="props.mode === 'settings'" class="settings-nav">
         <button
@@ -398,7 +400,7 @@ onMounted(async () => {
         >About</button>
       </nav>
 
-      <main class="settings-content">
+      <main class="settings-content" :class="{ 'settings-content--cards': props.mode === 'settings' }">
         <template v-if="activeNav === 'general'">
           <div class="section-block">
             <div class="section-title">ON LAUNCH</div>
@@ -859,6 +861,9 @@ onMounted(async () => {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
+.settings-head { padding: var(--space-5) var(--space-6) var(--space-3); flex: none; }
+.settings-h1 { margin: 0; font-size: var(--text-xl); font-weight: 600; color: var(--text); letter-spacing: -0.015em; }
+
 .settings-content {
   flex: 1;
   overflow-y: auto;
@@ -871,6 +876,7 @@ onMounted(async () => {
 .section-block {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .section-block--danger {
@@ -882,8 +888,38 @@ onMounted(async () => {
   font-size: var(--text-xs);
   font-weight: 600;
   letter-spacing: 0.07em;
-  color: var(--faint);
+  color: var(--muted);
   margin-bottom: var(--space-3);
+}
+
+/* v3.8.6 (canvas .k-setgrp): di Settings, tiap bagian = satu kartu berisi
+   baris dengan judul di atasnya; dua kolom bila cukup lebar. Runtimes
+   (mode "runtimes") memakai komponen ini juga, jadi hanya berlaku di sini. */
+.settings-content--cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
+  align-content: start;
+  align-items: start;
+  padding: var(--space-8) var(--space-6) var(--space-6);
+  gap: calc(var(--space-8) + var(--space-2)) var(--space-5);
+}
+.settings-content--cards .section-block {
+  position: relative;
+  padding: 0 var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.settings-content--cards .section-block :deep(.setting-row) { padding: var(--space-3) 0; gap: var(--space-4); }
+.settings-content--cards .section-block--danger {
+  margin-top: 0;
+  border-color: color-mix(in srgb, var(--red) 35%, var(--border));
+}
+.settings-content--cards .section-title {
+  position: absolute;
+  left: 0;
+  top: calc(-1 * (var(--space-5) + 4px));
+  margin: 0;
 }
 
 .section-title--red {
