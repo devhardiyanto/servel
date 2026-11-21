@@ -948,6 +948,22 @@ onMounted(async () => {
   border-radius: 0;
 }
 .settings-content--cards .update-row { margin-top: 0; padding: var(--space-3) 0; }
+/* v3.10.3: sisa lain dari kartu v3.10.0. Teks pembuka tidak menempel ke
+   tepi atas, catatan terakhir punya ruang bawah, dan baris profil menjadi
+   baris bergaris seperti SettingRow, bukan kartu di dalam kartu. */
+.settings-content--cards .section-hint:not(.section-hint--note) { margin: var(--space-3) 0 0; }
+.settings-content--cards .section-hint--note { margin-bottom: var(--space-3); }
+.settings-content--cards .profile-list { gap: 0; margin-top: var(--space-1); }
+.settings-content--cards .profile-item {
+  min-height: 52px;
+  padding: var(--space-2) 0;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  border-radius: 0;
+}
+.settings-content--cards .profile-name { font-size: var(--text-sm); font-weight: 500; }
+.settings-content--cards .profile-create { margin-top: 0; padding: var(--space-3) 0; }
 .settings-content--cards .update-banner,
 .settings-content--cards .update-progress-note { margin-top: var(--space-3); }
 .settings-content--cards .section-title {

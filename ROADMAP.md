@@ -602,6 +602,7 @@ Masukan 21 November: teks terasa terlalu besar, dan audit harus mencakup kompone
 - [x] Port tetap dicek setelah batas 90 detik (tiap 2 s); `unresponsive` naik ke `running` begitu app menjawab.
 - [x] `SERVER_PORT` dan `SERVER_HOST` disuntik bersama `PORT`, sehingga `php artisan serve` di dalam `composer run dev` mengikuti port project.
 - [x] Settings → About: kartu bersarang dihapus, baris update diberi ruang bawah.
+- [x] v3.10.3: Settings → Services: teks pembuka Profiles/Restore database tidak menempel ke tepi kartu, baris profil tanpa kartu bersarang, ruang bawah form profil.
 - [ ] Kandidat minor: pilih script dari `composer.json`/`package.json`, chip sumber log `[server]`/`[queue]`/`[vite]`, petunjuk bila `composer` tidak ditemukan.
 
 ## Berikutnya
