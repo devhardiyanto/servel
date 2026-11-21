@@ -591,6 +591,12 @@ Masukan 21 November: teks terasa terlalu besar, dan audit harus mencakup kompone
 - [x] Penempatan: padding Projects 18/20; footer detail satu baris; ringkasan Services; judul + pilihan tool Runtimes satu baris; ikon search Logs; Settings dua kolom seperti canvas.
 - [x] Interface size (Compact / Default / Large) lewat zoom webview.
 
+### P.1 — v3.10.1: RAM realtime yang hemat
+
+- [x] Polling `stats` per mode: 2 s saat layar Services terlihat, 5 s di layar lain, jeda saat jendela tersembunyi (`stats_set_mode`, bangun lebih awal lewat `Notify`).
+- [x] Snapshot kosong ikut dikirim, sehingga nilai lama terhapus setelah semua service berhenti.
+- [x] Tooltip RAM: "measured at …" untuk nilai asli, "Estimate …" untuk perkiraan.
+
 ## Berikutnya
 
 ### v3.x — kandidat, belum diputuskan

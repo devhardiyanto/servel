@@ -164,11 +164,15 @@ async function registerListener(): Promise<void> {
   })
 }
 
+/** v3.10.1: waktu snapshot RAM terakhir (untuk tooltip "Measured at …"). */
+export const statsAt = ref<number | null>(null)
+
 async function registerStatsListener(): Promise<void> {
   if (statsListenerRegistered) return
   statsListenerRegistered = true
   await listen<ContainerMemStat[]>('container-stats-changed', (e) => {
     const payload = e.payload
+    statsAt.value = Date.now()
     const idsInPayload = new Set<string>()
     for (const stat of payload) {
       idsInPayload.add(stat.id)

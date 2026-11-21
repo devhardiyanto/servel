@@ -1,4 +1,52 @@
 use serde::Serialize;
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::OnceLock;
+use tokio::sync::Notify;
+
+/// Kecepatan polling RAM (v3.10.1). UI memberi tahu apa yang sedang dilihat:
+/// layar Services terbuka = cepat, jendela tersembunyi = jeda.
+pub const MODE_NORMAL: u8 = 0;
+pub const MODE_FAST: u8 = 1;
+pub const MODE_PAUSED: u8 = 2;
+static MODE: AtomicU8 = AtomicU8::new(MODE_NORMAL);
+
+fn wake() -> &'static Notify {
+    static N: OnceLock<Notify> = OnceLock::new();
+    N.get_or_init(Notify::new)
+}
+
+pub fn mode() -> u8 {
+    MODE.load(Ordering::Relaxed)
+}
+
+/// Jeda antar pengambilan untuk mode saat ini. `None` = jangan ambil.
+pub fn interval_for(mode: u8) -> Option<std::time::Duration> {
+    match mode {
+        MODE_FAST => Some(std::time::Duration::from_secs(2)),
+        MODE_PAUSED => None,
+        _ => Some(std::time::Duration::from_secs(5)),
+    }
+}
+
+/// Tidur sampai `d` habis atau mode diganti (mis. layar Services dibuka).
+pub async fn sleep_or_mode_change(d: std::time::Duration) {
+    tokio::select! {
+        _ = tokio::time::sleep(d) => {}
+        _ = wake().notified() => {}
+    }
+}
+
+#[tauri::command]
+pub fn stats_set_mode(mode: String) {
+    let m = match mode.as_str() {
+        "fast" => MODE_FAST,
+        "paused" => MODE_PAUSED,
+        _ => MODE_NORMAL,
+    };
+    if MODE.swap(m, Ordering::Relaxed) != m {
+        wake().notify_waiters();
+    }
+}
 
 /// Single container memory snapshot — payload entry untuk event `container-stats-changed`.
 #[derive(Serialize, Clone, Debug, PartialEq)]
@@ -87,6 +135,13 @@ pub async fn fetch_container_stats() -> Result<Vec<ContainerMemStat>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn polling_interval_follows_mode() {
+        assert_eq!(interval_for(MODE_FAST), Some(std::time::Duration::from_secs(2)));
+        assert_eq!(interval_for(MODE_NORMAL), Some(std::time::Duration::from_secs(5)));
+        assert_eq!(interval_for(MODE_PAUSED), None);
+    }
 
     #[test]
     fn parse_mib() {

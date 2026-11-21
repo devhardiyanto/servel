@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { statsAt } from '@/composables/useServices'
 import { computed } from 'vue'
 import type { ServiceDef, ServiceUiState } from '@/types/service'
 import UiButton from '@/components/ui/UiButton.vue'
@@ -12,6 +13,15 @@ const props = defineProps<{
   /** Engine tidak menjawab: status sebenarnya tidak diketahui (v3.5). */
   unknown?: boolean
 }>()
+
+const ramTitle = computed(() => {
+  const ui = props.state
+  if (ui?.status === 'running' && ui.memMb != null) {
+    const t = statsAt.value ? new Date(statsAt.value).toTimeString().slice(0, 8) : ''
+    return `Memory used by the container${t ? `, measured at ${t}` : ''}. Updates every 2 s on this screen.`
+  }
+  return `Estimate. Shown until ${props.def.name} runs and reports its real memory use.`
+})
 
 const ramDisplay = computed(() => {
   const ui = props.state
@@ -95,7 +105,7 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
       <span class="svc-version">{{ imageTag(def) }}</span>
     </div>
     <span class="svc-port">{{ formatPorts(def) }}</span>
-    <span class="svc-ram">{{ ramDisplay }}</span>
+    <span class="svc-ram" :title="ramTitle">{{ ramDisplay }}</span>
     <div class="svc-status-cell">
       <StatusDot :state="failed ? 'exited' : dot.state" :label="statusLabel" :title="failed ? state.error : undefined" />
       <button
