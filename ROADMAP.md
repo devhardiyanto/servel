@@ -504,8 +504,33 @@ Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-nav
 
 - [x] `utils/openExternal` (plugin opener, `window.open` hanya cadangan) untuk onboarding, kartu prasyarat, panduan mise, dan Release notes.
 
+## Status per 20 November 2026
+
+Revamp canvas selesai dengan v3.6.0 (L): tray, ikon, dan aksesibilitas menutup selisih terakhir antara canvas dan aplikasi. v3.6.1–v3.7.4 (L.1, M–M.4) adalah lanjutan dari pemakaian: toggle service cepat yang tidak lagi macet, panel detail yang bisa diseret dan ditutup, popup tray (klik kiri dan kanan di Windows/macOS, menu native hanya di Linux) dengan versi global PHP/Node, engine dan mise yang baru dipasang terdeteksi tanpa restart, onboarding yang tidak meminta `wsl --update` bila WSL containers sudah ada, dan tautan keluar yang membuka browser sistem.
+
+Belum diuji di perangkat nyata (Windows):
+
+- Restart setelah update ke v3.6.x–v3.7.x.
+- Posisi popup tray pada skala DPI selain 100% dan multi-monitor.
+- Toggle service cepat dengan WSL containers.
+- PATH dari registry dibaca ulang setelah `wsl --update` (wslc terdeteksi tanpa menutup Kova).
+- Klik kanan ikon tray membuka popup.
+- Mengganti versi global PHP/Node dari popup.
+- Pembaca layar NVDA.
+
+## Berikutnya
+
 ### v3.x — kandidat, belum diputuskan
 
+- [ ] Saran pindah engine di Settings ("WSL containers tersedia, pindah dari Docker?") beserta penjelasan data volume. Alasan: Auto yang sudah memakai Docker tidak pindah sendiri saat WSL containers dipasang, dan pengguna perlu tahu bahwa data di volume Docker tidak ikut pindah.
+- [ ] Tombol "Check again" yang eksplisit untuk deteksi engine di Settings. Alasan: pemeriksaan ulang kini hanya terjadi saat jendela kembali difokuskan (maks. sekali per 10 detik), jadi tidak terlihat oleh pengguna.
+- [ ] Start/stop per service dari popup tray. Alasan: popup kini hanya punya Start selected dan Stop all, padahal yang sering dibutuhkan adalah menyalakan atau mematikan satu service.
+- [ ] Logs: sorot kata yang cocok dengan filter; batas jumlah baris untuk log sangat panjang. Alasan: baris yang cocok sulit dicari di log panjang, dan log yang terus tumbuh membebani tampilan.
+- [ ] Perbarui catatan status di canvas design (v3.6.1–v3.7.4). Alasan: canvas masih mencatat keadaan v3.6.0, sedangkan popup tray, panel yang bisa diseret, dan perubahan onboarding sudah berbeda.
+
+### Ditunda — sampai ada kebutuhan pengguna
+
+- Dukungan Dockerfile/compose per project. Ditunda per 20 November 2026: belum ada kebutuhan dari pengguna; dibuka lagi bila permintaannya banyak. Bila dibuka, mulai dengan spike: verifikasi `wslc build`, bind mount folder project, dan jaringan ke service. Docker jelas bisa; dukungan wslc belum pasti dan `wslc compose` belum ada.
 
 ### v4.0 — pemutusan kompatibilitas Servel (belum dijadwalkan)
 

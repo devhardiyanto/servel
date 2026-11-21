@@ -25,14 +25,14 @@ No more juggling three terminals every morning.
 - Start, Stop, Restart and Open each project at `localhost:<port>`; its output goes to the Logs viewer.
 - The dev server runs with the PHP/Node/Go versions from the project's `mise.toml`, plus any environment variables you set for that project.
 - Optionally start a project when Kova opens, and link it to a service profile.
-- A **detail panel** per project with Overview (versions mise resolves for that folder, service profile, recent output), Environment (variables, Save & restart) and Logs tabs.
+- A **detail panel** per project with Overview (versions mise resolves for that folder, service profile, recent output), Environment (variables, Save & restart) and Logs tabs. Drag its edge to resize it, or drag it all the way right to hide it.
 - Dev servers stop when Kova quits, and do not linger if Kova crashes.
 
 **Services**
 - MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO, Mailpit, Gotenberg. Toggle what you need, click Start.
 - Windows: runs on WSL containers (`wslc`, built into WSL 3.0.1+). No Docker Desktop and no extra Linux distro needed. Docker stays available.
 - A service shows "up" only once it accepts connections.
-- **Connect** on each service opens a side panel with tabs: **Connect** (host, port, credentials, `.env` lines as Laravel keys, a single URL, or Go-style DSN), **Data** (volumes, restore a `.sql` dump) and **Logs**.
+- **Connect** on each service opens a resizable side panel with tabs: **Connect** (host, port, credentials, `.env` lines as Laravel keys, a single URL, or Go-style DSN), **Data** (volumes, restore a `.sql` dump) and **Logs**.
 - Service profiles and database restore from a `.sql` dump.
 
 **Runtimes**
@@ -44,7 +44,8 @@ No more juggling three terminals every morning.
 - One window with five screens: **Projects**, **Services**, **Runtimes**, **Logs**, **Settings**. The status bar shows the container engine, running services, memory and version.
 - **Command palette** (`Ctrl K`, `⌘K` on macOS): jump to a screen, start or stop a service, start, stop, restart or open a project, all from the keyboard.
 - In-app updates: a banner on every screen, download in the background, restart when you choose.
-- System tray, remembered selection, optional start when you sign in (in the tray), and a `kova` terminal command on Windows, macOS and Linux.
+- System tray popup with your projects, services and global PHP/Node versions; remembered selection, optional start when you sign in (in the tray), and a `kova` terminal command on Windows, macOS and Linux.
+- WSL containers, Docker or mise installed while Kova is open are picked up without restarting Kova.
 
 ---
 
@@ -102,6 +103,8 @@ wsl --shutdown
 
 Kova orchestrates external tools — it does not install them for you. Make sure these are available on your PATH before first run.
 
+If you install one of them while Kova is open (for example `wsl --update`, Docker Desktop or mise), you do not need to restart Kova. Kova reads the PATH again before it runs a tool (on Windows from the system and user PATH, on macOS and Linux from your login shell), and it checks the container engine and mise again when you switch back to its window.
+
 ### Container engine
 
 #### Windows — WSL containers (recommended)
@@ -113,7 +116,7 @@ wsl --update
 wsl --version   # WSL version must be 3.0.1 or newer
 ```
 
-Kova picks the engine automatically (**Settings → Container engine → Auto**). Since v2.0, WSL containers are the default on Windows; Kova stays on Docker only when `wslc` is missing or Docker still holds your `servel_*` containers. You can force either one in Settings.
+Kova picks the engine automatically (**Settings → General → Container engine → Auto**). Since v2.0, WSL containers are the default on Windows; Kova stays on Docker only when `wslc` is missing or Docker still holds your `servel_*` containers. You can force either one in Settings. If Auto already uses Docker, installing WSL containers later does not switch it; choose **WSL containers** in Settings to move.
 
 Notes:
 
@@ -191,13 +194,17 @@ How it differs from Windows: `up`, `down` and the project commands are carried o
 
 ## First run
 
-On first launch Kova walks through three steps: **Engine** (WSL containers or Docker), **Runtimes** (mise: **Install mise**, or **I'll install it myself** to see the command), and **First project** (pick a folder, check what was detected, then **Add & start**). Each step after the first can be skipped. Setup runs once: after that Kova opens on Projects. To go through it again, use **Settings → General → Run setup again**.
+On first launch Kova walks through three steps: **Engine** (WSL containers or Docker; **Refresh checks** looks again after you install one), **Runtimes** (mise: **Install mise**, or **I'll install it myself** to see the command), and **First project** (pick a folder, check what was detected, then **Add & start**). Each step after the first can be skipped. Setup runs once: after that Kova opens on Projects. To go through it again, use **Settings → General → Run setup again**.
+
+On Windows, if Docker is not installed but WSL containers already are (WSL 3.0.1 or newer), the Engine step says so and offers **Use WSL containers** or **Docker Desktop ↗**; it asks you to run `wsl --update` only when WSL containers are missing.
 
 ---
 
 ## Using Kova
 
 Kova opens on **Projects**. The left rail switches between Projects, Services, Runtimes, Logs and Settings; the numbers next to them count running projects, running services and log errors.
+
+On Projects and Services, the line between the list and the detail panel on the right can be dragged to resize the panel (Projects 320–640 px, Services 280–480 px); Kova remembers the width. Drag it all the way right and let go to close the panel; on Projects a thin strip at the right edge (or picking a project) opens it again. Double-click the line to go back to the default width. With the keyboard: Tab to the line, then the left/right arrows resize it, Home/End jump to the widest/narrowest, and Enter closes the panel.
 
 Press `Ctrl K` (`⌘K` on macOS) anywhere to open the command palette: type part of a screen, project or service name, pick with the arrow keys and press Enter. The commands follow the current state, so a running project offers Open, Restart and Stop, and a stopped one offers Start.
 
@@ -273,7 +280,7 @@ Notes:
 - The **⋯** menu on a version: **Set as global** (`mise use -g`), **Use in project…** (pick a project; Kova writes the version to its `mise.toml`, and the project restarts only when you say so), and **Remove** (only for versions nothing uses).
 - **Install** takes a version such as `8.4` or `22`; progress shows above the box, and **Cancel** stops it.
 - A `mise.toml` that mise does not trust yet shows a **Trust** button.
-- The tray's PHP and Node menus change the global version.
+- **Global versions** in the tray popup (on Linux, the tray menu's PHP and Node submenus) change the global version; Runtimes updates to match.
 
 ### PHP extensions (Runtimes)
 
@@ -287,7 +294,7 @@ Extensions that are not bundled (redis, xdebug, imagick, mongodb, ...) can be do
 
 ### Tray menu
 
-Click the tray icon to open a small Kova panel above it: your projects with coloured status (click a running one to open it in the browser, a stopped one to start it), the running services with **Start selected services** and **Stop all services**, **Global versions** for PHP and Node (click one to pick another installed version as the global version), **Open Kova** and **Quit Kova**. It closes when you click elsewhere or press Esc. Left-click and right-click both open it. On Linux, where the tray icon does not report clicks, clicking the icon opens a menu instead: **Open Kova**, your projects with their status, **Start selected services**, **Stop all services (N running)** while services run, the **PHP (global)** and **Node (global)** version submenus, and **Quit Kova**. Hovering the icon shows the Kova version and how many services are running. Closing the window keeps Kova in the tray (change it in **Settings → General**). **Quit Kova** stops running projects and then the services, shows "Stopping services…" while it waits (up to 60 seconds), and closes. Data in the volumes is kept, and services you had selected start again next time if **Start the services that were running last time** is on. To leave services running after Kova quits, turn off **Settings → General → Stop services when Kova quits**. Installing an update restarts Kova without stopping services.
+Click the tray icon to open a small Kova panel next to it (it follows where your taskbar is): your projects with coloured status (click a running one to open it in the browser, a stopped one to start it), the running services with **Start selected services** and **Stop all services**, **Global versions** for PHP and Node (click one to pick another installed version as the global version), **Open Kova** and **Quit Kova**. It closes when you click elsewhere or press Esc. Left-click and right-click both open it. On Linux, where the tray icon does not report clicks, clicking the icon opens a menu instead: **Open Kova**, your projects with their status, **Start selected services**, **Stop all services (N running)** while services run, the **PHP (global)** and **Node (global)** version submenus, and **Quit Kova**. Hovering the icon shows the Kova version and how many services are running. Closing the window keeps Kova in the tray (change it in **Settings → General**). **Quit Kova** stops running projects and then the services, shows "Stopping services…" while it waits (up to 60 seconds), and closes. Data in the volumes is kept, and the services you had selected start again next time if **Settings → General → Start services** is on (**Remember last session** keeps that selection between launches). To leave services running after Kova quits, turn off **Settings → General → Stop services when Kova quits**. Installing an update restarts Kova without stopping services.
 
 ---
 
@@ -316,7 +323,7 @@ Stop the offending process and click Start again. For a project, pick another **
 
 ### Databases are empty after switching to WSL containers
 
-Expected: WSL containers and Docker Desktop have separate storage. Dump the databases from Docker to a `.sql` file and use **Restore database**. You can also switch back to Docker in **Settings → Container engine**.
+Expected: WSL containers and Docker Desktop have separate storage. Dump the databases from Docker to a `.sql` file and use **Restore database**. You can also switch back to Docker in **Settings → General → Container engine**.
 
 ### "Docker not running" / containers fail to start
 
