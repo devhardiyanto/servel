@@ -119,10 +119,14 @@ onUnmounted(() => {
 <template>
   <div class="view view-dashboard">
     <div class="dashboard-content">
-    <UiBanner v-if="engineStatus === 'down'" tone="err" :title="`${engineLabel} is not responding`">
+    <UiBanner
+      v-if="engineStatus === 'down' || engineStatus === 'missing'"
+      tone="err"
+      :title="`${engineLabel} is ${engineStatus === 'missing' ? 'not installed' : 'not responding'}`"
+    >
       <template v-if="engine === 'wslc'">Run <code>wsl --update</code>, then Retry.</template>
       <template v-else-if="canSwitchToWslc">Start Docker Desktop, or switch to the built-in WSL containers.</template>
-      <template v-else>Start Docker Desktop to use services.</template>
+      <template v-else>{{ engineStatus === 'missing' ? 'Install Docker Desktop' : 'Start Docker Desktop' }} to use services.</template>
       <span v-if="engineLastError"> ({{ engineLastError }})</span>
       Kova can't read service status. Data in the servel_* volumes is not affected.
       <template #actions>
@@ -179,7 +183,7 @@ onUnmounted(() => {
         </div>
       </header>
       <UiBanner
-        v-if="definitions.length > 0 && selectedCount === 0 && engineStatus !== 'down'"
+        v-if="definitions.length > 0 && selectedCount === 0 && engineStatus !== 'down' && engineStatus !== 'missing'"
         class="sw-empty"
         tone="info"
         :title="`No services in ${activeProfileName} yet`"
@@ -194,7 +198,7 @@ onUnmounted(() => {
               :def="def"
               :state="uiState[def.id]"
               :connect-open="connectId === def.id"
-              :unknown="engineStatus === 'down'"
+              :unknown="engineStatus === 'down' || engineStatus === 'missing'"
               @toggle="toggle"
               @connect="toggleConnect"
             />
@@ -207,7 +211,7 @@ onUnmounted(() => {
               :def="def"
               :state="uiState[def.id]"
               :connect-open="connectId === def.id"
-              :unknown="engineStatus === 'down'"
+              :unknown="engineStatus === 'down' || engineStatus === 'missing'"
               @toggle="toggle"
               @connect="toggleConnect"
             />

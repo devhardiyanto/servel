@@ -11,6 +11,18 @@ interface ContainerStatusChangedPayload {
   running: boolean
 }
 
+/**
+ * Hasil `start()` (v3.7.5). Dulu `start()` bisa berhenti diam-diam (pilihan
+ * kosong, konflik port), dan pemanggil seperti auto-start tetap mencatat
+ * "started".
+ */
+export type StartOutcome =
+  | { kind: 'started'; ids: string[] }
+  | { kind: 'already-running' }
+  | { kind: 'nothing-selected' }
+  | { kind: 'port-conflict'; ids: string[] }
+  | { kind: 'failed'; error: string }
+
 interface ServicesActionPayload {
   action: 'start' | 'stop_all'
   services: string[]
@@ -332,12 +344,12 @@ export function useServices() {
     }
   }
 
-  async function start(ids?: string[], opts?: { force?: boolean }): Promise<void> {
+  async function start(ids?: string[], opts?: { force?: boolean }): Promise<StartOutcome> {
     // Backend SELALU butuh full selection untuk regenerate compose file —
     // kalau cuma kirim subset, --remove-orphans bakal nge-remove container
     // yang sedang running tapi tidak ada di compose (bug stuck loading sebelumnya).
     const allSelected = selectedIds.value
-    if (allSelected.length === 0) return
+    if (allSelected.length === 0) return { kind: 'nothing-selected' }
 
     // Compute "new ones" untuk UI 'starting' indicator — bisa dari `ids` arg
     // (specific toggle) atau dari semua selected yang belum running.
@@ -353,7 +365,7 @@ export function useServices() {
         src: 'ENV',
         text: 'nothing to start — all selected services are up',
       })
-      return
+      return { kind: 'already-running' }
     }
 
     // Cek konflik host port SEBELUM start (kecuali user pilih "Tetap mulai").
@@ -369,7 +381,7 @@ export function useServices() {
             text: `port ${c.port} (${c.serviceName}) is used by another program`,
           })
         }
-        return
+        return { kind: 'port-conflict', ids: conflicts.map((c) => c.serviceId) }
       }
     }
     portConflicts.value = []
@@ -387,6 +399,7 @@ export function useServices() {
       // untuk yang sudah running, start yang belum.
       await invoke('services_start', { services: allSelected })
       for (const id of newOnes) settledAt[id] = Date.now()
+      return { kind: 'started', ids: newOnes }
     } catch (err) {
       const msg = typeof err === 'string' ? err : 'services_start failed'
       serviceError.value = msg
@@ -396,6 +409,7 @@ export function useServices() {
           uiState.value[id] = { ...current, status: 'error' }
         }
       }
+      return { kind: 'failed', error: msg }
     }
   }
 
