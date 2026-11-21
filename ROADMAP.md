@@ -552,6 +552,13 @@ Audit ulang canvas (21 November 2026, per artboard, di level markup): selisih be
 
 - [x] Output winget tampil baris per baris di kartu Install mise (A4), progres unduhan di bawah bar; baris yang sama masuk Logs.
 
+### N.4 — v3.8.4: Logs, Services, Settings sesuai canvas
+
+- [x] Logs: All / Errors & warnings (segmented), switch Follow, footer "Last 500 lines per source".
+- [x] Services: profil kosong dengan Choose services.
+- [x] Settings: WINDOW & QUIT, COMMAND LINE, "Keep running in the tray when the window closes".
+- Tidak diubah, karena label di aplikasi lebih tepat: "Start Kova when you sign in" (berlaku lintas OS) dan "Start services" (memulai pilihan tersimpan). Canvas yang diperbarui.
+
 ## Berikutnya
 
 ### v3.x — kandidat, belum diputuskan
