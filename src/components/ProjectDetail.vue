@@ -9,6 +9,8 @@ import UiMenu from '@/components/ui/UiMenu.vue'
 import UiTabs from '@/components/ui/UiTabs.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import StatusDot from '@/components/ui/StatusDot.vue'
+import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
+import { parseDotenv, serializeDotenv, mergeRows, summarize, type SkippedLine } from '@/utils/dotenv'
 import LogTail from '@/components/LogTail.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
@@ -86,15 +88,66 @@ const rows = ref<Row[]>([])
 const envError = ref('')
 const envSaving = ref(false)
 
+// v3.8.5 (canvas H4): "Edit as .env" dan paste banyak baris sekaligus.
+const textMode = ref(false)
+const envText = ref('')
+const pasteNote = ref<{ title: string; skipped: SkippedLine[] } | null>(null)
+
 function resetRows(): void {
   rows.value = Object.entries(p.value.env ?? {}).map(([k, v]) => ({ k, v }))
+  if (textMode.value) envText.value = serializeDotenv(rows.value)
   envError.value = ''
 }
-watch(() => p.value.id, resetRows, { immediate: true })
+watch(
+  () => p.value.id,
+  () => {
+    textMode.value = false
+    pasteNote.value = null
+    resetRows()
+  },
+  { immediate: true },
+)
+
+function noteFor(title: string, skipped: SkippedLine[]): void {
+  pasteNote.value = { title, skipped }
+}
+const pasteDetail = computed(() =>
+  pasteNote.value?.skipped.map((s) => `Line ${s.line}: ${s.text} — ${s.reason}`).join('\n') || undefined,
+)
+
+function toText(): void {
+  envText.value = serializeDotenv(rows.value)
+  textMode.value = true
+  pasteNote.value = null
+}
+function toRows(): void {
+  const r = parseDotenv(envText.value)
+  rows.value = r.entries
+  textMode.value = false
+  pasteNote.value = null
+  if (r.skipped.length) noteFor(`${r.entries.length} variables · ${r.skipped.length} skipped`, r.skipped)
+}
+
+/**
+ * Paste ke kolom nama (atau nilai, bila teksnya banyak baris): teks
+ * `KEY=VALUE` dipecah menjadi baris. Nama yang sudah ada diganti nilainya.
+ */
+function onPaste(e: ClipboardEvent, i: number, field: 'k' | 'v'): void {
+  const t = e.clipboardData?.getData('text') ?? ''
+  const multi = /\r?\n/.test(t.trim())
+  if (field === 'v' ? !multi : !multi && !t.includes('=')) return
+  const r = parseDotenv(t)
+  if (r.entries.length === 0 && r.skipped.length === 0) return
+  e.preventDefault()
+  const m = mergeRows(rows.value, r.entries, i)
+  rows.value = m.rows.length ? m.rows : [{ k: '', v: '' }]
+  noteFor(summarize(m.added, m.replaced, r.skipped.length), r.skipped)
+}
 
 const envDirty = computed(() => {
   const cur = Object.entries(p.value.env ?? {})
-  const next = rows.value.filter((r) => r.k.trim() !== '' || r.v !== '')
+  const src = textMode.value ? parseDotenv(envText.value).entries : rows.value
+  const next = src.filter((r) => r.k.trim() !== '' || r.v !== '')
   return cur.length !== next.length || next.some((r, i) => cur[i]?.[0] !== r.k.trim() || cur[i]?.[1] !== r.v)
 })
 
@@ -122,6 +175,11 @@ function validateEnv(): Record<string, string> | null {
 }
 
 async function saveEnv(thenRestart: boolean): Promise<void> {
+  if (textMode.value) {
+    const r = parseDotenv(envText.value)
+    rows.value = r.entries
+    if (r.skipped.length) noteFor(`${r.entries.length} variables · ${r.skipped.length} skipped`, r.skipped)
+  }
   const env = validateEnv()
   if (!env) return
   envSaving.value = true
@@ -248,13 +306,48 @@ const tabs = computed(() => [
 
     <!-- Environment -->
     <div v-else-if="tab === 'env'" class="pd-body" role="tabpanel">
-      <p class="pd-dim">Added on top of the environment from mise. Values stay on this PC.</p>
-      <div v-for="(r, i) in rows" :key="i" class="pd-env">
-        <UiInput v-model="r.k" mono :aria-label="`Name of variable ${i + 1}`" placeholder="NAME" />
-        <UiInput v-model="r.v" mono :aria-label="`Value for ${r.k || `variable ${i + 1}`}`" placeholder="value" />
-        <UiButton variant="quiet" :aria-label="`Remove ${r.k || `variable ${i + 1}`}`" @click="rows.splice(i, 1)">&times;</UiButton>
+      <div class="pd-env-head">
+        <p class="pd-dim">Added on top of the environment from mise. Values stay on this PC.</p>
+        <UiButton variant="quiet" @click="textMode ? toRows() : toText()">{{ textMode ? 'Edit as rows' : 'Edit as .env' }}</UiButton>
       </div>
-      <div><UiButton @click="rows.push({ k: '', v: '' })">Add variable</UiButton></div>
+      <UiStatusNotice
+        v-if="pasteNote"
+        :tone="pasteNote.skipped.length ? 'warn' : 'ok'"
+        :title="pasteNote.title"
+        :detail="pasteDetail"
+        dismissible
+        @dismiss="pasteNote = null"
+      />
+      <UiInput
+        v-if="textMode"
+        v-model="envText"
+        as="textarea"
+        :rows="12"
+        mono
+        label="One KEY=VALUE per line"
+        help="Comments (#), blank lines, export and quoted values are fine. PORT is set in Project settings."
+        placeholder="APP_ENV=local"
+      />
+      <template v-else>
+        <div v-for="(r, i) in rows" :key="i" class="pd-env">
+          <UiInput
+            v-model="r.k"
+            mono
+            :aria-label="`Name of variable ${i + 1}`"
+            placeholder="NAME or paste KEY=VALUE lines"
+            @paste="onPaste($event, i, 'k')"
+          />
+          <UiInput
+            v-model="r.v"
+            mono
+            :aria-label="`Value for ${r.k || `variable ${i + 1}`}`"
+            placeholder="value"
+            @paste="onPaste($event, i, 'v')"
+          />
+          <UiButton variant="quiet" :aria-label="`Remove ${r.k || `variable ${i + 1}`}`" @click="rows.splice(i, 1)">&times;</UiButton>
+        </div>
+        <div><UiButton @click="rows.push({ k: '', v: '' })">Add variable</UiButton></div>
+      </template>
       <p v-if="profile" class="pd-dim">Tip: Services › Connect copies database and cache values for you.</p>
       <UiBanner v-if="envError" tone="err" title="Check the variables">{{ envError }}</UiBanner>
       <div class="pd-env-actions">
@@ -301,7 +394,9 @@ const tabs = computed(() => [
 .pd-note { margin: 0; color: var(--muted); font-size: var(--text-xs); }
 .pd-lastline { font: 400 var(--text-xs) var(--font-mono); color: var(--red); overflow-wrap: anywhere; }
 .pd-open { display: flex; flex-wrap: wrap; gap: var(--space-2); border-top: 1px solid var(--border); padding-top: var(--space-3); }
-.pd-env { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto; gap: var(--space-2); align-items: center; }
+.pd-env-head { display: flex; align-items: center; gap: var(--space-2); }
+.pd-env-head .pd-dim { flex: 1; margin: 0; }
+.pd-env { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }
 .pd-env-actions { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; }
 .pd-env-actions .pd-dim { margin-right: auto; }
 </style>

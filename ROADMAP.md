@@ -559,11 +559,18 @@ Audit ulang canvas (21 November 2026, per artboard, di level markup): selisih be
 - [x] Settings: WINDOW & QUIT, COMMAND LINE, "Keep running in the tray when the window closes".
 - Tidak diubah, karena label di aplikasi lebih tepat: "Start Kova when you sign in" (berlaku lintas OS) dan "Start services" (memulai pilihan tersimpan). Canvas yang diperbarui.
 
+### N.5 — v3.8.5: paste bulk dan Edit as .env
+
+- [x] Paste teks `.env` ke kolom nama/nilai dipecah menjadi baris; nama yang ada diganti; ringkasan added/replaced/skipped dengan alasan.
+- [x] Edit as .env / Edit as rows; Save dari mode teks. Parser: komentar, `export`, kutip, `=` pertama, `PORT` dilewati.
+- [x] Canvas Flow H (Environments, model B: Default + override) digambar; H3 memakai placeholder nilai Default tanpa chip (masukan 21 November).
+
 ## Berikutnya
 
 ### v3.x — kandidat, belum diputuskan
 
-- [ ] Perbarui catatan status di canvas design (v3.6.1–v3.8.4). Alasan: canvas masih mencatat keadaan v3.6.0, sedangkan popup tray, panel yang bisa diseret, dan perubahan onboarding sudah berbeda.
+- [x] Catatan status canvas diperbarui per v3.8.4 (21 November 2026), termasuk penyimpangan yang memang benar.
+- [ ] v3.9.0 — Environments per project (canvas Flow H): Default + override, pemilih environment, New environment, banner "Restart to use …", environment aktif di baris project dan popup tray.
 
 ### Ditunda — sampai ada kebutuhan pengguna
 
