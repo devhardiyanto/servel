@@ -590,7 +590,12 @@ onMounted(async () => {
           </div>
 
 
-          <div v-if="cli?.supported" class="section-block">
+          <div v-if="platform === 'windows'" class="section-block">
+            <div class="section-title">COMMAND LINE</div>
+            <SettingRow label="kova command" desc="The installer adds kova to your user PATH (%LOCALAPPDATA%\Kova\cli\bin). Open a new terminal to use it; if it is not found, run the Kova installer again." />
+          </div>
+
+          <div v-else-if="cli?.supported" class="section-block">
             <div class="section-title">COMMAND LINE</div>
 
             <SettingRow label="kova command" :desc="cliDesc">

@@ -1,6 +1,6 @@
 # Test case Kova
 
-Panduan, arti status, dan aturan bukti: [README.md](README.md). Langkah dan hasil yang diharapkan diambil dari artboard flow di canvas desain *Servel v3 UI* (A1–H6; nama canvas dari sebelum ganti nama ke Kova), ditambah kasus khusus OS dan regresi dari rilis 3.10.x sampai v3.15.4.
+Panduan, arti status, dan aturan bukti: [README.md](README.md). Langkah dan hasil yang diharapkan diambil dari artboard flow di canvas desain *Servel v3 UI* (A1–H6; nama canvas dari sebelum ganti nama ke Kova), ditambah kasus khusus OS dan regresi dari rilis 3.10.x sampai v3.16.0.
 
 Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`.
 
@@ -18,14 +18,14 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | B · Add project | 10 | 0 | 0 | v3.10.x, v3.15.0 |
 | C · Project gagal | 6 | 0 | 0 | v3.10.x |
 | D · Services | 8 | 0 | 0 | v3.12.0, v3.14.0, v3.15.3 |
-| E · Runtimes | 10 | 0 | 0 | v3.13.0, v3.15.4 |
+| E · Runtimes | 12 | 0 | 0 | v3.13.0, v3.15.4, v3.16.0 |
 | F · Update | 6 | 0 | 0 | v3.13.0 |
-| G · Logs | 5 | 0 | 0 | v3.11.0 |
+| G · Logs | 6 | 0 | 0 | v3.11.0, v3.16.0 |
 | H · Environments | 6 | 0 | 0 | v3.10.x |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
-| U · Tampilan & aksesibilitas | 11 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1 |
+| U · Tampilan & aksesibilitas | 12 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0 |
 | W · Khusus Windows | 4 | 0 | ➖ | v3.10.x |
 | L · Khusus Linux | 11 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3 |
 
@@ -102,6 +102,8 @@ Persiapan: project yang gagal karena env, mis. Laravel tanpa `DB_*` padahal butu
 | TC-E8 | Nyalakan extension yang tidak cocok dengan versi PHP (bila ada). | Toggle kembali off; `php.ini` dikembalikan; banner "<ext> was not turned on. Nothing changed." berisi penyebab dan cara memperbaikinya. | ⬜ | ⬜ | | v3.13.0 |
 | TC-E9 | Runtimes → PHP → Install 8.4 (atau Node 22 bila PHP lama). Saat banner "Installing …" tampil, buka Logs, tunggu beberapa detik, kembali ke Runtimes. Ulangi, tetapi tetap di Logs sampai install selesai. | Kembali saat install berjalan: banner, baris progres mise, dan Cancel masih tampil; field Install nonaktif. Selesai saat di Logs: toast tetap muncul, dan saat kembali versi baru tampil dengan chip `new`. | ⬜ | ⬜ | | v3.15.4 |
 | TC-E10 | (a) Tool tanpa versi global (`mise ls --current` tidak menampilkannya), Install satu versi. (b) Tool yang sudah punya versi global, Install versi lain. | (a) Versi baru bertanda Global; toast "… and set it as the global version"; `php -v` (atau tool itu) di terminal baru langsung jalan; tray ikut menampilkan versi itu. (b) Versi global lama tidak berubah; toast hanya "Installed …". | ⬜ | ⬜ | | v3.15.4 |
+| TC-E11 | Runtimes → PHP → ⋯ pada satu versi → Use in project…, dengan project Laravel, project Vite, dan project tanpa jenis. | Hanya project PHP (atau yang mise.toml-nya sudah menyebut PHP) yang tampil sebagai radio; **Show all projects** menampilkan semuanya; tombol **Use PHP x** menulis mise.toml; panel extension pindah ke versi itu. | ⬜ | ⬜ | | v3.16.0 |
+| TC-E12 | Nyalakan dua extension berurutan dengan cepat. | Baris pertama menampilkan *checking…* dan terkunci; toggle kedua tetap bisa diklik; keduanya selesai dengan hasil benar. | ⬜ | ⬜ | | v3.16.0 |
 
 ## F · Update aplikasi (canvas F1–F5)
 
@@ -125,6 +127,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-G3 | Pilih Errors & warnings (All / Errors & warnings). | Baris biasa disembunyikan; footer menandai hasil terfilter. | ⬜ | ⬜ | | |
 | TC-G4 | Ketik teks di filter, klik Copy, lalu Clear. | Filter teks dan level bisa digabung; Copy hanya menyalin baris yang terlihat; Clear mengosongkan seluruh daftar log (semua sumber, bukan hanya yang terfilter). Project dan service tetap berjalan. | ⬜ | ⬜ | | |
 | TC-G5 | Matikan Follow lalu scroll ke atas; nyalakan lagi. Export logs. | Follow off = tidak lompat ke bawah; on = ikut baris baru. Footer "Last 500 lines per source". Export menghasilkan file. | ⬜ | ⬜ | | |
+| TC-G6 | Buat satu project gagal start (error di Logs), lihat badge Logs. Perbaiki dan start lagi sampai running. Lalu buka Logs dan kembali. | Badge naik saat error; turun setelah project running kembali; nol setelah Logs dibuka. Saat project running muncul toast "… is running on localhost:PORT" dengan tombol Open yang membuka browser. | ⬜ | ⬜ | | v3.16.0 |
 
 ## H · Environments (canvas H1–H6)
 
@@ -195,6 +198,7 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-U9 | **W:** NVDA aktif di Projects selama 30 detik tanpa interaksi. | NVDA tidak membacakan angka RAM berulang; perubahan status engine tetap diumumkan. | ⬜ | ➖ | | v3.15.0 |
 | TC-U10 | Buka Projects dengan panel detail terbuka di jendela ±1100 px, project bernama panjang (≥ 24 karakter). | Tidak ada scroll horizontal; New group tampil sebagai ikon; nama project satu baris dengan elipsis (tooltip nama lengkap); port tetap terlihat di panel detail. Tidak ada kotak putih di pojok scrollbar. | ⬜ | ⬜ | | v3.15.1 |
 | TC-U11 | Jalankan beberapa service, lihat footer Services dan status bar. | Status bar menulis `RAM <total> (services <X> + Kova <Y>)`; X sama dengan angka di footer Services. Y kira-kira sama dengan jumlah grup Kova + WebView2 Manager di Task Manager (W) atau Private di `smem`/smaps_rollup (L), selisih ≤ 15%. | ⬜ | ⬜ | | v3.15.1 |
+| TC-U12 | (a) Ctrl K → "Add project". (b) Settings → Engine, pilih engine lain. (c) Services › MySQL › Data → Restore database, pilih file. (d) Settings → On launch, matikan "Start projects marked start on launch", tutup dan buka Kova. (e) Rusak config.json (mis. hapus satu kurung), buka Kova. | (a) Dialog Add project terbuka. (b) Dialog konfirmasi; Cancel tidak mengubah engine. (c) Dialog konfirmasi menyebut nama file sebelum restore berjalan. (d) Project bertanda tidak start; deskripsi menyebut nama project-nya. (e) Banner menyebut path config.json dan tombol Open folder; Services dan Runtimes tetap bisa dibuka. | ⬜ | ⬜ | | v3.16.0 |
 
 ## W · Khusus Windows
 
