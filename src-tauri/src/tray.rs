@@ -43,6 +43,21 @@ pub struct ProjectEntry {
     pub id: String,
     pub label: String,
     pub enabled: bool,
+    /// Berjalan, memulai, tidak menjawab, atau keluar: naik ke atas menu.
+    pub active: bool,
+}
+
+/// v3.14.1: jumlah project yang tampil langsung di menu; sisanya masuk
+/// submenu "More projects", supaya menu tidak memanjang tanpa batas.
+pub const PROJECT_LIMIT: usize = 5;
+
+/// Urutkan project aktif lebih dulu (urutan asli tetap di tiap kelompok),
+/// lalu pisahkan `limit` yang pertama dari sisanya.
+pub fn split_projects(entries: &[ProjectEntry], limit: usize) -> (Vec<ProjectEntry>, Vec<ProjectEntry>) {
+    let mut sorted: Vec<ProjectEntry> = entries.iter().filter(|e| e.active).cloned().collect();
+    sorted.extend(entries.iter().filter(|e| !e.active).cloned());
+    let rest = sorted.split_off(limit.min(sorted.len()));
+    (sorted, rest)
 }
 
 /// Teks dan status aktif satu project. Bentuk penanda berbeda per status dan
@@ -65,7 +80,8 @@ pub fn project_entry(project: &Project, runtime: Option<&SiteRuntime>) -> Projec
         _ if runnable => (format!("○ {} — stopped · start", name), true),
         _ => (format!("○ {} — not set up yet", name), false),
     };
-    ProjectEntry { id: project.id.clone(), label, enabled }
+    let active = matches!(state, SiteState::Running | SiteState::Unresponsive | SiteState::Starting | SiteState::Exited);
+    ProjectEntry { id: project.id.clone(), label, enabled, active }
 }
 
 /// Teks "Stop all services"; tidak ditampilkan bila tidak ada yang berjalan.
@@ -94,8 +110,16 @@ fn build_menu(
     menu.append(&PredefinedMenuItem::separator(app)?)?;
 
     if !projects.is_empty() {
-        for p in projects {
+        let (shown, rest) = split_projects(projects, PROJECT_LIMIT);
+        for p in &shown {
             menu.append(&MenuItem::with_id(app, format!("project:{}", p.id), &p.label, p.enabled, None::<&str>)?)?;
+        }
+        if !rest.is_empty() {
+            let more = Submenu::with_id(app, "projects_more", format!("More projects ({})", rest.len()), true)?;
+            for p in &rest {
+                more.append(&MenuItem::with_id(app, format!("project:{}", p.id), &p.label, p.enabled, None::<&str>)?)?;
+            }
+            menu.append(&more)?;
         }
         menu.append(&PredefinedMenuItem::separator(app)?)?;
     }
@@ -479,6 +503,23 @@ mod tests {
         let e = project_entry(&project("D:\\dev\\ce", "  ", 8801), None);
         assert_eq!((e.label.as_str(), e.enabled), ("○ ce-console-api — not set up yet", false));
         assert!(!project_entry(&project("", "npm run dev", 3000), None).enabled);
+    }
+
+    #[test]
+    fn active_projects_first_and_the_rest_in_more() {
+        let e = |id: &str, active: bool| ProjectEntry { id: id.into(), label: id.into(), enabled: true, active };
+        let list = vec![e("a", false), e("b", true), e("c", false), e("d", true), e("e", false), e("f", false), e("g", false)];
+        let (shown, rest) = split_projects(&list, 5);
+        let ids = |v: &[ProjectEntry]| v.iter().map(|p| p.id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids(&shown), ["b", "d", "a", "c", "e"]);
+        assert_eq!(ids(&rest), ["f", "g"]);
+
+        let (shown, rest) = split_projects(&list[..3], 5);
+        assert_eq!(shown.len(), 3);
+        assert!(rest.is_empty());
+
+        assert!(project_entry(&project("D:\\dev\\ce", "npm run dev", 3000), Some(&rt(SiteState::Exited, Some(1)))).active);
+        assert!(!project_entry(&project("D:\\dev\\ce", "npm run dev", 3000), None).active);
     }
 
     #[test]

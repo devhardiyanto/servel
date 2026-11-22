@@ -21,8 +21,10 @@ pub const LABEL: &str = "tray";
 const WIDTH: f64 = 320.0;
 /// Tinggi awal sebelum halaman melaporkan tingginya.
 const INITIAL_HEIGHT: f64 = 240.0;
-/// Lebih tinggi dari ini isi popup digulir (v3.7.2: ada bagian versi global).
-const MAX_HEIGHT: f64 = 640.0;
+/// Tinggi maksimal popup. v3.14.1: halaman juga membatasi dirinya ke tinggi
+/// work area (`maxHeight` di TrayPopup.vue) dan hanya daftar project yang
+/// digulir, jadi nilai ini cukup sebagai pengaman.
+const MAX_HEIGHT: f64 = 760.0;
 /// Jarak dari tepi work area, piksel logis.
 const MARGIN: f64 = 8.0;
 /// Klik ikon dalam rentang ini setelah popup hilang karena blur = tutup saja.
