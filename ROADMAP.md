@@ -63,7 +63,7 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
 - **Mengganti versi** (`plan_use`, diuji unit):
   - Global → `mise use -g`.
   - Project → `mise use --path <file yang sedang berlaku>`.
-  - Tool yang masih dari global memicu dialog "Pin in this project / Change global". Pin ditulis ke config project yang **sudah** dipakai tool lain (mis. `D:\dev\event\mise.toml`), bukan file baru di subfolder; `mise.toml` di root project hanya dibuat bila belum ada config project sama sekali.
+  - Tool yang masih dari global memicu dialog "Pin in this project / Change global". Pin ditulis ke config project yang **sudah** dipakai tool lain (mis. `C:\dev\acme\mise.toml`), bukan file baru di subfolder; `mise.toml` di root project hanya dibuat bila belum ada config project sama sekali.
 - **Ketahanan**:
   - Error "not trusted" memunculkan banner dengan tombol Trust (`mise trust <file>`).
   - Settings menyediakan Reshim / Clear cache / Doctor.

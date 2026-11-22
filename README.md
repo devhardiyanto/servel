@@ -7,7 +7,7 @@ _Kova was called **Servel** up to v2.11. Your services, projects and settings ca
 Kova is a desktop app (Tauri 2 + Vue 3) that runs your local development environment from one window:
 
 - **Services**: MySQL, PostgreSQL, Redis and friends in containers (WSL containers on Windows, or Docker).
-- **Projects**: your Laravel, Vite, Nuxt, Node or Go apps, started for you on a fixed `localhost:<port>`.
+- **Projects**: your Laravel, Vite, Next, Nuxt, Node or Go apps, started for you on a fixed `localhost:<port>` and sorted into groups.
 - **Versions**: PHP and Node per project through [mise](https://mise.jdx.dev), plus PHP extensions per version.
 
 No more juggling three terminals every morning.
@@ -16,16 +16,21 @@ No more juggling three terminals every morning.
 
 ![Services](docs/screenshots/services.png)
 
+More in [Screenshots](#screenshots).
+
 ---
 
 ## Features
 
 **Projects**
-- Add a project folder; Kova detects what it is (Laravel, Lumen, WordPress, Drupal, plain PHP, Vite with Vue/React/Svelte, Next, Nuxt, Angular, other Node apps, Go, Django, FastAPI, Flask, other Python apps) and suggests the dev-server command and a free port.
+- Add a project folder; Kova detects what it is (Laravel, Lumen, WordPress, Drupal, plain PHP, Vite with Vue/React/Svelte, React, Next, Nuxt, Angular, Hono, Express, Fastify, NestJS, AdonisJS, other Node apps, Go, Django, FastAPI, Flask, other Python apps), says which files it based that on, and suggests the dev-server command and a free port. When `package.json` has both a frontend and a backend framework, the backend wins.
+- Each project shows its framework logo on its card, in the detail panel, the tray popup and the command palette.
+- **Groups**: put projects into groups (for example one per client or product). Each group folds open or closed, shows how many of its projects run, and has **Start all**, **Stop all**, Rename and Delete. Projects outside a group are listed under **Ungrouped**.
+- **Reorder by dragging** the ⋮⋮ handle on a card, also into another group. Without a mouse: focus the handle and press `Alt ↑` / `Alt ↓`, or use **⋯ → Move to group / Move up / Move down**.
 - Start, Stop, Restart and Open each project at `localhost:<port>`; its output goes to the Logs viewer.
 - The dev server runs with the PHP/Node/Go versions from the project's `mise.toml`, plus any environment variables you set for that project.
 - Optionally start a project when Kova opens, and link it to a service profile.
-- A **detail panel** per project with Overview (versions mise resolves for that folder, service profile, recent output), Environment (variables, Save & restart) and Logs tabs. Drag its edge to resize it, or drag it all the way right to hide it.
+- A **detail panel** per project with Overview (versions mise resolves for that folder, service profile, recent output), Environment (variables, Save & restart) and Logs tabs. Drag its edge to resize it, or drag it all the way right to hide it. Clicking the selected card again also hides it.
 - Dev servers stop when Kova quits, and do not linger if Kova crashes.
 
 **Services**
@@ -42,17 +47,32 @@ No more juggling three terminals every morning.
 - Windows: one click fixes HTTPS from PHP (curl error 60).
 
 **App**
-- One window with five screens: **Projects**, **Services**, **Runtimes**, **Logs**, **Settings**. The status bar shows the container engine, running services, memory and version.
-- **Command palette** (`Ctrl K`, `⌘K` on macOS): jump to a screen, start or stop a service, start, stop, restart or open a project, all from the keyboard.
+- One window with five screens: **Projects**, **Services**, **Runtimes**, **Logs**, **Settings**. The status bar shows the container engine, running services, live memory use (services, dev servers and Kova itself, for example `RAM 1.3 GB · Kova 186 MB`) and the version.
+- **Command palette** (`Ctrl K`, `⌘K` on macOS): jump to a screen, start or stop a service, start, stop, restart or open a project, start or stop a whole group, all from the keyboard. Typing a group name lists the projects in it.
 - In-app updates: a banner on every screen, download in the background, restart when you choose.
-- System tray popup with your projects, services and global PHP/Node versions; remembered selection, optional start when you sign in (in the tray), and a `kova` terminal command on Windows, macOS and Linux.
+- System tray popup with your projects (with their logos, sorted by group; **Show all** lists them under group headings), services and global PHP/Node versions; remembered selection, optional start when you sign in (in the tray), and a `kova` terminal command on Windows, macOS and Linux.
 - WSL containers, Docker or mise installed while Kova is open are picked up without restarting Kova.
+
+---
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Project groups with framework logos](docs/screenshots/projects-groups.png) | ![Command palette with group commands](docs/screenshots/palette.png) |
+| Projects in groups, with framework logos | `Ctrl K` command palette, including Start/Stop group |
+| ![Runtimes](docs/screenshots/runtimes.png) | ![Settings](docs/screenshots/settings.png) |
+| Runtimes: PHP versions per project and PHP extensions | Settings |
+| ![Logs](docs/screenshots/logs.png) | ![Logs for one project, per process](docs/screenshots/logs-processes.png) |
+| Logs from services and projects | One project's output, split by process (`[server]`, `[queue]`) |
+| ![First run](docs/screenshots/onboarding.png) | ![Tray popup](docs/screenshots/tray.png) |
+| First-run setup | Tray popup with projects grouped |
 
 ---
 
 ## Install
 
-Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `3.0.0`).
+Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `3.15.0`).
 
 > Kova ships **unsigned** for Windows and macOS. Workarounds are documented below; see [Code signing](#code-signing) for the plan.
 
@@ -143,9 +163,9 @@ kova use php@8.3               # via mise, in the current project folder (kova u
 kova use node@22 --global      # change the global version
 kova service up mysql          # same as kova up mysql
 kova projects                  # list projects from the app, with their localhost URLs
-kova start share-api           # start a project's dev server (the Kova app must be open)
-kova stop share-api
-kova restart share-api
+kova start acme-api           # start a project's dev server (the Kova app must be open)
+kova stop acme-api
+kova restart acme-api
 kova ps                        # state and URL of every project
 ```
 
@@ -171,9 +191,9 @@ kova shell postgres
 kova list                      # available services, images and ports
 kova restore mysql dump.sql    # or a folder of .sql files
 kova use php@8.3               # via mise, in the current project folder
-kova start share-api           # start a project's dev server
-kova stop share-api
-kova restart share-api
+kova start acme-api           # start a project's dev server
+kova stop acme-api
+kova restart acme-api
 kova ps                        # state and URL of every project
 kova preflight                 # check Docker, mise and whether the app is open
 ```
@@ -242,7 +262,9 @@ To load data: **Settings → Services → Restore database** (pick a `.sql` dump
    - **Environment**: variables for this project's dev server, one row each. **Save & restart** applies them right away.
    - **Logs**: the last 500 lines, and **Open in Logs** for the full view.
 
-With more than three projects a search box appears above the list.
+With more than three projects a search box appears above the list; it also matches group names.
+
+**Groups:** click **New group** above the list and give it a name. Drag a project's ⋮⋮ handle (it shows on hover or focus) to reorder it or to drop it into a group, or use **⋯ → Move to group** on the project. With the keyboard, focus the handle and press `Alt ↑` / `Alt ↓`. The arrow next to a group folds it (Kova remembers that); **Start all** and the group's **⋯** menu (Rename, Stop all, Delete group) act on all its projects. Deleting a group keeps its projects; they move to **Ungrouped**, which is always last.
 
 | Field | What it does |
 |---|---|
@@ -265,7 +287,7 @@ Examples of commands Kova suggests:
 | Node backend | `npm run dev` (reads `PORT`) |
 | Go | `go run .` or `air` (reads `PORT`) |
 
-`npm` becomes `pnpm`, `yarn` or `bun` when that lockfile is present. **Restart** stops the project, waits for the port to be free and starts it again. Output shows under **Logs → Projects**. There, pick a project chip to see only its output, or **Errors & warnings** to hide everything else; each project keeps its own last 500 lines. **Filter lines** (or `Ctrl F`) narrows the list to lines containing the words you type and highlights them. Only the newest 1,000 lines are shown at first; **Show older lines** at the top loads more. When a project exits or stops answering, **View log** on its panel opens this view for that project. With a project chip selected, **Open project** jumps to that project, and a project that stopped keeps its output with a **Start** button. **Copy** copies the lines in view.
+`npm` becomes `pnpm`, `yarn` or `bun` when that lockfile is present. **Restart** stops the project, waits for the port to be free and starts it again. Output shows under **Logs → Projects**. There, pick a project chip to see only its output (when a project runs several processes, for example `composer run dev` with `[server]` and `[queue]` prefixes, a second row of chips shows each process on its own), or **Errors & warnings** to hide everything else; each project keeps its own last 500 lines. **Filter lines** (or `Ctrl F`) narrows the list to lines containing the words you type and highlights them. Only the newest 1,000 lines are shown at first; **Show older lines** at the top loads more. When a project exits or stops answering, **View log** on its panel opens this view for that project. With a project chip selected, **Open project** jumps to that project, and a project that stopped keeps its output with a **Start** button. **Copy** copies the lines in view.
 
 For bug reports, **Settings → About → Diagnostics → Copy info** copies the Kova, engine and mise versions and the data folder path.
 
@@ -295,7 +317,7 @@ Extensions that are not bundled (redis, xdebug, imagick, mongodb, ...) can be do
 
 ### Tray menu
 
-Click the tray icon to open a small Kova panel next to it (it follows where your taskbar is): your projects with coloured status (click a running one to open it in the browser, a stopped one to start it), the services you selected or that are running, each with its status (click one to start or stop just that service), **Start selected services** and **Stop all services**, **Global versions** for PHP and Node (click one to pick another installed version as the global version), **Open Kova** and **Quit Kova**. It closes when you click elsewhere or press Esc. Left-click and right-click both open it. On Linux, where the tray icon does not report clicks, clicking the icon opens a menu instead: **Open Kova**, your projects with their status, **Start selected services**, **Stop all services (N running)** while services run, the **PHP (global)** and **Node (global)** version submenus, and **Quit Kova**. Hovering the icon shows the Kova version and how many services are running. Closing the window keeps Kova in the tray (change it in **Settings → General**). **Quit Kova** stops running projects and then the services, shows "Stopping services…" while it waits (up to 60 seconds), and closes. Data in the volumes is kept, and the services you had selected start again next time if **Settings → General → Start services** is on (**Remember last session** keeps that selection between launches). To leave services running after Kova quits, turn off **Settings → General → Stop services when Kova quits**. Installing an update restarts Kova without stopping services.
+Click the tray icon to open a small Kova panel next to it (it follows where your taskbar is): your projects with coloured status and framework logo, running ones first and the rest in group order (click a running one to open it in the browser, a stopped one to start it; **Show all** lists every project under its group, and **Find a project** also matches group names), the services you selected or that are running, each with its status (click one to start or stop just that service), **Start selected services** and **Stop all services**, **Global versions** for PHP and Node (click one to pick another installed version as the global version), **Open Kova** and **Quit Kova**. It closes when you click elsewhere or press Esc. Left-click and right-click both open it. On Linux, where the tray icon does not report clicks, clicking the icon opens a menu instead: **Open Kova**, your projects with their status (the top five directly, the rest in a submenu per group), **Start selected services**, **Stop all services (N running)** while services run, the **PHP (global)** and **Node (global)** version submenus, and **Quit Kova**. Hovering the icon shows the Kova version and how many services are running. Closing the window keeps Kova in the tray (change it in **Settings → General**). **Quit Kova** stops running projects and then the services, shows "Stopping services…" while it waits (up to 60 seconds), and closes. Data in the volumes is kept, and the services you had selected start again next time if **Settings → General → Start services** is on (**Remember last session** keeps that selection between launches). To leave services running after Kova quits, turn off **Settings → General → Stop services when Kova quits**. Installing an update restarts Kova without stopping services.
 
 ---
 
@@ -409,6 +431,12 @@ Kova does not collect, transmit, or store any personal data. All configuration i
 Kova releases are **not code-signed** on Windows or macOS, which is why SmartScreen and Gatekeeper warn on install (see the FAQ for the workarounds). Update packages are signed with Kova's own updater key and verified by the app before they are installed.
 
 An application to the SignPath Foundation open-source program was declined in June 2026 because the project is still young; it will be submitted again once Kova has more public adoption.
+
+---
+
+## Credits
+
+Framework logos come from [Simple Icons](https://simpleicons.org) (CC0 1.0) and are bundled with the app; Kova does not fetch icons from the internet. The logos are trademarks of their respective owners, and their use here does not imply endorsement.
 
 ---
 
