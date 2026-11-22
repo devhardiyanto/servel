@@ -398,7 +398,7 @@ pub fn evidence(dir: &Path) -> Vec<String> {
     MARKERS.iter().filter(|f| dir.join(f).is_file()).take(4).map(|f| f.to_string()).collect()
 }
 
-/// Pilihan perintah untuk field Command (v3.11.0): hasil deteksi, lalu script
+/// Pilihan perintah untuk field Command: hasil deteksi, lalu script
 /// dari `composer.json` dan `package.json`.
 #[derive(Serialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
