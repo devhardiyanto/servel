@@ -27,10 +27,69 @@ pub fn silent_command(program: &str) -> Command {
     // dll.) tak ketemu. Inject PATH hasil resolusi login-shell + dir umum.
     #[cfg(not(target_os = "windows"))]
     {
+        apply_host_env(&mut cmd);
         cmd.env("PATH", resolved_path().as_str());
     }
 
     cmd
+}
+
+/// Perubahan env agar program yang dijalankan Kova melihat lingkungan sistem,
+/// bukan lingkungan AppImage. AppRun mengarahkan `LD_LIBRARY_PATH`, `PATH`,
+/// `XDG_DATA_DIRS`, variabel GTK/GIO, dan lain-lain ke `$APPDIR` agar Kova
+/// memakai library bawaannya; diwariskan ke mise, `configure`, compiler, atau
+/// dev server, library itu tidak cocok dengan sistem (mis. `./configure` PHP
+/// gagal walau sama persis berhasil dari terminal). Entri di `$APPDIR`
+/// dibuang; variabel yang tinggal kosong dihapus. Di luar AppImage: kosong.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
+pub fn host_env_changes(vars: &[(String, String)]) -> Vec<(String, Option<String>)> {
+    let Some(appdir) = vars.iter().find(|(k, _)| k == "APPDIR").map(|(_, v)| v.trim_end_matches('/').to_string()) else {
+        return Vec::new();
+    };
+    if appdir.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (k, v) in vars {
+        // GDK_BACKEND=x11 dan GTK_THEME kosong dipasang hook GTK AppImage untuk
+        // WebKit Kova; terminal/editor yang dibuka dari Kova memakai default-nya.
+        let gtk_hook = (k == "GDK_BACKEND" && v == "x11") || (k == "GTK_THEME" && v.is_empty());
+        if matches!(k.as_str(), "APPDIR" | "APPIMAGE" | "ARGV0" | "OWD") || gtk_hook {
+            out.push((k.clone(), None));
+        } else if v.contains(&appdir) {
+            let kept: Vec<&str> = v.split(':').filter(|p| !p.is_empty() && !p.starts_with(&appdir)).collect();
+            out.push((k.clone(), if kept.is_empty() { None } else { Some(kept.join(":")) }));
+        }
+    }
+    out
+}
+
+#[cfg(not(target_os = "windows"))]
+fn host_env() -> &'static [(String, Option<String>)] {
+    static ENV: std::sync::OnceLock<Vec<(String, Option<String>)>> = std::sync::OnceLock::new();
+    ENV.get_or_init(|| host_env_changes(&std::env::vars().collect::<Vec<_>>()))
+}
+
+/// Terapkan `host_env_changes` ke perintah tokio.
+#[cfg(not(target_os = "windows"))]
+pub fn apply_host_env(cmd: &mut Command) {
+    for (k, v) in host_env() {
+        match v {
+            Some(v) => cmd.env(k, v),
+            None => cmd.env_remove(k),
+        };
+    }
+}
+
+/// Terapkan `host_env_changes` ke perintah std (terminal, editor, shell login).
+#[cfg(not(target_os = "windows"))]
+pub fn apply_host_env_std(cmd: &mut std::process::Command) {
+    for (k, v) in host_env() {
+        match v {
+            Some(v) => cmd.env(k, v),
+            None => cmd.env_remove(k),
+        };
+    }
 }
 
 /// Windows: tambahkan ke PATH proses ini folder yang muncul di PATH sistem atau
@@ -194,9 +253,12 @@ fn build_resolved_path() -> String {
     parts.push("/usr/local/bin".to_string());
     parts.push("/opt/homebrew/bin".to_string());
 
+    // Direktori di dalam AppImage hanya untuk Kova sendiri.
+    let appdir = std::env::var("APPDIR").ok().filter(|d| !d.is_empty());
     let mut seen = HashSet::new();
     parts
         .into_iter()
+        .filter(|p| !appdir.as_deref().is_some_and(|d| p.starts_with(d)))
         .filter(|p| !p.is_empty() && seen.insert(p.clone()))
         .collect::<Vec<_>>()
         .join(":")
@@ -215,7 +277,9 @@ fn capture_login_shell_path() -> Option<String> {
     let (tx, rx) = mpsc::channel();
 
     std::thread::spawn(move || {
-        let out = StdCommand::new(&shell)
+        let mut c = StdCommand::new(&shell);
+        apply_host_env_std(&mut c);
+        let out = c
             .args(["-lic", "printf '%s' \"$PATH\""])
             .stdin(StdStdio::null())
             .stderr(StdStdio::null())
@@ -328,9 +392,52 @@ pub fn src_from_line(line: &str) -> String {
     "KOVA".to_string()
 }
 
+/// Port yang gagal di-bind Docker ("failed to bind host port 0.0.0.0:3306/tcp:
+/// address already in use"), beserta service-nya bila ada di baris yang sama.
+pub fn bind_conflicts(stderr_acc: &str) -> Vec<(String, Option<String>)> {
+    let mut out: Vec<(String, Option<String>)> = Vec::new();
+    for line in stderr_acc.lines() {
+        let Some(idx) = line.find("failed to bind host port ") else { continue };
+        let after = &line[idx + "failed to bind host port ".len()..];
+        let addr = after.split('/').next().unwrap_or("");
+        let port: String = addr.rsplit(':').next().unwrap_or("").chars().take_while(|c| c.is_ascii_digit()).collect();
+        if port.is_empty() || out.iter().any(|(p, _)| *p == port) {
+            continue;
+        }
+        let svc = SERVICE_IDS.iter().find(|id| line.contains(&format!("servel_{}", id))).map(|s| s.to_string());
+        out.push((port, svc));
+    }
+    out
+}
+
+/// Baris progres per layer image ("49ec2dab01d9 Downloading 93.32MB"). Ratusan
+/// baris per image dan tidak berguna di log; ringkasan "Image … Pulling/Pulled"
+/// tetap tampil.
+pub fn is_layer_progress(line: &str) -> bool {
+    let t = line.trim_start();
+    let id: String = t.chars().take_while(|c| c.is_ascii_hexdigit()).collect();
+    id.len() == 12 && t[12..].starts_with(' ')
+}
+
 /// Parse accumulated stderr dari docker compose untuk pesan error friendly.
 pub fn parse_docker_error(stderr_acc: &str) -> Option<String> {
     let lower = stderr_acc.to_lowercase();
+    let binds = bind_conflicts(stderr_acc);
+    if !binds.is_empty() {
+        let list = binds
+            .iter()
+            .map(|(p, s)| match s {
+                Some(s) => format!("{} ({})", p, s),
+                None => p.clone(),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let (word, verb) = if binds.len() == 1 { ("Port", "is") } else { ("Ports", "are") };
+        return Some(format!(
+            "{} {} {} already used by another program on this computer, for example a database installed outside Docker. Stop that program, then press Retry. Services in the same start were not started either.",
+            word, list, verb
+        ));
+    }
     if lower.contains("port is already allocated") {
         if let Some(idx) = stderr_acc.find("Bind for 0.0.0.0:") {
             let after = &stderr_acc[idx + "Bind for 0.0.0.0:".len()..];
@@ -370,6 +477,9 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
     let stdout_task = tokio::spawn(async move {
         let mut reader = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = reader.next_line().await {
+            if is_layer_progress(&line) {
+                continue;
+            }
             let source = src_from_line(&line);
             let _ = app_out.emit(
                 "cmd-output",
@@ -385,6 +495,9 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
         while let Ok(Some(line)) = reader.next_line().await {
             if let Ok(mut buf) = stderr_buf_clone.lock() {
                 buf.push(line.clone());
+            }
+            if is_layer_progress(&line) {
+                continue;
             }
             let source = src_from_line(&line);
             // docker compose menulis progress (Pulling, Created, Started) ke
@@ -412,7 +525,8 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
         // Compose tidak ada / socket ditolak → pesan dengan langkah perbaikan.
         let msg = crate::runtime::docker::friendly_error(&acc)
             .or_else(|| parse_docker_error(&acc))
-            .unwrap_or_else(|| format!("docker compose failed (exit {})", status));
+            // `ExitStatus` sudah menulis "exit status: 1".
+            .unwrap_or_else(|| format!("docker compose failed ({})", status));
         let _ = app.emit(
             "cmd-output",
             serde_json::json!({ "line": msg, "stream": "stderr", "source": "KOVA" }),
@@ -426,6 +540,48 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn appimage_env_is_stripped_for_children() {
+        let v = |k: &str, x: &str| (k.to_string(), x.to_string());
+        let vars = vec![
+            v("APPDIR", "/tmp/.mount_KovaAB"),
+            v("APPIMAGE", "/home/dev/Kova.AppImage"),
+            v("LD_LIBRARY_PATH", "/tmp/.mount_KovaAB/usr/lib:/tmp/.mount_KovaAB/usr/lib64"),
+            v("PATH", "/tmp/.mount_KovaAB/usr/bin:/usr/local/bin:/usr/bin"),
+            v("XDG_DATA_DIRS", "/tmp/.mount_KovaAB/usr/share:/usr/share"),
+            v("GDK_PIXBUF_MODULE_FILE", "/tmp/.mount_KovaAB/usr/lib/gdk-pixbuf/loaders.cache"),
+            v("GSETTINGS_SCHEMA_DIR", "/tmp/.mount_KovaAB//usr/share/glib-2.0/schemas"),
+            v("GDK_BACKEND", "x11"),
+            v("GTK_THEME", ""),
+            v("HOME", "/home/dev"),
+        ];
+        let got = host_env_changes(&vars);
+        let get = |k: &str| got.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone());
+        assert_eq!(get("LD_LIBRARY_PATH"), Some(None));
+        assert_eq!(get("PATH"), Some(Some("/usr/local/bin:/usr/bin".into())));
+        assert_eq!(get("XDG_DATA_DIRS"), Some(Some("/usr/share".into())));
+        assert_eq!(get("GDK_PIXBUF_MODULE_FILE"), Some(None));
+        assert_eq!(get("APPIMAGE"), Some(None));
+        assert_eq!(get("GSETTINGS_SCHEMA_DIR"), Some(None));
+        assert_eq!(get("GDK_BACKEND"), Some(None));
+        assert_eq!(get("GTK_THEME"), Some(None));
+        assert_eq!(get("HOME"), None);
+        // Di luar AppImage tidak ada yang diubah.
+        assert!(host_env_changes(&[v("PATH", "/usr/bin")]).is_empty());
+    }
+
+    #[test]
+    fn docker_bind_conflicts_and_layer_progress() {
+        let acc = " Container servel_mysql Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint servel_mysql (461f): failed to bind host port 0.0.0.0:3306/tcp: address already in use \n Container servel_postgres interrupted by the failure of Container servel_mysql \nError response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint servel_redis (6eb8): failed to bind host port 0.0.0.0:6379/tcp: address already in use";
+        assert_eq!(bind_conflicts(acc), vec![("3306".to_string(), Some("mysql".to_string())), ("6379".to_string(), Some("redis".to_string()))]);
+        let msg = parse_docker_error(acc).unwrap();
+        assert!(msg.starts_with("Ports 3306 (mysql), 6379 (redis) are already used"), "{msg}");
+        assert!(is_layer_progress(" 49ec2dab01d9 Downloading 93.32MB"));
+        assert!(is_layer_progress("576cb8ef4643 Pull complete 0B"));
+        assert!(!is_layer_progress(" Image mysql:8.0 Pulled "));
+        assert!(!is_layer_progress(" Container servel_mysql Created"));
+    }
 
     #[test]
     fn test_extract_semver_plain() {

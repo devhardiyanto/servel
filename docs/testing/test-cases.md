@@ -27,7 +27,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
 | U · Tampilan & aksesibilitas | 11 | 0 | 0 | v3.14.0, v3.15.0 |
 | W · Khusus Windows | 4 | 0 | ➖ | v3.10.x |
-| L · Khusus Linux | 8 | ➖ | 0 | v3.12.0 |
+| L · Khusus Linux | 11 | ➖ | 0 | v3.12.0 |
 
 ---
 
@@ -216,3 +216,6 @@ Catat di *Catatan putaran*: distro, desktop environment, `docker version`, `dock
 | TC-L6 | Settings → Command line → Install, lalu buka terminal baru: `kova status`. | `kova` tersalin ke `~/.local/bin/kova` dan berjalan (bila `~/.local/bin` ada di PATH). | ➖ | ⬜ | | |
 | TC-L7 | Restore database seperti TC-W4. | Sama dengan TC-W4. | ➖ | ⬜ | | |
 | TC-L8 | Jalankan `Kova_<versi>_amd64.AppImage` di distro dengan glibc 2.35 (mis. Ubuntu 22.04) dan di distro terbaru. | Aplikasi terbuka di keduanya, tanpa `GLIBC_x.y not found`. Bila gagal, kirim output `ldd --version`. | ➖ | ⬜ | | v3.15.2 |
+| TC-L9 | (a) Dengan tailscaled mendengarkan 3306/6379/5432/5672 di IP Tailscale, Start profil berisi MySQL, Redis, PostgreSQL, RabbitMQ. (b) Dengan MySQL bawaan Linux di 127.0.0.1:3306, Start MySQL. | (a) Keempat service running; `ss -ltnp` menunjukkan docker-proxy di 127.0.0.1. (b) Peringatan port dipakai program lain sebelum start; bila dipaksa, pesan menyebut port dan service-nya, bukan "exit status". Log pull tanpa ratusan baris "Downloading". | ➖ | ⬜ | | v3.15.3 |
+| TC-L10 | Lihat status bar setelah Kova terbuka ±1 menit. | Angka Kova ratusan MB, bukan GB; kira-kira sama dengan `ps`/System Monitor untuk proses kova + WebKit. | ➖ | ⬜ | | v3.15.3 |
+| TC-L11 | (a) Runtimes → PHP → Install 8.4 dari AppImage, dengan paket build terpasang (dari terminal `mise install php@8.4` berhasil). (b) Ulangi tanpa paket build. (c) Buka Terminal here dari Kova, jalankan `echo $LD_LIBRARY_PATH $APPDIR`. | (a) Berhasil, sama dengan dari terminal. (b) Gagal dengan pesan yang menyertakan daftar paket apt/dnf. (c) Keduanya kosong. | ➖ | ⬜ | | v3.15.3 |

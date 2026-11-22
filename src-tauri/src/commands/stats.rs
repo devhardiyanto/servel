@@ -274,11 +274,15 @@ fn private_bytes(_pid: u32) -> Option<u64> {
 /// dari sysinfo bila OS tidak memberikannya).
 pub fn measure_processes(sys: &mut sysinfo::System, dev_roots: &[u32]) -> (u64, u64) {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate};
-    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_memory());
+    // Tanpa tasks: di Linux sysinfo bawaannya juga mendaftar tiap thread
+    // sebagai "proses" dengan memori prosesnya, sehingga Kova (puluhan
+    // thread) terhitung puluhan kali.
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_memory().without_tasks());
     let own = std::process::id();
     let all: Vec<ProcInfo> = sys
         .processes()
         .iter()
+        .filter(|(_, p)| p.thread_kind().is_none())
         .map(|(pid, p)| (pid.as_u32(), p.parent().map(|pp| pp.as_u32()), p.memory()))
         .collect();
     let wanted = tree_pids(&all, own, dev_roots);
