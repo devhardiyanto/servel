@@ -122,6 +122,10 @@ textarea,
 ::-webkit-scrollbar-thumb:hover {
   background: var(--dim);
 }
+/* Pojok pertemuan dua scrollbar: tanpa ini WebView2 menggambar kotak putih. */
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
 
 /* Teks hanya untuk pembaca layar. */
 .sr-only {

@@ -106,7 +106,7 @@ onUnmounted(() => unlisten?.())
 .sb-live { display: inline-flex; }
 .sb-item { display: inline-flex; align-items: center; gap: 6px; }
 /* Angka berganti tiap 2 detik: lebar digit tetap supaya isi bar tidak bergeser. */
-.sb-ram { font-variant-numeric: tabular-nums; min-width: 17ch; }
+.sb-ram { font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .sb-spacer { flex: 1; }
 .sb-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
 .sb-dot--up { background: var(--green); }

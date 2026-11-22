@@ -1,6 +1,6 @@
 [package]
 name = "servel"
-version = "3.15.0"
+version = "3.15.1"
 description = "One app. All your local dev environment."
 authors = ["devhardiyanto <dev.hardiyanto@gmail.com>"]
 edition = "2021"
@@ -46,6 +46,8 @@ windows-sys = { version = "0.59", features = [
   "Win32_System_Threading",
   # PATH terbaru dari registry (v3.7.2).
   "Win32_System_Registry",
+  # Private working set per proses (angka RAM Kova, sama dengan Task Manager).
+  "Win32_System_ProcessStatus",
 ] }
 
 [dev-dependencies]
