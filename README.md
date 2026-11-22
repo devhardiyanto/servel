@@ -444,7 +444,7 @@ An application to the SignPath Foundation open-source program was declined in Ju
 
 ## Credits
 
-Framework logos come from [Simple Icons](https://simpleicons.org) (CC0 1.0) and are bundled with the app; Kova does not fetch icons from the internet. The logos are trademarks of their respective owners, and their use here does not imply endorsement.
+Framework and service logos (MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO) come from [Simple Icons](https://simpleicons.org) (CC0 1.0) and are bundled with the app; Kova does not fetch icons from the internet. The logos are trademarks of their respective owners, and their use here does not imply endorsement.
 
 ---
 

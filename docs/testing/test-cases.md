@@ -25,7 +25,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
-| U · Tampilan & aksesibilitas | 12 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0 |
+| U · Tampilan & aksesibilitas | 13 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0 |
 | W · Khusus Windows | 4 | 0 | ➖ | v3.10.x |
 | L · Khusus Linux | 11 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3 |
 
@@ -199,6 +199,7 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-U10 | Buka Projects dengan panel detail terbuka di jendela ±1100 px, project bernama panjang (≥ 24 karakter). | Tidak ada scroll horizontal; New group tampil sebagai ikon; nama project satu baris dengan elipsis (tooltip nama lengkap); port tetap terlihat di panel detail. Tidak ada kotak putih di pojok scrollbar. | ⬜ | ⬜ | | v3.15.1 |
 | TC-U11 | Jalankan beberapa service, lihat footer Services dan status bar. | Status bar menulis `RAM <total> (services <X> + Kova <Y>)`; X sama dengan angka di footer Services. Y kira-kira sama dengan jumlah grup Kova + WebView2 Manager di Task Manager (W) atau Private di `smem`/smaps_rollup (L), selisih ≤ 15%. | ⬜ | ⬜ | | v3.15.1 |
 | TC-U12 | (a) Ctrl K → "Add project". (b) Settings → Engine, pilih engine lain. (c) Services › MySQL › Data → Restore database, pilih file. (d) Settings → On launch, matikan "Start projects marked start on launch", tutup dan buka Kova. (e) Rusak config.json (mis. hapus satu kurung), buka Kova. | (a) Dialog Add project terbuka. (b) Dialog konfirmasi; Cancel tidak mengubah engine. (c) Dialog konfirmasi menyebut nama file sebelum restore berjalan. (d) Project bertanda tidak start; deskripsi menyebut nama project-nya. (e) Banner menyebut path config.json dan tombol Open folder; Services dan Runtimes tetap bisa dibuka. | ⬜ | ⬜ | | v3.16.0 |
+| TC-U13 | Buka Services, panel detail satu service, popup tray, dan Ctrl K → ketik nama service. | MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO memakai logo resminya (bukan emoji); Mailpit dan Gotenberg ikon garis; logo jelas terbaca di tema gelap dan terang; nama service tetap tertulis di sampingnya. | ⬜ | ⬜ | | v3.16.0 |
 
 ## W · Khusus Windows
 

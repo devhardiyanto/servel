@@ -11,6 +11,7 @@ import { isActive, useProjectRuntime } from '@/composables/useProjectRuntime'
 import { canRun, useProjectActions } from '@/composables/useProjectActions'
 import { PROJECTS_PANEL, usePanelWidth } from '@/composables/usePanelWidth'
 import FrameworkLogo from '@/components/ui/FrameworkLogo.vue'
+import ServiceLogo from '@/components/ui/ServiceLogo.vue'
 import { filterCommands, projectCommandMeta, type PaletteCommand } from '@/utils/palette'
 import { groupIdOf, orderedProjects } from '@/utils/projectGroups'
 import type { ViewName } from '@/types/navigation'
@@ -116,6 +117,7 @@ const commands = computed<PaletteCommand[]>(() => {
       id: `s-${def.id}`,
       label: up ? `Stop ${def.name}` : `Start ${def.name}`,
       group: 'Service',
+      service: def.id,
       keywords: `${def.id} ${up ? 'down off' : 'up on'}`,
       // Sama dengan switch di layar Services: start ikut memilih service,
       // stop ikut melepas pilihannya.
@@ -219,7 +221,7 @@ defineExpose({ show })
           @mousemove="active = i"
           @click="run(cmd)"
         >
-          <span class="cp-label"><FrameworkLogo v-if="cmd.kind" class="cp-logo" :kind="cmd.kind" :size="13" />{{ cmd.label }}</span>
+          <span class="cp-label"><FrameworkLogo v-if="cmd.kind" class="cp-logo" :kind="cmd.kind" :size="13" /><ServiceLogo v-else-if="cmd.service" class="cp-logo" :id="cmd.service" :size="13" />{{ cmd.label }}</span>
           <span class="cp-group">{{ cmd.group }}</span>
         </li>
         <li v-if="results.length === 0" class="cp-empty">No command matches "{{ query }}".</li>

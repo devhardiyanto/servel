@@ -10,6 +10,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import KovaMark from '@/components/shell/KovaMark.vue'
 import StatusDot, { type DotState } from '@/components/ui/StatusDot.vue'
 import FrameworkLogo from '@/components/ui/FrameworkLogo.vue'
+import ServiceLogo from '@/components/ui/ServiceLogo.vue'
 import { groupIdOf, orderedProjects } from '@/utils/projectGroups'
 import { useConfig } from '@/composables/useConfig'
 import { useProjectRuntime } from '@/composables/useProjectRuntime'
@@ -429,6 +430,7 @@ onUnmounted(() => {
         @click="toggleService(r)"
       >
         <StatusDot :state="r.dot" />
+        <ServiceLogo class="tp-logo" :id="r.def.id" :size="13" />
         <span class="tp-text">{{ r.def.name }}<span class="sr-only">{{ r.label.slice(r.def.name.length) }}</span></span>
         <span class="tp-hint" :class="{ 'tp-hint--value': pending[r.def.id] }" aria-hidden="true">{{ r.hint }}</span>
       </button>

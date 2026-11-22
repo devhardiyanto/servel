@@ -8,6 +8,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiModal from '@/components/ui/UiModal.vue'
+import ServiceLogo from '@/components/ui/ServiceLogo.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiTabs from '@/components/ui/UiTabs.vue'
 import UiSegmented from '@/components/ui/UiSegmented.vue'
@@ -113,7 +114,7 @@ const formats = [
   <div class="sd">
     <header class="sd-head">
       <div class="sd-title">
-        <h2 class="sd-name">{{ def.name }}</h2>
+        <h2 class="sd-name"><ServiceLogo :id="def.id" :size="20" />{{ def.name }}</h2>
         <UiButton variant="quiet" aria-label="Close service details" @click="emit('close')">&times;</UiButton>
       </div>
       <div class="sd-meta">
@@ -225,4 +226,5 @@ const formats = [
 .sd-sec { display: flex; flex-direction: column; gap: var(--space-2); }
 .sd-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
 .sd-confirm { margin: 0; line-height: 1.6; }
+.sd-name { display: inline-flex; align-items: center; gap: var(--space-2); }
 </style>
