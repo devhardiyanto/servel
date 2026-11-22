@@ -20,6 +20,7 @@ import { useVersionContext } from '@/composables/useVersionContext'
 import { useLogs } from '@/composables/useLogs'
 import { useToast } from '@/composables/useToast'
 import { useRuntimeInstall, type RuntimeTool } from '@/composables/useRuntimeInstall'
+import { frameworkTool } from '@/utils/framework'
 
 type Tool = RuntimeTool
 interface VersionRow { version: string; installed: boolean; global: boolean; usedBy: string[] }
@@ -114,6 +115,10 @@ watch(rtInstall.lastResult, (r) => {
   data.value = rest
   if (r.tool === tool.value) void load()
   if (r.madeGlobal) void versionCtx.refresh()
+  if (r.ok && r.tool === 'php') {
+    const v = [...rtInstall.fresh.value].filter((k) => k.startsWith('php@')).pop()?.slice(4)
+    if (v) extFocus.value = v
+  }
 })
 
 async function cancelInstall(): Promise<void> {
@@ -151,14 +156,29 @@ async function run(fn: () => Promise<unknown>, done: string): Promise<void> {
   }
 }
 
+/** PHP version the extensions panel shows after an action on it. */
+const extFocus = ref<string | null>(null)
 const usingRow = ref<VersionRow | null>(null)
+const usePick = ref('')
+const useShowAll = ref(false)
+/** Projects of this tool: detected kind, or a mise.toml that already pins it. */
+const useCandidates = computed(() => {
+  const all = projectsWithFolder.value
+  if (useShowAll.value) return all
+  return all.filter((p) => frameworkTool(p.kind) === tool.value || !!currentFor(p.name))
+})
+watch(usingRow, (r) => {
+  useShowAll.value = false
+  usePick.value = r ? (useCandidates.value.find((p) => currentFor(p.name) !== r.version)?.id ?? useCandidates.value[0]?.id ?? '') : ''
+})
 const removingRow = ref<VersionRow | null>(null)
 
 function onMenu(r: VersionRow, id: string): void {
   if (id === 'install') void install(r.version)
-  else if (id === 'global')
+  else if (id === 'global') {
+    if (tool.value === 'php') extFocus.value = r.version
     void run(() => invoke('runtime_set_global', { tool: tool.value, version: r.version }), `${meta.value.label} ${r.version} is now the global version`)
-  else if (id === 'use') usingRow.value = r
+  } else if (id === 'use') usingRow.value = r
   else if (id === 'remove') removingRow.value = r
 }
 
@@ -166,11 +186,12 @@ function currentFor(name: string): string {
   return rows.value.find((x) => x.usedBy.includes(name))?.version ?? ''
 }
 
-async function useIn(projectId: string): Promise<void> {
+async function useIn(projectId = usePick.value): Promise<void> {
   const r = usingRow.value
   const p = config.value.projects.find((x) => x.id === projectId)
   if (!r || !p) return
   usingRow.value = null
+  if (tool.value === 'php') extFocus.value = r.version
   await run(
     () => invoke('runtime_use_in', { tool: tool.value, version: r.version, path: p.path }),
     `${p.name} now uses ${meta.value.label} ${r.version}. Restart it to apply.`,
@@ -261,22 +282,30 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
     </div>
 
     <aside v-if="tool === 'php'" class="rtt-side" aria-label="PHP extensions">
-      <PhpExtensionsPanel class="rtt-ext" />
+      <PhpExtensionsPanel class="rtt-ext" :focus-version="extFocus" />
     </aside>
     </div>
 
     <UiModal :open="!!usingRow" :title="usingRow ? `Use ${meta.label} ${usingRow.version} in a project` : ''" @close="usingRow = null">
       <p class="rtt-text">Kova writes <code class="rtt-mono">{{ tool }} = "{{ usingRow?.version }}"</code> to the project's mise.toml.</p>
-      <ul class="rtt-pick">
-        <li v-for="p in projectsWithFolder" :key="p.id">
-          <button type="button" class="rtt-pick__btn" @click="useIn(p.id)">
+      <div class="rtt-pick" role="radiogroup" :aria-label="`Project for ${meta.label} ${usingRow?.version}`">
+        <label v-for="p in useCandidates" :key="p.id" class="rtt-pick__row">
+          <input v-model="usePick" type="radio" name="rtt-use" :value="p.id" />
+          <span class="rtt-pick__lbl">
             <span class="rtt-pick__name">{{ p.name }}</span>
             <span class="rtt-dim">{{ currentFor(p.name) ? `now ${meta.label} ${currentFor(p.name)} · mise.toml` : `uses the global ${meta.label}` }}</span>
-          </button>
-        </li>
-      </ul>
-      <p class="rtt-dim">The project restarts only when you say so.</p>
-      <template #footer><UiButton variant="quiet" size="md" @click="usingRow = null">Cancel</UiButton></template>
+          </span>
+        </label>
+        <p v-if="useCandidates.length === 0" class="rtt-dim">No project uses {{ meta.label }} yet.</p>
+      </div>
+      <p class="rtt-dim">
+        <template v-if="!useShowAll">Only projects that use {{ meta.label }} are listed. </template>The project restarts only when you say so.
+        <button v-if="!useShowAll && useCandidates.length < projectsWithFolder.length" type="button" class="rtt-link" @click="useShowAll = true">Show all projects</button>
+      </p>
+      <template #footer>
+        <UiButton variant="quiet" size="md" @click="usingRow = null">Cancel</UiButton>
+        <UiButton variant="primary" size="md" :disabled="!usePick" @click="useIn()">Use {{ meta.label }} {{ usingRow?.version }}</UiButton>
+      </template>
     </UiModal>
 
     <UiModal :open="!!removingRow" :title="removingRow ? `Remove ${meta.label} ${removingRow.version}?` : ''" size="sm" danger @close="removingRow = null">
@@ -315,23 +344,21 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
 .rtt-side { padding: var(--space-4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); min-width: 0; }
 .rtt-ext { margin: 0; }
 .rtt-text { margin: 0 0 var(--space-3); line-height: 1.6; }
-.rtt-pick { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
-.rtt-pick__btn {
-  width: 100%;
+.rtt-pick { margin: 0 0 var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.rtt-pick__row {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: flex-start;
+  gap: var(--space-3);
   padding: var(--space-3);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   background: var(--surface2);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
   cursor: pointer;
 }
-.rtt-pick__btn:hover { border-color: var(--accent); }
-.rtt-pick__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.rtt-pick__row:hover, .rtt-pick__row:has(input:checked) { border-color: var(--accent); }
+.rtt-pick__row input { margin: 3px 0 0; accent-color: var(--accent); }
+.rtt-pick__lbl { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rtt-link { background: none; border: 0; padding: 0; margin-left: var(--space-1); color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
 .rtt-pick__name { font-weight: 600; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>

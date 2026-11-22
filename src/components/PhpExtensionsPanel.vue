@@ -3,7 +3,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
 /** Mirror `PhpExtStatus` di src-tauri/src/php_ext.rs. */
@@ -41,7 +41,12 @@ const selected = ref<string>('')
 const status = ref<PhpExtStatus | null>(null)
 const loading = ref(false)
 const loadError = ref('')
+const props = defineProps<{ focusVersion?: string | null }>()
+
+/** HTTPS fix and extension download: one at a time, and not during toggles. */
 const busy = ref<string | null>(null)
+/** Extensions being written and checked with php -m; each row shows its own state. */
+const pending = ref(new Set<string>())
 const actionError = ref('')
 const notice = ref('')
 const filter = ref('')
@@ -92,28 +97,32 @@ const rolledBack = computed(() => !!rolledBackExt.value && /put back as it was/i
 const rollbackCause = computed(() => actionError.value.replace(/\.?\s*php\.ini was put back as it was\.?$/i, '').trim())
 
 async function toggle(ext: PhpExt): Promise<void> {
-  if (busy.value) return
-  busy.value = ext.name
+  if (busy.value || pending.value.has(ext.name)) return
+  pending.value = new Set(pending.value).add(ext.name)
+  const enable = !ext.loaded
   rolledBackExt.value = ''
   actionError.value = ''
   notice.value = ''
   try {
+    // The backend serialises writes, so other toggles can be clicked meanwhile.
     status.value = await invoke<PhpExtStatus>('php_ext_set', {
       version: selected.value || null,
       name: ext.name,
-      enable: !ext.loaded,
+      enable,
     })
-    notice.value = `${ext.name} ${ext.loaded ? 'disabled' : 'enabled'}. Restart running PHP projects to pick it up.`
+    notice.value = `${ext.name} ${enable ? 'enabled' : 'disabled'}. Restart running PHP projects to pick it up.`
   } catch (err) {
     actionError.value = String(err)
-    rolledBackExt.value = ext.loaded ? '' : ext.name
+    rolledBackExt.value = enable ? ext.name : ''
   } finally {
-    busy.value = null
+    const next = new Set(pending.value)
+    next.delete(ext.name)
+    pending.value = next
   }
 }
 
 async function fixHttps(): Promise<void> {
-  if (busy.value) return
+  if (busy.value || pending.value.size) return
   busy.value = '__https'
   actionError.value = ''
   notice.value = ''
@@ -129,7 +138,7 @@ async function fixHttps(): Promise<void> {
 
 async function installExt(): Promise<void> {
   const name = installName.value.trim().toLowerCase()
-  if (busy.value || !name) return
+  if (busy.value || pending.value.size || !name) return
   if (!/^[a-z0-9_]+$/.test(name)) {
     actionError.value = 'Extension names use only letters, digits and underscores, e.g. redis.'
     return
@@ -148,15 +157,32 @@ async function installExt(): Promise<void> {
   }
 }
 
-onMounted(async () => {
+async function loadVersions(): Promise<void> {
   try {
     versions.value = await invoke<PhpVersion[]>('php_list_installed')
-    selected.value = versions.value.find((v) => v.active)?.version ?? ''
   } catch {
     versions.value = []
   }
+}
+
+onMounted(async () => {
+  await loadVersions()
+  selected.value = props.focusVersion && versions.value.some((v) => v.version === props.focusVersion)
+    ? props.focusVersion
+    : (versions.value.find((v) => v.active)?.version ?? '')
   await load()
 })
+
+// Runtimes points the panel at the version just installed, made global or
+// used in a project, so the extensions shown are the ones that change.
+watch(
+  () => props.focusVersion,
+  async (v) => {
+    if (!v || v === selected.value) return
+    await loadVersions()
+    if (versions.value.some((x) => x.version === v)) await chooseVersion(v)
+  },
+)
 </script>
 
 <template>
@@ -197,7 +223,7 @@ onMounted(async () => {
         </div>
         <UiButton
           :variant="status.https.ok ? 'default' : 'accent'"
-          :disabled="busy !== null"
+          :disabled="busy !== null || pending.size > 0"
           @click="fixHttps"
         >{{ busy === '__https' ? 'Setting…' : status.https.ok ? 'Set again' : 'Fix HTTPS certificates' }}</UiButton>
       </div>
@@ -210,11 +236,12 @@ onMounted(async () => {
       <div class="px-grid">
         <div v-for="ext in toggleable" :key="ext.name" class="px-item">
           <span class="px-name">{{ ext.name }}</span>
+          <span v-if="pending.has(ext.name)" class="px-checking" aria-live="polite">checking…</span>
           <UiToggle
             size="sm"
             :on="ext.loaded"
             :label="`${ext.loaded ? 'Disable' : 'Enable'} ${ext.name}`"
-            :disabled="busy !== null"
+            :disabled="busy !== null || pending.has(ext.name)"
             @click="toggle(ext)"
           />
         </div>
@@ -246,13 +273,13 @@ onMounted(async () => {
             list="px-install-list"
             aria-label="Extension to install"
             placeholder="redis, xdebug, imagick…"
-            :disabled="busy !== null"
+            :disabled="busy !== null || pending.size > 0"
             @keydown.enter="installExt"
           />
           <datalist id="px-install-list">
             <option v-for="n in SUGGESTED" :key="n" :value="n" />
           </datalist>
-          <UiButton variant="accent" :disabled="busy !== null || !installName.trim()" @click="installExt">
+          <UiButton variant="accent" :disabled="busy !== null || pending.size > 0 || !installName.trim()" @click="installExt">
             {{ busy === '__install' ? 'Downloading…' : 'Download & enable' }}
           </UiButton>
         </div>
@@ -402,6 +429,7 @@ onMounted(async () => {
   min-width: 0;
 }
 
+.px-checking { margin-left: auto; font-size: var(--text-xs); color: var(--amber); }
 .px-name {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
