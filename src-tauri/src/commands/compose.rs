@@ -44,8 +44,11 @@ pub(crate) fn generate_compose(defs: &[ServiceDef], selected_ids: &[String]) -> 
 
         if !def.ports.is_empty() {
             writeln!(out, "    ports:").ok();
+            // Hanya loopback, sama dengan WSL containers: service dev tidak
+            // terbuka ke LAN, dan tidak bentrok dengan program yang mendengar
+            // port yang sama di alamat lain (mis. tailscaled di IP Tailscale).
             for p in &def.ports {
-                writeln!(out, "      - \"{}:{}\"", p.host, p.container).ok();
+                writeln!(out, "      - \"127.0.0.1:{}:{}\"", p.host, p.container).ok();
             }
         }
 
@@ -201,7 +204,7 @@ mod tests {
         assert!(yaml.contains("restart: unless-stopped"), "restart policy");
 
         // Port di-quote
-        assert!(yaml.contains("- \"3306:3306\""), "port harus di-quote");
+        assert!(yaml.contains("- \"127.0.0.1:3306:3306\""), "port di-quote dan hanya di loopback");
 
         // Environment list format
         assert!(yaml.contains("- MYSQL_ROOT_PASSWORD=root"), "env KEY=value format");
@@ -252,8 +255,8 @@ mod tests {
         assert!(yaml.contains("- MYSQL_ROOT_PASSWORD=root"), "env mysql");
 
         // Mailpit punya 2 port
-        assert!(yaml.contains("- \"1025:1025\""), "mailpit port smtp");
-        assert!(yaml.contains("- \"8025:8025\""), "mailpit port web");
+        assert!(yaml.contains("- \"127.0.0.1:1025:1025\""), "mailpit port smtp");
+        assert!(yaml.contains("- \"127.0.0.1:8025:8025\""), "mailpit port web");
 
         // Network section
         assert!(yaml.contains("  servel_default:"));
