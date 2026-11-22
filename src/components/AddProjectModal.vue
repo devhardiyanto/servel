@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Add project (v3.4, canvas B1–B5): pilih folder dengan dialog OS, lalu modal
+// Add project: pilih folder dengan dialog OS, lalu modal
 // menampilkan hasil deteksi, cek port, dan Save / Save & start. Project baru
 // tersimpan hanya setelah Save; Cancel tidak meninggalkan apa pun.
 import { ref, watch } from 'vue'

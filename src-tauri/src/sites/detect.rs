@@ -20,6 +20,9 @@ pub struct Detection {
     pub command: String,
     /// Port awal yang lazim untuk jenis ini.
     pub default_port: u16,
+    /// Alasan singkat untuk dialog Add project, mis. "hono in package.json
+    /// dependencies · src/index.ts". Kosong = frontend memakai `evidence`.
+    pub reason: String,
 }
 
 fn det(kind: &str, label: &str, command: impl Into<String>, default_port: u16) -> Detection {
@@ -28,6 +31,14 @@ fn det(kind: &str, label: &str, command: impl Into<String>, default_port: u16) -
         label: label.to_string(),
         command: command.into(),
         default_port,
+        reason: String::new(),
+    }
+}
+
+impl Detection {
+    fn why(mut self, parts: &[&str]) -> Self {
+        self.reason = parts.iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join(" · ");
+        self
     }
 }
 
@@ -41,8 +52,37 @@ fn has_key(v: &Value, section: &str, key: &str) -> bool {
 
 /// Dependency ada di `dependencies` atau `devDependencies`.
 fn has_dep(pkg: &Value, name: &str) -> bool {
-    has_key(pkg, "dependencies", name) || has_key(pkg, "devDependencies", name)
+    dep_section(pkg, name).is_some()
 }
+
+fn dep_section(pkg: &Value, name: &str) -> Option<&'static str> {
+    ["dependencies", "devDependencies"].into_iter().find(|s| has_key(pkg, s, name))
+}
+
+/// "hono in package.json dependencies".
+fn dep_reason(pkg: &Value, name: &str) -> String {
+    dep_section(pkg, name).map(|s| format!("{name} in package.json {s}")).unwrap_or_default()
+}
+
+/// Berkas masuk server Node yang lazim, untuk alasan deteksi.
+fn node_entry(dir: &Path) -> Option<&'static str> {
+    const ENTRIES: [&str; 10] = [
+        "src/index.ts", "src/main.ts", "src/server.ts", "src/app.ts", "server.ts", "index.ts",
+        "src/index.js", "server.js", "index.js", "app.js",
+    ];
+    ENTRIES.into_iter().find(|f| dir.join(f).is_file())
+}
+
+/// Framework backend Node: (paket, kind, label, port lazim). Didahulukan dari
+/// framework frontend, karena project yang memuat keduanya biasanya dijalankan
+/// lewat server backend-nya.
+const NODE_BACKENDS: [(&str, &str, &str, u16); 5] = [
+    ("@nestjs/core", "nest", "NestJS", 3000),
+    ("@adonisjs/core", "adonis", "AdonisJS", 3333),
+    ("hono", "hono", "Hono", 3000),
+    ("fastify", "fastify", "Fastify", 3000),
+    ("express", "express", "Express", 3000),
+];
 
 fn has_script(pkg: &Value, name: &str) -> bool {
     has_key(pkg, "scripts", name)
@@ -80,12 +120,10 @@ fn detect_php_framework(dir: &Path) -> Option<Detection> {
     let requires = |name: &str| composer.as_ref().is_some_and(|c| has_key(c, "require", name));
 
     if requires("laravel/framework") && dir.join("artisan").is_file() {
-        return Some(det(
-            "laravel",
-            "Laravel",
-            "php artisan serve --host=127.0.0.1 --port={port}",
-            8000,
-        ));
+        return Some(
+            det("laravel", "Laravel", "php artisan serve --host=127.0.0.1 --port={port}", 8000)
+                .why(&["laravel/framework in composer.json", "artisan"]),
+        );
     }
     if requires("laravel/lumen-framework") {
         return Some(det("lumen", "Lumen", "php -S 127.0.0.1:{port} -t public", 8000));
@@ -121,35 +159,59 @@ fn detect_node(dir: &Path) -> Option<Detection> {
         None
     };
 
+    // Port backend lewat env PORT. Tanpa script dev/start perintah dikosongkan,
+    // kecuali AdonisJS yang punya `node ace serve`.
+    let backend_cmd = |fallback: &str| match script {
+        Some(s) => run_script(pm, s, ""),
+        None => fallback.to_string(),
+    };
+    let has_ace = dir.join("ace").is_file();
+    for (dep, kind, label, port) in NODE_BACKENDS {
+        if has_dep(&pkg, dep) {
+            let fallback = if kind == "adonis" && has_ace { "node ace serve --watch" } else { "" };
+            let entry = node_entry(dir).unwrap_or("");
+            return Some(det(kind, label, backend_cmd(fallback), port).why(&[&dep_reason(&pkg, dep), entry]));
+        }
+    }
+    if has_ace {
+        return Some(det("adonis", "AdonisJS", backend_cmd("node ace serve --watch"), 3333).why(&["ace"]));
+    }
+
     if has_dep(&pkg, "next") {
         let cmd = script.map(|s| run_script(pm, s, "-p {port}")).unwrap_or_default();
-        return Some(det("next", "Next.js", cmd, 3000));
+        return Some(det("next", "Next.js", cmd, 3000).why(&[&dep_reason(&pkg, "next")]));
     }
     if has_dep(&pkg, "nuxt") {
         let cmd = script.map(|s| run_script(pm, s, "--port {port}")).unwrap_or_default();
-        return Some(det("nuxt", "Nuxt", cmd, 3000));
+        return Some(det("nuxt", "Nuxt", cmd, 3000).why(&[&dep_reason(&pkg, "nuxt")]));
     }
     if has_dep(&pkg, "vite") {
-        let flavor = if has_dep(&pkg, "vue") {
-            "Vite · Vue"
+        let (flavor, lib) = if has_dep(&pkg, "vue") {
+            ("Vite · Vue", "vue")
         } else if has_dep(&pkg, "react") {
-            "Vite · React"
+            ("Vite · React", "react")
         } else if has_dep(&pkg, "svelte") {
-            "Vite · Svelte"
+            ("Vite · Svelte", "svelte")
         } else {
-            "Vite"
+            ("Vite", "")
         };
         let cmd = script
             .map(|s| run_script(pm, s, "--port {port} --strictPort"))
             .unwrap_or_default();
-        return Some(det("vite", flavor, cmd, 5173));
+        let lib_reason = if lib.is_empty() { String::new() } else { dep_reason(&pkg, lib) };
+        return Some(det("vite", flavor, cmd, 5173).why(&[&lib_reason, &dep_reason(&pkg, "vite")]));
     }
     if has_dep(&pkg, "@angular/core") {
         let cmd = script.map(|s| run_script(pm, s, "--port {port}")).unwrap_or_default();
-        return Some(det("angular", "Angular", cmd, 4200));
+        return Some(det("angular", "Angular", cmd, 4200).why(&[&dep_reason(&pkg, "@angular/core")]));
+    }
+    // React tanpa Vite (mis. react-scripts) membaca port dari env PORT.
+    if has_dep(&pkg, "react") {
+        let cmd = script.map(|s| run_script(pm, s, "")).unwrap_or_default();
+        return Some(det("react", "React", cmd, 3000).why(&[&dep_reason(&pkg, "react")]));
     }
 
-    // Node lain (Express, Nest, CRA, ...): port lewat env PORT.
+    // Node lain: port lewat env PORT.
     let cmd = match script {
         Some(s) => run_script(pm, s, ""),
         None => match pkg.get("main").and_then(Value::as_str) {
@@ -165,7 +227,8 @@ fn detect_go(dir: &Path) -> Option<Detection> {
         return None;
     }
     let cmd = if dir.join(".air.toml").is_file() { "air" } else { "go run ." };
-    Some(det("go", "Go", cmd, 8080))
+    let entry = ["main.go", "cmd/server/main.go"].into_iter().find(|f| dir.join(f).is_file()).unwrap_or("");
+    Some(det("go", "Go", cmd, 8080).why(&["go.mod", entry]))
 }
 
 /// Interpreter Python bawaan platform. Dengan mise aktif, keduanya ada.
@@ -335,7 +398,7 @@ pub fn evidence(dir: &Path) -> Vec<String> {
     MARKERS.iter().filter(|f| dir.join(f).is_file()).take(4).map(|f| f.to_string()).collect()
 }
 
-/// Pilihan perintah untuk field Command (v3.11.0): hasil deteksi, lalu script
+/// Pilihan perintah untuk field Command: hasil deteksi, lalu script
 /// dari `composer.json` dan `package.json`.
 #[derive(Serialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -588,7 +651,7 @@ mod tests {
         let p = Proj::new("express");
         p.file("package.json", r#"{"scripts":{"start":"node server.js"},"dependencies":{"express":"4"}}"#);
         let d = p.detect();
-        assert_eq!((d.kind.as_str(), d.command.as_str()), ("node", "npm run start"));
+        assert_eq!((d.kind.as_str(), d.command.as_str()), ("express", "npm run start"));
         assert_eq!(d.default_port, 3000);
 
         // Tanpa script: pakai `main`.
@@ -604,10 +667,63 @@ mod tests {
     }
 
     #[test]
+    fn node_backend_frameworks_use_the_dev_script() {
+        for (dep, kind, label, port) in NODE_BACKENDS {
+            let p = Proj::new(kind);
+            p.file("package.json", &format!(r#"{{"scripts":{{"dev":"x"}},"dependencies":{{"{dep}":"1"}}}}"#))
+                .file("src/index.ts", "");
+            let d = p.detect();
+            assert_eq!((d.kind.as_str(), d.label.as_str(), d.default_port), (kind, label, port));
+            assert_eq!(d.command, "npm run dev");
+            assert_eq!(d.reason, format!("{dep} in package.json dependencies · src/index.ts"));
+        }
+    }
+
+    #[test]
+    fn backend_wins_over_frontend_in_the_same_package_json() {
+        let p = Proj::new("react-express");
+        p.file(
+            "package.json",
+            r#"{"scripts":{"dev":"concurrently vite \"node server.js\""},"dependencies":{"react":"^18","express":"^4"},"devDependencies":{"vite":"^5"}}"#,
+        )
+        .file("server.js", "");
+        let d = p.detect();
+        assert_eq!((d.kind.as_str(), d.command.as_str()), ("express", "npm run dev"));
+        assert_eq!(d.reason, "express in package.json dependencies · server.js");
+
+        // Hono sebagai devDependency tetap dikenali, dengan bagian yang benar.
+        let p = Proj::new("vue-hono");
+        p.file("package.json", r#"{"scripts":{"dev":"x"},"dependencies":{"vue":"^3"},"devDependencies":{"hono":"^4","vite":"^5"}}"#);
+        let d = p.detect();
+        assert_eq!(d.kind, "hono");
+        assert_eq!(d.reason, "hono in package.json devDependencies");
+    }
+
+    #[test]
+    fn react_without_vite_and_adonis_without_script() {
+        let p = Proj::new("cra");
+        p.file("package.json", r#"{"scripts":{"start":"react-scripts start"},"dependencies":{"react":"^18","react-scripts":"5"}}"#);
+        let d = p.detect();
+        assert_eq!((d.kind.as_str(), d.label.as_str(), d.command.as_str()), ("react", "React", "npm run start"));
+        assert_eq!(d.reason, "react in package.json dependencies");
+
+        // Vite + React tetap jenis vite, alasannya menyebut keduanya.
+        let p = Proj::new("vite-react-reason");
+        p.file("package.json", r#"{"scripts":{"dev":"vite"},"dependencies":{"react":"^18"},"devDependencies":{"vite":"^5"}}"#);
+        assert_eq!(p.detect().reason, "react in package.json dependencies · vite in package.json devDependencies");
+
+        let p = Proj::new("adonis-ace");
+        p.file("package.json", "{}").file("ace", "");
+        let d = p.detect();
+        assert_eq!((d.kind.as_str(), d.command.as_str(), d.default_port), ("adonis", "node ace serve --watch", 3333));
+    }
+
+    #[test]
     fn go_plain_php_and_unknown() {
         let p = Proj::new("go");
-        p.file("go.mod", "module x");
+        p.file("go.mod", "module x").file("main.go", "package main");
         assert_eq!(p.detect().command, "go run .");
+        assert_eq!(p.detect().reason, "go.mod · main.go");
         assert_eq!(p.detect().default_port, 8080);
         p.file(".air.toml", "");
         assert_eq!(p.detect().command, "air");
@@ -745,7 +861,7 @@ mod tests {
     fn render_and_name() {
         assert_eq!(render_command("php -S 127.0.0.1:{port} -t public", 8001), "php -S 127.0.0.1:8001 -t public");
         assert_eq!(render_command("npm run dev", 3000), "npm run dev");
-        assert_eq!(name_from_path(r"D:\dev\astra\share-api"), "share-api");
+        assert_eq!(name_from_path(r"C:\dev\acme\acme-api"), "acme-api");
         assert_eq!(name_from_path("/home/u/app/"), "app");
     }
 }

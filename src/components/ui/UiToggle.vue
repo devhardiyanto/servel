@@ -29,7 +29,7 @@ withDefaults(
 
 <style scoped>
 .ui-toggle {
-  /* v3.10.0: 34×20 seperti canvas .k-tog. */
+  /* 34×20, ukuran switch di design system. */
   --w: 34px;
   --h: 20px;
   --k: 14px;

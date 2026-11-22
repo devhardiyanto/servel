@@ -2,8 +2,8 @@
 //!
 //! WSLC belum punya `compose` maupun endpoint Docker API, jadi orkestrasi
 //! dilakukan imperatif per service: `volume create` → `run -d` / `start` /
-//! `stop`. Desainnya mengikuti perilaku yang sudah terbukti di skrip manual
-//! `servel.ps1` (v1.5 era) dan catatan proyek komunitas wslc-compose:
+//! `stop`. Desainnya mengikuti perilaku yang sudah terbukti di CLI PowerShell
+//! (`assets/cli/servel.ps1`) dan catatan proyek komunitas wslc-compose:
 //!
 //! - **Serialisasi.** WSLC bisa mengembalikan `ERROR_SHARING_VIOLATION` saat
 //!   dipanggil paralel, jadi semua pemanggilan lewat satu mutex [`LOCK`] dan
@@ -20,7 +20,7 @@
 //!   container adopsi tidak hilang.
 //! - Port di-bind ke `127.0.0.1` (dev lokal tidak perlu terbuka ke LAN).
 //!
-//! Catatan sesi: sesi WSLC terpisah per user **dan per elevation**. Servel yang
+//! Catatan sesi: sesi WSLC terpisah per user **dan per elevation**. Kova yang
 //! dijalankan "as Administrator" tidak melihat container dari sesi biasa.
 
 use serde_json::Value;
@@ -575,7 +575,7 @@ pub fn plan_start(
 }
 
 // ---------------------------------------------------------------------------
-// State lokal: container yang dibuat Servel + hash definisinya
+// State lokal: container yang dibuat Kova + hash definisinya
 // ---------------------------------------------------------------------------
 
 fn state_path(app: &AppHandle) -> Option<PathBuf> {

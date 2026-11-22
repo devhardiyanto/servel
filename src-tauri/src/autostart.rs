@@ -1,8 +1,8 @@
-//! "Start Servel when you sign in" (v2.11).
+//! "Start Kova when you sign in".
 //!
 //! Ditulis sendiri, tanpa tauri-plugin-autostart: versi plugin yang tersedia
 //! menuntut upgrade tauri/wry. Mekanismenya standar per OS:
-//! - Windows: nilai `Servel` di HKCU\Software\Microsoft\Windows\CurrentVersion\Run (lewat reg.exe)
+//! - Windows: nilai `Kova` di HKCU\Software\Microsoft\Windows\CurrentVersion\Run (lewat reg.exe)
 //! - macOS: LaunchAgent ~/Library/LaunchAgents/com.devhardiyanto.servel.plist
 //! - Linux: ~/.config/autostart/servel.desktop
 //!
@@ -16,7 +16,7 @@ pub const HIDDEN_ARG: &str = "--hidden";
 const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 #[cfg(any(windows, test))]
 const VALUE_NAME: &str = "Kova";
-/// Nama nilai sebelum rebrand (v2.11); dihapus saat pengaturan diubah.
+/// Nama nilai sebelum rebrand ke Kova; dihapus saat pengaturan diubah.
 #[cfg(windows)]
 const LEGACY_VALUE_NAME: &str = "Servel";
 #[cfg(any(target_os = "macos", test))]
@@ -175,7 +175,7 @@ pub fn set_enabled(enabled: bool) -> Result<(), String> {
 
 /// Dipanggil saat start: bila start saat login aktif, tulis ulang entrinya
 /// supaya menunjuk ke program yang sedang berjalan. Perlu setelah update yang
-/// mengganti nama atau lokasi program (v3: servel.exe → kova.exe).
+/// mengganti nama atau lokasi program (mis. servel.exe → kova.exe saat rebrand).
 pub fn refresh_if_enabled() {
     if is_enabled() {
         if let Err(e) = set_enabled(true) {

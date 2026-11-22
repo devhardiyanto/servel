@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Panel detail project (v3.4, canvas Projects / Flow C): kepala dengan status
-// dan aksi, lalu tab Overview, Environment, Logs.
+// Panel detail project: kepala dengan status dan aksi, lalu tab Overview,
+// Environment, Logs.
 import { computed, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import UiButton from '@/components/ui/UiButton.vue'
@@ -12,6 +12,7 @@ import UiModal from '@/components/ui/UiModal.vue'
 import StatusDot from '@/components/ui/StatusDot.vue'
 import UiIcon from '@/components/ui/UiIcon.vue'
 import UiChip from '@/components/ui/UiChip.vue'
+import FrameworkChip from '@/components/FrameworkChip.vue'
 import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
 import { parseDotenv, serializeDotenv, mergeRows, summarize, type SkippedLine } from '@/utils/dotenv'
 import LogTail from '@/components/LogTail.vue'
@@ -96,15 +97,15 @@ async function openIn(target: 'folder' | 'terminal' | 'vscode'): Promise<void> {
 }
 
 // --- Environment ------------------------------------------------------------
-// v3.9.0 (canvas Flow H, model B): Default + environment lain. Environment
-// lain hanya menyimpan nilai yang berbeda; baris Default tampil dengan nilai
-// Default sebagai placeholder, dan baru disimpan bila diisi.
+// Default + environment lain. Environment lain hanya menyimpan nilai yang
+// berbeda; baris Default tampil dengan nilai Default sebagai placeholder, dan
+// baru disimpan bila diisi.
 interface Row { k: string; v: string; ph?: string; inh?: boolean }
 const rows = ref<Row[]>([])
 const envError = ref('')
 const envSaving = ref(false)
 
-// v3.8.5 (canvas H4): "Edit as .env" dan paste banyak baris sekaligus.
+// "Edit as .env" dan paste banyak baris sekaligus.
 const textMode = ref(false)
 const envText = ref('')
 const pasteNote = ref<{ title: string; skipped: SkippedLine[] } | null>(null)
@@ -262,13 +263,13 @@ async function saveEnv(thenRestart: boolean): Promise<void> {
   }
 }
 
-/** Ganti environment yang dipakai saat start (H1, H5). */
+/** Ganti environment yang dipakai saat start. */
 async function selectEnv(name: string): Promise<void> {
   if (name === activeName.value) return
   await updateProject(p.value.id, { activeEnv: name || null })
 }
 
-// H2: New environment.
+// New environment.
 const ENV_NAME = /^[A-Za-z0-9_-]{1,40}$/
 const newEnvOpen = ref(false)
 const newEnvName = ref('')
@@ -368,10 +369,9 @@ const tabs = computed(() => [
       </UiBanner>
       <p v-if="!canRun(p)" class="pd-note">{{ missingReason(p) }}</p>
 
-      <!-- v3.8.6 (canvas Projects): versi runtime satu daftar dengan Type/Command/Folder. -->
       <dl class="pd-grid">
         <dt>Type</dt>
-        <dd>{{ p.kind || 'Not detected' }}</dd>
+        <dd><FrameworkChip v-if="p.kind" :kind="p.kind" /><template v-else>Not detected</template></dd>
         <dt>Command</dt>
         <dd class="pd-mono pd-wrap">{{ p.command || '—' }}</dd>
         <dt>Folder</dt>
@@ -424,7 +424,6 @@ const tabs = computed(() => [
 
     <!-- Environment -->
     <div v-else-if="tab === 'env'" class="pd-body" role="tabpanel">
-      <!-- v3.9.0 (canvas H1): environment yang dipakai saat start. -->
       <div class="pd-envbar">
         <UiInput
           as="select"
@@ -519,14 +518,13 @@ const tabs = computed(() => [
       </div>
     </div>
 
-    <!-- v3.9.0 (canvas H2) -->
     <UiModal :open="newEnvOpen" title="New environment" size="sm" @close="newEnvOpen = false">
       <div class="pd-modal">
         <UiInput
           v-model="newEnvName"
           mono
           label="Name"
-          placeholder="tenant-astra"
+          placeholder="staging"
           :error="newEnvError || undefined"
           help="Letters, numbers, - and _. Shown on the project while it runs."
           :maxlength="40"
@@ -553,7 +551,7 @@ const tabs = computed(() => [
       </template>
     </UiModal>
 
-    <!-- v3.8.6 (canvas .k-dfoot): selalu di bawah panel, untuk semua tab. -->
+    <!-- Selalu di bawah panel, untuk semua tab. -->
     <div class="pd-open">
       <UiButton :disabled="!p.path" @click="openIn('folder')"><UiIcon name="folder" />Open folder</UiButton>
       <UiButton :disabled="!p.path" @click="openIn('terminal')"><UiIcon name="terminal" />Terminal here</UiButton>

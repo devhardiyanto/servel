@@ -1,7 +1,7 @@
 //! Abstraksi container runtime.
 //!
-//! Servel mendukung dua engine:
-//! - **Docker** (`docker compose`) — semua OS. Perilaku v1.5 ke bawah.
+//! Kova mendukung dua engine:
+//! - **Docker** (`docker compose`) — semua OS.
 //! - **WSLC** (`wslc.exe`, WSL containers) — Windows saja. Tidak butuh Docker
 //!   Desktop maupun distro WSL; engine bawaan WSL >= 3.0.1.
 //!
@@ -49,7 +49,7 @@ impl RuntimeKind {
     }
 }
 
-/// Preferensi user. `Auto` = Servel memilih (lihat [`resolve`]).
+/// Preferensi user. `Auto` = Kova memilih (lihat [`resolve`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RuntimePreference {
     Auto,
@@ -74,8 +74,8 @@ impl RuntimePreference {
 /// - Di luar Windows selalu Docker (WSLC hanya ada di Windows).
 /// - Preferensi eksplisit dihormati, walau tool-nya belum terpasang — UI yang
 ///   menampilkan "not installed", bukan diam-diam pindah engine.
-/// - `Auto` (v2.0): WSL containers adalah default Windows. Docker hanya dipilih
-///   bila `wslc` tidak ada, atau Docker **masih menyimpan container Servel**
+/// - `Auto`: WSL containers adalah default Windows. Docker hanya dipilih
+///   bila `wslc` tidak ada, atau Docker **masih menyimpan container Kova**
 ///   (`docker_has_data == Some(true)`) — storage WSLC terpisah, jadi pindah
 ///   diam-diam akan membuat database user tampak kosong.
 ///   `docker_has_data == None` (daemon mati / tak bisa ditanya, mis. sisa
@@ -244,7 +244,7 @@ pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
     }
 }
 
-/// Antrean operasi start/stop (v3.7.1). `wslc::stop` hanya menghentikan
+/// Antrean operasi start/stop. `wslc::stop` hanya menghentikan
 /// container yang running saat dicek; tanpa antrean, stop yang datang selagi
 /// start masih berjalan melihat container belum running, tidak melakukan
 /// apa-apa, lalu start selesai dan container tetap hidup dengan toggle mati.
@@ -318,10 +318,10 @@ mod tests {
         use RuntimePreference::Auto;
         // Hanya wslc → WSLC.
         assert_eq!(resolve(Auto, true, true, false, None), RuntimeKind::Wslc);
-        // Keduanya ada, Docker kosong / daemon mati (sisa docker.exe) → WSLC (baru di v2.0).
+        // Keduanya ada, Docker kosong / daemon mati (sisa docker.exe) → WSLC.
         assert_eq!(resolve(Auto, true, true, true, Some(false)), RuntimeKind::Wslc);
         assert_eq!(resolve(Auto, true, true, true, None), RuntimeKind::Wslc);
-        // Docker masih menyimpan container Servel → tetap Docker.
+        // Docker masih menyimpan container Kova → tetap Docker.
         assert_eq!(resolve(Auto, true, true, true, Some(true)), RuntimeKind::Docker);
         // Tanpa wslc → Docker (onboarding menampilkan cara install).
         assert_eq!(resolve(Auto, true, false, true, Some(false)), RuntimeKind::Docker);

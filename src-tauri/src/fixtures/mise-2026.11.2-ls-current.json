@@ -3,10 +3,10 @@
     {
       "version": "1.27.1",
       "requested_version": "latest",
-      "install_path": "C:\\Users\\devha\\AppData\\Local\\mise\\installs\\go\\1.27.1",
+      "install_path": "C:\\Users\\dev\\AppData\\Local\\mise\\installs\\go\\1.27.1",
       "source": {
         "type": "mise.toml",
-        "path": "C:\\Users\\devha\\.config\\mise\\config.toml"
+        "path": "C:\\Users\\dev\\.config\\mise\\config.toml"
       },
       "installed": true,
       "active": true
@@ -16,10 +16,10 @@
     {
       "version": "24.21.0",
       "requested_version": "24",
-      "install_path": "C:\\Users\\devha\\AppData\\Local\\mise\\installs\\node\\24.21.0",
+      "install_path": "C:\\Users\\dev\\AppData\\Local\\mise\\installs\\node\\24.21.0",
       "source": {
         "type": "mise.toml",
-        "path": "D:\\dev\\event\\mise.toml"
+        "path": "D:\\dev\\acme\\mise.toml"
       },
       "installed": true,
       "active": true
@@ -29,10 +29,10 @@
     {
       "version": "8.5.11",
       "requested_version": "8.5",
-      "install_path": "C:\\Users\\devha\\AppData\\Local\\mise\\installs\\php\\8.5.11",
+      "install_path": "C:\\Users\\dev\\AppData\\Local\\mise\\installs\\php\\8.5.11",
       "source": {
         "type": "mise.toml",
-        "path": "C:\\Users\\devha\\.config\\mise\\config.toml"
+        "path": "C:\\Users\\dev\\.config\\mise\\config.toml"
       },
       "installed": true,
       "active": true
@@ -42,10 +42,10 @@
     {
       "version": "3.14.8",
       "requested_version": "3.14",
-      "install_path": "C:\\Users\\devha\\AppData\\Local\\mise\\installs\\python\\3.14.8",
+      "install_path": "C:\\Users\\dev\\AppData\\Local\\mise\\installs\\python\\3.14.8",
       "source": {
         "type": "mise.toml",
-        "path": "C:\\Users\\devha\\.config\\mise\\config.toml"
+        "path": "C:\\Users\\dev\\.config\\mise\\config.toml"
       },
       "installed": true,
       "active": true

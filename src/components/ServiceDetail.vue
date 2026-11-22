@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Panel detail service (v3.5, canvas Services / Flow D): status dan aksi,
+// Panel detail service: status dan aksi,
 // lalu tab Connect (nilai koneksi, .env dalam tiga format), Data (volume dan
 // restore), Logs (keluaran operasi Kova untuk service ini).
 import { computed, ref } from 'vue'

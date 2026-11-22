@@ -94,7 +94,7 @@ watch(projectNames, (names) => {
   if (projectFilter.value && !names.includes(projectFilter.value)) projectFilter.value = ''
 })
 
-// v3.11.0: `composer run dev` / `concurrently` memberi prefiks `[server]`,
+// `composer run dev` / `concurrently` memberi prefiks `[server]`,
 // `[queue]`, `[vite]` pada tiap baris. Bila satu project punya ≥ 2 prefiks,
 // tampil sebagai chip kedua supaya satu proses bisa dilihat sendiri.
 const PART_PREFIX = /^\[([A-Za-z0-9_.:-]{1,24})\](?:\s|$)/
@@ -148,7 +148,7 @@ const tabLines = computed(() => {
   })
 })
 
-// Filter teks (v3.2): tiap kata harus ada di teks atau sumber baris.
+// Filter teks: tiap kata harus ada di teks atau sumber baris.
 const textFilter = ref('')
 const filterEl = ref<InstanceType<typeof UiInput> | null>(null)
 const filterWords = computed(() => textFilter.value.toLowerCase().split(/\s+/).filter(Boolean))
@@ -165,7 +165,7 @@ const filteredLines = computed(() => {
   return out
 })
 
-// v3.8 (C3): hanya baris terbaru yang dirender (buffer bisa sampai 4000 baris);
+// Hanya baris terbaru yang dirender (buffer bisa sampai 4000 baris);
 // "Show older lines" menambah jatah. Jatah kembali ke awal saat tab atau
 // filter berubah.
 const RENDER_STEP = 1000
@@ -174,7 +174,7 @@ watch([activeTab, projectFilter, problemsOnly, textFilter], () => (renderLimit.v
 const hiddenCount = computed(() => Math.max(0, filteredLines.value.length - renderLimit.value))
 const visibleLines = computed(() => (hiddenCount.value ? filteredLines.value.slice(hiddenCount.value) : filteredLines.value))
 
-// v3.8 (C3): kata filter disorot di teks baris.
+// Kata filter disorot di teks baris.
 interface Seg { t: string; m: boolean }
 function segments(text: string): Seg[] {
   const words = filterWords.value
@@ -274,7 +274,6 @@ async function exportLogs(): Promise<void> {
     .map((l) => `${l.ts} [${l.src}] ${l.text}`)
     .join('\n')
 
-  // Try Tauri dialog plugin first
   let saved = false
   try {
     const filePath = await save({
@@ -282,9 +281,7 @@ async function exportLogs(): Promise<void> {
       filters: [{ name: 'Logs', extensions: ['txt', 'log'] }],
     })
     if (filePath) {
-      // plugin-fs not installed — fall back to blob download
-      // The save dialog gives us a path but we can't write without plugin-fs.
-      // Trigger browser download as fallback.
+      // Without plugin-fs the chosen path can't be written; use a blob download.
       triggerDownload(content, 'servel-logs.txt')
       saved = true
     }
@@ -335,7 +332,7 @@ function triggerDownload(text: string, filename: string): void {
           @keydown.esc="textFilter = ''"
         />
         </div>
-        <!-- v3.8.4 (canvas G2/G3): level sebagai pilihan, bukan tombol tekan. -->
+        <!-- Level sebagai pilihan, bukan tombol tekan. -->
         <UiSegmented
           label="Log level"
           :model-value="problemsOnly ? 'problems' : 'all'"
@@ -375,7 +372,7 @@ function triggerDownload(text: string, filename: string): void {
       </button>
     </div>
 
-    <!-- v3.11.0: proses di dalam satu project (prefiks concurrently). -->
+    <!-- Proses di dalam satu project (prefiks concurrently). -->
     <div v-if="partChips.length > 0" class="lv-chips lv-chips--parts" role="group" :aria-label="`Processes in ${scopedProject}`">
       <button
         class="lv-chip"
@@ -482,7 +479,7 @@ function triggerDownload(text: string, filename: string): void {
 
 /* Sub-header */
 .lv-header {
-  /* v3.8.6 (canvas Logs): judul, lalu tab sumber, lalu baris filter. */
+  /* Judul, lalu tab sumber, lalu baris filter. */
   display: flex;
   align-items: center;
   justify-content: space-between;

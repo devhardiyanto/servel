@@ -1,4 +1,4 @@
-//! Readiness check (v1.8): status "up" baru dilaporkan setelah service di dalam
+//! Readiness check: status "up" baru dilaporkan setelah service di dalam
 //! container benar-benar menerima koneksi, bukan sekadar container running.
 //!
 //! Probe dijalankan di dalam container (`exec sh -c <cmd>`) hanya selama fase

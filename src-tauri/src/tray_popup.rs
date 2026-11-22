@@ -1,4 +1,4 @@
-//! Popup tray (v3.7.0, canvas "Tray & accessibility").
+//! Popup tray.
 //!
 //! Klik kiri ikon tray membuka jendela kecil tanpa bingkai di dekat ikon,
 //! berisi project dan service dengan status berwarna. Klik kanan tetap
@@ -21,7 +21,7 @@ pub const LABEL: &str = "tray";
 const WIDTH: f64 = 320.0;
 /// Tinggi awal sebelum halaman melaporkan tingginya.
 const INITIAL_HEIGHT: f64 = 240.0;
-/// Tinggi maksimal popup. v3.14.1: halaman juga membatasi dirinya ke tinggi
+/// Tinggi maksimal popup. Halaman juga membatasi dirinya ke tinggi
 /// work area (`maxHeight` di TrayPopup.vue) dan hanya daftar project yang
 /// digulir, jadi nilai ini cukup sebagai pengaman.
 const MAX_HEIGHT: f64 = 760.0;

@@ -1,4 +1,4 @@
-// Permintaan "buka Logs untuk project ini" dari layar lain (v3.2). Layar Logs
+// Permintaan "buka Logs untuk project ini" dari layar lain. Layar Logs
 // membacanya sekali saat dibuka.
 import { ref } from 'vue'
 

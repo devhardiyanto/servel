@@ -195,18 +195,18 @@ pub fn run() {
                 if should_minimize {
                     let _ = window.hide();
                 } else {
-                    // v3.7.0: popup tray tersembunyi tetap terhitung jendela,
-                    // jadi menutup jendela utama tidak lagi memicu keluar
-                    // dengan sendirinya. Keluar lewat jalur Quit.
+                    // Popup tray tersembunyi tetap terhitung jendela, jadi
+                    // menutup jendela utama tidak memicu keluar dengan
+                    // sendirinya. Keluar lewat jalur Quit.
                     shutdown::begin(window.app_handle());
                 }
             }
         })
         .setup(move |app| {
-            // Tray init — non-fatal: kalau gagal (mis. Linux tanpa appindicator) log warning + lanjut.
             // Start saat login menunjuk ke program ini (nama/lokasi bisa berubah setelah update).
             std::thread::spawn(autostart::refresh_if_enabled);
 
+            // Tray non-fatal: kalau gagal (mis. Linux tanpa appindicator) log warning lalu lanjut.
             match tray::init(app.handle()) {
                 Ok(_) => TRAY_OK.store(true, std::sync::atomic::Ordering::SeqCst),
                 Err(e) => eprintln!("[tray] init failed, skipping tray: {}", e),
@@ -262,7 +262,7 @@ pub fn run() {
                 let mut consecutive_failures: u32 = 0;
                 let mut last_daemon_ok: Option<bool> = None;
                 let mut is_first_tick = true;
-                // Readiness (v1.8): "running" ke UI = container running DAN service
+                // Readiness: "running" ke UI = container running DAN service
                 // siap menerima koneksi. UI menahan "starting" sampai true.
                 let mut readiness = runtime::readiness::Tracker::default();
 
@@ -408,7 +408,7 @@ pub fn run() {
                     }
 
                     running_count = current.values().filter(|&&r| r).count();
-                    // Snapshot penuh tiap putaran (v3.6.1): event per perubahan di
+                    // Snapshot penuh tiap putaran: event per perubahan di
                     // atas terlewat bila start lalu stop terjadi di antara dua
                     // putaran, dan UI tertahan di "starting"/"stopping".
                     let _ = app_handle.emit("container-status-snapshot", &current);
@@ -422,55 +422,78 @@ pub fn run() {
                 }
             });
 
-            // Polling kedua: stats engine (`docker stats` / `wslc stats`) untuk memory
-            // usage per container. Interval 5s (lebih lambat dari status 3s) karena lebih mahal.
-            // Backoff lokal saat error (3s -> 10s -> 30s) — daemon-down event sudah di-handle
-            // polling status, jadi di sini cukup silent backoff tanpa emit error.
+            // Polling kedua: RAM untuk status bar dan layar Services, tiap 2 detik
+            // selama jendela terlihat. Tiap putaran mengukur proses (Kova, WebView,
+            // dev server) dan, bila engine siap, container. Container yang gagal
+            // dibaca diberi jeda sendiri (10 s, lalu 30 s) tanpa emit error, karena
+            // daemon mati sudah dilaporkan polling status; angka proses tetap jalan.
             let stats_handle = app.handle().clone();
             let stats_daemon_ready = daemon_ready.clone();
             let stats_shutting_down = shutting_down.clone();
             tauri::async_runtime::spawn(async move {
-                use commands::stats::{interval_for, mode, sleep_or_mode_change};
+                use commands::stats::{interval_for, mode, sleep_or_mode_change, RamStats};
                 let down_delay = tokio::time::Duration::from_secs(30);
                 let mut consecutive_failures: u32 = 0;
+                let mut containers_at = tokio::time::Instant::now();
+                let mut services_mb: Option<u64> = None;
+                let mut sys = Some(sysinfo::System::new());
 
                 loop {
                     if stats_shutting_down.load(Ordering::Relaxed) {
                         break;
                     }
 
-                    // v3.10.1: jendela tersembunyi = jeda (tidak ada yang melihat
-                    // angka RAM); layar Services terbuka = tiap 2 detik.
+                    // Jendela tersembunyi: tidak ada yang melihat angkanya.
                     let Some(base_delay) = interval_for(mode()) else {
                         sleep_or_mode_change(down_delay).await;
                         continue;
                     };
 
-                    // Jangan spawn `docker stats` saat daemon down — itu yang memicu
-                    // loader-error popup docker.exe/wsl.exe. Tunggu status loop melaporkan UP.
-                    if !stats_daemon_ready.load(Ordering::Relaxed) {
-                        sleep_or_mode_change(down_delay).await;
-                        continue;
-                    }
+                    let roots = sites::process::running_pids(&stats_handle);
+                    let mut s = sys.take().unwrap_or_default();
+                    let ((projects_mb, kova_mb), s) = tauri::async_runtime::spawn_blocking(move || {
+                        let r = commands::stats::measure_processes(&mut s, &roots);
+                        (r, s)
+                    })
+                    .await
+                    .unwrap_or_else(|_| ((0, 0), sysinfo::System::new()));
+                    sys = Some(s);
 
-                    let current_delay = match commands::stats::fetch_container_stats().await {
-                        Ok(stats) => {
-                            consecutive_failures = 0;
-                            // v3.10.1: kirim juga snapshot kosong, supaya nilai lama
-                            // terhapus setelah semua service berhenti.
-                            let _ = stats_handle.emit("container-stats-changed", &stats);
-                            base_delay
-                        }
-                        Err(_) => {
-                            consecutive_failures = consecutive_failures.saturating_add(1);
-                            match consecutive_failures {
-                                1..=2 => tokio::time::Duration::from_secs(10),
-                                _ => tokio::time::Duration::from_secs(30),
+                    // Jangan spawn `docker stats` saat daemon down: itu yang memicu
+                    // popup loader-error docker.exe/wsl.exe.
+                    if !stats_daemon_ready.load(Ordering::Relaxed) {
+                        services_mb = None;
+                    } else if tokio::time::Instant::now() >= containers_at {
+                        match commands::stats::fetch_container_stats().await {
+                            Ok(stats) => {
+                                consecutive_failures = 0;
+                                services_mb = Some(stats.iter().map(|c| c.mem_mb).sum());
+                                // Snapshot kosong juga dikirim, supaya nilai lama
+                                // terhapus setelah semua service berhenti.
+                                let _ = stats_handle.emit("container-stats-changed", &stats);
+                            }
+                            Err(_) => {
+                                consecutive_failures = consecutive_failures.saturating_add(1);
+                                services_mb = None;
+                                containers_at = tokio::time::Instant::now()
+                                    + match consecutive_failures {
+                                        1..=2 => tokio::time::Duration::from_secs(10),
+                                        _ => tokio::time::Duration::from_secs(30),
+                                    };
                             }
                         }
-                    };
+                    }
 
-                    sleep_or_mode_change(current_delay).await;
+                    let measured_at = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0);
+                    let _ = stats_handle.emit(
+                        "ram-stats-changed",
+                        &RamStats { services_mb, projects_mb, kova_mb, measured_at },
+                    );
+
+                    sleep_or_mode_change(base_delay).await;
                 }
             });
 
@@ -484,7 +507,7 @@ pub fn run() {
     // Set flag shutdown saat app exit / Windows session-end → kedua loop polling
     // break di awal iterasi berikutnya, hindari spawn docker.exe saat teardown.
     app.run(move |handle, event| {
-        // v3.5.1: keluar lewat jendela terakhir (Minimize to tray mati) juga
+        // Keluar lewat jendela terakhir (Minimize to tray mati) juga
         // menghentikan service dulu. Ditunda sekali; shutdown::begin memanggil
         // app.exit(0) lagi setelah selesai.
         if let tauri::RunEvent::ExitRequested { api, .. } = &event {
@@ -499,7 +522,7 @@ pub fn run() {
             run_shutting_down.store(true, Ordering::Relaxed);
 
             // Dev server tiap project adalah child-process yang memegang port.
-            // Tanpa stop eksplisit, port bisa nyangkut setelah Servel ditutup.
+            // Tanpa stop eksplisit, port bisa nyangkut setelah Kova ditutup.
             let handle = handle.clone();
             tauri::async_runtime::block_on(async move {
                 sites::process::stop_all(&handle).await;

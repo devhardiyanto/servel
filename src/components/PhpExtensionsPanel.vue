@@ -83,7 +83,7 @@ async function chooseVersion(v: string): Promise<void> {
 }
 
 /**
- * v3.13.0 (canvas E8): extension yang ditolak PHP → php.ini dikembalikan.
+ * Extension yang ditolak PHP → php.ini dikembalikan.
  * Ditampilkan sebagai banner: penyebab, bahwa tidak ada yang berubah, dan
  * cara memperbaikinya.
  */

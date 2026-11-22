@@ -51,7 +51,7 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
 ### Temuan dari mesin pengguna (Windows, mise 2026.11.2)
 
 - mise mengelola **PHP dan Node** di Windows (php 8.3.33 / 8.3.35 / 8.5.11, node 20 / 22 / 24).
-- Sumber versi bisa **berbeda per tool dalam satu project**. Contoh di `event-backend`: node dari `D:\dev\event\mise.toml`, php dari global `~\.config\mise\config.toml`.
+- Sumber versi bisa **berbeda per tool dalam satu project**. Contoh di `acme-api`: node dari `C:\dev\acme\mise.toml`, php dari global `~\.config\mise\config.toml`.
 - Config berlaku **ke subfolder**: root project ≠ lokasi config.
 
 ### Selesai
@@ -63,7 +63,7 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
 - **Mengganti versi** (`plan_use`, diuji unit):
   - Global → `mise use -g`.
   - Project → `mise use --path <file yang sedang berlaku>`.
-  - Tool yang masih dari global memicu dialog "Pin in this project / Change global". Pin ditulis ke config project yang **sudah** dipakai tool lain (mis. `D:\dev\event\mise.toml`), bukan file baru di subfolder; `mise.toml` di root project hanya dibuat bila belum ada config project sama sekali.
+  - Tool yang masih dari global memicu dialog "Pin in this project / Change global". Pin ditulis ke config project yang **sudah** dipakai tool lain (mis. `C:\dev\acme\mise.toml`), bukan file baru di subfolder; `mise.toml` di root project hanya dibuat bila belum ada config project sama sekali.
 - **Ketahanan**:
   - Error "not trusted" memunculkan banner dengan tombol Trust (`mise trust <file>`).
   - Settings menyediakan Reshim / Clear cache / Doctor.
@@ -621,6 +621,7 @@ Dasar: audit flow A–H canvas terhadap aplikasi (v3.10.3). Semua minor, tanpa p
 
 - [x] Catatan status canvas diperbarui per v3.8.4 (21 November 2026), termasuk penyimpangan yang memang benar.
 - [x] v3.9.0 — Environments per project (canvas Flow H): lihat O di atas.
+- [x] **v3.15.0 — Kelompok project dan logo framework** (canvas B8–B12, tray v3.15). Deteksi Go, React, Hono, Express, AdonisJS, Fastify, NestJS (backend menang atas frontend) dengan alasan deteksi; chip berlogo dari simple-icons (CC0, dibundel); kelompok project (lipat, Start all, Rename, Stop all, Delete); urutan lewat seret dan Alt+↑/↓; klik kartu terpilih menutup panel detail; tray dan menu Linux mengikuti kelompok; palet perintah per kelompok; RAM Kova dan dev server di status bar tiap 2 detik. Uji di perangkat: TC-B8–B10, TC-P*, TC-T7–T9, TC-U6–U9.
 
 ### Ditunda — sampai ada kebutuhan pengguna
 

@@ -1,4 +1,4 @@
-//! Quit Kova dengan rapi (v3.5.1): hentikan dev server, lalu service container
+//! Quit Kova dengan rapi: hentikan dev server, lalu service container
 //! (bila "Stop services when Kova quits" menyala), baru keluar.
 //!
 //! Dipakai oleh menu tray "Quit Kova" dan oleh penutupan jendela terakhir saat

@@ -7,8 +7,7 @@ import {
   type ScopeRequest,
 } from '@/types/mise'
 
-// Singleton: konteks versi (Global / project) dipakai Dashboard, kartu PHP/Node,
-// dan Settings sekaligus.
+// Singleton: konteks versi (Global / project) dibagi ke semua konsumen.
 const ctx = ref<MiseContext | null>(null)
 const scopeRequest = ref<ScopeRequest | null>(null)
 const untrustedPath = ref<string | null>(null)

@@ -1,9 +1,8 @@
 <script setup lang="ts">
-// Onboarding tiga langkah (canvas Flow A, artboard A1–A7).
-// v3.8.2: satu kartu ringkas seperti canvas. Langkah Engine menampilkan
-// WSL containers dan Docker berdampingan dengan hasil pemeriksaannya, plus
-// pilihan engine (WSL containers / Docker / Auto). Langkah Runtimes memakai
-// judul, log, dan state gagal dari A3–A5.
+// Onboarding tiga langkah dalam satu kartu ringkas: Engine, Runtimes, First
+// project. Langkah Engine menampilkan WSL containers dan Docker berdampingan
+// dengan hasil pemeriksaannya, plus pilihan engine (WSL containers / Docker /
+// Auto). Langkah Runtimes memasang mise dengan log dan state gagalnya sendiri.
 import { openExternal } from '@/utils/openExternal'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
@@ -99,7 +98,7 @@ interface EngineRow {
   inUse: boolean
 }
 
-/** A1/A2: satu baris per engine, dengan hasil pemeriksaannya. */
+/** Satu baris per engine, dengan hasil pemeriksaannya. */
 const engineRows = computed<EngineRow[]>(() => {
   const s = status.value
   const rows: EngineRow[] = []
@@ -155,7 +154,7 @@ const wslTooOldTitle = computed<string>(() => {
   return v ? `WSL ${v} is too old for WSL containers` : 'WSL containers need WSL 3.0.1 or newer'
 })
 
-/** v3.12.0: Docker terpasang tetapi user belum di grup `docker` / Compose v2 tidak ada. */
+/** Docker terpasang tetapi user belum di grup `docker` / Compose v2 tidak ada. */
 const dockerProblem = computed(() => (status.value?.engine === 'docker' ? status.value.engine_problem ?? null : null))
 const DOCKER_GROUP_CMD = 'sudo usermod -aG docker $USER'
 const COMPOSE_CMD = 'sudo apt install docker-compose-plugin'
@@ -175,10 +174,10 @@ const showElevatedWarning = computed<boolean>(
 
 // --- Langkah 2: mise --------------------------------------------------------
 
-// v3: mise satu-satunya pengelola versi PHP/Node.
+// mise satu-satunya pengelola versi PHP/Node.
 const usesMise = computed<boolean>(() => !!status.value?.mise_installed)
 
-// mise belum ada (v2.11): Windows dipasang satu klik lewat winget; macOS/Linux
+// mise belum ada: Windows dipasang satu klik lewat winget; macOS/Linux
 // diberi perintah resminya.
 const installingMise = ref(false)
 const miseInstallMsg = ref('')
@@ -186,7 +185,7 @@ const miseInstallErr = ref('')
 /** "I'll install it myself": tampilkan perintahnya, lalu Check again / Skip. */
 const miseManual = ref(false)
 
-/** v3.8.3: output winget baris per baris saat berjalan (A4). */
+/** Output winget baris per baris saat berjalan. */
 const wingetLines = ref<string[]>([])
 const wingetProgress = ref('')
 const outEl = ref<HTMLElement | null>(null)
@@ -222,7 +221,7 @@ const miseInstallCmd = computed<string>(() => {
   return 'curl https://mise.run | sh'
 })
 
-/** A3 minta pasang · A4 memasang · A5 selesai · gagal · pasang sendiri. */
+/** Minta pasang · memasang · selesai · gagal · pasang sendiri. */
 const misePhase = computed<'ask' | 'running' | 'done' | 'failed' | 'manual'>(() => {
   if (usesMise.value) return 'done'
   if (installingMise.value) return 'running'
@@ -242,7 +241,7 @@ const miseText = computed<string>(() => {
   if (misePhase.value === 'manual') return `Run this in a terminal, then press Check again. You can also continue without it.`
   return 'Kova uses mise for versions. It is not installed yet.'
 })
-/** Baris log di kartu: perintah winget, output-nya, lalu hasil (A4/A5). */
+/** Baris log di kartu: perintah winget, output-nya, lalu hasil. */
 const miseLog = computed<{ x: string; cmd?: boolean }[]>(() => {
   if (misePhase.value === 'ask' || misePhase.value === 'manual') return []
   if (!installingMise.value && wingetLines.value.length === 0 && !miseInstallMsg.value) return []
@@ -257,7 +256,6 @@ watch(() => miseLog.value.length, () => nextTick(() => outEl.value?.scrollTo({ t
 
 // --- Langkah 3: project pertama --------------------------------------------
 
-// v3.4 (canvas Flow A): tiga langkah — Engine, Runtimes, First project.
 const step = ref<1 | 2 | 3>(1)
 const steps = [
   { n: 1, label: 'Engine' },
@@ -318,7 +316,7 @@ async function addFirst(start: boolean): Promise<void> {
           </ol>
         </header>
 
-        <!-- Langkah 1: engine (A1, A2) -->
+        <!-- Langkah 1: engine -->
         <template v-if="step === 1">
           <div class="ob-intro">
             <h2 class="ob-title">Choose where services run</h2>
@@ -442,7 +440,7 @@ async function addFirst(start: boolean): Promise<void> {
           </div>
         </template>
 
-        <!-- Langkah 2: mise (A3, A4, A5) -->
+        <!-- Langkah 2: mise -->
         <template v-else-if="step === 2">
           <div class="ob-intro">
             <h2 class="ob-title">{{ miseTitle }}</h2>
@@ -493,7 +491,7 @@ async function addFirst(start: boolean): Promise<void> {
           </div>
         </template>
 
-        <!-- Langkah 3: project pertama (A6, A7) -->
+        <!-- Langkah 3: project pertama -->
         <template v-else>
           <div class="ob-intro">
             <h2 class="ob-title">Add your first project</h2>
@@ -529,7 +527,7 @@ async function addFirst(start: boolean): Promise<void> {
 
 <style scoped>
 .ob-viewport {
-  /* v3.7.2: menutupi seluruh jendela, supaya sisa layar sebelumnya (mis.
+  /* Menutupi seluruh jendela, supaya sisa layar sebelumnya (mis.
      Settings saat "Run setup again") tidak terlihat di tepi atas. */
   position: fixed;
   inset: 0;
@@ -554,7 +552,7 @@ async function addFirst(start: boolean): Promise<void> {
   padding: var(--space-8) var(--space-4);
 }
 
-/* Kartu ringkas (canvas .k-obcard). `margin-block: auto` menengahkan secara
+/* Kartu ringkas. `margin-block: auto` menengahkan secara
    vertikal tanpa memotong kartu yang lebih tinggi dari jendela. */
 .ob-card {
   width: 100%;

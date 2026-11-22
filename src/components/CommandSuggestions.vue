@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// v3.11.0: pilihan perintah di bawah field Command — hasil deteksi, lalu
+// Pilihan perintah di bawah field Command — hasil deteksi, lalu
 // script dari composer.json dan package.json (mis. `composer run dev`).
 // Klik = isi field; field tetap bisa diketik bebas.
 import { computed, ref, watch } from 'vue'

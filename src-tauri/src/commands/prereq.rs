@@ -23,13 +23,13 @@ pub struct PrereqStatus {
     pub docker_available: bool,
     /// Windows: versi WSL dari `wsl --version`.
     pub wsl_version: Option<String>,
-    /// Windows: Servel berjalan elevated. Sesi WSLC terpisah per elevation,
+    /// Windows: Kova berjalan elevated. Sesi WSLC terpisah per elevation,
     /// jadi container dari sesi biasa tidak terlihat — UI memberi peringatan.
     pub elevated: bool,
-    /// `mise` terpasang (v3: satu-satunya pengelola versi PHP/Node).
+    /// `mise` terpasang (satu-satunya pengelola versi PHP/Node).
     pub mise_installed: bool,
     pub mise_version: Option<String>,
-    /// v3.12.0, engine Docker saja: `permission` | `daemon` | `compose`.
+    /// Engine Docker saja: `permission` | `daemon` | `compose`.
     /// `None` = siap atau tidak berlaku.
     #[serde(default)]
     pub engine_problem: Option<String>,
@@ -253,7 +253,7 @@ mod tests {
 
 /// Return OS platform sebagai string: `"windows"` | `"macos"` | `"linux"`.
 /// Dipakai frontend untuk menampilkan instruksi prasyarat yang sesuai OS
-/// (mis. perintah install fnm, guidance Docker).
+/// (mis. cara memasang mise atau Docker).
 #[tauri::command]
 pub fn get_platform() -> String {
     if cfg!(target_os = "windows") {

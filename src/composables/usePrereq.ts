@@ -22,7 +22,7 @@ export function usePrereq() {
     return engineReady.value && s.mise_installed
   })
 
-  /** Engine container cukup untuk masuk Dashboard; mise bisa dipasang nanti. */
+  /** Engine container cukup untuk lanjut dari langkah Engine; mise bisa dipasang nanti. */
   const canContinue = computed<boolean>(() => engineReady.value)
 
   const engineInstalledButNotRunning = computed<boolean>(() => {

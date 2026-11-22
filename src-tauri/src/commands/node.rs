@@ -1,4 +1,4 @@
-//! Versi Node lewat mise (v3: phpvm/fnm dihapus).
+//! Versi Node lewat mise.
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, Window};
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Ikon + judul + pesan + aksi (slot). Error memakai role="alert"; lainnya
 // role="status". Ikon berbeda per jenis, jadi warna bukan satu-satunya penanda.
-// v3.8: `pending` = proses sedang berjalan (ikon berputar, warna info).
+// `pending` = proses sedang berjalan (ikon berputar, warna info).
 defineProps<{ tone: 'info' | 'warn' | 'err' | 'ok' | 'pending'; title: string }>()
 </script>
 

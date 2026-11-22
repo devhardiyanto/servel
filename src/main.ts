@@ -17,7 +17,7 @@ import { installWebviewGuards } from './utils/webviewGuards'
 // muat ulang dan devtools tetap ada saat pengembangan.
 if (import.meta.env.PROD) installWebviewGuards()
 
-// Jendela popup tray (v3.7.0) memuat halaman yang sama dengan `?view=tray`.
+// Jendela popup tray memuat halaman yang sama dengan `?view=tray`.
 const isTrayPopup = new URLSearchParams(location.search).get('view') === 'tray'
 if (isTrayPopup) document.documentElement.classList.add('tray-popup')
 

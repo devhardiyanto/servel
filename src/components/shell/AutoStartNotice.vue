@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Hasil auto-start saat Kova dibuka (v3.7.5). Dulu hanya tercatat di Logs,
-// jadi service yang gagal atau dilewati tidak terlihat.
+// Hasil auto-start saat Kova dibuka, supaya service yang gagal atau dilewati
+// terlihat tanpa membuka Logs.
 // - Menunggu engine / sedang start: banner info.
 // - Berhasil: toast singkat, banner hilang.
 // - Dilewati / gagal: banner dengan alasan, Retry, dan (konflik port) Open Services.

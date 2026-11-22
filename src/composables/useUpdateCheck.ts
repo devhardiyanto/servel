@@ -37,15 +37,15 @@ const latestVersion = ref<string>('')
 const updateAvailable = ref(false)
 const checking = ref(false)
 const lastChecked = ref<number | null>(null)
-/** v3.8.2: pengecekan terakhir gagal (jaringan, cache GitHub, latest.json). */
+/** Pengecekan terakhir gagal (jaringan, cache GitHub, latest.json). */
 const checkError = ref('')
-// In-app updater (v2.1). `canInstall` = updater bawaan menemukan versi yang
+// In-app updater. `canInstall` = updater bawaan menemukan versi yang
 // sama dan bisa memasangnya; bila false, banner hanya menawarkan halaman rilis.
 const canInstall = ref(false)
 const installing = ref(false)
 const installPercent = ref<number | null>(null)
 const installError = ref('')
-// v3.4: banner global. Unduh dulu, lalu pengguna memilih kapan restart.
+// Banner global. Unduh dulu, lalu pengguna memilih kapan restart.
 export type UpdatePhase = 'idle' | 'available' | 'downloading' | 'ready' | 'error'
 const phase = ref<UpdatePhase>('idle')
 const downloaded = ref(0)
@@ -54,7 +54,7 @@ const readyVersion = ref('')
 const DISMISS_KEY = 'kova.update.dismissed'
 const dismissedVersion = ref<string>(readDismissed())
 const bannerHidden = ref(false)
-/** v3.13.0 (canvas F3): Later = pasang saat Kova ditutup. */
+/** Later = pasang saat Kova ditutup. */
 const installOnQuit = ref(false)
 
 async function later(): Promise<void> {
@@ -68,8 +68,8 @@ async function later(): Promise<void> {
 }
 
 /**
- * v3.13.0 (canvas F4): versi yang terakhir dijalankan disimpan; bila versi
- * sekarang lebih baru, Kova baru saja diperbarui → tawarkan What's new.
+ * Versi yang terakhir dijalankan disimpan; bila versi sekarang lebih baru,
+ * Kova baru saja diperbarui → tawarkan What's new.
  */
 const LAST_RUN_KEY = 'kova.lastRunVersion'
 async function consumeJustUpdated(): Promise<{ from: string; to: string; url: string } | null> {
@@ -121,8 +121,8 @@ async function probeInstaller(): Promise<void> {
       if (phase.value === 'idle') phase.value = 'available'
     }
   } catch (err) {
-    // v3.8.2: dulu hanya ke console, sehingga pengecekan yang gagal tampil
-    // sebagai "You have the latest version".
+    // Error disimpan, bukan hanya ke console, supaya pengecekan yang gagal
+    // tidak tampil sebagai "You have the latest version".
     console.warn('[update-check] could not check:', err)
     canInstall.value = false
     checkError.value = String(err).replace(/^could not check for updates:\s*/i, '')
@@ -203,8 +203,8 @@ async function runCheck(): Promise<void> {
     if (!currentVersion.value) {
       currentVersion.value = await getVersion()
     }
-    // v3: hanya updater bawaan (latest.json bertanda tangan). Cadangan lewat
-    // GitHub API dihapus: ia bisa menawarkan versi yang tidak bisa dipasang.
+    // Hanya updater bawaan (latest.json bertanda tangan). Tidak ada cadangan
+    // lewat GitHub API: ia bisa menawarkan versi yang tidak bisa dipasang.
     updateAvailable.value = false
     checkError.value = ''
     await probeInstaller()
@@ -216,9 +216,9 @@ async function runCheck(): Promise<void> {
   }
 }
 
-// v3.8.2: Kova yang dibiarkan terbuka tidak tahu rilis baru sampai dibuka
-// ulang. Periksa lagi setiap 6 jam, dan saat jendela kembali difokuskan bila
-// pemeriksaan terakhir lebih dari 30 menit lalu.
+// Kova yang dibiarkan terbuka tetap tahu rilis baru: periksa lagi setiap 6 jam,
+// dan saat jendela kembali difokuskan bila pemeriksaan terakhir lebih dari
+// 30 menit lalu.
 const PERIODIC_MS = 6 * 60 * 60 * 1000
 const FOCUS_MIN_MS = 30 * 60 * 1000
 let autoTimer: ReturnType<typeof setInterval> | null = null
@@ -234,7 +234,7 @@ function startAutoCheck(): void {
   window.addEventListener('focus', () => maybeCheck(FOCUS_MIN_MS))
 }
 
-/** Banner update di atas jendela sedang tampil (v3.6.1: About tidak menduplikasinya). */
+/** Banner update di atas jendela sedang tampil (About tidak menduplikasinya). */
 const bannerVisible = computed(() => {
   if (bannerHidden.value) return false
   if (phase.value === 'available') return dismissedVersion.value !== latestVersion.value

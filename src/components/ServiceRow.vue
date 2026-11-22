@@ -10,7 +10,7 @@ const props = defineProps<{
   def: ServiceDef
   state: ServiceUiState
   connectOpen?: boolean
-  /** Engine tidak menjawab: status sebenarnya tidak diketahui (v3.5). */
+  /** Engine tidak menjawab: status sebenarnya tidak diketahui. */
   unknown?: boolean
 }>()
 
@@ -34,11 +34,11 @@ const ramDisplay = computed(() => {
 const emit = defineEmits<{
   toggle: [id: string]
   connect: [id: string]
-  /** Start ulang service yang dipilih tetapi tidak berjalan (v3.8). */
+  /** Start ulang service yang dipilih tetapi tidak berjalan. */
   start: [id: string]
 }>()
 
-// v3.8 (S1, S5): toggle = "dipilih". Dipilih tetapi tidak berjalan (auto-start
+// Toggle = "dipilih". Dipilih tetapi tidak berjalan (auto-start
 // dilewati, service berhenti sendiri) atau gagal → tampilkan keadaannya dan
 // tombol untuk menyalakan lagi, supaya toggle on + stopped tidak tampak seperti
 // keadaan yang benar.
@@ -194,7 +194,7 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
 
 .svc-ram {
   font-family: var(--font-mono);
-  /* v3.10.0: abu seperti canvas (.k-scard .meta); bukan peringatan. */
+  /* RAM hanya keterangan: abu, bukan warna peringatan. */
   color: var(--muted);
   text-align: right;
   font-size: var(--text-xs);

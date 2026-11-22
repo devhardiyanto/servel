@@ -43,7 +43,7 @@ const {
   reset,
 } = useConfig()
 
-// v3: Settings tampil sebagai dua halaman di navigasi kiri: "settings"
+// Settings tampil sebagai dua halaman di navigasi kiri: "settings"
 // (General, Services, About) dan "runtimes" (PHP/Node, runtime lain, extension).
 const props = withDefaults(defineProps<{ mode?: 'settings' | 'runtimes' }>(), { mode: 'settings' })
 const activeNav = ref<SettingsNav>(props.mode === 'runtimes' ? 'php_node' : 'general')
@@ -117,7 +117,7 @@ const switchingEngine = ref(false)
 const platform = ref<string>('windows')
 const version = ref<string>('')
 
-// v3.5: Diagnostics di About.
+// Diagnostics di About.
 const dataDir = ref('')
 const toast = useToast()
 const { engineLabel: diagEngine, engineStatus: diagEngineStatus } = useEngineStatus()
@@ -172,7 +172,7 @@ const { refresh: refreshEngineBanner } = useEngineStatus()
 const versionCtx = useVersionContext()
 const { ctx: miseCtx, busy: miseBusy, lastError: miseError } = versionCtx
 
-// v3.5: state "mise is not installed" di Runtimes.
+// State "mise is not installed" di Runtimes.
 const isWindowsHost = navigator.userAgent.includes('Windows')
 const installingMise = ref(false)
 async function installMise(): Promise<void> {
@@ -189,7 +189,7 @@ async function installMise(): Promise<void> {
 function openMiseDocs(): void {
   void openExternal('https://mise.jdx.dev/getting-started.html')
 }
-// --- Restore database (v1.8) ---------------------------------------------
+// --- Restore database --------------------------------------------------------
 const restoreService = ref<'mysql' | 'postgres'>('mysql')
 const restoreFile = ref<string | null>(null)
 const restoring = ref(false)
@@ -244,7 +244,7 @@ async function fetchComposePath(): Promise<void> {
   }
 }
 
-// v3.8 (C1): waktu pemeriksaan terakhir, ditampilkan di samping Check again.
+// Waktu pemeriksaan terakhir, ditampilkan di samping Check again.
 const engineCheckedAt = ref<number | null>(null)
 const engineCheckedText = computed(() => {
   if (engineCheckedAt.value === null) return ''
@@ -264,7 +264,7 @@ async function checkEngine(): Promise<void> {
   }
 }
 
-// v3.8 (C1): Docker dipakai, tetapi WSL containers sudah ada di PC ini.
+// Docker dipakai, tetapi WSL containers sudah ada di PC ini.
 const suggestWslc = computed(
   () =>
     platform.value === 'windows' &&
@@ -272,7 +272,7 @@ const suggestWslc = computed(
     !!engineInfo.value?.wslc_available,
 )
 
-// v3.7.2: kembali ke Kova setelah memasang WSL/Docker di luar Kova memeriksa
+// Kembali ke Kova setelah memasang WSL/Docker di luar Kova memeriksa
 // ulang engine, supaya "not installed" tidak tertahan sampai Kova ditutup.
 let lastEngineCheck = 0
 function onWindowFocus(): void {
@@ -314,7 +314,7 @@ async function handleReset(): Promise<void> {
   push({ ts: new Date().toTimeString().slice(0, 8), src: 'KOVA', text: 'settings reset to defaults' })
 }
 
-// "Start Kova when you sign in" (v2.11): disimpan oleh OS, bukan di config.
+// "Start Kova when you sign in": disimpan oleh OS, bukan di config.
 const autostartOn = ref(false)
 const autostartBusy = ref(false)
 const autostartError = ref('')
@@ -378,7 +378,7 @@ onMounted(async () => {
 
 <template>
   <div class="view view-settings">
-    <!-- v3.8.6 (canvas Settings): judul layar seperti layar lain. -->
+    <!-- Judul layar seperti layar lain. -->
     <header v-if="props.mode === 'settings'" class="settings-head"><h1 class="settings-h1">Settings</h1></header>
     <div class="settings-body">
       <nav v-if="props.mode === 'settings'" class="settings-nav">
@@ -404,7 +404,7 @@ onMounted(async () => {
 
       <main class="settings-content" :class="{ 'settings-content--cards': props.mode === 'settings' }">
         <template v-if="activeNav === 'general'">
-          <!-- v3.10.0 (canvas Settings): kiri On launch + Window & quit, kanan Container engine + Command line. -->
+          <!-- Kiri On launch + Window & quit, kanan Container engine + Command line. -->
           <div class="settings-col">
           <div class="section-block">
             <div class="section-title">ON LAUNCH</div>
@@ -547,7 +547,7 @@ onMounted(async () => {
               <span class="setting-value-mono">{{ composePath || '—' }}</span>
             </SettingRow>
 
-            <!-- v3.12.0: masalah Docker yang bisa diperbaiki pengguna. -->
+            <!-- Masalah Docker yang bisa diperbaiki pengguna. -->
             <p v-if="engineInfo?.engine === 'docker' && engineInfo.engine_problem === 'permission'" class="section-hint section-hint--note restore-error">
               Permission denied on the Docker socket. Add your user to the docker group with
               <code>sudo usermod -aG docker $USER</code>, then log out and back in.
@@ -757,8 +757,8 @@ onMounted(async () => {
               Kova {{ latestVersion }} will be installed when you quit Kova.
             </p>
 
-            <!-- v3.8.2: hasil lama disembunyikan saat memeriksa; gagal tidak
-                 lagi tampil sebagai "latest version". -->
+            <!-- Hasil lama disembunyikan saat memeriksa; gagal tidak tampil
+                 sebagai "latest version". -->
             <UiStatusNotice
               v-if="updateCheckError && !checkingUpdate"
               tone="err"
@@ -861,7 +861,7 @@ onMounted(async () => {
   width: 180px;
   flex-shrink: 0;
   border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  /* Tanpa latar sendiri: banner update di atasnya tidak meninggalkan strip (v3.6.1). */
+  /* Tanpa latar sendiri: banner update di atasnya tidak meninggalkan strip. */
   background: transparent;
   padding: var(--space-4) 0;
   display: flex;
@@ -927,7 +927,7 @@ onMounted(async () => {
   margin-bottom: var(--space-3);
 }
 
-/* v3.8.6 (canvas .k-setgrp): di Settings, tiap bagian = satu kartu berisi
+/* Di Settings, tiap bagian = satu kartu berisi
    baris dengan judul di atasnya; dua kolom bila cukup lebar. Runtimes
    (mode "runtimes") memakai komponen ini juga, jadi hanya berlaku di sini. */
 .settings-content--cards {
@@ -951,8 +951,8 @@ onMounted(async () => {
   margin-top: 0;
   border-color: color-mix(in srgb, var(--red) 35%, var(--border));
 }
-/* v3.10.2: section About sudah berupa kartu; blok nama tidak lagi kartu
-   bersarang, dan baris update punya ruang bawah seperti SettingRow. */
+/* Section About sudah berupa kartu: blok nama bukan kartu bersarang, dan
+   baris update punya ruang bawah seperti SettingRow. */
 .settings-content--cards .about-block {
   gap: var(--space-1);
   padding: var(--space-3) 0;
@@ -962,9 +962,9 @@ onMounted(async () => {
   border-radius: 0;
 }
 .settings-content--cards .update-row { margin-top: 0; padding: var(--space-3) 0; }
-/* v3.10.3: sisa lain dari kartu v3.10.0. Teks pembuka tidak menempel ke
-   tepi atas, catatan terakhir punya ruang bawah, dan baris profil menjadi
-   baris bergaris seperti SettingRow, bukan kartu di dalam kartu. */
+/* Di dalam kartu: teks pembuka tidak menempel ke tepi atas, catatan terakhir
+   punya ruang bawah, dan baris profil menjadi baris bergaris seperti
+   SettingRow, bukan kartu di dalam kartu. */
 .settings-content--cards .section-hint:not(.section-hint--note) { margin: var(--space-3) 0 0; }
 .settings-content--cards .section-hint--note { margin-bottom: var(--space-3); }
 .settings-content--cards .profile-list { gap: 0; margin-top: var(--space-1); }
@@ -990,11 +990,6 @@ onMounted(async () => {
 .section-title--red {
   color: color-mix(in srgb, var(--red) 80%, transparent);
 }
-
-/* Toggle */
-
-
-
 
 /* Status pill */
 .status-pill {
@@ -1167,7 +1162,7 @@ onMounted(async () => {
 }
 
 .profile-badge {
-  /* v3.7.0: chip standar (sama dengan "global" di Runtimes), bukan pil huruf besar. */
+  /* Chip standar (sama dengan "global" di Runtimes), bukan pil huruf besar. */
   flex-shrink: 0;
   height: 20px;
   padding: 0 6px;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Logo K (v3): tiga garis, kaki bawah memakai warna aksen.
+// Logo K: tiga garis, kaki bawah memakai warna aksen.
 withDefaults(defineProps<{ size?: number }>(), { size: 22 })
 </script>
 

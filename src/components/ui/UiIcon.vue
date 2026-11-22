@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Ikon stroke 16×16 dari canvas (kova.css `.k-i`). Dekoratif: tombol yang
+// Ikon stroke 16×16. Dekoratif: tombol yang
 // memakainya tetap punya label teks atau aria-label sendiri.
 export type IconName =
   | 'plus'

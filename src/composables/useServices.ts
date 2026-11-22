@@ -12,9 +12,9 @@ interface ContainerStatusChangedPayload {
 }
 
 /**
- * Hasil `start()` (v3.7.5). Dulu `start()` bisa berhenti diam-diam (pilihan
- * kosong, konflik port), dan pemanggil seperti auto-start tetap mencatat
- * "started".
+ * Hasil `start()`. `start()` bisa batal tanpa menjalankan apa pun (pilihan
+ * kosong, konflik port); pemanggil seperti auto-start memeriksa hasil ini
+ * sebelum mencatat "started".
  */
 export type StartOutcome =
   | { kind: 'started'; ids: string[] }
@@ -24,7 +24,7 @@ export type StartOutcome =
   | { kind: 'failed'; error: string }
 
 interface ServicesActionPayload {
-  /** `stop` (v3.8): satu service dihentikan dari popup tray. */
+  /** `stop`: satu service dihentikan dari popup tray. */
   action: 'start' | 'stop' | 'stop_all'
   services: string[]
 }
@@ -68,18 +68,16 @@ function syncStatuses(): void {
     const current = uiState.value[id]
     const derived = deriveStatus(id)
     if (current.status !== 'starting' && current.status !== 'stopping') {
-      // Pesan gagal disimpan sampai service berjalan atau dicoba lagi (v3.8).
+      // Pesan gagal disimpan sampai service berjalan atau dicoba lagi.
       uiState.value[id] = { ...current, status: derived, error: derived === 'running' ? undefined : current.error }
     }
   }
 }
 
 function applyStatusChange(id: string, running: boolean): void {
-  // Ignore events for ids not in definitions
   const defExists = definitions.value.some((d) => d.id === id)
   if (!defExists) return
 
-  // Update statuses array
   const idx = statuses.value.findIndex((s) => s.id === id)
   if (idx >= 0) {
     statuses.value[idx] = { ...statuses.value[idx], running, state: running ? 'running' : 'exited' }
@@ -110,7 +108,7 @@ function applyStatusChange(id: string, running: boolean): void {
   }
 }
 
-/** Kapan perintah start/stop terakhir untuk sebuah service selesai (v3.7.1). */
+/** Kapan perintah start/stop terakhir untuk sebuah service selesai. */
 const settledAt: Record<string, number> = {}
 
 /** Batas menunggu status transisi setelah perintahnya selesai. Start lebih
@@ -119,7 +117,7 @@ export const SETTLE_LIMIT_MS = { starting: 120_000, stopping: 15_000 } as const
 
 /** Perlu diterapkan: status transisi yang sudah mencapai tujuannya, status
  * transisi yang perintahnya sudah lama selesai tetapi kenyataannya berbeda
- * (jaring pengaman v3.7.1), atau status tetap yang berbeda dari kenyataan. */
+ * (jaring pengaman), atau status tetap yang berbeda dari kenyataan. */
 export function needsUpdate(
   status: ServiceUiState['status'] | undefined,
   running: boolean,
@@ -145,7 +143,7 @@ async function registerListener(): Promise<void> {
   await listen<ContainerStatusChangedPayload>('container-status-changed', (e) => {
     applyStatusChange(e.payload.service, e.payload.running)
   })
-  // Snapshot tiap putaran polling (v3.6.1): menyelesaikan "starting"/"stopping"
+  // Snapshot tiap putaran polling: menyelesaikan "starting"/"stopping"
   // walau perubahannya terjadi di antara dua putaran (toggle cepat).
   await listen<Record<string, boolean>>('container-status-snapshot', (e) => {
     const now = Date.now()
@@ -164,7 +162,7 @@ async function registerListener(): Promise<void> {
   })
 }
 
-/** v3.10.1: waktu snapshot RAM terakhir (untuk tooltip "Measured at …"). */
+/** Waktu snapshot RAM terakhir (untuk tooltip "Measured at …"). */
 export const statsAt = ref<number | null>(null)
 
 async function registerStatsListener(): Promise<void> {
@@ -328,8 +326,8 @@ export function useServices() {
     const willSelect = !entry.selected
     uiState.value[id] = { ...entry, selected: willSelect }
 
-    // Immediate persist agar tray baca Mutex Rust dengan selection terbaru —
-    // bypass debounce 500ms di registerPersistWatch (race fix sub-bug 2b).
+    // Persist segera agar tray membaca Mutex Rust dengan selection terbaru,
+    // tanpa menunggu debounce 500ms di registerPersistWatch.
     const newSelectedIds = Object.values(uiState.value)
       .filter((s) => s.selected)
       .map((s) => s.id)
@@ -339,7 +337,7 @@ export function useServices() {
       void useConfig().saveImmediate()
     }
 
-    // Auto-action per servel-app.jsx pattern: toggle switch = trigger start/stop
+    // Toggle switch langsung memicu start/stop.
     if (willSelect) {
       if (entry.status !== 'running' && entry.status !== 'starting') {
         void start([id])
@@ -354,7 +352,7 @@ export function useServices() {
   async function start(ids?: string[], opts?: { force?: boolean }): Promise<StartOutcome> {
     // Backend SELALU butuh full selection untuk regenerate compose file —
     // kalau cuma kirim subset, --remove-orphans bakal nge-remove container
-    // yang sedang running tapi tidak ada di compose (bug stuck loading sebelumnya).
+    // yang sedang running tapi tidak ada di compose.
     const allSelected = selectedIds.value
     if (allSelected.length === 0) return { kind: 'nothing-selected' }
 

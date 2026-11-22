@@ -24,7 +24,7 @@ const runningProjects = computed(
 )
 const errorCount = computed(() => lines.value.filter((l) => l.level === 'error').length)
 
-// Ikon 16px dari canvas (Components › Patterns › Nav rail item), stroke.
+// Ikon stroke 16px untuk item nav rail.
 const ICONS: Record<ViewName, string[]> = {
   projects: ['M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z'],
   services: ['M3 4a5 2 0 1 0 10 0a5 2 0 1 0 -10 0', 'M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2'],

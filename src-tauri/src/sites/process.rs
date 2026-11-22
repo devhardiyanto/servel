@@ -25,12 +25,12 @@ use crate::commands::util::silent_command;
 /// Batas menunggu port menerima koneksi sebelum status menjadi `unresponsive`.
 const READY_TIMEOUT: Duration = Duration::from_secs(90);
 const READY_INTERVAL: Duration = Duration::from_millis(500);
-/// v3.10.2: setelah batas lewat, port tetap dicek (lebih jarang) supaya start
+/// Setelah batas lewat, port tetap dicek (lebih jarang) supaya start
 /// yang lambat (mis. `composer run dev` di Windows) naik ke `running` begitu
 /// server akhirnya menjawab, bukan macet di `unresponsive`.
 const LATE_INTERVAL: Duration = Duration::from_secs(2);
 
-/// v3.11.0: shell keluar dengan 127 (`sh`) atau 9009 (`cmd`) bila program
+/// Shell keluar dengan 127 (`sh`) atau 9009 (`cmd`) bila program
 /// pertama tidak ditemukan. Pesan shell berbeda per OS, jadi Kova menulis
 /// petunjuknya sendiri, dengan nama programnya.
 fn not_found_hint(code: Option<i32>, command: &str) -> Option<String> {
@@ -77,7 +77,7 @@ pub struct SiteRuntime {
     pub exit_code: Option<i32>,
     /// Baris output terakhir sebelum proses berhenti.
     pub last_line: Option<String>,
-    /// Environment yang dipakai saat proses ini dimulai (v3.9.0). `None` =
+    /// Environment yang dipakai saat proses ini dimulai. `None` =
     /// Default. Dipakai UI untuk "Restart to use …".
     pub env_name: Option<String>,
 }
@@ -99,7 +99,7 @@ pub struct SiteProcs {
     entries: Mutex<HashMap<String, Entry>>,
     counter: Mutex<u64>,
     /// Catatan dev server yang sedang jalan, disimpan ke disk supaya sisa
-    /// dari sesi yang mati paksa bisa dibersihkan saat Servel dibuka lagi.
+    /// dari sesi yang mati paksa bisa dibersihkan saat Kova dibuka lagi.
     /// `None` = tidak disimpan (mis. di unit test).
     records_path: Mutex<Option<std::path::PathBuf>>,
     records: Mutex<HashMap<String, Record>>,
@@ -271,7 +271,7 @@ pub(crate) async fn kill_tree(pid: u32) {
 }
 
 /// Windows: dev server dimasukkan ke job object dengan
-/// `KILL_ON_JOB_CLOSE`. Handle job hanya dipegang Servel, jadi saat Servel
+/// `KILL_ON_JOB_CLOSE`. Handle job hanya dipegang Kova, jadi saat Kova
 /// berakhir dengan cara apa pun (termasuk crash atau dimatikan dari Task
 /// Manager), Windows menutup handle itu dan mematikan seluruh pohon proses.
 /// Proses anak yang dibuat sebelum penugasan selesai (beberapa milidetik
@@ -382,13 +382,13 @@ fn record_remove(procs: &SiteProcs, id: &str) {
     }
 }
 
-/// Aktifkan penyimpanan catatan di `path` (dipanggil sekali saat Servel start).
+/// Aktifkan penyimpanan catatan di `path` (dipanggil sekali saat Kova start).
 pub fn init_records<R: Runtime>(app: &AppHandle<R>, path: std::path::PathBuf) {
     *app.state::<SiteProcs>().records_path.lock().unwrap() = Some(path);
 }
 
 /// Matikan dev server sisa sesi sebelumnya yang tidak berhenti bersih
-/// (Servel crash atau dimatikan paksa). PID hanya dimatikan bila waktu mulai
+/// (Kova crash atau dimatikan paksa). PID hanya dimatikan bila waktu mulai
 /// prosesnya sama dengan catatan, jadi proses lain yang kebetulan mendapat
 /// PID yang sama tidak tersentuh. Mengembalikan jumlah proses yang dimatikan.
 pub async fn cleanup_leftovers<R: Runtime>(app: &AppHandle<R>) -> usize {
@@ -432,7 +432,7 @@ pub fn validate(site: &Project) -> Result<(), String> {
     Ok(())
 }
 
-/// Nama variabel: tanpa spasi, `=`, atau NUL. `PORT` milik Servel (port site).
+/// Nama variabel: tanpa spasi, `=`, atau NUL. `PORT` milik Kova (port site).
 pub fn validate_env(key: &str, value: &str) -> Result<(), String> {
     if key.is_empty() || key.chars().any(|c| c == '=' || c == '\0' || c.is_whitespace()) {
         return Err(format!("environment variable name is not valid: \"{}\"", key));
@@ -467,7 +467,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env("PORT", site.port.to_string())
-        // v3.10.2: `php artisan serve` membaca SERVER_PORT/SERVER_HOST sebagai
+        // `php artisan serve` membaca SERVER_PORT/SERVER_HOST sebagai
         // default, jadi `composer run dev` (artisan serve di dalam
         // concurrently) ikut port project. Environment project tetap menang.
         .env("SERVER_PORT", site.port.to_string())
@@ -492,7 +492,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
         }
     }
     // Environment milik project dipasang paling akhir, jadi menimpa nilai mise.
-    // v3.9.0: Default lalu override environment aktif.
+    // Default lalu override environment aktif.
     let env = site.effective_env();
     let env_label = site.active_env_entry().map(|e| e.name.as_str()).unwrap_or("Default");
     if !env.is_empty() {
@@ -507,7 +507,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     let mut child = cmd.spawn().map_err(|e| format!("could not run the command: {}", e))?;
     let pid = child.id();
 
-    // Pastikan dev server tidak tertinggal bila Servel mati paksa.
+    // Pastikan dev server tidak tertinggal bila Kova mati paksa.
     if let Some(pid) = pid {
         #[cfg(target_os = "windows")]
         if let Err(e) = job::assign(pid) {
@@ -712,7 +712,7 @@ pub async fn restart<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(
     start(app, site).await
 }
 
-/// Hentikan semua dev server (dipanggil saat Servel keluar).
+/// Hentikan semua dev server (dipanggil saat Kova keluar).
 pub async fn stop_all<R: Runtime>(app: &AppHandle<R>) {
     let procs = app.state::<SiteProcs>();
     let pids: Vec<u32> = {
@@ -742,6 +742,11 @@ pub fn snapshot<R: Runtime>(app: &AppHandle<R>) -> Vec<SiteRuntime> {
     app.state::<SiteProcs>().snapshot()
 }
 
+/// PID akar dev server yang sedang hidup, untuk menghitung RAM project.
+pub fn running_pids<R: Runtime>(app: &AppHandle<R>) -> Vec<u32> {
+    app.state::<SiteProcs>().entries.lock().unwrap().values().filter_map(|e| e.pid).collect()
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -760,7 +765,7 @@ mod tests {
         assert_eq!(ready_transition(Starting, false, false), None);
         assert_eq!(ready_transition(Starting, true, false), Some(Running));
         assert_eq!(ready_transition(Starting, false, true), Some(Unresponsive));
-        // v3.10.2: tetap dicek setelah batas; jawaban terlambat = running.
+        // Tetap dicek setelah batas; jawaban terlambat = running.
         assert_eq!(ready_transition(Unresponsive, false, true), None);
         assert_eq!(ready_transition(Unresponsive, true, true), Some(Running));
         assert_eq!(ready_transition(Exited, true, true), None);
@@ -783,6 +788,7 @@ mod tests {
             envs: Vec::new(),
             active_env: None,
             start_services: false,
+            group_id: None,
         }
     }
 
@@ -879,7 +885,7 @@ mod tests {
         let dir = std::env::temp_dir();
         // `sh -c "<cmd> & wait"` membuat anak terpisah dari shell, seperti
         // npm → node: Stop harus mematikan keduanya. Port dari SERVER_PORT
-        // (v3.10.2), seperti `php artisan serve` di dalam `composer run dev`.
+        // seperti `php artisan serve` di dalam `composer run dev`.
         let mut p = site(&dir.to_string_lossy(), "python3 -m http.server $SERVER_PORT --bind $SERVER_HOST & wait", port);
         p.id = "e2e".into();
 
