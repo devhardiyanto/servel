@@ -16,8 +16,18 @@ pub struct Profile {
     pub service_ids: Vec<String>,
 }
 
-/// Folder project yang dikelola Servel (v1.7). Versi PHP/Node di project
-/// di-resolve oleh mise dengan cwd = `path`. `id` di-generate frontend.
+/// Kelompok project di layar Projects. Urutan kelompok = urutan di `groups`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectGroup {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub collapsed: bool,
+}
+
+/// Folder project yang dikelola Kova. Versi PHP/Node di project di-resolve
+/// oleh mise dengan cwd = `path`. `id` di-generate frontend.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct Project {
@@ -27,42 +37,46 @@ pub struct Project {
     /// (domain `.test`) yang foldernya belum dipilih.
     #[serde(default)]
     pub path: String,
-    /// Profil service yang diterapkan saat project ini dipilih di Dashboard
-    /// (v1.9). `None` = selection tidak diubah.
+    /// Profil service yang diterapkan saat project ini dipilih.
+    /// `None` = selection tidak diubah.
     #[serde(default)]
     pub profile_id: Option<String>,
     /// Jenis hasil deteksi (`laravel`, `vite`, ...). Hanya label tampilan.
     #[serde(default)]
     pub kind: String,
-    /// Perintah dev server (v2.2); `{port}` diganti port project saat
-    /// dijalankan. Kosong = project hanya dipakai untuk versi/profil.
+    /// Perintah dev server; `{port}` diganti port project saat dijalankan.
+    /// Kosong = project hanya dipakai untuk versi/profil.
     #[serde(default)]
     pub command: String,
     /// Port tetap di `localhost`. 0 = belum ditetapkan.
     #[serde(default)]
     pub port: u16,
-    /// Jalankan dev server otomatis saat Servel dibuka.
+    /// Jalankan dev server otomatis saat Kova dibuka.
     #[serde(default)]
     pub auto_start: bool,
-    /// Environment tambahan untuk dev server (v2.2.1), dipasang di atas
-    /// environment dari mise. `PORT` dikelola Servel dan tidak boleh diisi.
+    /// Environment tambahan untuk dev server, dipasang di atas environment dari
+    /// mise. `PORT` dikelola Kova dan tidak boleh diisi.
     #[serde(default)]
     pub env: std::collections::BTreeMap<String, String>,
-    /// Environment tambahan per project (v3.9.0, canvas Flow H): tiap entri
-    /// hanya menyimpan nilai yang BERBEDA dari `env` (Default) atau yang
-    /// tidak ada di sana. Kova versi lama mengabaikan field ini.
+    /// Environment lain selain Default: tiap entri hanya menyimpan nilai yang
+    /// BERBEDA dari `env` atau yang tidak ada di sana. Kova versi lama
+    /// mengabaikan field ini.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub envs: Vec<ProjectEnv>,
     /// Nama environment yang dipakai saat start. `None` = Default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_env: Option<String>,
-    /// Saat dev server dijalankan, nyalakan juga service di profil project
-    /// (v2.4). Tanpa `profile_id` tidak berpengaruh.
+    /// Saat dev server dijalankan, nyalakan juga service di profil project.
+    /// Tanpa `profile_id` tidak berpengaruh.
     #[serde(default)]
     pub start_services: bool,
+    /// Kelompok di layar Projects. `None` (atau id yang sudah dihapus) =
+    /// Ungrouped. Urutan project = urutan di `projects`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<String>,
 }
 
-/// Satu environment project selain Default (v3.9.0).
+/// Satu environment project selain Default.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectEnv {
@@ -91,16 +105,16 @@ impl Project {
     }
 }
 
-/// Target proxy site lama (v1.5–v2.1). Hanya dibaca saat migrasi ke v7.
+/// Target proxy site lama. Hanya dibaca saat migrasi ke v7.
 #[derive(Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SiteTarget {
     Port { value: u16 },
 }
 
-/// Site lama (domain `.test` lewat hosts + proxy, v1.4–v2.1). Fitur itu
-/// dihapus di v2.2; struct ini hanya dibaca untuk memindahkan isinya ke
-/// `projects` dan tidak pernah ditulis lagi.
+/// Site lama (domain `.test` lewat hosts + proxy). Fitur itu sudah dihapus;
+/// struct ini hanya dibaca untuk memindahkan isinya ke `projects` dan tidak
+/// pernah ditulis lagi.
 #[derive(Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct LegacySite {
@@ -124,8 +138,7 @@ pub struct ConfigState {
     pub profiles: Vec<Profile>,
     #[serde(default)]
     pub active_profile_id: Option<String>,
-    /// Site lama (v1.4–v2.1). Hanya dibaca; migrasi v7 memindahkannya ke
-    /// `projects`.
+    /// Site lama. Hanya dibaca; migrasi v7 memindahkannya ke `projects`.
     #[serde(default, skip_serializing)]
     pub sites: Vec<LegacySite>,
     #[serde(default)]
@@ -140,7 +153,7 @@ pub struct ConfigState {
     pub remember_session: bool,
     #[serde(default = "default_true")]
     pub minimize_to_tray: bool,
-    /// Skala antarmuka (v3.10.0): zoom webview, 0.9 / 1.0 / 1.1.
+    /// Skala antarmuka: zoom webview, 0.9 / 1.0 / 1.1.
     #[serde(default = "default_ui_scale")]
     pub ui_scale: f64,
     /// Engine container: `auto` | `docker` | `wslc`. Lihat `crate::runtime::resolve`.
@@ -148,18 +161,22 @@ pub struct ConfigState {
     #[serde(default = "default_runtime")]
     pub container_runtime: String,
     /// Version manager PHP/Node: `auto` | `mise` | `legacy` (phpvm/fnm).
-    /// `auto` memakai mise bila terpasang (v1.7, config v6).
+    /// `auto` memakai mise bila terpasang.
     #[serde(default = "default_runtime")]
     pub version_provider: String,
     #[serde(default)]
     pub projects: Vec<Project>,
+    /// Kelompok project, dalam urutan tampil. Config lama tanpa field ini =
+    /// tidak ada kelompok.
+    #[serde(default)]
+    pub groups: Vec<ProjectGroup>,
     /// Konteks versi di Dashboard. `None` = Global.
     #[serde(default)]
     pub active_project_id: Option<String>,
-    /// Quit Kova juga menghentikan service container (v3.5.1).
+    /// Quit Kova juga menghentikan service container.
     #[serde(default = "default_true")]
     pub stop_services_on_quit: bool,
-    /// Onboarding sudah dilewati sekali; Kova langsung membuka Projects (v3.5.1).
+    /// Onboarding sudah dilewati sekali; Kova langsung membuka Projects.
     #[serde(default)]
     pub onboarded: bool,
 }
@@ -181,24 +198,24 @@ fn default_runtime() -> String {
 /// - v0 → v1: `version` absent (serde default 0) → bump ke 1.
 /// - v1 → v2: config flat (`selected_service_ids`, tanpa `profiles`) → buat
 ///   profil "Default" berisi selection existing, set `active_profile_id`.
-/// - v2 → v3: perkenalkan `sites` (fitur hosts M11). Config lama tanpa field
+/// - v2 → v3: perkenalkan `sites`. Config lama tanpa field
 ///   ini di-isi `[]` oleh serde default — tak butuh rebuild, cukup bump versi.
-/// - v3 → v4: perkenalkan `Site.target` (reverse proxy M12). Site lama tak
+/// - v3 → v4: perkenalkan `Site.target`. Site lama tak
 ///   punya makna proxy, jadi sengaja **tidak** diberi target default — serde
 ///   mengisinya `None` dan site tetap hosts-only. Cukup bump versi.
-/// - v4 → v5: perkenalkan `container_runtime` (WSL containers, v1.6). Serde
+/// - v4 → v5: perkenalkan `container_runtime` (WSL containers). Serde
 ///   default `auto` → install lama di Windows yang masih punya Docker tetap di
 ///   Docker; pindah ke WSLC dilakukan user lewat Settings.
 /// - v5 → v6: perkenalkan `projects`, `active_project_id`, `version_provider`
-///   (mise, v1.7). `watched_path` lama (bila ada) dijadikan project pertama.
-/// - v6 → v7: project bisa dijalankan di `localhost:port` (v2.2) dan fitur
+///   (mise). `watched_path` lama (bila ada) dijadikan project pertama.
+/// - v6 → v7: project bisa dijalankan di `localhost:port` dan fitur
 ///   domain `.test` dihapus. Site lama dipindah ke `projects`: domain menjadi
 ///   nama, port target menjadi port, folder masih kosong. File hosts tidak
 ///   disentuh di sini.
 ///
 /// Idempotent: config yang sudah v4 & punya profil valid dibiarkan apa adanya.
 fn migrate(mut cfg: ConfigState) -> ConfigState {
-    // v3.5.1: pengguna lama yang sudah memakai Kova tidak perlu onboarding lagi.
+    // Pengguna lama yang sudah memakai Kova tidak perlu onboarding lagi.
     if !cfg.onboarded && (!cfg.projects.is_empty() || cfg.profiles.iter().any(|p| !p.service_ids.is_empty())) {
         cfg.onboarded = true;
     }
@@ -241,6 +258,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
                 envs: Vec::new(),
                 active_env: None,
                 start_services: false,
+                group_id: None,
             });
         }
     }
@@ -266,6 +284,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
             envs: Vec::new(),
             active_env: None,
             start_services: false,
+            group_id: None,
         });
     }
 
@@ -282,6 +301,13 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
     for p in cfg.projects.iter_mut() {
         if p.profile_id.as_ref().is_some_and(|id| !profile_ids.contains(id)) {
             p.profile_id = None;
+        }
+    }
+
+    // Invariant: kelompok project harus ada; yang sudah dihapus = Ungrouped.
+    for p in cfg.projects.iter_mut() {
+        if p.group_id.as_ref().is_some_and(|id| !cfg.groups.iter().any(|g| &g.id == id)) {
+            p.group_id = None;
         }
     }
 
@@ -318,7 +344,7 @@ fn project_active_selection(cfg: &mut ConfigState) {
 }
 
 /// Service yang pernah ada lalu dihapus dari services.json.
-/// - `sqlserver`: dihapus di v1.7 (image ~1.5 GB, jarang dipakai).
+/// - `sqlserver`: dihapus (image ~1.5 GB, jarang dipakai).
 const REMOVED_SERVICE_IDS: &[&str] = &["sqlserver"];
 
 /// Id profil bawaan yang dibuat saat migrasi/instal baru.
@@ -349,6 +375,7 @@ impl Default for ConfigState {
             container_runtime: default_runtime(),
             version_provider: default_runtime(),
             projects: Vec::new(),
+            groups: Vec::new(),
             active_project_id: None,
             stop_services_on_quit: true,
             onboarded: false,
@@ -449,7 +476,7 @@ pub async fn config_read(app: AppHandle) -> Result<ConfigState, String> {
         }
     };
 
-    // Migrasi ke skema terkini (v0→v1→v2). Config lama tetap kebaca lewat serde
+    // Migrasi ke skema terkini. Config lama tetap kebaca lewat serde
     // default lalu dinaikkan; selection lama masuk ke profil "Default".
     let cfg = migrate(cfg);
 
@@ -492,7 +519,7 @@ pub async fn config_write(app: AppHandle, mut config: ConfigState) -> Result<(),
         }
     }
 
-    // Nama, port, dan daftar project tampil di menu tray (v3.6.0).
+    // Nama, port, dan daftar project tampil di menu tray.
     crate::tray::refresh(&app);
 
     Ok(())
@@ -506,20 +533,20 @@ mod tests {
     fn effective_env_layers_active_environment_over_default() {
         let mut p = Project {
             id: "p".into(),
-            name: "payments-worker".into(),
+            name: "billing-worker".into(),
             env: [("APP_ENV".to_string(), "local".to_string()), ("DATABASE_URL".to_string(), "local_db".to_string())].into(),
             envs: vec![ProjectEnv {
-                name: "tenant-astra".into(),
-                vars: [("DATABASE_URL".to_string(), "astra_db".to_string()), ("TENANT_ID".to_string(), "astra".to_string())].into(),
+                name: "tenant-acme".into(),
+                vars: [("DATABASE_URL".to_string(), "acme_db".to_string()), ("TENANT_ID".to_string(), "acme".to_string())].into(),
             }],
             ..Default::default()
         };
         assert_eq!(p.effective_env(), p.env);
-        p.active_env = Some("tenant-astra".into());
+        p.active_env = Some("tenant-acme".into());
         let e = p.effective_env();
         assert_eq!(e["APP_ENV"], "local");
-        assert_eq!(e["DATABASE_URL"], "astra_db");
-        assert_eq!(e["TENANT_ID"], "astra");
+        assert_eq!(e["DATABASE_URL"], "acme_db");
+        assert_eq!(e["TENANT_ID"], "acme");
         // Environment yang sudah dihapus = Default.
         p.active_env = Some("gone".into());
         assert_eq!(p.effective_env(), p.env);
@@ -530,7 +557,7 @@ mod tests {
     fn project_without_envs_serializes_like_before() {
         let p = Project { id: "p".into(), name: "x".into(), ..Default::default() };
         let v = serde_json::to_value(&p).unwrap();
-        assert!(v.get("envs").is_none() && v.get("activeEnv").is_none());
+        assert!(v.get("envs").is_none() && v.get("activeEnv").is_none() && v.get("groupId").is_none());
         let back: Project = serde_json::from_value(serde_json::json!({ "id": "p", "name": "x", "activeEnv": "t", "envs": [{ "name": "t", "vars": { "A": "1" } }] })).unwrap();
         assert_eq!(back.envs[0].vars["A"], "1");
         assert_eq!(back.active_env.as_deref(), Some("t"));
@@ -590,6 +617,7 @@ mod tests {
             container_runtime: "auto".to_string(),
             version_provider: "auto".to_string(),
             projects: Vec::new(),
+            groups: Vec::new(),
             active_project_id: None,
             stop_services_on_quit: true,
             onboarded: false,
@@ -674,8 +702,8 @@ mod tests {
             version_provider: "mise".to_string(),
             projects: vec![Project {
                 id: "p1".into(),
-                name: "astra".into(),
-                path: r"D:\dev\astra".into(),
+                name: "acme-api".into(),
+                path: r"C:\dev\acme\acme-api".into(),
                 profile_id: Some("default".into()),
                 kind: "laravel".into(),
                 command: "php artisan serve --host=127.0.0.1 --port={port}".into(),
@@ -685,7 +713,9 @@ mod tests {
                 envs: Vec::new(),
                 active_env: None,
                 start_services: true,
+                group_id: None,
             }],
+            groups: Vec::new(),
             active_project_id: Some("p1".into()),
             stop_services_on_quit: true,
             onboarded: true,
@@ -747,16 +777,16 @@ mod tests {
 
     #[test]
     fn test_migrate_v7_moves_legacy_sites_into_projects() {
-        // Site v1.4–v2.1: domain + ip + enabled (+ target). Domain menjadi nama
+        // Site lama: domain + ip + enabled (+ target). Domain menjadi nama
         // project, port target dipertahankan, folder dan perintah masih kosong.
         let json = r#"{
             "version": 6,
             "profiles": [{ "id": "default", "name": "Default", "serviceIds": [] }],
             "activeProfileId": "default",
-            "projects": [{ "id": "p1", "name": "astra", "path": "D:\\dev\\astra", "profileId": "default" }],
+            "projects": [{ "id": "p1", "name": "acme-api", "path": "C:\\dev\\acme\\acme-api", "profileId": "default" }],
             "sites": [
                 { "id": "s-1", "domain": "myapp.test", "ip": "127.0.0.1", "enabled": true },
-                { "id": "s-2", "domain": "astra-share-api.test", "ip": "127.0.0.1", "enabled": false,
+                { "id": "s-2", "domain": "shop-api.test", "ip": "127.0.0.1", "enabled": false,
                   "target": { "kind": "port", "value": 8001 } }
             ]
         }"#;
@@ -767,11 +797,11 @@ mod tests {
         assert!(cfg.sites.is_empty());
         assert_eq!(cfg.projects.len(), 3);
         // Project lama utuh, tanpa perintah/port.
-        assert_eq!(cfg.projects[0].name, "astra");
+        assert_eq!(cfg.projects[0].name, "acme-api");
         assert_eq!(cfg.projects[0].profile_id.as_deref(), Some("default"));
         assert_eq!((cfg.projects[0].command.as_str(), cfg.projects[0].port), ("", 0));
         assert_eq!((cfg.projects[1].name.as_str(), cfg.projects[1].port), ("myapp.test", 0));
-        assert_eq!((cfg.projects[2].name.as_str(), cfg.projects[2].port), ("astra-share-api.test", 8001));
+        assert_eq!((cfg.projects[2].name.as_str(), cfg.projects[2].port), ("shop-api.test", 8001));
         assert!(cfg.projects[1..].iter().all(|p| p.path.is_empty() && p.command.is_empty()));
 
         // Setelah disimpan dan dibaca lagi, tidak ada duplikasi.
@@ -782,7 +812,7 @@ mod tests {
 
     #[test]
     fn test_migrate_v4_to_v5_defaults_runtime_auto() {
-        // Config v1.5 belum punya `containerRuntime` → `auto`, sisanya utuh.
+        // Config skema v4 belum punya `containerRuntime` → `auto`, sisanya utuh.
         let json = r#"{
             "version": 4,
             "profiles": [{ "id": "default", "name": "Default", "serviceIds": ["mysql"] }],
@@ -802,15 +832,15 @@ mod tests {
             "version": 5,
             "profiles": [{ "id": "default", "name": "Default", "serviceIds": [] }],
             "activeProfileId": "default",
-            "watchedPath": "D:\\dev\\astra\\",
+            "watchedPath": "C:\\dev\\acme\\",
             "containerRuntime": "wslc"
         }"#;
         let cfg = migrate(serde_json::from_str::<ConfigState>(json).expect("parse gagal"));
         assert_eq!(cfg.version, CURRENT_VERSION);
         assert_eq!(cfg.version_provider, "auto");
         assert_eq!(cfg.projects.len(), 1);
-        assert_eq!(cfg.projects[0].name, "astra");
-        assert_eq!(cfg.projects[0].path, r"D:\dev\astra\");
+        assert_eq!(cfg.projects[0].name, "acme");
+        assert_eq!(cfg.projects[0].path, r"C:\dev\acme\");
         assert!(cfg.active_project_id.is_none());
         assert_eq!(cfg.container_runtime, "wslc");
     }
@@ -846,6 +876,30 @@ mod tests {
     }
 
     #[test]
+    fn groups_load_from_old_configs_and_dangling_group_ids_become_ungrouped() {
+        let old: ConfigState = serde_json::from_str(r#"{"version":7,"projects":[{"id":"a","name":"acme-api"}]}"#).unwrap();
+        assert!(old.groups.is_empty());
+        assert_eq!(old.projects[0].group_id, None);
+
+        let json = r#"{
+            "version": 7,
+            "groups": [{ "id": "g1", "name": "Acme" }, { "id": "g2", "name": "Shop", "collapsed": true }],
+            "projects": [
+                { "id": "a", "name": "acme-api", "groupId": "g1" },
+                { "id": "b", "name": "shop-web", "groupId": "gone" }
+            ]
+        }"#;
+        let cfg = migrate(serde_json::from_str::<ConfigState>(json).unwrap());
+        assert_eq!(cfg.groups.len(), 2);
+        assert!(!cfg.groups[0].collapsed && cfg.groups[1].collapsed);
+        assert_eq!(cfg.projects[0].group_id.as_deref(), Some("g1"));
+        assert_eq!(cfg.projects[1].group_id, None);
+        let v = serde_json::to_value(&cfg).unwrap();
+        assert_eq!(v["projects"][0]["groupId"], "g1");
+        assert_eq!(v["groups"][1]["collapsed"], true);
+    }
+
+    #[test]
     fn test_migrate_drops_dangling_active_project() {
         let json = r#"{ "version": 6, "projects": [], "activeProjectId": "gone" }"#;
         let cfg = migrate(serde_json::from_str::<ConfigState>(json).unwrap());
@@ -854,8 +908,8 @@ mod tests {
 
     #[test]
     fn test_project_name_from_path() {
-        assert_eq!(project_name_from_path(r"D:\dev\tandemly\yhpa"), "yhpa");
-        assert_eq!(project_name_from_path("/home/u/event/"), "event");
+        assert_eq!(project_name_from_path(r"C:\dev\acme\acme-web"), "acme-web");
+        assert_eq!(project_name_from_path("/home/u/shop/"), "shop");
     }
 
     #[test]

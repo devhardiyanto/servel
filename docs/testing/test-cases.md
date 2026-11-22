@@ -15,16 +15,17 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | Bagian | Jumlah | W ✅ | L ✅ | Milestone yang menutup |
 |---|---|---|---|---|
 | A · Onboarding | 9 | 0 | 0 | v3.10.x, v3.12.0 |
-| B · Add project | 7 | 0 | 0 | v3.10.x |
+| B · Add project | 10 | 0 | 0 | v3.10.x, v3.15.0 |
 | C · Project gagal | 6 | 0 | 0 | v3.10.x |
 | D · Services | 7 | 0 | 0 | v3.12.0, v3.14.0 |
 | E · Runtimes | 8 | 0 | 0 | v3.13.0 |
 | F · Update | 6 | 0 | 0 | v3.13.0 |
 | G · Logs | 5 | 0 | 0 | v3.11.0 |
 | H · Environments | 6 | 0 | 0 | v3.10.x |
+| P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
-| T · Tray & jendela | 6 | 0 | 0 | v3.10.x, v3.14.1 |
-| U · Tampilan & aksesibilitas | 5 | 0 | 0 | v3.14.0 |
+| T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
+| U · Tampilan & aksesibilitas | 9 | 0 | 0 | v3.14.0, v3.15.0 |
 | W · Khusus Windows | 4 | 0 | ➖ | v3.10.x |
 | L · Khusus Linux | 7 | ➖ | 0 | v3.12.0 |
 
@@ -57,6 +58,9 @@ Persiapan: lihat README → *Cara menyiapkan ulang*.
 | TC-B5 | Add project dengan pilihan Services = sebuah profil dan *Start with project* dicentang, lalu Save & start. | Modal tertutup, project baru terpilih, output tampil di panel kanan; service di profil itu ikut menyala. | ⬜ | ⬜ | | |
 | TC-B6 | Tunggu sampai Running. | Port tampil di kartu dan panel detail; tombol utama Open localhost:port. | ⬜ | ⬜ | | |
 | TC-B7 | Klik Open. | Browser default membuka `http://localhost:<port>`; tidak ada domain `.test` atau HTTPS lokal. | ⬜ | ⬜ | | |
+| TC-B8 | Add project untuk folder backend Node: `shop-api` (Hono), `acme-api` (Express), `billing-worker` (Fastify), `acme-admin` (NestJS), `docs-api` (AdonisJS, ada `ace`), masing-masing dengan script `dev`. | Terdeteksi Hono / Express / Fastify / NestJS / AdonisJS dengan logo 28 px; perintah `npm run dev` (pnpm/yarn/bun mengikuti lockfile); alasan mis. "hono in package.json dependencies · src/index.ts · Node … from mise.toml". | ⬜ | ⬜ | | v3.15.0 |
+| TC-B9 | Add project `acme-web` yang `package.json`-nya memuat `react` + `vite` + `express` dan script `dev`. Ulangi dengan React tanpa backend (Vite, lalu `react-scripts`), dan dengan folder Go (`go.mod`). | Campuran React + Express → **Express** (backend menang), `npm run dev`. React + Vite → "Vite · React" dengan logo React, `--port {port} --strictPort`. `react-scripts` → "React", `npm run start`. Go → "Go", `go run .` (atau `air`). | ⬜ | ⬜ | | v3.15.0 |
+| TC-B10 | Lihat chip jenis di kartu, panel detail (Type), dan Project settings → Detect pada project lama. | Chip berlogo dengan garis/latar warna merek dan teks normal; Express/Fastify/Next.js terlihat jelas (logo warna teks). Jenis tanpa logo = chip abu-abu. Detect memperbarui jenis setelah Save. Tidak ada permintaan jaringan untuk ikon. | ⬜ | ⬜ | | v3.15.0 |
 
 ## C · Project gagal → perbaiki (canvas C1–C6)
 
@@ -124,11 +128,11 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
 |---|---|---|---|---|---|---|
 | TC-H1 | Detail project → tab Environment. | Pemilih Environment dengan Default; ada New environment. | ⬜ | ⬜ | | |
-| TC-H2 | New environment: nama `tenant-astra`, Copy changes from = Nothing, Create environment. Coba juga Esc. | Environment dibuat dan terpilih; Esc/Cancel membatalkan. Nama tidak valid ditolak. | ⬜ | ⬜ | | |
-| TC-H3 | Di `tenant-astra` ubah satu nilai dan tambah satu variabel baru; Save & restart. | Nilai Default tampil sebagai placeholder (tanpa badge); hanya yang berbeda disimpan. Mengosongkan override = kembali ke Default. | ⬜ | ⬜ | | |
+| TC-H2 | New environment: nama `tenant-acme`, Copy changes from = Nothing, Create environment. Coba juga Esc. | Environment dibuat dan terpilih; Esc/Cancel membatalkan. Nama tidak valid ditolak. | ⬜ | ⬜ | | |
+| TC-H3 | Di `tenant-acme` ubah satu nilai dan tambah satu variabel baru; Save & restart. | Nilai Default tampil sebagai placeholder (tanpa badge); hanya yang berbeda disimpan. Mengosongkan override = kembali ke Default. | ⬜ | ⬜ | | |
 | TC-H4 | Edit as .env, tempel beberapa baris termasuk `PORT=…` dan `export X=1`; Save. Lalu tempel blok `.env` langsung di kolom Name. | Ringkasan "N added · N replaced · N skipped"; `PORT` dilewati; Edit as rows kembali ke daftar. | ⬜ | ⬜ | | |
-| TC-H5 | Saat project berjalan dengan Default, pilih `tenant-astra`. | Banner "Restart to use tenant-astra"; proses tetap memakai Default sampai Restart. | ⬜ | ⬜ | | |
-| TC-H6 | Klik Restart. | Kartu project, header detail, dan popup tray menampilkan `tenant-astra`; log mencatat `env (tenant-astra): …`. | ⬜ | ⬜ | | |
+| TC-H5 | Saat project berjalan dengan Default, pilih `tenant-acme`. | Banner "Restart to use tenant-acme"; proses tetap memakai Default sampai Restart. | ⬜ | ⬜ | | |
+| TC-H6 | Klik Restart. | Kartu project, header detail, dan popup tray menampilkan `tenant-acme`; log mencatat `env (tenant-acme): …`. | ⬜ | ⬜ | | |
 
 ## S · Scripts & dev server (regresi v3.10.2, persiapan v3.11.0)
 
@@ -142,6 +146,23 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-S6 | Jalankan `composer run dev`, buka Logs → Projects → chip project itu. | Baris chip kedua: All processes, server, queue, vite, … dengan jumlah error; klik satu = hanya baris proses itu. | ⬜ | ⬜ | | v3.11.0 |
 | TC-S7 | Command `programtidakada run dev`, Start. | Exit 127 (L) / 9009 (W); banner project dan log: "programtidakada was not found. …". | ⬜ | ⬜ | | v3.11.0 |
 
+## P · Kelompok & urutan project
+
+Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, `billing-worker`, `docs-site`.
+
+| ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
+|---|---|---|---|---|---|---|
+| TC-P1 | Projects → New group, ketik "Acme", Enter. Ulangi, lalu Esc tanpa mengetik. | Kelompok Acme muncul dengan petunjuk putus-putus "Drag projects here, or use ⋯ → Move to group." Esc pada nama kosong membatalkan tanpa menyimpan. | ⬜ | ⬜ | | v3.15.0 |
+| TC-P2 | ⋯ kelompok → Rename, ubah nama, Enter. Restart Kova. | Nama baru tampil dan bertahan setelah restart. | ⬜ | ⬜ | | v3.15.0 |
+| TC-P3 | Lipat kelompok dengan panah, restart Kova. | Kelompok tetap terlipat; panah punya aria-expanded yang benar. | ⬜ | ⬜ | | v3.15.0 |
+| TC-P4 | ⋯ kelompok berisi project → Delete group. | Kelompok hilang; project-nya pindah ke Ungrouped (terakhir). Ungrouped tidak punya Start all, Rename, atau Delete. | ⬜ | ⬜ | | v3.15.0 |
+| TC-P5 | Kelompok dengan sebagian project berhenti: Start all; lalu ⋯ → Stop all. | Start all menjalankan yang bisa dijalankan dan hilang saat semua berjalan; meta "N · M running" berubah; Stop all menghentikan semuanya. | ⬜ | ⬜ | | v3.15.0 |
+| TC-P6 | Seret pegangan ⋮⋮ `acme-web` ke atas `acme-api` di kelompok yang sama, lalu restart. | Kartu terangkat (latar lebih terang, garis aksen, bayangan), garis aksen 2 px di posisi tujuan; urutan baru bertahan. **W:** WebView2. **L:** WebKitGTK. | ⬜ | ⬜ | | v3.15.0 |
+| TC-P7 | Seret `shop-web` dari Ungrouped ke kelompok Shop; tekan Esc di tengah seretan lain. | Project masuk ke Shop di posisi garis. Esc membatalkan seretan tanpa perubahan. | ⬜ | ⬜ | | v3.15.0 |
+| TC-P8 | Tab ke pegangan `shop-api` ("Reorder shop-api. Alt+Up or Alt+Down to move"), tekan Alt+↓ dan Alt+↑. Coba juga ⋯ panel detail → Move up / Move down / Move to group › Shop, Ungrouped, New group…. | Project bergeser satu langkah di kelompoknya, fokus tetap di pegangan, pembaca layar mengumumkan "shop-api moved to position 2 of 3 in Shop". Item menu nonaktif di ujung. New group… membuat kelompok berisi project itu. | ⬜ | ⬜ | | v3.15.0 |
+| TC-P9 | Ketik nama project dari kelompok yang terlipat di pencarian; lalu ketik nama kelompok. | Kelompok berisi hasil tampil terbuka, kelompok tanpa hasil tersembunyi; nama kelompok menampilkan project-nya. Menghapus pencarian mengembalikan status lipat semula. | ⬜ | ⬜ | | v3.15.0 |
+| TC-P10 | Klik kartu yang sedang terpilih; klik lagi. Lalu Esc saat fokus di daftar. | Klik kedua menutup panel detail dan daftar melebar (kartu aria-pressed=false); tombol ‹ di tepi kanan membuka project yang sama. Esc juga menutup panel. | ⬜ | ⬜ | | v3.15.0 |
+
 ## T · Tray & jendela
 
 | ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
@@ -152,6 +173,9 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-T4 | Aktifkan "Start Kova when you sign in", logout/login. | Kova mulai sendiri (di tray bila minimize to tray aktif). | ⬜ | ⬜ | | |
 | TC-T5 | Buka Kova untuk kedua kalinya. | Hanya satu instance; jendela yang ada muncul ke depan. | ⬜ | ⬜ | | |
 | TC-T6 | Tambahkan lebih dari 5 project (idealnya 10+), jalankan 1–2 di antaranya; buka tray. | **W:** popup hanya menampilkan 5 baris project, yang berjalan/keluar di atas, lalu "Show all N projects". Klik → daftar lengkap bergulir di dalam kotak, kolom "Find a project" ikut muncul; Esc mengosongkan pencarian. Services, versi global, Open/Quit Kova tetap terlihat tanpa menggulir popup. **L:** 5 project di menu, sisanya di submenu "More projects (N)". | ⬜ | ⬜ | | v3.14.1 |
+| TC-T7 | Dengan kelompok Acme dan Shop serta 10+ project, buka popup tray. | Tiap baris: titik status, logo framework 13 px, nama, petunjuk. 5 baris: yang aktif dulu, sisanya urut kelompok lalu Ungrouped. "Show all" menampilkan judul "ACME · 4 · 1 running", …, Ungrouped terakhir; kelompok yang terlipat di Kova tetap terbuka di tray. Tanpa kelompok tidak ada judul. | ⬜ | ➖ | | v3.15.0 |
+| TC-T8 | Di Show all ketik "shop" di Find a project; Esc dua kali. NVDA: baca satu baris. | Semua project Shop tampil, judul tanpa hasil disembunyikan. Esc pertama mengosongkan, kedua menutup. NVDA membaca mis. "shop-api, running, Shop. Open localhost:3000". | ⬜ | ➖ | | v3.15.0 |
+| TC-T9 | **L:** buat 2 kelompok dan 10+ project, buka menu tray. Hapus semua kelompok, buka lagi. | 5 project teratas langsung di menu; sisanya di submenu "Acme (N)", "Shop (N)", "Ungrouped (N)". Tanpa kelompok: satu submenu "More projects (N)". | ➖ | ⬜ | | v3.15.0 |
 
 ## U · Tampilan & aksesibilitas
 
@@ -162,6 +186,10 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-U3 | Ctrl K, ketik nama project / perintah. | Palet terbuka, hasil bisa dipilih dengan keyboard, Esc menutup. | ⬜ | ⬜ | | |
 | TC-U4 | Navigasi seluruh aplikasi hanya dengan keyboard (Tab, Shift+Tab, Enter, Space, Esc). | Fokus selalu terlihat; semua tombol dan toggle bisa dijangkau; modal mengunci fokus. | ⬜ | ⬜ | | |
 | TC-U5 | **W:** jalankan NVDA, buka Projects, Services, Logs. | Nama tombol, status project, dan badge error dibacakan; perubahan status diumumkan. | ⬜ | ➖ | | v3.14.0 |
+| TC-U6 | Ctrl K, ketik nama kelompok (mis. "shop"). | Project di kelompok itu tampil dengan logo 13 px dan label kanan "Shop"; Start group Shop / Stop group Shop muncul sesuai status. New group membuka Projects dengan kolom nama terfokus. Di Projects ada Hide/Show project details. | ⬜ | ⬜ | | v3.15.0 |
+| TC-U7 | Jalankan 1 service dan 1 project; amati status bar di Projects dan Settings selama 10 detik. | "RAM … · Kova … MB" berubah kira-kira tiap 2 detik tanpa teks bergeser; tooltip "Services … · Projects … · Kova … — measured at HH:MM:SS". Angka Kova tetap ada tanpa service. | ⬜ | ⬜ | | v3.15.0 |
+| TC-U8 | Sembunyikan jendela ke tray 30 detik, lalu buka lagi (pantau `docker stats`/`wslc stats` dan CPU Kova). | Saat tersembunyi tidak ada pengukuran; begitu jendela terlihat angka diperbarui lagi dalam ±2 detik. | ⬜ | ⬜ | | v3.15.0 |
+| TC-U9 | **W:** NVDA aktif di Projects selama 30 detik tanpa interaksi. | NVDA tidak membacakan angka RAM berulang; perubahan status engine tetap diumumkan. | ⬜ | ➖ | | v3.15.0 |
 
 ## W · Khusus Windows
 

@@ -1,8 +1,7 @@
 <script setup lang="ts">
-// Popup tray (v3.7.0, canvas "Tray & accessibility"): jendela kecil di dekat
-// ikon tray. Dimuat di jendela terpisah (`index.html?view=tray`), jadi state
-// dibaca sendiri: config, status project, dan status service dari event yang
-// sama dengan jendela utama.
+// Popup tray: jendela kecil di dekat ikon tray. Dimuat di jendela terpisah
+// (`index.html?view=tray`), jadi state dibaca sendiri: config, status project,
+// dan status service dari event yang sama dengan jendela utama.
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { emit, listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -10,6 +9,8 @@ import { getVersion } from '@tauri-apps/api/app'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import KovaMark from '@/components/shell/KovaMark.vue'
 import StatusDot, { type DotState } from '@/components/ui/StatusDot.vue'
+import FrameworkLogo from '@/components/ui/FrameworkLogo.vue'
+import { groupIdOf, orderedProjects } from '@/utils/projectGroups'
 import { useConfig } from '@/composables/useConfig'
 import { useProjectRuntime } from '@/composables/useProjectRuntime'
 import type { Project } from '@/types/mise'
@@ -25,7 +26,7 @@ const busy = ref<Record<string, boolean>>({})
 const error = ref('')
 const root = ref<HTMLElement | null>(null)
 
-// Versi global PHP/Node (v3.7.2): pengganti submenu menu native.
+// Versi global PHP/Node: pengganti submenu menu native.
 type Tool = 'php' | 'node'
 interface VersionRow { version: string; installed: boolean; global: boolean }
 interface Overview { global: string | null; versions: VersionRow[] }
@@ -74,7 +75,7 @@ async function setGlobal(tool: Tool, version: string): Promise<void> {
   }
 }
 
-// v3.8 (C2): baris per service untuk yang dipilih atau sedang berjalan.
+// Baris per service untuk yang dipilih atau sedang berjalan.
 // Klik = start/stop service itu saja. `pending` menahan tampilan "starting…" /
 // "stopping…" sampai event status datang (atau 90 detik).
 const pending = ref<Record<string, 'start' | 'stop'>>({})
@@ -135,35 +136,50 @@ interface Row {
   project: Project
   dot: DotState
   hint: string
-  /** Teks lengkap untuk pembaca layar. */
+  /** Teks lengkap untuk pembaca layar: nama, status, kelompok, aksi. */
   label: string
   disabled: boolean
+  /** Id kelompok yang ada; null = Ungrouped. */
+  groupId: string | null
+  groupName: string
 }
 
+const groups = computed(() => config.value.groups ?? [])
+
 const allRows = computed<Row[]>(() =>
-  config.value.projects.map((p) => {
+  orderedProjects(config.value.projects, groups.value).map((p) => {
     const info = runtime.value[p.id]
-    const state = stateOf(p.id)
-    const name = p.name
-    // v3.9.0 (canvas H6): environment yang dipakai, bila bukan Default.
+    const st = stateOf(p.id)
+    const groupId = groupIdOf(p, groups.value)
+    const groupName = groups.value.find((g) => g.id === groupId)?.name ?? ''
+    const row = (dot: DotState, hint: string, state: string, action: string, disabled: boolean): Row => ({
+      project: p,
+      dot,
+      hint,
+      label: `${p.name}, ${state}${groupName ? `, ${groupName}` : ''}${action ? `. ${action}` : ''}`,
+      disabled,
+      groupId,
+      groupName,
+    })
+    // Environment yang dipakai, bila bukan Default.
     const env = info?.envName ? ` · ${info.envName}` : ''
-    if (state === 'running') return { project: p, dot: 'running', hint: `:${p.port}${env}`, label: `${name}, running${env ? ` with ${info?.envName}` : ''}. Open localhost:${p.port}`, disabled: false }
-    if (state === 'unresponsive') return { project: p, dot: 'unresponsive', hint: `:${p.port}`, label: `${name}, not answering. Open localhost:${p.port}`, disabled: false }
-    if (state === 'starting') return { project: p, dot: 'starting', hint: 'starting…', label: `${name}, starting`, disabled: true }
-    if (!runnable(p)) return { project: p, dot: 'stopped', hint: 'not set up', label: `${name}, not set up yet`, disabled: true }
-    if (state === 'exited') {
+    if (st === 'running') return row('running', `:${p.port}${env}`, `running${env ? ` with ${info?.envName}` : ''}`, `Open localhost:${p.port}`, false)
+    if (st === 'unresponsive') return row('unresponsive', `:${p.port}`, 'not answering', `Open localhost:${p.port}`, false)
+    if (st === 'starting') return row('starting', 'starting…', 'starting', '', true)
+    if (!runnable(p)) return row('stopped', 'not set up', 'not set up yet', '', true)
+    if (st === 'exited') {
       const code = info?.exitCode !== null && info?.exitCode !== undefined ? ` (${info.exitCode})` : ''
-      return { project: p, dot: 'exited', hint: `exited${code} · Start`, label: `${name}, exited${code}. Start`, disabled: false }
+      return row('exited', `exited${code} · Start`, `exited${code}`, 'Start', false)
     }
-    return { project: p, dot: 'stopped', hint: 'Start', label: `${name}, stopped. Start`, disabled: false }
+    return row('stopped', 'Start', 'stopped', 'Start', false)
   }),
 )
 
-// v3.14.1: daftar project tidak lagi memanjangkan popup tanpa batas.
-// Project aktif (berjalan, memulai, tidak menjawab, keluar dengan error)
-// naik ke atas; sisanya tetap urut seperti di Kova. Tertutup = PROJECT_LIMIT
-// baris pertama; lebih dari itu, "Show all" membuka daftar lengkap di kotak
-// bergulir beserta kolom pencarian.
+// Daftar project tidak memanjangkan popup tanpa batas. Project aktif
+// (berjalan, memulai, tidak menjawab, keluar dengan error) naik ke atas;
+// sisanya mengikuti urutan kelompok dan project di Kova. Tertutup =
+// PROJECT_LIMIT baris pertama; "Show all" membuka daftar lengkap per kelompok
+// di kotak bergulir beserta kolom pencarian.
 const PROJECT_LIMIT = 5
 // Tinggi maksimal popup: MAX_HEIGHT di tray_popup.rs, atau tinggi work area
 // monitor dikurangi margin bila layarnya lebih pendek.
@@ -183,10 +199,33 @@ const sortedRows = computed(() => {
 const activeCount = computed(() => allRows.value.filter((r) => r.dot === 'running' || r.dot === 'unresponsive').length)
 const overflow = computed(() => sortedRows.value.length > PROJECT_LIMIT)
 const showFilter = computed(() => showAll.value && overflow.value)
+const grouped = computed(() => groups.value.length > 0)
 const rows = computed<Row[]>(() => {
   if (!showAll.value) return sortedRows.value.slice(0, PROJECT_LIMIT)
+  // Daftar lengkap dengan kelompok: urut per kelompok, bukan aktif dulu.
+  const base = grouped.value ? allRows.value : sortedRows.value
   const q = filter.value.trim().toLowerCase()
-  return q ? sortedRows.value.filter((r) => r.project.name.toLowerCase().includes(q)) : sortedRows.value
+  return q ? base.filter((r) => r.project.name.toLowerCase().includes(q) || r.groupName.toLowerCase().includes(q)) : base
+})
+
+interface Block { key: string; name: string; meta: string; rows: Row[] }
+/** Daftar lengkap dipecah per kelompok (semua terbuka di tray); tanpa kelompok, satu blok tanpa judul. */
+const blocks = computed<Block[]>(() => {
+  if (!showAll.value || !grouped.value) return [{ key: '', name: '', meta: '', rows: rows.value }]
+  const keys = [...groups.value.map((g) => g.id), null]
+  return keys
+    .map((id) => {
+      const inGroup = allRows.value.filter((r) => r.groupId === id)
+      const running = inGroup.filter((r) => r.dot === 'running' || r.dot === 'unresponsive').length
+      const name = id ? (groups.value.find((g) => g.id === id)?.name ?? '') : 'Ungrouped'
+      return {
+        key: id ?? '~ungrouped',
+        name,
+        meta: `${inGroup.length}${running ? ` · ${running} running` : ''}`,
+        rows: rows.value.filter((r) => r.groupId === id),
+      }
+    })
+    .filter((b) => b.rows.length > 0)
 })
 const hiddenCount = computed(() => sortedRows.value.length - PROJECT_LIMIT)
 function toggleShowAll(): void {
@@ -348,17 +387,21 @@ onUnmounted(() => {
         <input v-model="filter" type="search" placeholder="Find a project" spellcheck="false" autocomplete="off" />
       </label>
       <div id="tp-project-list" class="tp-list" :class="{ 'tp-list--all': showAll, 'tp-list--keep': rows.length > 1 }">
-        <button
-          v-for="r in rows"
-          :key="r.project.id"
-          class="tp-item"
-          :disabled="r.disabled || busy[r.project.id]"
-          @click="onProject(r)"
-        >
-          <StatusDot :state="r.dot" />
-          <span class="tp-text">{{ r.project.name }}<span class="sr-only">{{ r.label.slice(r.project.name.length) }}</span></span>
-          <span class="tp-hint" :class="{ 'tp-hint--err': r.dot === 'exited' }" aria-hidden="true">{{ r.hint }}</span>
-        </button>
+        <template v-for="b in blocks" :key="b.key">
+          <p v-if="b.name" class="tp-ghead"><span class="tp-ghead__n">{{ b.name }}</span> · {{ b.meta }}</p>
+          <button
+            v-for="r in b.rows"
+            :key="r.project.id"
+            class="tp-item"
+            :disabled="r.disabled || busy[r.project.id]"
+            @click="onProject(r)"
+          >
+            <StatusDot :state="r.dot" />
+            <FrameworkLogo class="tp-logo" :kind="r.project.kind" :size="13" />
+            <span class="tp-text">{{ r.project.name }}<span class="sr-only">{{ r.label.slice(r.project.name.length) }}</span></span>
+            <span class="tp-hint" :class="{ 'tp-hint--err': r.dot === 'exited' }" aria-hidden="true">{{ r.hint }}</span>
+          </button>
+        </template>
         <p v-if="showAll && !rows.length" class="tp-empty">No project matches “{{ filter.trim() }}”.</p>
       </div>
       <button
@@ -389,7 +432,7 @@ onUnmounted(() => {
         <span class="tp-text">{{ r.def.name }}<span class="sr-only">{{ r.label.slice(r.def.name.length) }}</span></span>
         <span class="tp-hint" :class="{ 'tp-hint--value': pending[r.def.id] }" aria-hidden="true">{{ r.hint }}</span>
       </button>
-      <!-- v3.8 (S4): pilihan kosong dijelaskan, bukan sekadar "0 selected". -->
+      <!-- Pilihan kosong dijelaskan, bukan sekadar "0 selected". -->
       <button
         class="tp-item"
         :disabled="!selectedIds.length"
@@ -450,7 +493,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   /* Batas tinggi dari `maxHeight` (≤ MAX_HEIGHT di tray_popup.rs). Lebih dari
-     ini, hanya daftar project yang menyusut dan digulir (v3.14.1). */
+     ini, hanya daftar project yang menyusut dan digulir. */
   box-sizing: border-box;
   padding: 6px;
   color: var(--text);
@@ -502,7 +545,7 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .tp-item:hover:not(:disabled) { background: var(--surface3); }
-/* Kontras petunjuk tetap cukup di atas latar hover (v3.8). */
+/* Kontras petunjuk tetap cukup di atas latar hover. */
 .tp-item:hover:not(:disabled) .tp-hint:not(.tp-hint--err) { color: var(--muted); }
 .tp-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tp-item:disabled { color: var(--muted); cursor: default; }
@@ -545,6 +588,16 @@ onUnmounted(() => {
   font: inherit;
 }
 .tp-filter input:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.tp-ghead {
+  margin: 0;
+  padding: 8px 10px 2px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--muted);
+}
+.tp-ghead__n { letter-spacing: 0.04em; text-transform: uppercase; }
+.tp-ghead:first-child { padding-top: 2px; }
+.tp-logo { margin-left: -2px; }
 .tp-empty { margin: 0; padding: 6px 10px; font-size: var(--text-xs); color: var(--muted); }
 .tp-error { margin: 0; padding: 6px 10px; font-size: var(--text-xs); color: var(--red); border-top: 1px solid var(--border); }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Projects (v3): daftar di kiri, detail project terpilih di kanan.
+// Projects: daftar di kiri, detail project terpilih di kanan.
 import { computed, inject, ref, watch } from 'vue'
 import ProjectsPanel from '@/components/ProjectsPanel.vue'
 import ProjectDetail from '@/components/ProjectDetail.vue'
@@ -16,7 +16,7 @@ import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import PanelSplitter from '@/components/ui/PanelSplitter.vue'
-import { usePanelWidth } from '@/composables/usePanelWidth'
+import { PROJECTS_PANEL, usePanelWidth } from '@/composables/usePanelWidth'
 
 const { config, loaded, loadError, load } = useConfig()
 
@@ -42,15 +42,32 @@ const runningServices = computed(() =>
   services.definitions.value.filter((d) => services.uiState.value[d.id]?.status === 'running').map((d) => d.name),
 )
 
-// Panel detail: lebar bisa diseret dan panel bisa ditutup (v3.7.0).
-const PANEL = { default: 430, min: 320, max: 640 }
+// Panel detail: lebar bisa diseret dan panel bisa ditutup.
+const PANEL = PROJECTS_PANEL
 const panel = usePanelWidth('projects', PANEL)
 
 const selectedId = ref<string | null>(null)
-/** Pilihan dari pengguna (klik kartu) membuka panel yang tertutup. */
+/**
+ * Klik kartu membuka panel yang tertutup; klik kartu yang sedang terbuka
+ * menutup panel supaya daftar melebar. Pilihan tetap diingat untuk tombol ‹.
+ */
 function choose(id: string): void {
+  if (selectedId.value === id && !panel.collapsed.value) {
+    panel.collapsed.value = true
+    return
+  }
   selectedId.value = id
   panel.collapsed.value = false
+}
+/** Esc di daftar menutup panel; Esc di kolom isian tetap milik kolom itu. */
+function onListEsc(e: KeyboardEvent): void {
+  const t = e.target as HTMLElement | null
+  if (t?.closest('input, textarea, select, [role="menu"]')) return
+  if (!panel.collapsed.value && config.value.projects.length) panel.collapsed.value = true
+}
+function newGroup(): void {
+  actions.renamingGroupId.value = null
+  actions.draftGroup.value = { projectId: null }
 }
 const selected = computed(() => config.value.projects.find((p) => p.id === selectedId.value) ?? null)
 
@@ -92,10 +109,9 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
     </div>
   </div>
   <div v-else class="pv" :class="{ 'pv--empty': !config.projects.length }">
-    <section class="pv-list" aria-label="Project list">
+    <section class="pv-list" aria-label="Project list" @keydown.esc="onListEsc">
       <header class="pv-bar">
         <h1 class="pv-title">Projects <span v-if="config.projects.length" class="pv-count">{{ config.projects.length }}</span></h1>
-        <!-- v3.8.6 (canvas Projects): pencarian selalu ada bila ada project. -->
         <div v-if="config.projects.length" class="pv-search">
           <UiIcon name="search" class="pv-search__i" />
           <UiInput
@@ -107,16 +123,19 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
           />
         </div>
         <span class="pv-sp"></span>
-        <!-- Tanpa project, Add project ada di empty state; jangan dobel (v3.6.1). -->
-        <UiButton v-if="config.projects.length" variant="primary" size="md" @click="actions.adding.value = true"><UiIcon name="plus" />Add project</UiButton>
+        <!-- Tanpa project, Add project ada di empty state; jangan dobel. -->
+        <template v-if="config.projects.length">
+          <UiButton size="md" :disabled="!!actions.draftGroup.value" @click="newGroup"><UiIcon name="plus" />New group</UiButton>
+          <UiButton variant="primary" size="md" @click="actions.adding.value = true"><UiIcon name="plus" />Add project</UiButton>
+        </template>
       </header>
-      <ProjectsPanel :selected-id="selectedId" :query="query" @select="choose" />
+      <ProjectsPanel :selected-id="selectedId" :query="query" :details-open="!panel.collapsed.value" @select="choose" />
       <div v-if="config.projects.length" class="pv-strip">
         <span>{{ runningServices.length ? `${runningServices.join(' · ')} running` : 'No services running' }}</span>
         <UiButton variant="quiet" @click="setView('services')">Services</UiButton>
       </div>
     </section>
-    <!-- Panel detail hanya berguna bila ada project yang bisa dipilih (v3.6.1). -->
+    <!-- Panel detail hanya berguna bila ada project yang bisa dipilih. -->
     <template v-if="config.projects.length">
       <template v-if="!panel.collapsed.value">
         <PanelSplitter
@@ -136,11 +155,11 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
         class="pv-reopen"
         aria-controls="pv-detail"
         aria-expanded="false"
-        title="Show project details"
+        :title="selected ? `Show ${selected.name} details` : 'Show project details'"
         @click="panel.collapsed.value = false"
       >
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 4L6 8l4 4" /></svg>
-        <span class="sr-only">Show project details</span>
+        <span class="sr-only">{{ selected ? `Show ${selected.name} details` : 'Show project details' }}</span>
       </button>
     </template>
     <ProjectDialogs />
@@ -175,7 +194,6 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  /* v3.10.0: canvas .k-head 18/20, .k-list 0 20 16. */
   padding: 18px 20px 16px;
 }
 .pv-detail {

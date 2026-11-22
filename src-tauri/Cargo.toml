@@ -1,6 +1,6 @@
 [package]
 name = "servel"
-version = "3.14.1"
+version = "3.15.0"
 description = "One app. All your local dev environment."
 authors = ["devhardiyanto <dev.hardiyanto@gmail.com>"]
 edition = "2021"
@@ -33,6 +33,8 @@ getrandom = "0.2"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
 zip = { version = "4", default-features = false, features = ["deflate"] }
+# RAM proses Kova, WebView, dan dev server di status bar; hanya fitur proses.
+sysinfo = { version = "0.37", default-features = false, features = ["system"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

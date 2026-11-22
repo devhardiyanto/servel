@@ -159,7 +159,7 @@ onUnmounted(() => window.removeEventListener('focus', onWindowFocus))
       <component :is="viewComponent" />
     </main>
     <StatusBar class="shell-status" />
-    <CommandPalette ref="palette" @go="setView" />
+    <CommandPalette ref="palette" :view="currentView" @go="setView" />
     <ToastHost />
   </div>
 </template>

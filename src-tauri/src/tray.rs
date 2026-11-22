@@ -1,21 +1,16 @@
-//! Menu tray (v3.6.0, canvas "Tray & accessibility").
+//! Menu tray native (hanya Linux, lihat `NATIVE_MENU`; Windows dan macOS
+//! memakai popup tray).
 //!
 //! Isi dari atas: Open Kova, daftar project dengan status (klik = buka di
 //! browser bila berjalan, Start bila berhenti), Start/Stop service, submenu
-//! PHP/Node untuk versi global, Quit Kova.
-//!
-//! v3.6.1: menu native Windows menampilkan item non-aktif dalam abu-abu,
-//! jadi tidak ada lagi baris yang hanya label ("Projects", "No projects yet",
-//! "Services: none running"). Versi Kova dan jumlah service pindah ke tooltip
-//! dan ke teks "Stop all services (N running)".
+//! PHP/Node untuk versi global, Quit Kova. Tidak ada baris yang hanya label:
+//! menu native menampilkan item non-aktif dalam abu-abu, jadi versi Kova dan
+//! jumlah service ada di tooltip dan di teks "Stop all services (N running)".
 //!
 //! Menu dibangun ulang saat status project berubah (`site-status-changed`),
 //! saat jumlah service berjalan berubah (polling status), saat config ditulis,
 //! dan setelah daftar versi PHP/Node dibaca. Pembangunan ulang dilewati bila
 //! isinya sama dengan menu yang sedang tampil.
-//!
-//! v3.7.2: menu native hanya dipakai di Linux (`NATIVE_MENU`). Di Windows dan
-//! macOS kedua tombol mouse membuka popup tray.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
@@ -24,7 +19,7 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Listener, Manager};
 
-use crate::commands::config::{load_config, ConfigState, Project};
+use crate::commands::config::{load_config, ConfigState, Project, ProjectGroup};
 use crate::commands::services::load_services_internal;
 use crate::commands::util::emit_log_line;
 use crate::sites::process::{SiteRuntime, SiteState};
@@ -45,11 +40,53 @@ pub struct ProjectEntry {
     pub enabled: bool,
     /// Berjalan, memulai, tidak menjawab, atau keluar: naik ke atas menu.
     pub active: bool,
+    /// Kelompok yang ada di config; `None` = Ungrouped.
+    pub group_id: Option<String>,
 }
 
-/// v3.14.1: jumlah project yang tampil langsung di menu; sisanya masuk
-/// submenu "More projects", supaya menu tidak memanjang tanpa batas.
+/// Jumlah project yang tampil langsung di menu; sisanya masuk submenu, supaya
+/// menu tidak memanjang tanpa batas.
 pub const PROJECT_LIMIT: usize = 5;
+
+/// Project dalam urutan layar Projects: per kelompok sesuai urutan `groups`,
+/// lalu Ungrouped (termasuk id kelompok yang sudah tidak ada).
+pub fn ordered_projects<'a>(projects: &'a [Project], groups: &[ProjectGroup]) -> Vec<&'a Project> {
+    let known = |id: &Option<String>| id.as_ref().is_some_and(|id| groups.iter().any(|g| &g.id == id));
+    let mut out: Vec<&Project> = Vec::with_capacity(projects.len());
+    for g in groups {
+        out.extend(projects.iter().filter(|p| p.group_id.as_deref() == Some(g.id.as_str())));
+    }
+    out.extend(projects.iter().filter(|p| !known(&p.group_id)));
+    out
+}
+
+/// Sisa project di luar menu utama, dipecah menjadi submenu per kelompok
+/// ("Acme (3)", lalu "Ungrouped (N)"). Tanpa kelompok: satu submenu
+/// "More projects (N)". Kelompok tanpa sisa tidak dibuatkan submenu.
+pub fn rest_submenus(rest: &[ProjectEntry], groups: &[ProjectGroup]) -> Vec<(String, Vec<ProjectEntry>)> {
+    if rest.is_empty() {
+        return Vec::new();
+    }
+    if groups.is_empty() {
+        return vec![(format!("More projects ({})", rest.len()), rest.to_vec())];
+    }
+    let mut out = Vec::new();
+    for g in groups {
+        let items: Vec<ProjectEntry> = rest.iter().filter(|e| e.group_id.as_deref() == Some(g.id.as_str())).cloned().collect();
+        if !items.is_empty() {
+            out.push((format!("{} ({})", g.name, items.len()), items));
+        }
+    }
+    let ungrouped: Vec<ProjectEntry> = rest
+        .iter()
+        .filter(|e| !e.group_id.as_ref().is_some_and(|id| groups.iter().any(|g| &g.id == id)))
+        .cloned()
+        .collect();
+    if !ungrouped.is_empty() {
+        out.push((format!("Ungrouped ({})", ungrouped.len()), ungrouped));
+    }
+    out
+}
 
 /// Urutkan project aktif lebih dulu (urutan asli tetap di tiap kelompok),
 /// lalu pisahkan `limit` yang pertama dari sisanya.
@@ -81,7 +118,7 @@ pub fn project_entry(project: &Project, runtime: Option<&SiteRuntime>) -> Projec
         _ => (format!("○ {} — not set up yet", name), false),
     };
     let active = matches!(state, SiteState::Running | SiteState::Unresponsive | SiteState::Starting | SiteState::Exited);
-    ProjectEntry { id: project.id.clone(), label, enabled, active }
+    ProjectEntry { id: project.id.clone(), label, enabled, active, group_id: project.group_id.clone() }
 }
 
 /// Teks "Stop all services"; tidak ditampilkan bila tidak ada yang berjalan.
@@ -101,6 +138,7 @@ pub fn tooltip_text(version: &str, running: usize) -> String {
 fn build_menu(
     app: &AppHandle,
     projects: &[ProjectEntry],
+    groups: &[ProjectGroup],
     running: usize,
     php: &[(String, bool)],
     node: &[(String, bool)],
@@ -114,9 +152,9 @@ fn build_menu(
         for p in &shown {
             menu.append(&MenuItem::with_id(app, format!("project:{}", p.id), &p.label, p.enabled, None::<&str>)?)?;
         }
-        if !rest.is_empty() {
-            let more = Submenu::with_id(app, "projects_more", format!("More projects ({})", rest.len()), true)?;
-            for p in &rest {
+        for (i, (title, items)) in rest_submenus(&rest, groups).into_iter().enumerate() {
+            let more = Submenu::with_id(app, format!("projects_more:{i}"), title, true)?;
+            for p in &items {
                 more.append(&MenuItem::with_id(app, format!("project:{}", p.id), &p.label, p.enabled, None::<&str>)?)?;
             }
             menu.append(&more)?;
@@ -183,20 +221,21 @@ pub fn refresh(app: &AppHandle) {
     if !NATIVE_MENU {
         return;
     }
-    let projects: Vec<ProjectEntry> = match load_config(app) {
+    let (projects, groups): (Vec<ProjectEntry>, Vec<ProjectGroup>) = match load_config(app) {
         Ok(cfg) => {
             let runtime = crate::sites::process::snapshot(app);
-            cfg.projects
-                .iter()
+            let entries = ordered_projects(&cfg.projects, &cfg.groups)
+                .into_iter()
                 .map(|p| project_entry(p, runtime.iter().find(|r| r.id == p.id)))
-                .collect()
+                .collect();
+            (entries, cfg.groups)
         }
-        Err(_) => Vec::new(),
+        Err(_) => (Vec::new(), Vec::new()),
     };
     let running = SERVICES_RUNNING.load(Ordering::Relaxed);
     let (php, node) = VERSIONS.lock().unwrap_or_else(|e| e.into_inner()).clone();
 
-    let summary = format!("{:?}|{}|{:?}|{:?}", projects, running, php, node);
+    let summary = format!("{:?}|{:?}|{}|{:?}|{:?}", projects, groups, running, php, node);
     {
         let mut shown = SHOWN.lock().unwrap_or_else(|e| e.into_inner());
         if *shown == summary {
@@ -205,7 +244,7 @@ pub fn refresh(app: &AppHandle) {
         *shown = summary;
     }
 
-    match build_menu(app, &projects, running, &php, &node) {
+    match build_menu(app, &projects, &groups, running, &php, &node) {
         Ok(menu) => {
             if let Some(tray) = app.tray_by_id("main") {
                 let _ = tray.set_menu(Some(menu));
@@ -282,9 +321,9 @@ fn on_project(app: &AppHandle, id: &str) {
     }
 }
 
-/// v3.7.2: di Windows dan macOS klik kiri maupun kanan membuka popup
-/// (`tray_popup`); menu native hanya dipasang di Linux, karena di sana ikon
-/// tray tidak mengirim event klik sehingga popup tidak bisa dibuka.
+/// Di Windows dan macOS klik kiri maupun kanan membuka popup (`tray_popup`);
+/// menu native hanya dipasang di Linux, karena di sana ikon tray tidak
+/// mengirim event klik sehingga popup tidak bisa dibuka.
 const NATIVE_MENU: bool = cfg!(target_os = "linux");
 
 fn set_global_version(app: &AppHandle, tool: &'static str, version: &str) {
@@ -303,7 +342,7 @@ fn set_global_version(app: &AppHandle, tool: &'static str, version: &str) {
 
 pub fn init(app: &AppHandle) -> tauri::Result<()> {
     // Menu awal tanpa versi PHP/Node; diisi setelah listing selesai.
-    let menu = build_menu(app, &[], 0, &[], &[])?;
+    let menu = build_menu(app, &[], &[], 0, &[], &[])?;
 
     let icon = app
         .default_window_icon()
@@ -334,11 +373,8 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
                 on_project(app, pid);
                 return;
             }
-            // Quick-switch versi: id `php:<ver>` / `node:<ver>` → emit ke frontend,
-            // reuse php_switch/node_switch (butuh Window untuk streaming).
-            // v3.7.2: dulu di-emit ke frontend, tetapi tidak ada yang
-            // mendengarkan sehingga pilihan ini tidak berefek. Kini `mise use
-            // -g` dijalankan langsung, sama seperti Runtimes dan popup tray.
+            // Versi global: id `php:<ver>` / `node:<ver>`, dijalankan langsung
+            // (`mise use -g`) seperti di Runtimes dan popup tray.
             for tool in ["php", "node"] {
                 if let Some(ver) = id.strip_prefix(&format!("{tool}:")) {
                     set_global_version(app, tool, ver);
@@ -403,7 +439,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
                 });
             }
             "quit" => {
-                // v3.5.1: hentikan dev server dan service dulu, baru keluar.
+                // Hentikan dev server dan service dulu, baru keluar.
                 crate::shutdown::begin(app);
             }
             _ => {}
@@ -457,7 +493,7 @@ mod tests {
     fn project(path: &str, command: &str, port: u16) -> Project {
         Project {
             id: "p1".into(),
-            name: "ce-console-api".into(),
+            name: "acme-api".into(),
             path: path.into(),
             profile_id: None,
             kind: "laravel".into(),
@@ -476,18 +512,18 @@ mod tests {
 
     #[test]
     fn project_entries_name_state_and_action() {
-        let p = project("D:\\dev\\ce", "php artisan serve --port {port}", 8801);
+        let p = project("C:\\dev\\acme\\acme-api", "php artisan serve --port {port}", 8801);
         let e = project_entry(&p, Some(&rt(SiteState::Running, None)));
-        assert_eq!(e.label, "● ce-console-api — running · open localhost:8801");
+        assert_eq!(e.label, "● acme-api — running · open localhost:8801");
         assert!(e.enabled);
         assert_eq!(e.id, "p1");
 
         let e = project_entry(&p, None);
-        assert_eq!(e.label, "○ ce-console-api — stopped · start");
+        assert_eq!(e.label, "○ acme-api — stopped · start");
         assert!(e.enabled);
 
         let e = project_entry(&p, Some(&rt(SiteState::Exited, Some(1))));
-        assert_eq!(e.label, "■ ce-console-api — exited (1) · start");
+        assert_eq!(e.label, "■ acme-api — exited (1) · start");
 
         let e = project_entry(&p, Some(&rt(SiteState::Starting, None)));
         assert!(!e.enabled);
@@ -500,14 +536,14 @@ mod tests {
 
     #[test]
     fn unfinished_projects_are_disabled() {
-        let e = project_entry(&project("D:\\dev\\ce", "  ", 8801), None);
-        assert_eq!((e.label.as_str(), e.enabled), ("○ ce-console-api — not set up yet", false));
+        let e = project_entry(&project("C:\\dev\\acme\\acme-api", "  ", 8801), None);
+        assert_eq!((e.label.as_str(), e.enabled), ("○ acme-api — not set up yet", false));
         assert!(!project_entry(&project("", "npm run dev", 3000), None).enabled);
     }
 
     #[test]
     fn active_projects_first_and_the_rest_in_more() {
-        let e = |id: &str, active: bool| ProjectEntry { id: id.into(), label: id.into(), enabled: true, active };
+        let e = |id: &str, active: bool| ProjectEntry { id: id.into(), label: id.into(), enabled: true, active, group_id: None };
         let list = vec![e("a", false), e("b", true), e("c", false), e("d", true), e("e", false), e("f", false), e("g", false)];
         let (shown, rest) = split_projects(&list, 5);
         let ids = |v: &[ProjectEntry]| v.iter().map(|p| p.id.clone()).collect::<Vec<_>>();
@@ -518,8 +554,52 @@ mod tests {
         assert_eq!(shown.len(), 3);
         assert!(rest.is_empty());
 
-        assert!(project_entry(&project("D:\\dev\\ce", "npm run dev", 3000), Some(&rt(SiteState::Exited, Some(1)))).active);
-        assert!(!project_entry(&project("D:\\dev\\ce", "npm run dev", 3000), None).active);
+        assert!(project_entry(&project("C:\\dev\\acme\\acme-api", "npm run dev", 3000), Some(&rt(SiteState::Exited, Some(1)))).active);
+        assert!(!project_entry(&project("C:\\dev\\acme\\acme-api", "npm run dev", 3000), None).active);
+    }
+
+    #[test]
+    fn projects_follow_group_order_and_the_rest_goes_into_group_submenus() {
+        let g = |id: &str, name: &str| ProjectGroup { id: id.into(), name: name.into(), collapsed: true };
+        let groups = vec![g("g-shop", "Shop"), g("g-acme", "Acme")];
+        let p = |id: &str, group: Option<&str>| Project { id: id.into(), name: id.into(), group_id: group.map(Into::into), ..Default::default() };
+        let projects = vec![
+            p("docs-site", None),
+            p("acme-api", Some("g-acme")),
+            p("shop-web", Some("g-shop")),
+            p("acme-web", Some("g-acme")),
+            p("old", Some("deleted")),
+            p("shop-api", Some("g-shop")),
+            p("billing-worker", Some("g-acme")),
+        ];
+        let ordered: Vec<&str> = ordered_projects(&projects, &groups).iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(ordered, ["shop-web", "shop-api", "acme-api", "acme-web", "billing-worker", "docs-site", "old"]);
+
+        let entries: Vec<ProjectEntry> = ordered_projects(&projects, &groups)
+            .into_iter()
+            .map(|p| {
+                let mut e = project_entry(p, None);
+                e.active = p.id == "billing-worker";
+                e
+            })
+            .collect();
+        let (shown, rest) = split_projects(&entries, PROJECT_LIMIT);
+        let ids = |v: &[ProjectEntry]| v.iter().map(|p| p.id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids(&shown), ["billing-worker", "shop-web", "shop-api", "acme-api", "acme-web"]);
+        let subs = rest_submenus(&rest, &groups);
+        assert_eq!(subs.iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>(), ["Ungrouped (2)"]);
+        assert_eq!(ids(&subs[0].1), ["docs-site", "old"]);
+
+        // Semua tidak aktif dengan batas 2: kelompok berurutan, kosong dilewati.
+        let quiet: Vec<ProjectEntry> = entries.iter().cloned().map(|mut e| { e.active = false; e }).collect();
+        let (_, rest) = split_projects(&quiet, 2);
+        let subs = rest_submenus(&rest, &groups);
+        assert_eq!(subs.iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>(), ["Acme (3)", "Ungrouped (2)"]);
+
+        // Tanpa kelompok: satu submenu seperti sebelumnya.
+        let subs = rest_submenus(&rest, &[]);
+        assert_eq!(subs.iter().map(|(t, _)| t.as_str()).collect::<Vec<_>>(), ["More projects (5)"]);
+        assert!(rest_submenus(&[], &groups).is_empty());
     }
 
     #[test]

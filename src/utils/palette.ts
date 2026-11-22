@@ -1,5 +1,7 @@
 // Pencarian palet perintah (Ctrl K): setiap kata harus muncul di label atau
 // kata kunci; urutan hasil mengutamakan awalan label, lalu awalan kata.
+import type { Project, ProjectGroup } from '@/types/mise'
+import { groupNameOf } from '@/utils/projectGroups'
 
 export interface PaletteCommand {
   id: string
@@ -8,7 +10,15 @@ export interface PaletteCommand {
   group: string
   /** Teks tambahan untuk pencarian (tidak ditampilkan). */
   keywords?: string
+  /** Jenis project untuk logo framework di depan label. */
+  kind?: string
   run: () => void | Promise<void>
+}
+
+/** Label kelompok di kanan baris dan kata kunci untuk perintah project. */
+export function projectCommandMeta(p: Project, groups: ProjectGroup[]): { group: string; keywords: string } {
+  const g = groupNameOf(p, groups)
+  return { group: g || 'Project', keywords: `${p.kind ?? ''} project ${p.path}${g ? ` ${g} group` : ''}` }
 }
 
 function score(cmd: PaletteCommand, words: string[]): number {

@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { EnginePreference } from '@/types/prereq'
-import type { Project } from '@/types/mise'
+import type { Project, ProjectGroup } from '@/types/mise'
 
 export interface Profile {
   id: string
@@ -20,19 +20,18 @@ export interface ConfigState {
   autoStart: boolean
   rememberSession: boolean
   minimizeToTray: boolean
-  /** v3.10.0: skala antarmuka (zoom webview). */
+  /** Skala antarmuka (zoom webview). */
   uiScale?: number
-  // Engine container: 'auto' | 'docker' | 'wslc' (v1.6, config v5).
   containerRuntime: EnginePreference
-  // Version manager PHP/Node: 'auto' (mise bila terpasang) | 'mise' | 'legacy' (phpvm/fnm). v1.7, config v6.
-  /** Tidak dipakai sejak v3 (mise satu-satunya); disimpan agar config tetap utuh. */
+  /** Tidak dipakai lagi (mise satu-satunya); disimpan agar config tetap utuh. */
   versionProvider: 'auto' | 'mise' | 'legacy'
   projects: Project[]
+  /** Kelompok project dalam urutan tampil. Config lama tanpa field ini = tanpa kelompok. */
+  groups?: ProjectGroup[]
   // Konteks versi Dashboard; null = Global.
   activeProjectId: string | null
-  /** Quit Kova juga menghentikan service (v3.5.1). */
+  /** Quit Kova juga menghentikan service. */
   stopServicesOnQuit: boolean
-  /** Onboarding sudah dilewati sekali (v3.5.1). */
   onboarded: boolean
 }
 
@@ -51,6 +50,7 @@ const DEFAULT_CONFIG: ConfigState = {
   containerRuntime: 'auto',
   versionProvider: 'auto',
   projects: [],
+  groups: [],
   activeProjectId: null,
   stopServicesOnQuit: true,
   onboarded: false,
@@ -182,6 +182,41 @@ export function useConfig() {
     await writeNow()
   }
 
+  // Kelompok dan urutan ditulis segera: popup tray dan menu Linux membaca
+  // config dari disk.
+  async function createGroup(name: string, projectId?: string): Promise<ProjectGroup> {
+    const group: ProjectGroup = { id: crypto.randomUUID(), name: name.trim(), collapsed: false }
+    config.value.groups = [...(config.value.groups ?? []), group]
+    if (projectId) {
+      const moving = config.value.projects.find((p) => p.id === projectId)
+      if (moving) config.value.projects = [...config.value.projects.filter((p) => p.id !== projectId), { ...moving, groupId: group.id }]
+    }
+    await writeNow()
+    return group
+  }
+
+  async function renameGroup(id: string, name: string): Promise<void> {
+    config.value.groups = (config.value.groups ?? []).map((g) => (g.id === id ? { ...g, name: name.trim() } : g))
+    await writeNow()
+  }
+
+  /** Hapus kelompok; project di dalamnya pindah ke Ungrouped. */
+  async function deleteGroup(id: string): Promise<void> {
+    config.value.groups = (config.value.groups ?? []).filter((g) => g.id !== id)
+    config.value.projects = config.value.projects.map((p) => (p.groupId === id ? { ...p, groupId: null } : p))
+    await writeNow()
+  }
+
+  function setGroupCollapsed(id: string, collapsed: boolean): void {
+    config.value.groups = (config.value.groups ?? []).map((g) => (g.id === id ? { ...g, collapsed } : g))
+    scheduleSave()
+  }
+
+  async function setProjects(projects: Project[]): Promise<void> {
+    config.value.projects = projects
+    await writeNow()
+  }
+
   async function setProjectProfile(projectId: string, profileId: string | null): Promise<void> {
     config.value.projects = config.value.projects.map((p) =>
       p.id === projectId ? { ...p, profileId } : p,
@@ -300,6 +335,11 @@ export function useConfig() {
     updateProject,
     setActiveProject,
     setProjectProfile,
+    createGroup,
+    renameGroup,
+    deleteGroup,
+    setGroupCollapsed,
+    setProjects,
     updateSelectedServices,
     applySelection,
     createProfile,

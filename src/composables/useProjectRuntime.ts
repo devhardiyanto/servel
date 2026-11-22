@@ -11,16 +11,17 @@ export interface SiteRuntime {
   state: SiteState
   exitCode: number | null
   lastLine: string | null
-  /** v3.9.0: environment yang dipakai saat proses dimulai; null = Default. */
+  /** Environment yang dipakai saat proses dimulai; null = Default. */
   envName?: string | null
 }
 
 /** Mirror `ProjectSuggestion` di src-tauri/src/sites/mod.rs. */
 export interface ProjectSuggestion {
   name: string
-  detection: { kind: string; label: string; command: string; defaultPort: number }
+  /** `reason`: alasan singkat deteksi, mis. "hono in package.json dependencies · src/index.ts". */
+  detection: { kind: string; label: string; command: string; defaultPort: number; reason?: string }
   port: number
-  /** Berkas yang membuat jenisnya dikenali (v3.4). */
+  /** Berkas yang membuat jenisnya dikenali. */
   evidence: string[]
 }
 
