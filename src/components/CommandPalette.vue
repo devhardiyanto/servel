@@ -70,6 +70,16 @@ const commands = computed<PaletteCommand[]>(() => {
     }
   }
   list.push({
+    id: 'p-add',
+    label: 'Add project…',
+    group: 'Projects',
+    keywords: 'new folder import create',
+    run: () => {
+      actions.adding.value = true
+      emit('go', 'projects')
+    },
+  })
+  list.push({
     id: 'g-new',
     label: 'New group',
     group: 'Projects',

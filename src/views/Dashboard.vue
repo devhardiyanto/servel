@@ -103,6 +103,9 @@ const selectionIsProfile = computed(() => {
   const sel = new Set(selectedIds.value)
   return sel.size === p.serviceIds.length && p.serviceIds.every((id) => sel.has(id))
 })
+const startingCount = computed(() => Object.values(uiState.value).filter((s) => s.status === 'starting').length)
+/** Profile whose empty-state banner the user closed with "Show all services". */
+const emptyDismissed = ref<string | null>(null)
 const startLabel = computed(() =>
   selectionIsProfile.value ? `Start ${activeProfileName.value}` : 'Start selected',
 )
@@ -180,10 +183,14 @@ function focusFirstSwitch(): void {
           >
             <UiIcon name="stop" />Stop all
           </UiButton>
+          <UiButton v-if="hasStarting" variant="primary" size="md" loading>
+            Starting {{ startingCount }} {{ startingCount === 1 ? 'service' : 'services' }}…
+          </UiButton>
           <UiButton
+            v-else
             variant="primary"
             size="md"
-            :disabled="hasStarting || selectedCount === 0"
+            :disabled="selectedCount === 0"
             :aria-label="`${startLabel}, ${selectedCount} ${selectedCount === 1 ? 'service' : 'services'}`"
             @click="start()"
           >
@@ -233,7 +240,7 @@ function focusFirstSwitch(): void {
 
     <section class="services-wrap">
       <UiBanner
-        v-if="definitions.length > 0 && selectedCount === 0 && engineStatus !== 'down' && engineStatus !== 'missing'"
+        v-if="definitions.length > 0 && selectedCount === 0 && emptyDismissed !== (activeProfileId ?? '') && engineStatus !== 'down' && engineStatus !== 'missing'"
         class="sw-empty"
         tone="info"
         :title="`No services in ${activeProfileName} yet`"
@@ -241,6 +248,7 @@ function focusFirstSwitch(): void {
         Turn on the services this profile starts with the switches below. Projects that use {{ activeProfileName }} can start them together with the project.
         <template #actions>
           <UiButton variant="accent" @click="focusFirstSwitch">Choose services</UiButton>
+          <UiButton variant="quiet" @click="emptyDismissed = activeProfileId ?? ''">Show all services</UiButton>
         </template>
       </UiBanner>
       <div class="services-table">
