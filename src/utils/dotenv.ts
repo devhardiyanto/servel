@@ -1,4 +1,4 @@
-// Parser dan penulis teks .env untuk tab Environment (v3.8.5, canvas H4).
+// Parser dan penulis teks .env untuk tab Environment.
 //
 // Aturan:
 // - Baris kosong dan baris yang diawali `#` diabaikan.

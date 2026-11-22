@@ -1,4 +1,4 @@
-//! Perintah terminal `kova` di macOS dan Linux (v3.1).
+//! Perintah terminal `kova` di macOS dan Linux.
 //!
 //! Windows: installer NSIS yang memasang CLI (PowerShell) dan PATH. Di macOS
 //! dan Linux tidak ada installer, jadi aplikasi menyalin skrip `kova.sh` ke

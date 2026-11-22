@@ -1,7 +1,7 @@
-//! PHP extensions dan sertifikat HTTPS per versi PHP (v2.3).
+//! PHP extensions dan sertifikat HTTPS per versi PHP.
 //!
 //! `php.ini` berlaku per instalasi PHP, jadi perubahan di sini berlaku untuk
-//! semua project yang memakai versi itu, di Servel maupun di terminal.
+//! semua project yang memakai versi itu, di Kova maupun di terminal.
 //!
 //! Setiap penulisan:
 //! 1. mem-backup `php.ini` (`php.ini.servel-<epoch>.bak`, 5 terakhir),
@@ -9,8 +9,8 @@
 //! 3. menjalankan `php -m` lagi. Bila PHP gagal start atau extension yang
 //!    diminta tidak berubah status, `php.ini` dikembalikan dari backup.
 //!
-//! Hanya extension yang file-nya sudah ada di folder extension yang bisa
-//! diaktifkan; Servel tidak mengunduh extension (PECL).
+//! Modul ini hanya mengaktifkan extension yang file-nya sudah ada di folder
+//! extension; unduhan PECL (Windows) ada di `pecl.rs`.
 
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -251,7 +251,7 @@ struct PhpInstall {
 }
 
 /// Lokasi `php` untuk versi tertentu. Dengan mise: `mise where php@<v>`.
-/// Tanpa mise (phpvm): `php` di PATH, versinya apa pun yang aktif.
+/// Tanpa mise: `php` di PATH, versinya apa pun yang aktif.
 async fn locate(version: Option<&str>) -> Result<PhpInstall, String> {
     if crate::mise::provider_is_mise().await {
         let version = match version {
@@ -590,7 +590,7 @@ fn find_ca_bundle() -> Option<PathBuf> {
         .find(|p| p.is_file())
 }
 
-/// Tanpa Git: ekspor sertifikat root Windows ke PEM di folder data Servel.
+/// Tanpa Git: ekspor sertifikat root Windows ke PEM di folder data Kova.
 /// Windows mengunduh sebagian root hanya saat dibutuhkan, jadi daftar ini bisa
 /// kurang lengkap dibanding bundle Git; dipakai hanya sebagai cadangan.
 #[cfg(target_os = "windows")]

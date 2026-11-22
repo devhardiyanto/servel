@@ -20,19 +20,18 @@ export interface ConfigState {
   autoStart: boolean
   rememberSession: boolean
   minimizeToTray: boolean
-  /** v3.10.0: skala antarmuka (zoom webview). */
+  /** Skala antarmuka (zoom webview). */
   uiScale?: number
-  // Engine container: 'auto' | 'docker' | 'wslc' (v1.6, config v5).
+  // Engine container: 'auto' | 'docker' | 'wslc' (sejak config v5).
   containerRuntime: EnginePreference
-  // Version manager PHP/Node: 'auto' (mise bila terpasang) | 'mise' | 'legacy' (phpvm/fnm). v1.7, config v6.
-  /** Tidak dipakai sejak v3 (mise satu-satunya); disimpan agar config tetap utuh. */
+  /** Field config v6; tidak dibaca lagi (mise satu-satunya), disimpan agar config tetap utuh. */
   versionProvider: 'auto' | 'mise' | 'legacy'
   projects: Project[]
-  // Konteks versi Dashboard; null = Global.
+  // Project aktif untuk konteks versi mise; null = Global.
   activeProjectId: string | null
-  /** Quit Kova juga menghentikan service (v3.5.1). */
+  /** Quit Kova juga menghentikan service. */
   stopServicesOnQuit: boolean
-  /** Onboarding sudah dilewati sekali (v3.5.1). */
+  /** Onboarding sudah dilewati sekali. */
   onboarded: boolean
 }
 

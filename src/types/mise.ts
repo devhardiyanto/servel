@@ -19,7 +19,7 @@ export interface Project {
   id: string
   name: string
   path: string
-  /** Profil service yang diterapkan saat project dipilih (v1.9). */
+  /** Profil service yang diterapkan saat project dipilih. */
   profileId?: string | null
   /** Jenis hasil deteksi (laravel, vite, ...). Hanya label. */
   kind?: string
@@ -29,13 +29,13 @@ export interface Project {
   port?: number
   /** Jalankan otomatis saat Kova dibuka. */
   autoStart?: boolean
-  /** Environment tambahan untuk dev server (v2.2.1), di atas environment mise. */
+  /** Environment Default untuk dev server, di atas environment mise. */
   env?: Record<string, string>
-  /** v3.9.0 (canvas Flow H): environment lain; hanya nilai yang berbeda dari Default. */
+  /** Environment lain; hanya nilai yang berbeda dari Default. */
   envs?: ProjectEnv[]
   /** Environment yang dipakai saat start; kosong = Default. */
   activeEnv?: string | null
-  /** Start project ikut menyalakan service di profilnya (v2.4). */
+  /** Start project ikut menyalakan service di profilnya. */
   startServices?: boolean
 }
 

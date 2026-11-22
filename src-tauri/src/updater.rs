@@ -1,12 +1,12 @@
-//! Update dari dalam aplikasi (v2.1) lewat `tauri-plugin-updater`.
+//! Update dari dalam aplikasi lewat `tauri-plugin-updater`.
 //!
 //! Sumber: `latest.json` di GitHub Release terbaru (endpoint di
 //! `tauri.conf.json`). File update diverifikasi dengan public key yang
 //! tertanam di aplikasi sebelum dipasang.
 //!
-//! Frontend tetap memakai GitHub API sebagai cadangan: bila `update_check`
-//! gagal (build dev, jaringan, release tanpa `latest.json`), banner kembali
-//! menawarkan halaman rilis.
+//! Frontend hanya memakai `update_check` (tidak ada cadangan lewat GitHub
+//! API). Bila gagal (build dev, jaringan, release tanpa `latest.json`),
+//! errornya ditampilkan di Settings → About.
 
 use serde::Serialize;
 use std::sync::Mutex;
@@ -54,7 +54,7 @@ pub async fn update_check(app: AppHandle) -> Result<Option<UpdateInfo>, String> 
 static READY: Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>)>> = Mutex::new(None);
 
 /// Unduh dan verifikasi update, lalu simpan sampai pengguna memilih restart
-/// (v3.4: banner "Ready to restart" dengan Later / Restart now). Progress
+/// (banner "Ready to restart" dengan Later / Restart now). Progress
 /// dikirim lewat event `update-progress`. Mengembalikan versi yang siap.
 #[tauri::command]
 pub async fn update_download(app: AppHandle) -> Result<String, String> {
@@ -112,7 +112,7 @@ pub async fn update_apply(app: AppHandle) -> Result<(), String> {
     app.restart();
 }
 
-/// v3.13.0 (canvas F3): "Later" = pasang saat Kova ditutup.
+/// "Later" = pasang saat Kova ditutup.
 static INSTALL_ON_QUIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[tauri::command]
@@ -140,7 +140,7 @@ pub fn install_pending_on_quit(app: &AppHandle) {
     }
 }
 
-/// Unduh lalu langsung pasang (dipakai alur lama dan tray).
+/// Unduh lalu langsung pasang, tanpa menunggu "Restart now".
 #[tauri::command]
 pub async fn update_install(app: AppHandle) -> Result<(), String> {
     update_download(app.clone()).await?;

@@ -18,10 +18,10 @@ export interface PrereqStatus {
   wsl_version: string | null
   /** Windows: Kova berjalan elevated — sesi WSLC terpisah dari sesi biasa. */
   elevated: boolean
-  /** v3: satu-satunya pengelola versi PHP/Node. */
+  /** `mise` terpasang: satu-satunya pengelola versi PHP/Node. */
   mise_installed: boolean
   mise_version: string | null
-  /** v3.12.0, engine Docker: kenapa belum bisa dipakai. */
+  /** Engine Docker saja: kenapa belum bisa dipakai. */
   engine_problem?: 'permission' | 'daemon' | 'compose' | null
 }
 

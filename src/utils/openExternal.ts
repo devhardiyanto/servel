@@ -1,4 +1,4 @@
-// Buka URL di browser bawaan sistem (v3.7.4).
+// Buka URL di browser bawaan sistem.
 //
 // `window.open` di webview Tauri tidak membuka browser sistem: di WebView2 ia
 // bisa membuka jendela webview kosong atau tidak melakukan apa-apa. Semua

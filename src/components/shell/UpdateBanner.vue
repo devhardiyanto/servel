@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Banner update di atas semua layar (v3.4, canvas Flow F): tersedia → unduh →
+// Banner update di atas semua layar: tersedia → unduh →
 // siap restart, atau gagal. Unduhan diverifikasi dengan kunci update sebelum
 // bisa dipasang; service tetap berjalan selama mengunduh.
 import { computed } from 'vue'

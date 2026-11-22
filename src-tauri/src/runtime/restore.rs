@@ -1,5 +1,5 @@
-//! Restore dump `.sql` ke MySQL / PostgreSQL (v1.8) — padanan GUI dari
-//! `servel restore`. Engine-agnostik: alur sama untuk WSLC dan Docker, hanya
+//! Restore dump `.sql` ke MySQL / PostgreSQL — padanan GUI dari
+//! `kova restore`. Engine-agnostik: alur sama untuk WSLC dan Docker, hanya
 //! cara menyalin file dan exec yang berbeda (lihat `wslc.rs` / `docker.rs`).
 //!
 //! Alur: start service → tunggu readiness → salin file ke
@@ -18,7 +18,7 @@ pub const CONTAINER_FILE: &str = "/tmp/servel-restore.sql";
 pub fn restore_command(service_id: &str) -> Option<String> {
     let f = CONTAINER_FILE;
     match service_id {
-        // MYSQL_PWD kosong = tanpa password (default Servel: MYSQL_ALLOW_EMPTY_PASSWORD).
+        // MYSQL_PWD kosong = tanpa password (default Kova: MYSQL_ALLOW_EMPTY_PASSWORD).
         "mysql" => Some(format!(
             r#"MYSQL_PWD="${{MYSQL_ROOT_PASSWORD:-}}" mysql -uroot < {f} && rm -f {f}"#
         )),

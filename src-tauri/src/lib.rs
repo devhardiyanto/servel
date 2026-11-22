@@ -195,18 +195,18 @@ pub fn run() {
                 if should_minimize {
                     let _ = window.hide();
                 } else {
-                    // v3.7.0: popup tray tersembunyi tetap terhitung jendela,
-                    // jadi menutup jendela utama tidak lagi memicu keluar
-                    // dengan sendirinya. Keluar lewat jalur Quit.
+                    // Popup tray tersembunyi tetap terhitung jendela, jadi
+                    // menutup jendela utama tidak memicu keluar dengan
+                    // sendirinya. Keluar lewat jalur Quit.
                     shutdown::begin(window.app_handle());
                 }
             }
         })
         .setup(move |app| {
-            // Tray init — non-fatal: kalau gagal (mis. Linux tanpa appindicator) log warning + lanjut.
             // Start saat login menunjuk ke program ini (nama/lokasi bisa berubah setelah update).
             std::thread::spawn(autostart::refresh_if_enabled);
 
+            // Tray non-fatal: kalau gagal (mis. Linux tanpa appindicator) log warning lalu lanjut.
             match tray::init(app.handle()) {
                 Ok(_) => TRAY_OK.store(true, std::sync::atomic::Ordering::SeqCst),
                 Err(e) => eprintln!("[tray] init failed, skipping tray: {}", e),
@@ -262,7 +262,7 @@ pub fn run() {
                 let mut consecutive_failures: u32 = 0;
                 let mut last_daemon_ok: Option<bool> = None;
                 let mut is_first_tick = true;
-                // Readiness (v1.8): "running" ke UI = container running DAN service
+                // Readiness: "running" ke UI = container running DAN service
                 // siap menerima koneksi. UI menahan "starting" sampai true.
                 let mut readiness = runtime::readiness::Tracker::default();
 
@@ -408,7 +408,7 @@ pub fn run() {
                     }
 
                     running_count = current.values().filter(|&&r| r).count();
-                    // Snapshot penuh tiap putaran (v3.6.1): event per perubahan di
+                    // Snapshot penuh tiap putaran: event per perubahan di
                     // atas terlewat bila start lalu stop terjadi di antara dua
                     // putaran, dan UI tertahan di "starting"/"stopping".
                     let _ = app_handle.emit("container-status-snapshot", &current);
@@ -484,7 +484,7 @@ pub fn run() {
     // Set flag shutdown saat app exit / Windows session-end → kedua loop polling
     // break di awal iterasi berikutnya, hindari spawn docker.exe saat teardown.
     app.run(move |handle, event| {
-        // v3.5.1: keluar lewat jendela terakhir (Minimize to tray mati) juga
+        // Keluar lewat jendela terakhir (Minimize to tray mati) juga
         // menghentikan service dulu. Ditunda sekali; shutdown::begin memanggil
         // app.exit(0) lagi setelah selesai.
         if let tauri::RunEvent::ExitRequested { api, .. } = &event {
@@ -499,7 +499,7 @@ pub fn run() {
             run_shutting_down.store(true, Ordering::Relaxed);
 
             // Dev server tiap project adalah child-process yang memegang port.
-            // Tanpa stop eksplisit, port bisa nyangkut setelah Servel ditutup.
+            // Tanpa stop eksplisit, port bisa nyangkut setelah Kova ditutup.
             let handle = handle.clone();
             tauri::async_runtime::block_on(async move {
                 sites::process::stop_all(&handle).await;

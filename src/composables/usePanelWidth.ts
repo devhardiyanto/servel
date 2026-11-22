@@ -1,4 +1,4 @@
-// Lebar dan status tutup panel detail, diingat per layar (v3.7.0).
+// Lebar dan status tutup panel detail, diingat per layar.
 // Disimpan di localStorage jendela ini: preferensi tampilan saja, bukan
 // config, jadi kalau hilang panel kembali ke lebar bawaan.
 import { ref, watch, type Ref } from 'vue'

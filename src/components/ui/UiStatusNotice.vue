@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Satu pola untuk keadaan sementara sebuah proses (v3.8, C4): sedang berjalan,
+// Satu pola untuk keadaan sementara sebuah proses: sedang berjalan,
 // berhasil, dilewati, atau gagal. Dipakai oleh hasil auto-start, pemeriksaan
 // engine di Settings, dan error service, supaya ketiganya tampil dan berperilaku
 // sama:

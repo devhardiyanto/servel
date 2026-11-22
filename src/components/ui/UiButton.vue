@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Satu komponen tombol untuk seluruh aplikasi (milestone B).
+// Satu komponen tombol untuk seluruh aplikasi.
 // - default: netral (surface2)
 // - accent:  aksen lembut, aksi utama di dalam panel
 // - primary: aksen solid, satu aksi utama per layar (onboarding, prasyarat)

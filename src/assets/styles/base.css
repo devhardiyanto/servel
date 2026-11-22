@@ -20,7 +20,7 @@ body {
   background-color: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
-  /* v3.10.0: 13px/1.45 seperti canvas (.wb), dulu 14px/1.5. */
+  /* 13px/1.45: ukuran teks bawaan design system (= --text-sm). */
   font-size: var(--text-sm);
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
@@ -123,7 +123,7 @@ textarea,
   background: var(--dim);
 }
 
-/* Teks hanya untuk pembaca layar (v3.6.0). */
+/* Teks hanya untuk pembaca layar. */
 .sr-only {
   position: absolute;
   width: 1px;

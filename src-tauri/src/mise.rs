@@ -1,11 +1,11 @@
-//! Integrasi mise sebagai version manager PHP/Node (v1.7).
+//! Integrasi mise sebagai version manager PHP/Node.
 //!
 //! Prinsip:
-//! - **Resolusi selalu oleh mise.** Servel menjalankan `mise` dengan cwd =
+//! - **Resolusi selalu oleh mise.** Kova menjalankan `mise` dengan cwd =
 //!   folder project aktif (atau home untuk konteks Global) dan membaca output
-//!   `--json`. Servel tidak mencari `mise.toml` sendiri, karena config bisa
-//!   berada di folder induk (`D:\dev\event\mise.toml` berlaku juga di
-//!   `event\source-code\event-backend`) dan sumber bisa berbeda per tool.
+//!   `--json`. Kova tidak mencari `mise.toml` sendiri, karena config bisa
+//!   berada di folder induk (`D:\dev\acme\mise.toml` berlaku juga di
+//!   `acme\source-code\acme-api`) dan sumber bisa berbeda per tool.
 //! - **Tulis ke file yang memang berlaku.** Mengganti versi di project memakai
 //!   `mise use --path <file sumber>`. Tanpa `--path`, `mise use` di subfolder
 //!   akan membuat `mise.toml` baru di subfolder itu.
@@ -38,7 +38,7 @@ pub const ERR_NEEDS_SCOPE: &str = "MISE_NEEDS_SCOPE";
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
 /// Versi mise yang terdeteksi (hanya hasil positif yang di-cache, supaya
-/// instalasi mise setelah Servel berjalan tetap terdeteksi).
+/// instalasi mise setelah Kova berjalan tetap terdeteksi).
 static VERSION: OnceLock<String> = OnceLock::new();
 
 pub fn init(app: &AppHandle) {
@@ -211,8 +211,8 @@ pub enum UsePlan {
 /// `all` = semua tool hasil `mise ls --current` di konteks yang sama.
 ///
 /// Target pin untuk tool yang masih dari global: config project yang **sudah**
-/// dipakai tool lain di konteks ini (mis. `D:\dev\event\mise.toml` untuk
-/// `event-backend`), supaya config tidak terpecah ke file baru di subfolder.
+/// dipakai tool lain di konteks ini (mis. `D:\dev\acme\mise.toml` untuk
+/// `acme-api`), supaya config tidak terpecah ke file baru di subfolder.
 /// Bila belum ada config project sama sekali → `mise.toml` di root project.
 pub fn plan_use(
     project: Option<&Path>,
@@ -309,7 +309,7 @@ fn map_error(stderr: &str, stdout: &str) -> String {
     msg.trim_start_matches("mise ERROR").trim().to_string()
 }
 
-/// Level baris output mise untuk Logs (v3.6.0): `mise ERROR …` dan `✗` adalah
+/// Level baris output mise untuk Logs: `mise ERROR …` dan `✗` adalah
 /// error, `mise WARN …` peringatan. Progres (yang juga ditulis ke stderr) tidak.
 pub fn line_level(line: &str) -> Option<&'static str> {
     let has = |w: &str| line.split_whitespace().take(3).any(|t| t == w);
@@ -385,7 +385,7 @@ fn log_payload(line: &str) -> serde_json::Value {
     v
 }
 
-/// `mise install` yang sedang berjalan, untuk tombol Cancel (v3.5).
+/// `mise install` yang sedang berjalan, untuk tombol Cancel.
 static INSTALL_PID: std::sync::Mutex<Option<u32>> = std::sync::Mutex::new(None);
 static INSTALL_CANCELLED: AtomicBool = AtomicBool::new(false);
 
@@ -475,8 +475,8 @@ pub async fn version() -> Option<String> {
 
 /// mise terpasang dan bisa dijalankan.
 pub async fn provider_is_mise() -> bool {
-    // v3: mise satu-satunya pengelola versi; `version_provider` di config
-    // tidak dipakai lagi (field dibiarkan untuk kompatibilitas file config).
+    // mise satu-satunya pengelola versi; `version_provider` di config tidak
+    // dibaca (field dibiarkan untuk kompatibilitas file config).
     version().await.is_some()
 }
 
@@ -574,7 +574,7 @@ pub async fn install(app: &AppHandle, tool: &str, version: &str) -> Result<(), S
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MiseContext {
-    /// `mise` | `legacy` (phpvm/fnm).
+    /// `mise` | `legacy` (mise tidak terpasang).
     pub provider: String,
     pub mise_version: Option<String>,
     pub project: Option<Project>,
@@ -587,7 +587,7 @@ pub struct MiseContext {
 }
 
 // ---------------------------------------------------------------------------
-// Runtimes lain lewat mise (v2.11): Go dan Python
+// Runtimes lain lewat mise: Go dan Python
 // ---------------------------------------------------------------------------
 
 /// Tool yang boleh diatur dari panel Runtimes. PHP/Node punya panel sendiri.
@@ -625,7 +625,7 @@ pub async fn runtime_install(app: AppHandle, tool: String, version: String) -> R
     install(&app, &tool, &version).await
 }
 
-/// `scope`: `global` atau `project` (project yang dipilih di "Versions for").
+/// `scope`: `global` atau `project` (project aktif, lihat `active_project`).
 #[tauri::command]
 pub async fn runtime_use(app: AppHandle, tool: String, version: String, scope: String) -> Result<(), String> {
     check_runtime_tool(&tool)?;
@@ -637,7 +637,7 @@ pub async fn runtime_use(app: AppHandle, tool: String, version: String, scope: S
 }
 
 // ---------------------------------------------------------------------------
-// Halaman Runtimes per tool (v3.5, canvas Flow E)
+// Halaman Runtimes per tool
 // ---------------------------------------------------------------------------
 
 /// Tool yang punya tab di Runtimes.
@@ -801,7 +801,7 @@ fn tool_label(tool: &str) -> String {
     }
 }
 
-/// Argumen winget untuk memasang mise tanpa dialog (v2.11).
+/// Argumen winget untuk memasang mise tanpa dialog.
 pub fn winget_install_args() -> Vec<&'static str> {
     vec![
         "install",
@@ -825,7 +825,7 @@ pub enum WingetSeg {
 }
 
 /// Memecah output winget yang datang sepotong-sepotong menjadi baris dan
-/// progres (v3.8.3: tampil langsung di kartu onboarding, bukan setelah selesai).
+/// progres, supaya tampil langsung di kartu onboarding saat winget berjalan.
 #[derive(Default)]
 pub struct WingetSplitter {
     buf: Vec<u8>,
@@ -959,7 +959,7 @@ pub async fn mise_install_winget(app: AppHandle) -> Result<String, String> {
     })
 }
 
-/// Versi tool yang berlaku di folder project (v2.10): dipakai panel detail
+/// Versi tool yang berlaku di folder project: dipakai panel detail
 /// project. Kosong bila mise tidak ada atau folder tidak ditemukan.
 #[tauri::command]
 pub async fn mise_project_tools(path: String) -> Result<Vec<ToolCurrent>, String> {
@@ -1074,15 +1074,15 @@ mod tests {
             InstalledVersion { version: "8.2.9".into(), active: false },
         ];
         let uses = vec![
-            ("ce-console-api".to_string(), "8.3.35".to_string()),
-            ("share-api".to_string(), "8.3.35".to_string()),
+            ("acme-api".to_string(), "8.3.35".to_string()),
+            ("shop-api".to_string(), "8.3.35".to_string()),
             ("legacy".to_string(), "7.4.33".to_string()),
         ];
         let rows = build_rows(&installed, Some("8.4.14"), &uses);
         let versions: Vec<&str> = rows.iter().map(|r| r.version.as_str()).collect();
         assert_eq!(versions, vec!["8.4.14", "8.3.35", "8.2.9", "7.4.33"]);
         assert!(rows[0].global && rows[0].used_by.is_empty());
-        assert_eq!(rows[1].used_by, vec!["ce-console-api", "share-api"]);
+        assert_eq!(rows[1].used_by, vec!["acme-api", "shop-api"]);
         assert!(!rows[3].installed, "requested but not installed");
         // 10 > 9 secara numerik, bukan teks.
         let rows = build_rows(
@@ -1095,7 +1095,7 @@ mod tests {
 
     fn win_env(k: &str) -> Option<String> {
         match k {
-            "USERPROFILE" => Some(r"C:\Users\devha".to_string()),
+            "USERPROFILE" => Some(r"C:\Users\dev".to_string()),
             _ => None,
         }
     }
@@ -1105,8 +1105,8 @@ mod tests {
     }
 
     #[test]
-    fn parse_real_ls_current_from_event_backend() {
-        // Output asli di D:\dev\event\source-code\event-backend (mise 2026.11.2).
+    fn parse_real_ls_current_from_project() {
+        // Output asli mise 2026.11.2 di folder project Windows.
         let tools = parse_current(include_str!("fixtures/mise-2026.11.2-ls-current.json"), &roots());
         let names: Vec<&str> = tools.iter().map(|t| t.tool.as_str()).collect();
         assert_eq!(names, vec!["go", "node", "php", "python"]);
@@ -1114,7 +1114,7 @@ mod tests {
         let node = tools.iter().find(|t| t.tool == "node").unwrap();
         assert_eq!(node.version, "24.21.0");
         assert_eq!(node.requested.as_deref(), Some("24"));
-        assert_eq!(node.source.as_deref(), Some(r"D:\dev\event\mise.toml"));
+        assert_eq!(node.source.as_deref(), Some(r"D:\dev\acme\mise.toml"));
         assert_eq!(node.scope, SourceScope::Project, "config di folder induk tetap 'project'");
 
         let php = tools.iter().find(|t| t.tool == "php").unwrap();
@@ -1153,25 +1153,25 @@ mod tests {
     #[test]
     fn classify_global_variants() {
         let r = roots();
-        assert_eq!(classify_source(Some(r"C:\Users\devha\.config\mise\config.toml"), &r), SourceScope::Global);
-        assert_eq!(classify_source(Some(r"c:/users/DEVHA/.config/mise/conf.d/x.toml"), &r), SourceScope::Global);
-        assert_eq!(classify_source(Some(r"C:\Users\devha\.tool-versions"), &r), SourceScope::Global);
-        assert_eq!(classify_source(Some(r"D:\dev\astra\mise.toml"), &r), SourceScope::Project);
+        assert_eq!(classify_source(Some(r"C:\Users\dev\.config\mise\config.toml"), &r), SourceScope::Global);
+        assert_eq!(classify_source(Some(r"c:/users/DEV/.config/mise/conf.d/x.toml"), &r), SourceScope::Global);
+        assert_eq!(classify_source(Some(r"C:\Users\dev\.tool-versions"), &r), SourceScope::Global);
+        assert_eq!(classify_source(Some(r"D:\dev\shop\mise.toml"), &r), SourceScope::Project);
         // Prefix yang mirip tapi bukan folder yang sama → bukan global.
-        assert_eq!(classify_source(Some(r"C:\Users\devha\.config\mise-other\x.toml"), &r), SourceScope::Project);
+        assert_eq!(classify_source(Some(r"C:\Users\dev\.config\mise-other\x.toml"), &r), SourceScope::Project);
         assert_eq!(classify_source(None, &r), SourceScope::None);
     }
 
     #[test]
     fn classify_on_macos_and_linux() {
-        // v2.0: integrasi mise juga untuk macOS/Linux (HOME, bukan USERPROFILE).
-        let env = |k: &str| (k == "HOME").then(|| "/home/irfan".to_string());
+        // macOS/Linux: HOME, bukan USERPROFILE.
+        let env = |k: &str| (k == "HOME").then(|| "/home/dev".to_string());
         let r = global_config_roots(&env);
-        assert_eq!(classify_source(Some("/home/irfan/.config/mise/config.toml"), &r), SourceScope::Global);
-        assert_eq!(classify_source(Some("/home/irfan/code/app/mise.toml"), &r), SourceScope::Project);
-        let mac = |k: &str| (k == "HOME").then(|| "/Users/irfan".to_string());
+        assert_eq!(classify_source(Some("/home/dev/.config/mise/config.toml"), &r), SourceScope::Global);
+        assert_eq!(classify_source(Some("/home/dev/code/app/mise.toml"), &r), SourceScope::Project);
+        let mac = |k: &str| (k == "HOME").then(|| "/Users/dev".to_string());
         let r = global_config_roots(&mac);
-        assert_eq!(classify_source(Some("/Users/irfan/.tool-versions"), &r), SourceScope::Global);
+        assert_eq!(classify_source(Some("/Users/dev/.tool-versions"), &r), SourceScope::Global);
     }
 
     #[test]
@@ -1198,7 +1198,7 @@ mod tests {
         }
     }
 
-    const GLOBAL: &str = r"C:\Users\devha\.config\mise\config.toml";
+    const GLOBAL: &str = r"C:\Users\dev\.config\mise\config.toml";
 
     #[test]
     fn plan_use_global_context() {
@@ -1208,32 +1208,32 @@ mod tests {
 
     #[test]
     fn plan_use_updates_the_file_that_applies() {
-        // event-backend: node dari D:\dev\event\mise.toml (folder induk).
-        let root = Path::new(r"D:\dev\event\source-code\event-backend");
+        // acme-api: node dari D:\dev\acme\mise.toml (folder induk).
+        let root = Path::new(r"D:\dev\acme\source-code\acme-api");
         let all = vec![
-            tool("node", SourceScope::Project, Some(r"D:\dev\event\mise.toml")),
+            tool("node", SourceScope::Project, Some(r"D:\dev\acme\mise.toml")),
             tool("php", SourceScope::Global, Some(GLOBAL)),
         ];
         let plan = plan_use(Some(root), "node", &all, None);
-        assert_eq!(plan, UsePlan::File(r"D:\dev\event\mise.toml".into()));
+        assert_eq!(plan, UsePlan::File(r"D:\dev\acme\mise.toml".into()));
         assert_eq!(
             use_args(&plan, "node", "22.23.3").unwrap(),
-            vec!["use", "--path", r"D:\dev\event\mise.toml", "node@22.23.3"]
+            vec!["use", "--path", r"D:\dev\acme\mise.toml", "node@22.23.3"]
         );
     }
 
     #[test]
     fn pin_from_global_reuses_existing_project_config() {
-        // PHP event-backend masih global; pin harus masuk ke D:\dev\event\mise.toml
+        // PHP acme-api masih global; pin harus masuk ke D:\dev\acme\mise.toml
         // (config yang sudah dipakai node), bukan file baru di subfolder.
-        let root = Path::new(r"D:\dev\event\source-code\event-backend");
+        let root = Path::new(r"D:\dev\acme\source-code\acme-api");
         let all = vec![
-            tool("node", SourceScope::Project, Some(r"D:\dev\event\mise.toml")),
+            tool("node", SourceScope::Project, Some(r"D:\dev\acme\mise.toml")),
             tool("php", SourceScope::Global, Some(GLOBAL)),
         ];
-        let target = UsePlan::NeedsScope { project_file: r"D:\dev\event\mise.toml".into() };
+        let target = UsePlan::NeedsScope { project_file: r"D:\dev\acme\mise.toml".into() };
         assert_eq!(plan_use(Some(root), "php", &all, None), target);
-        assert_eq!(plan_use(Some(root), "php", &all, Some("project")), UsePlan::File(r"D:\dev\event\mise.toml".into()));
+        assert_eq!(plan_use(Some(root), "php", &all, Some("project")), UsePlan::File(r"D:\dev\acme\mise.toml".into()));
         assert_eq!(plan_use(Some(root), "php", &all, Some("global")), UsePlan::Global);
     }
 
@@ -1253,7 +1253,7 @@ mod tests {
 
     #[test]
     fn pin_without_any_project_config_creates_root_file() {
-        let root = Path::new("/dev/yhpa");
+        let root = Path::new("/dev/shop-web");
         let all = vec![tool("php", SourceScope::Global, Some("/home/u/.config/mise/config.toml"))];
         let expected = root.join("mise.toml").to_string_lossy().into_owned();
         assert_eq!(plan_use(Some(root), "php", &all, None), UsePlan::NeedsScope { project_file: expected.clone() });
@@ -1279,9 +1279,9 @@ mod tests {
 
     #[test]
     fn untrusted_error_detection() {
-        let e = "mise ERROR Config files in D:\\dev\\astra\\mise.toml are not trusted.\nTrust them with `mise trust`.";
-        assert_eq!(untrusted_path(e).as_deref(), Some(r"D:\dev\astra\mise.toml"));
-        assert_eq!(map_error(e, ""), format!("{}|{}", ERR_UNTRUSTED, r"D:\dev\astra\mise.toml"));
+        let e = "mise ERROR Config files in D:\\dev\\shop\\mise.toml are not trusted.\nTrust them with `mise trust`.";
+        assert_eq!(untrusted_path(e).as_deref(), Some(r"D:\dev\shop\mise.toml"));
+        assert_eq!(map_error(e, ""), format!("{}|{}", ERR_UNTRUSTED, r"D:\dev\shop\mise.toml"));
         assert_eq!(untrusted_path("mise ERROR tool not found"), None);
     }
 

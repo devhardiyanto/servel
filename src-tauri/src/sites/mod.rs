@@ -1,4 +1,4 @@
-//! Project yang dijalankan Servel dan dibuka lewat `localhost:<port>` (v2.2).
+//! Project yang dijalankan Kova dan dibuka lewat `localhost:<port>`.
 //!
 //! - `detect`: kenali jenis project → usulan perintah dan port.
 //! - `process`: jalankan/hentikan dev server.
@@ -85,7 +85,7 @@ pub async fn project_detect(path: String, taken: Vec<u16>) -> Result<ProjectSugg
     })
 }
 
-/// Pilihan perintah untuk field Command (v3.11.0).
+/// Pilihan perintah untuk field Command.
 #[tauri::command]
 pub async fn project_scripts(path: String) -> Result<Vec<detect::ScriptOption>, String> {
     let dir = Path::new(&path);
@@ -183,7 +183,7 @@ pub async fn site_forget(app: AppHandle, id: String) {
     process::forget(&app, &id);
 }
 
-/// Saat Servel dibuka: bersihkan dev server sisa sesi sebelumnya, lalu
+/// Saat Kova dibuka: bersihkan dev server sisa sesi sebelumnya, lalu
 /// jalankan project ber-`auto_start`. Gagal start satu
 /// project tidak menghalangi yang lain; errornya masuk ke panel log.
 pub fn autostart(app: &AppHandle) {
@@ -232,11 +232,11 @@ mod tests {
     #[test]
     fn services_for_follows_option_and_profile() {
         let profiles = vec![Profile {
-            id: "astra".into(),
-            name: "Astra".into(),
+            id: "acme".into(),
+            name: "Acme".into(),
             service_ids: vec!["mysql".into(), "redis".into()],
         }];
-        let mut p: Project = serde_json::from_str(r#"{"id":"1","name":"api","profileId":"astra"}"#).unwrap();
+        let mut p: Project = serde_json::from_str(r#"{"id":"1","name":"api","profileId":"acme"}"#).unwrap();
         // Config lama tanpa field: opsi mati, tidak ada yang dinyalakan.
         assert!(!p.start_services);
         assert!(services_for(&p, &profiles).is_empty());

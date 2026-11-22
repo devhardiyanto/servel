@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Pemisah antara daftar dan panel detail di kanan (v3.7.0).
+// Pemisah antara daftar dan panel detail di kanan.
 // - Seret: kursor col-resize; lebar panel dijepit ke [min, max].
 // - Seret melewati batas kiri panel (min - COLLAPSE_SLACK) lalu lepas: panel
 //   ditutup (bila `collapsible`); pemanggil menampilkan tombol untuk membuka.

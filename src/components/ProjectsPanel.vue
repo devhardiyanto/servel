@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Daftar project (v3.4, canvas Projects): kartu ringkas, dipilih untuk dilihat
+// Daftar project: kartu ringkas, dipilih untuk dilihat
 // di panel detail. Aksi ada di panel detail, bukan di kartu.
 import { computed } from 'vue'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -17,7 +17,7 @@ const emit = defineEmits<{ select: [id: string] }>()
 
 const { config } = useConfig()
 const { stateOf, infoOf } = useProjectRuntime()
-/** v3.9.0 (canvas H6): environment proses yang jalan, bila bukan Default. */
+/** Environment proses yang jalan, bila bukan Default. */
 function envOf(id: string): string {
   const i = infoOf(id)
   return i && (i.state === 'running' || i.state === 'starting' || i.state === 'unresponsive') ? (i.envName ?? '') : ''

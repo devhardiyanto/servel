@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Projects (v3): daftar di kiri, detail project terpilih di kanan.
+// Projects: daftar di kiri, detail project terpilih di kanan.
 import { computed, inject, ref, watch } from 'vue'
 import ProjectsPanel from '@/components/ProjectsPanel.vue'
 import ProjectDetail from '@/components/ProjectDetail.vue'
@@ -42,7 +42,7 @@ const runningServices = computed(() =>
   services.definitions.value.filter((d) => services.uiState.value[d.id]?.status === 'running').map((d) => d.name),
 )
 
-// Panel detail: lebar bisa diseret dan panel bisa ditutup (v3.7.0).
+// Panel detail: lebar bisa diseret dan panel bisa ditutup.
 const PANEL = { default: 430, min: 320, max: 640 }
 const panel = usePanelWidth('projects', PANEL)
 
@@ -95,7 +95,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
     <section class="pv-list" aria-label="Project list">
       <header class="pv-bar">
         <h1 class="pv-title">Projects <span v-if="config.projects.length" class="pv-count">{{ config.projects.length }}</span></h1>
-        <!-- v3.8.6 (canvas Projects): pencarian selalu ada bila ada project. -->
+        <!-- Pencarian selalu ada bila ada project. -->
         <div v-if="config.projects.length" class="pv-search">
           <UiIcon name="search" class="pv-search__i" />
           <UiInput
@@ -107,7 +107,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
           />
         </div>
         <span class="pv-sp"></span>
-        <!-- Tanpa project, Add project ada di empty state; jangan dobel (v3.6.1). -->
+        <!-- Tanpa project, Add project ada di empty state; jangan dobel. -->
         <UiButton v-if="config.projects.length" variant="primary" size="md" @click="actions.adding.value = true"><UiIcon name="plus" />Add project</UiButton>
       </header>
       <ProjectsPanel :selected-id="selectedId" :query="query" @select="choose" />
@@ -116,7 +116,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
         <UiButton variant="quiet" @click="setView('services')">Services</UiButton>
       </div>
     </section>
-    <!-- Panel detail hanya berguna bila ada project yang bisa dipilih (v3.6.1). -->
+    <!-- Panel detail hanya berguna bila ada project yang bisa dipilih. -->
     <template v-if="config.projects.length">
       <template v-if="!panel.collapsed.value">
         <PanelSplitter
@@ -175,7 +175,6 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  /* v3.10.0: canvas .k-head 18/20, .k-list 0 20 16. */
   padding: 18px 20px 16px;
 }
 .pv-detail {

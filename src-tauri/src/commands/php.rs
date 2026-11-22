@@ -1,4 +1,4 @@
-//! Versi PHP lewat mise (v3: phpvm/fnm dihapus).
+//! Versi PHP lewat mise.
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, Window};
 

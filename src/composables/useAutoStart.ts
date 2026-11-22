@@ -8,11 +8,9 @@ import { ENGINE_LABEL, type PrereqStatus } from '@/types/prereq'
 
 // Menyalakan service tersimpan saat Kova dibuka ("Start services" di Settings).
 //
-// v3.7.5:
-// - Pilihan service dipulihkan di sini sebelum start. Dulu auto-start bergantung
-//   pada `restoreServiceSelection` di App.vue yang berjalan bersamaan; bila
-//   auto-start lebih dulu, pilihan masih kosong, `start()` tidak melakukan
-//   apa-apa, tetapi log tetap menulis "auto-started".
+// - Pilihan service dipulihkan di sini sebelum start, tanpa bergantung pada
+//   `restoreServiceSelection` di App.vue yang berjalan bersamaan: bila
+//   pilihan masih kosong, `start()` tidak melakukan apa-apa.
 // - Engine yang baru menyala (sesi WSL containers butuh beberapa detik) ditunggu
 //   sampai `ENGINE_WAIT_MS`, bukan langsung dilewati.
 // - Hasilnya disimpan di `state` dan ditampilkan oleh AutoStartNotice; log

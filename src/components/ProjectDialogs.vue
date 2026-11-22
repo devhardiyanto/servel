@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Drawer "Project settings" dan dialog hapus (v3.4, canvas Overlays). Dibuka
+// Drawer "Project settings" dan dialog hapus. Dibuka
 // dari menu ⋯ atau dari banner di panel detail lewat useProjectActions.
 import { computed, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'

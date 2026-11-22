@@ -1,4 +1,4 @@
-// Aksi project yang dipakai daftar, panel detail, palet, dan dialog (v3.4).
+// Aksi project yang dipakai daftar, panel detail, palet, dan dialog.
 // State dibagi (singleton) supaya error dan status sibuk satu project terlihat
 // sama di daftar dan di panel detail.
 import { inject, ref } from 'vue'
@@ -20,7 +20,7 @@ const editingId = ref<string | null>(null)
 const removingId = ref<string | null>(null)
 /** Modal Add project. */
 const adding = ref(false)
-/** Project yang harus dipilih saat layar Projects dibuka (dari Logs, v3.5). */
+/** Project yang harus dipilih saat layar Projects dibuka (mis. dari Logs). */
 const selectRequest = ref<string | null>(null)
 /** Tab panel detail; diubah dari luar ("Environment" di banner). */
 const detailTab = ref<'overview' | 'env' | 'logs'>('overview')

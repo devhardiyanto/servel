@@ -1,4 +1,4 @@
-//! Kanal kontrol lokal untuk CLI `servel` (v2.5): start/stop/restart project
+//! Kanal kontrol lokal untuk CLI `kova`: start/stop/restart project
 //! lewat aplikasi yang sedang berjalan.
 //!
 //! Dev server adalah proses anak aplikasi (log, status, job object), jadi CLI
@@ -8,7 +8,7 @@
 //!   `control.json` (`port`, `token`, `pid`) ke folder data aplikasi.
 //! - Satu koneksi = satu baris permintaan `<token> <aksi> [nama project]`,
 //!   dibalas satu baris JSON `{ ok, message, projects }`.
-//! - Sejak v3.1: `<token> plain <aksi> ...` dibalas teks baris-per-baris (lihat
+//! - `<token> plain <aksi> ...` dibalas teks baris-per-baris (lihat
 //!   [`to_plain`]) untuk CLI shell di macOS/Linux, dan aksi service
 //!   `up [id...]`, `down [id...]`, `services`.
 //! - Token acak per sesi; hanya proses yang bisa membaca folder data pengguna
@@ -39,7 +39,7 @@ pub enum Action {
     /// Service: daftar yang tersedia beserta image dan port (`kova list`).
     Catalog,
     /// Tampilkan jendela utama. Dikirim oleh Kova yang dibuka kedua kali,
-    /// supaya hanya ada satu Kova yang berjalan (v3.2.1).
+    /// supaya hanya ada satu Kova yang berjalan.
     Show,
 }
 
@@ -436,8 +436,8 @@ mod tests {
     fn parse_request_checks_token_and_action() {
         let t = "abc123";
         assert_eq!(
-            parse_request("abc123 start share api\n", t),
-            Ok(Request { action: Action::Start, target: "share api".into(), plain: false })
+            parse_request("abc123 start shop api\n", t),
+            Ok(Request { action: Action::Start, target: "shop api".into(), plain: false })
         );
         assert_eq!(
             parse_request("abc123 status", t),
@@ -466,10 +466,10 @@ mod tests {
 
     #[test]
     fn find_project_by_name_or_id() {
-        let ps = vec![project("1", "share-api"), project("2", "Event"), project("3", "event")];
-        assert_eq!(find_project(&ps, "SHARE-API").unwrap().id, "1");
-        assert_eq!(find_project(&ps, "2").unwrap().name, "Event");
-        assert!(find_project(&ps, "event").unwrap_err().contains("2 projects"));
+        let ps = vec![project("1", "shop-api"), project("2", "Acme"), project("3", "acme")];
+        assert_eq!(find_project(&ps, "SHOP-API").unwrap().id, "1");
+        assert_eq!(find_project(&ps, "2").unwrap().name, "Acme");
+        assert!(find_project(&ps, "acme").unwrap_err().contains("2 projects"));
         assert!(find_project(&ps, "nope").unwrap_err().contains("no project named"));
     }
 
@@ -479,7 +479,7 @@ mod tests {
             ok: true,
             message: "started\nmysql".into(),
             projects: vec![
-                ProjectStatus { name: "share api".into(), state: SiteState::Running, port: 8001, exit_code: None },
+                ProjectStatus { name: "shop api".into(), state: SiteState::Running, port: 8001, exit_code: None },
                 ProjectStatus { name: "lib".into(), state: SiteState::Exited, port: 0, exit_code: Some(1) },
             ],
             services: vec![
@@ -489,7 +489,7 @@ mod tests {
         };
         assert_eq!(
             to_plain(&r),
-            "ok\nstarted mysql\nproject\tshare api\trunning\thttp://localhost:8001\nproject\tlib\texited (1)\t\nservice\tmysql\trunning\ncatalog\tredis\tredis:7\t6379->6379\n"
+            "ok\nstarted mysql\nproject\tshop api\trunning\thttp://localhost:8001\nproject\tlib\texited (1)\t\nservice\tmysql\trunning\ncatalog\tredis\tredis:7\t6379->6379\n"
         );
         assert_eq!(to_plain(&Response::fail("nope".into())), "error\nnope\n");
     }
@@ -563,13 +563,13 @@ mod tests {
             .await;
         });
         let mut client = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap();
-        client.write_all(b"tok restart share-api\n").await.unwrap();
+        client.write_all(b"tok restart shop-api\n").await.unwrap();
         let mut reply = String::new();
         BufReader::new(&mut client).read_line(&mut reply).await.unwrap();
         server.await.unwrap();
         let v: serde_json::Value = serde_json::from_str(&reply).unwrap();
         assert_eq!(v["ok"], true);
-        assert_eq!(v["message"], "Restart share-api");
+        assert_eq!(v["message"], "Restart shop-api");
         assert_eq!(v["projects"][0]["state"], "running");
         assert_eq!(v["projects"][0]["exitCode"], serde_json::Value::Null);
     }

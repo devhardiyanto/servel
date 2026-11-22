@@ -27,7 +27,7 @@ import { useServices } from './composables/useServices'
 import { useConfig } from './composables/useConfig'
 import { useVersionContext } from './composables/useVersionContext'
 
-// v3.5.1: onboarding hanya sampai pernah diselesaikan sekali. Sampai config
+// Onboarding hanya sampai pernah diselesaikan sekali. Sampai config
 // terbaca, tidak ada layar yang dirender, supaya onboarding tidak berkedip.
 const currentView = ref<ViewName | null>(null)
 const quitting = ref<{ stopServices: boolean } | null>(null)
@@ -59,14 +59,14 @@ const { runAutoStartOnce } = useAutoStart()
 const { refresh: refreshEngineStatus } = useEngineStatus()
 const { check: checkUpdate, startAutoCheck, consumeJustUpdated } = useUpdateCheck()
 const updatedToast = useToast()
-/** v3.13.0 (canvas F4): setelah update, toast dengan What's new. */
+/** Setelah update, toast dengan What's new. */
 async function announceUpdated(): Promise<void> {
   const u = await consumeJustUpdated()
   if (!u) return
   updatedToast.show(`Kova updated to ${u.to}`, { action: { label: "What's new", run: () => void openExternal(u.url) } })
 }
 
-// v3.10.1: polling RAM cepat saat Services terlihat, jeda saat jendela tersembunyi.
+// Polling RAM cepat saat Services terlihat, jeda saat jendela tersembunyi.
 const docHidden = ref(document.hidden)
 document.addEventListener('visibilitychange', () => (docHidden.value = document.hidden))
 watch(
@@ -77,7 +77,7 @@ watch(
   { immediate: true },
 )
 
-// v3.10.0: Settings → General → Interface size (zoom webview).
+// Settings → General → Interface size (zoom webview).
 const uiCfg = useConfig()
 watch(
   () => uiCfg.config.value.uiScale ?? 1,
@@ -114,7 +114,7 @@ async function chooseFirstView(): Promise<void> {
 const announcer = useStatusAnnouncer()
 const versionCtx = useVersionContext()
 
-// v3.7.2: kembali ke Kova (mis. setelah memasang WSL, Docker, atau mise di
+// Kembali ke Kova (mis. setelah memasang WSL, Docker, atau mise di
 // terminal) memeriksa ulang engine dan mise, jadi hasil deteksi lama tidak
 // bertahan sampai Kova ditutup. Paling sering sekali per 10 detik.
 let lastFocusCheck = 0

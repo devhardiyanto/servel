@@ -1,4 +1,4 @@
-// Info koneksi per service (v2.10): host, port, kredensial, URL, dan baris
+// Info koneksi per service: host, port, kredensial, URL, dan baris
 // .env siap tempel. Nilai diambil dari definisi service (services.json),
 // jadi port/kredensial yang diubah di sana ikut berubah di sini.
 import type { ServiceDef } from '@/types/service'
@@ -188,7 +188,7 @@ export function connectionInfo(def: ServiceDef): ConnectInfo {
   }
 }
 
-/** Format baris .env di panel Connect (v3.5, canvas D4). */
+/** Format baris .env di panel Connect. */
 export type EnvFormat = 'laravel' | 'url' | 'go'
 
 const URL_KEY: Record<string, string> = {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Runtimes per tool (v3.5, canvas Flow E): tab PHP / Node / Go / Python,
+// Runtimes per tool: tab PHP / Node / Go / Python,
 // tabel versi (global, dipakai project mana), menu ⋯ per versi, dialog
 // "Use in project", dan install dengan progres serta Cancel.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -67,8 +67,8 @@ watch(tool, (t) => void load(t))
 
 onMounted(async () => {
   await versionCtx.refresh()
-  // v3.5: Runtimes tidak lagi punya "Versions for"; versi diatur global atau
-  // per project lewat "Use in project". Tray mengikuti konteks ini, jadi
+  // Runtimes tidak punya pemilih project; versi diatur global atau per
+  // project lewat "Use in project". Tray mengikuti konteks ini, jadi
   // kembalikan ke global supaya tray tidak menulis ke mise.toml project lama.
   if (config.value.activeProjectId) await setActiveProject(null)
   await load()
@@ -84,7 +84,7 @@ let unlistenGlobal: UnlistenFn | null = null
 onUnmounted(() => unlistenGlobal?.())
 
 const rows = computed(() => data.value[tool.value]?.versions ?? [])
-/** v3.13.0 (canvas E3): versi yang baru dipasang di sesi ini diberi chip `new`. */
+/** Versi yang baru dipasang di sesi ini diberi chip `new`. */
 const freshVersions = ref(new Set<string>())
 const isFresh = (version: string): boolean => freshVersions.value.has(`${tool.value}@${version}`)
 
@@ -195,14 +195,14 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
 
 <template>
   <div class="rtt">
-    <!-- v3.10.0 (canvas Runtimes): judul dan pilihan tool satu baris. -->
+    <!-- Judul dan pilihan tool satu baris. -->
     <div class="rtt-head">
       <h1 class="rtt-title">Runtimes</h1>
       <UiSegmented :model-value="tool" :options="tabs" label="Tool" @update:model-value="tool = $event as Tool" />
       <span class="rtt-via">via mise {{ versionCtx.ctx.value?.miseVersion ?? '' }}</span>
     </div>
 
-    <!-- v3.8.6 (canvas Runtimes): versi di kiri, PHP extensions sebagai panel di kanan. -->
+    <!-- Versi di kiri, PHP extensions sebagai panel di kanan. -->
     <div class="rtt-cols" :class="{ 'rtt-cols--split': tool === 'php' }">
     <div class="rtt-main">
     <UiBanner v-if="versionCtx.untrustedPath.value" tone="warn" title="mise.toml is not trusted yet">

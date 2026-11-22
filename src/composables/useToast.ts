@@ -1,4 +1,4 @@
-// Toast: konfirmasi singkat di kanan bawah (v3.2). Hilang sendiri setelah 5
+// Toast: konfirmasi singkat di kanan bawah. Hilang sendiri setelah 5
 // detik kecuali punya aksi. Error tidak memakai toast; pakai banner.
 import { ref } from 'vue'
 

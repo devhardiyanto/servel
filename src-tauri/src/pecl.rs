@@ -1,4 +1,4 @@
-//! Unduh extension PECL untuk PHP di Windows (v2.6): redis, xdebug, imagick,
+//! Unduh extension PECL untuk PHP di Windows: redis, xdebug, imagick,
 //! dan extension lain yang punya build di downloads.php.net.
 //!
 //! Sumber: `https://downloads.php.net/~windows/pecl/releases/<ext>/<versi>/`

@@ -1,5 +1,4 @@
 //! Backend Docker: `docker compose` dengan file compose yang di-generate.
-//! Perilaku identik dengan Servel v1.5 — hanya dipindah dari `commands::services`.
 
 use std::process::Stdio;
 use tauri::AppHandle;
@@ -19,7 +18,7 @@ pub async fn is_installed() -> bool {
         .unwrap_or(false)
 }
 
-/// Apakah Docker masih menyimpan container Servel (`servel_*`)?
+/// Apakah Docker masih menyimpan container Kova (`servel_*`)?
 /// `None` bila daemon tidak bisa ditanya (mati / tidak terpasang / timeout).
 pub async fn has_servel_containers() -> Option<bool> {
     let fut = silent_command("docker")
@@ -33,7 +32,7 @@ pub async fn has_servel_containers() -> Option<bool> {
     Some(!String::from_utf8_lossy(&out.stdout).trim().is_empty())
 }
 
-/// v3.12.0: kenapa Docker belum bisa dipakai, untuk pesan yang bisa
+/// Kenapa Docker belum bisa dipakai, untuk pesan yang bisa
 /// ditindaklanjuti (terutama Linux dengan Docker Engine tanpa Desktop).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DockerProblem {

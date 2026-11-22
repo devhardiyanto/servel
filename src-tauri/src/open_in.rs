@@ -1,4 +1,4 @@
-//! Buka folder project di file manager, terminal, atau VS Code (v2.10).
+//! Buka folder project di file manager, terminal, atau VS Code.
 //!
 //! Path dipakai sebagai `current_dir` atau satu argumen utuh, tidak pernah
 //! disusun ke dalam string perintah shell, supaya karakter seperti `&` atau

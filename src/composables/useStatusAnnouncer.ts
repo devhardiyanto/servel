@@ -1,5 +1,4 @@
-// Umumkan perubahan status project ke pembaca layar (v3.6.0, canvas
-// "Tray & accessibility" › Status): perubahan biasa lewat region
+// Umumkan perubahan status project ke pembaca layar: perubahan biasa lewat region
 // role="status" (polite), project yang berhenti dengan error lewat
 // role="alert". Status awal saat aplikasi dibuka tidak diumumkan.
 import { ref, watch } from 'vue'
