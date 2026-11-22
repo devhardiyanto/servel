@@ -7,6 +7,7 @@ export interface Toast {
   text: string
   tone: 'ok' | 'info'
   action?: { label: string; run: () => void }
+  timed?: boolean
 }
 
 const toasts = ref<Toast[]>([])
@@ -32,13 +33,14 @@ function hold(id: number): void {
   timers.delete(id)
 }
 
-function show(text: string, opts: { tone?: Toast['tone']; action?: Toast['action'] } = {}): number {
+/** `timed` lets a toast with an action still disappear by itself. */
+function show(text: string, opts: { tone?: Toast['tone']; action?: Toast['action']; timed?: boolean } = {}): number {
   const id = nextId++
-  toasts.value = [...toasts.value, { id, text, tone: opts.tone ?? 'ok', action: opts.action }].slice(-MAX)
-  if (!opts.action) arm(id)
+  toasts.value = [...toasts.value, { id, text, tone: opts.tone ?? 'ok', action: opts.action, timed: opts.timed }].slice(-MAX)
+  if (!opts.action || opts.timed) arm(id)
   return id
 }
 
 export function useToast() {
-  return { toasts, show, dismiss, hold, release: (id: number) => { if (toasts.value.find((t) => t.id === id && !t.action)) arm(id) } }
+  return { toasts, show, dismiss, hold, release: (id: number) => { if (toasts.value.find((t) => t.id === id && (!t.action || t.timed))) arm(id) } }
 }
