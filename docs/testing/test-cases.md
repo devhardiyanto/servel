@@ -1,6 +1,6 @@
 # Test case Kova
 
-Panduan, arti status, dan aturan bukti: [README.md](README.md). Langkah dan hasil yang diharapkan diambil dari artboard flow di canvas *Servel v3 UI* (A1–H6), ditambah kasus khusus OS dan regresi dari rilis 3.10.x.
+Panduan, arti status, dan aturan bukti: [README.md](README.md). Langkah dan hasil yang diharapkan diambil dari artboard flow di canvas desain *Servel v3 UI* (A1–H6; nama canvas dari sebelum ganti nama ke Kova), ditambah kasus khusus OS dan regresi dari rilis 3.10.x sampai v3.15.3.
 
 Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`.
 
@@ -8,7 +8,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 
 | Putaran | Versi Kova | OS (W / L) | Engine | mise | Tanggal | Penguji |
 |---|---|---|---|---|---|---|
-| 1 | v3.14.0 | Windows 11 … / Ubuntu … | wslc … / Docker Engine … + Compose … | … | … | … |
+| 1 | v3.15.3 | Windows 11 … / Ubuntu … | wslc … / Docker Engine … + Compose … | … | … | … |
 
 ## Ringkasan
 
@@ -17,17 +17,17 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | A · Onboarding | 9 | 0 | 0 | v3.10.x, v3.12.0 |
 | B · Add project | 10 | 0 | 0 | v3.10.x, v3.15.0 |
 | C · Project gagal | 6 | 0 | 0 | v3.10.x |
-| D · Services | 7 | 0 | 0 | v3.12.0, v3.14.0 |
+| D · Services | 8 | 0 | 0 | v3.12.0, v3.14.0, v3.15.3 |
 | E · Runtimes | 8 | 0 | 0 | v3.13.0 |
 | F · Update | 6 | 0 | 0 | v3.13.0 |
 | G · Logs | 5 | 0 | 0 | v3.11.0 |
 | H · Environments | 6 | 0 | 0 | v3.10.x |
-| P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
+| P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
-| U · Tampilan & aksesibilitas | 11 | 0 | 0 | v3.14.0, v3.15.0 |
+| U · Tampilan & aksesibilitas | 11 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1 |
 | W · Khusus Windows | 4 | 0 | ➖ | v3.10.x |
-| L · Khusus Linux | 11 | ➖ | 0 | v3.12.0 |
+| L · Khusus Linux | 11 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3 |
 
 ---
 
@@ -51,7 +51,7 @@ Persiapan: lihat README → *Cara menyiapkan ulang*.
 
 | ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
 |---|---|---|---|---|---|---|
-| TC-B1 | Di Projects klik Add project; ulangi lewat Ctrl K → Add project. | Keduanya membuka alur Add project. | ⬜ | ⬜ | | |
+| TC-B1 | Di Projects klik Add project; ulangi dari empty state Projects (tanpa project). | Keduanya membuka dialog pilih folder, lalu alur Add project. | ⬜ | ⬜ | | |
 | TC-B2 | Di dialog folder klik Cancel. | Kembali ke Projects tanpa perubahan. | ⬜ | ⬜ | | |
 | TC-B3 | Pilih folder project Node (mis. Nuxt/Vite). | Modal Add project dengan skeleton selama deteksi; Save dikunci sampai deteksi selesai. | ⬜ | ⬜ | | |
 | TC-B4 | Periksa hasil deteksi, klik Save (tanpa start). Lalu tambah project lain dengan port yang sudah dipakai. | Semua field terisi. Save menyimpan tanpa menjalankan. Port bentrok → pesan jelas sebelum start. | ⬜ | ⬜ | | |
@@ -81,11 +81,12 @@ Persiapan: project yang gagal karena env, mis. Laravel tanpa `DB_*` padahal butu
 |---|---|---|---|---|---|---|
 | TC-D1 | Buka Services. | Semua service tampil (grup core/additional) dengan toggle; pemilih profil di header. | ⬜ | ⬜ | | |
 | TC-D2 | Ganti profil, lalu Start selected. | Toggle mengikuti profil; service terpilih mulai. *Artboard D2 memakai tombol "Start profile"; keputusan final ada di v3.14.0.* | ⬜ | ⬜ | | v3.14.0: tombol "Start <profil>" selama pilihan = isi profil |
-| TC-D3 | Amati saat service mulai (pertama kali: image belum ada). Ulangi dengan port service dipakai program lain. | Tiap baris punya status sendiri; image diunduh dulu. Port bentrok → banner "Port … is already in use". | ⬜ | ⬜ | | |
+| TC-D3 | Amati saat service mulai (pertama kali: image belum ada). Ulangi dengan port service dipakai program lain. | Tiap baris punya status sendiri; image diunduh dulu. Port bentrok → banner "Port … is already in use" di detail service; bila start tetap gagal, pesan menyebut port dan service-nya ("Ports 3306 (mysql) … already used by another program"), bukan "docker compose failed (exit …)". | ⬜ | ⬜ | | |
 | TC-D4 | Buka detail MySQL → Connect. Pilih format Laravel, Copy .env, lalu Copy URL. | Host, port, user, password, database tampil; potongan `.env` sesuai format; URL `mysql://root@127.0.0.1:3306/…`. | ⬜ | ⬜ | | |
 | TC-D5 | Tempel hasil Copy .env ke project. | Toast menyebut jumlah baris yang disalin; nilai bisa langsung dipakai project (lihat C4). | ⬜ | ⬜ | | |
 | TC-D6 | Dengan service berjalan, diamkan di layar Services; arahkan kursor ke angka RAM. Lalu sembunyikan jendela ke tray. | Angka RAM berubah sekitar tiap 2 detik; tooltip "measured at HH:MM:SS". Service berhenti → angka `~` dengan tooltip estimasi. | ⬜ | ⬜ | | v3.10.1 |
 | TC-D7 | Stop all. | Semua berhenti; RAM di ringkasan dan status bar menjadi 0. | ⬜ | ⬜ | | v3.10.1 |
+| TC-D8 | Engine Docker (**W:** Docker Desktop, **L:** Docker Engine). Pasang v3.15.2 atau lebih lama, start MySQL dan isi satu tabel; update ke v3.15.3+, Start lagi. Lalu `docker port servel_mysql`. Dari perangkat lain di LAN coba sambung ke port 3306. | Container dibuat ulang sekali saat start; tabel tetap ada (volume sama). `docker port` menunjukkan `127.0.0.1:3306`, bukan `0.0.0.0`; dari LAN tidak bisa tersambung. Log pull image hanya berisi baris Pulling/Pulled dan status container. | ⬜ | ⬜ | | v3.15.3 |
 
 ## E · Runtimes (canvas E1–E8)
 
@@ -119,7 +120,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 |---|---|---|---|---|---|---|
 | TC-G1 | Buka Logs dengan beberapa project dan service berjalan. | Semua sumber digabung dan diurutkan waktu; warna kolom sumber sesuai jenisnya. | ⬜ | ⬜ | | |
 | TC-G2 | Tab Projects → chip satu project. | Hanya output project itu; badge di chip = jumlah error; tombol Open project muncul. | ⬜ | ⬜ | | |
-| TC-G3 | Pilih Errors (All/Errors). | Baris biasa disembunyikan; footer menandai hasil terfilter. | ⬜ | ⬜ | | |
+| TC-G3 | Pilih Errors & warnings (All / Errors & warnings). | Baris biasa disembunyikan; footer menandai hasil terfilter. | ⬜ | ⬜ | | |
 | TC-G4 | Ketik teks di filter, klik Copy, lalu Clear. | Filter teks dan level bisa digabung; Copy hanya menyalin baris yang terlihat; Clear mengosongkan buffer sumber itu tanpa menghapus file. | ⬜ | ⬜ | | |
 | TC-G5 | Matikan Follow lalu scroll ke atas; nyalakan lagi. Export logs. | Follow off = tidak lompat ke bawah; on = ikut baris baru. Footer "Last 500 lines per source". Export menghasilkan file. | ⬜ | ⬜ | | |
 
@@ -131,7 +132,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-H2 | New environment: nama `tenant-acme`, Copy changes from = Nothing, Create environment. Coba juga Esc. | Environment dibuat dan terpilih; Esc/Cancel membatalkan. Nama tidak valid ditolak. | ⬜ | ⬜ | | |
 | TC-H3 | Di `tenant-acme` ubah satu nilai dan tambah satu variabel baru; Save & restart. | Nilai Default tampil sebagai placeholder (tanpa badge); hanya yang berbeda disimpan. Mengosongkan override = kembali ke Default. | ⬜ | ⬜ | | |
 | TC-H4 | Edit as .env, tempel beberapa baris termasuk `PORT=…` dan `export X=1`; Save. Lalu tempel blok `.env` langsung di kolom Name. | Ringkasan "N added · N replaced · N skipped"; `PORT` dilewati; Edit as rows kembali ke daftar. | ⬜ | ⬜ | | |
-| TC-H5 | Saat project berjalan dengan Default, pilih `tenant-acme`. | Banner "Restart to use tenant-acme"; proses tetap memakai Default sampai Restart. | ⬜ | ⬜ | | |
+| TC-H5 | Saat project berjalan dengan Default, pilih `tenant-acme`. | Banner "Running with Default · Restart <project> to use tenant-acme. Nothing changes until then." dengan tombol Restart; proses tetap memakai Default sampai Restart. | ⬜ | ⬜ | | |
 | TC-H6 | Klik Restart. | Kartu project, header detail, dan popup tray menampilkan `tenant-acme`; log mencatat `env (tenant-acme): …`. | ⬜ | ⬜ | | |
 
 ## S · Scripts & dev server (regresi v3.10.2, persiapan v3.11.0)
@@ -172,7 +173,7 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-T3 | Quit dari tray dengan "Stop services when Kova quits" aktif. | Service berhenti sebelum Kova keluar; data volume tetap ada. | ⬜ | ⬜ | | |
 | TC-T4 | Aktifkan "Start Kova when you sign in", logout/login. | Kova mulai sendiri (di tray bila minimize to tray aktif). | ⬜ | ⬜ | | |
 | TC-T5 | Buka Kova untuk kedua kalinya. | Hanya satu instance; jendela yang ada muncul ke depan. | ⬜ | ⬜ | | |
-| TC-T6 | Tambahkan lebih dari 5 project (idealnya 10+), jalankan 1–2 di antaranya; buka tray. | **W:** popup hanya menampilkan 5 baris project, yang berjalan/keluar di atas, lalu "Show all N projects". Klik → daftar lengkap bergulir di dalam kotak, kolom "Find a project" ikut muncul; Esc mengosongkan pencarian. Services, versi global, Open/Quit Kova tetap terlihat tanpa menggulir popup. **L:** 5 project di menu, sisanya di submenu "More projects (N)". | ⬜ | ⬜ | | v3.14.1 |
+| TC-T6 | Tambahkan lebih dari 5 project (idealnya 10+), jalankan 1–2 di antaranya; buka tray. | **W:** popup hanya menampilkan 5 baris project, yang berjalan/keluar di atas, lalu "Show all N projects". Klik → daftar lengkap bergulir di dalam kotak, kolom "Find a project" ikut muncul; Esc mengosongkan pencarian. Services, versi global, Open/Quit Kova tetap terlihat tanpa menggulir popup. **L:** 5 project di menu, sisanya di submenu "More projects (N)" (tanpa kelompok; dengan kelompok lihat TC-T9). | ⬜ | ⬜ | | v3.14.1 |
 | TC-T7 | Dengan kelompok Acme dan Shop serta 10+ project, buka popup tray. | Tiap baris: titik status, logo framework 13 px, nama, petunjuk. 5 baris: yang aktif dulu, sisanya urut kelompok lalu Ungrouped. "Show all" menampilkan judul "ACME · 4 · 1 running", …, Ungrouped terakhir; kelompok yang terlipat di Kova tetap terbuka di tray. Tanpa kelompok tidak ada judul. | ⬜ | ➖ | | v3.15.0 |
 | TC-T8 | Di Show all ketik "shop" di Find a project; Esc dua kali. NVDA: baca satu baris. | Semua project Shop tampil, judul tanpa hasil disembunyikan. Esc pertama mengosongkan, kedua menutup. NVDA membaca mis. "shop-api, running, Shop. Open localhost:3000". | ⬜ | ➖ | | v3.15.0 |
 | TC-T9 | **L:** buat 2 kelompok dan 10+ project, buka menu tray. Hapus semua kelompok, buka lagi. | 5 project teratas langsung di menu; sisanya di submenu "Acme (N)", "Shop (N)", "Ungrouped (N)". Tanpa kelompok: satu submenu "More projects (N)". | ➖ | ⬜ | | v3.15.0 |
@@ -181,13 +182,13 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 
 | ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
 |---|---|---|---|---|---|---|
-| TC-U1 | Settings → Appearance → Interface size: Compact, Default, Large. | Teks dan kontrol di semua jendela ikut berubah; pilihan tersimpan setelah restart. | ⬜ | ⬜ | | |
+| TC-U1 | Settings → General → Appearance → Interface size: Compact, Default, Large. | Teks dan kontrol di semua jendela ikut berubah; pilihan tersimpan setelah restart. | ⬜ | ⬜ | | |
 | TC-U2 | Buka semua tab Settings (General, Services, About). | Tidak ada kartu bersarang; teks tidak menempel ke tepi kartu. | ⬜ | ⬜ | | v3.10.2–3.10.3 |
 | TC-U3 | Ctrl K, ketik nama project / perintah. | Palet terbuka, hasil bisa dipilih dengan keyboard, Esc menutup. | ⬜ | ⬜ | | |
 | TC-U4 | Navigasi seluruh aplikasi hanya dengan keyboard (Tab, Shift+Tab, Enter, Space, Esc). | Fokus selalu terlihat; semua tombol dan toggle bisa dijangkau; modal mengunci fokus. | ⬜ | ⬜ | | |
 | TC-U5 | **W:** jalankan NVDA, buka Projects, Services, Logs. | Nama tombol, status project, dan badge error dibacakan; perubahan status diumumkan. | ⬜ | ➖ | | v3.14.0 |
 | TC-U6 | Ctrl K, ketik nama kelompok (mis. "shop"). | Project di kelompok itu tampil dengan logo 13 px dan label kanan "Shop"; Start group Shop / Stop group Shop muncul sesuai status. New group membuka Projects dengan kolom nama terfokus. Di Projects ada Hide/Show project details. | ⬜ | ⬜ | | v3.15.0 |
-| TC-U7 | Jalankan 1 service dan 1 project; amati status bar di Projects dan Settings selama 10 detik. | "RAM … · Kova … MB" berubah kira-kira tiap 2 detik tanpa teks bergeser; tooltip "Services … · Projects … · Kova … — measured at HH:MM:SS". Angka Kova tetap ada tanpa service. | ⬜ | ⬜ | | v3.15.0 |
+| TC-U7 | Jalankan 1 service dan 1 project; amati status bar di Projects dan Settings selama 10 detik. | "RAM <total> (services … + projects … + Kova …)" berubah kira-kira tiap 2 detik tanpa teks bergeser; tooltip "Services … · Projects … · Kova … — measured at HH:MM:SS". Angka Kova tetap ada tanpa service. | ⬜ | ⬜ | | v3.15.0 |
 | TC-U8 | Sembunyikan jendela ke tray 30 detik, lalu buka lagi (pantau `docker stats`/`wslc stats` dan CPU Kova). | Saat tersembunyi tidak ada pengukuran; begitu jendela terlihat angka diperbarui lagi dalam ±2 detik. | ⬜ | ⬜ | | v3.15.0 |
 | TC-U9 | **W:** NVDA aktif di Projects selama 30 detik tanpa interaksi. | NVDA tidak membacakan angka RAM berulang; perubahan status engine tetap diumumkan. | ⬜ | ➖ | | v3.15.0 |
 | TC-U10 | Buka Projects dengan panel detail terbuka di jendela ±1100 px, project bernama panjang (≥ 24 karakter). | Tidak ada scroll horizontal; New group tampil sebagai ikon; nama project satu baris dengan elipsis (tooltip nama lengkap); port tetap terlihat di panel detail. Tidak ada kotak putih di pojok scrollbar. | ⬜ | ⬜ | | v3.15.1 |
@@ -213,7 +214,7 @@ Catat di *Catatan putaran*: distro, desktop environment, `docker version`, `dock
 | TC-L3 | `sudo systemctl stop docker`, lalu buka Kova / Check again. | Instruksi `sudo systemctl start docker` dengan Copy; setelah daemon dinyalakan, Check again → siap. | ➖ | ⬜ | | |
 | TC-L4 | User **tanpa** grup `docker` (`sudo gpasswd -d $USER docker`, login ulang). Buka Kova. | Pesan jelas berisi instruksi `sudo usermod -aG docker $USER` dan perlu login ulang. Status engine "No access" di Settings. | ➖ | ⬜ | | v3.12.0 |
 | TC-L5 | Tanpa plugin Compose v2 (`docker compose version` gagal). Start service. | Pesan jelas bahwa plugin Compose v2 dibutuhkan dan cara memasangnya (`sudo apt install docker-compose-plugin`). Start service memberi pesan yang sama. | ➖ | ⬜ | | v3.12.0 |
-| TC-L6 | Settings → Command line → Install, lalu buka terminal baru: `kova status`. | `kova` tersalin ke `~/.local/bin/kova` dan berjalan (bila `~/.local/bin` ada di PATH). | ➖ | ⬜ | | |
+| TC-L6 | Settings → General → Command line → kova command → Install, lalu buka terminal baru: `kova status`. | `kova` tersalin ke `~/.local/bin/kova` dan berjalan. Bila `~/.local/bin` belum ada di PATH, Settings menampilkan baris `export PATH=…` untuk profil shell. | ➖ | ⬜ | | |
 | TC-L7 | Restore database seperti TC-W4. | Sama dengan TC-W4. | ➖ | ⬜ | | |
 | TC-L8 | Jalankan `Kova_<versi>_amd64.AppImage` di distro dengan glibc 2.35 (mis. Ubuntu 22.04) dan di distro terbaru. | Aplikasi terbuka di keduanya, tanpa `GLIBC_x.y not found`. Bila gagal, kirim output `ldd --version`. | ➖ | ⬜ | | v3.15.2 |
 | TC-L9 | (a) Dengan tailscaled mendengarkan 3306/6379/5432/5672 di IP Tailscale, Start profil berisi MySQL, Redis, PostgreSQL, RabbitMQ. (b) Dengan MySQL bawaan Linux di 127.0.0.1:3306, Start MySQL. | (a) Keempat service running; `ss -ltnp` menunjukkan docker-proxy di 127.0.0.1. (b) Peringatan port dipakai program lain sebelum start; bila dipaksa, pesan menyebut port dan service-nya, bukan "exit status". Log pull tanpa ratusan baris "Downloading". | ➖ | ⬜ | | v3.15.3 |

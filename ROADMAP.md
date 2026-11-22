@@ -1,6 +1,6 @@
-# Servel Roadmap
+# Kova Roadmap
 
-Status per versi. Item yang sudah rilis tetap dicatat supaya keputusan desainnya bisa ditelusuri.
+Kova (dulu **Servel**, berganti nama di v3.0.0). Status per versi. Item yang sudah rilis tetap dicatat supaya keputusan desainnya bisa ditelusuri; item yang sudah selesai atau usang di bagian lama diringkas dan diberi rujukan versi. Pekerjaan yang masih terbuka ada di [Status per 22 November 2026](#status-per-22-november-2026) di akhir file.
 
 ## v1.6.0 — WSL containers (Windows)
 
@@ -27,22 +27,17 @@ Tujuan: di Windows, Servel menjalankan service tanpa Docker Desktop dan tanpa di
   - Onboarding, banner Dashboard, dan Settings → Container engine menjadi engine-neutral, termasuk tombol pindah ke WSL containers satu klik.
   - Tema "soft": netral kebiruan, border translucent, aksen pastel, skala radius, Inter untuk UI dan mono hanya untuk data.
 
-### Perlu verifikasi di mesin Windows
+### Verifikasi di Windows
 
-Hal-hal berikut tidak bisa diuji tanpa `wslc` sungguhan. Parser sudah dibuat toleran terhadap beberapa bentuk output.
+- Terverifikasi di WSL 3.0.5: bentuk NDJSON `wslc container list --all --format json` dan `wslc stats --format json` (fixture di `src-tauri/src/runtime/fixtures/`); `wslc stop -t 30` (21 November 2026, v3.8.0).
+- CLI di PowerShell: dicatat lulus pada uji v2.5–v2.7 dan uji rc.1/rc.2 (alias `servel`, `kova.exe`).
+- Masih terbuka (prioritas rendah, lihat status terbaru): `wslc remove -f` saat definisi service berubah, dan apakah `.wslconfig` memengaruhi VM WSLC.
 
-- ~~Bentuk JSON `wslc container list --all --format json`~~ — **terverifikasi di WSL 3.0.5**: NDJSON bergaya Docker (`Names` string, `State` teks, exit code hanya di `Status`). Fixture: `src-tauri/src/runtime/fixtures/`.
-- ~~Bentuk JSON `wslc stats --format json`~~ — **terverifikasi di WSL 3.0.5**: NDJSON bergaya `docker stats` (`Name`, `MemUsage`); output kosong bila tidak ada container running; `--no-stream` tidak dikenali (tidak dipakai).
-- ~~`wslc stop -t 30`~~ — **terverifikasi di Windows (21 November 2026, v3.8.0)**: flag diterima, service berhenti tanpa error.
-- `wslc remove -f` (hanya dipakai saat definisi service berubah: container dibuat ulang, volume tetap).
-- Apakah `.wslconfig` memengaruhi VM WSLC.
-- CLI `servel`: belum pernah dijalankan di PowerShell sungguhan (lingkungan pengembangan tanpa pwsh). Algoritma hash sudah dicocokkan dengan Rust; sintaks skrip perlu diuji di Windows.
+### Batasan yang diketahui (masih berlaku per v3.15.3)
 
-### Batasan yang diketahui
-
-- Tidak ada network antar-container (`servel_default`). Service diakses dari host lewat `127.0.0.1`; dev lokal Servel tidak membutuhkan komunikasi antar-container.
-- Tidak ada restart policy, jadi service hidup kembali saat Servel auto-start, bukan saat Windows boot.
-- Data Docker Desktop tidak dimigrasikan otomatis.
+- WSLC: tidak ada network antar-container (Docker memakai `servel_default`). Service diakses dari host lewat `127.0.0.1`. Sejak v3.15.3 Docker juga mem-publish port di `127.0.0.1` saja.
+- WSLC: tidak ada restart policy, jadi service hidup kembali saat Kova auto-start, bukan saat Windows boot (Docker memakai `restart: unless-stopped`).
+- Data Docker Desktop tidak dimigrasikan otomatis (Import from Docker dihapus di v3.0.0-rc.1).
 
 ## v1.7.0 — mise sebagai version manager
 
@@ -84,11 +79,9 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
 - Onboarding: WSL containers + mise terdeteksi (2/2 ready).
 - Container buatan `servel.ps1` diadopsi apa adanya dan di-start lewat `wslc start`; service baru dibuat dengan `volume create` + `run` (pull image berjalan).
 
-### Perlu verifikasi di Windows
+### Verifikasi di Windows
 
-- `mise use --path <file>` benar-benar memperbarui file yang ditunjuk (bukan membuat baru) di mise 2026.11.x.
-- Format pesan error "not trusted" (pola yang dikenali: `Config files in <path> are not trusted`).
-- `mise install` dari Servel untuk versi yang belum terpasang.
+- `mise use --path`, pesan "not trusted", dan `mise install` dari aplikasi kini dicakup test case TC-E1, TC-E2, TC-E5 (`docs/testing/test-cases.md`); belum dijalankan di putaran 1.
 
 ## v1.8.0 — data & kesehatan service
 
@@ -106,10 +99,10 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
   - PostgreSQL: `pg_dump -C` per database (bukan `pg_dumpall`, yang memuat `CREATE ROLE postgres`).
   - Hasil dump di-restore ke WSLC; file dump sementara dihapus.
 
-### Perlu verifikasi di Windows
+### Verifikasi
 
-- Restore `.sql` nyata ke MySQL dan PostgreSQL di WSLC.
-- Import from Docker (butuh mesin yang masih punya Docker Desktop + data Servel).
+- Restore `.sql` nyata: dicakup TC-W4 / TC-L7, belum dijalankan.
+- Import from Docker: usang, fitur dihapus di v3.0.0-rc.1 (E1).
 
 ## v1.9.0 — project sebagai pusat
 
@@ -118,9 +111,7 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
 - `Project.profileId`: memilih project di Dashboard juga menerapkan profil service-nya. Hanya selection yang berubah; container yang jalan tidak di-stop.
 - CLI `servel use <tool> <versi> [--global]` (target sama dengan `plan_use`), `servel projects` (read-only).
 
-### Ditunda
-
-- Menautkan Sites ke project (dikerjakan di v2.2 dengan melebur keduanya).
+- Menautkan Sites ke project: selesai di v2.2.0 (keduanya dilebur menjadi Projects).
 
 ## v2.0.0 — default baru
 
