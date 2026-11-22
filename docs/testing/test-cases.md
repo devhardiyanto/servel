@@ -1,6 +1,6 @@
 # Test case Kova
 
-Panduan, arti status, dan aturan bukti: [README.md](README.md). Langkah dan hasil yang diharapkan diambil dari artboard flow di canvas desain *Servel v3 UI* (A1–H6; nama canvas dari sebelum ganti nama ke Kova), ditambah kasus khusus OS dan regresi dari rilis 3.10.x sampai v3.15.3.
+Panduan, arti status, dan aturan bukti: [README.md](README.md). Langkah dan hasil yang diharapkan diambil dari artboard flow di canvas desain *Servel v3 UI* (A1–H6; nama canvas dari sebelum ganti nama ke Kova), ditambah kasus khusus OS dan regresi dari rilis 3.10.x sampai v3.15.4.
 
 Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`.
 
@@ -18,7 +18,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | B · Add project | 10 | 0 | 0 | v3.10.x, v3.15.0 |
 | C · Project gagal | 6 | 0 | 0 | v3.10.x |
 | D · Services | 8 | 0 | 0 | v3.12.0, v3.14.0, v3.15.3 |
-| E · Runtimes | 8 | 0 | 0 | v3.13.0 |
+| E · Runtimes | 10 | 0 | 0 | v3.13.0, v3.15.4 |
 | F · Update | 6 | 0 | 0 | v3.13.0 |
 | G · Logs | 5 | 0 | 0 | v3.11.0 |
 | H · Environments | 6 | 0 | 0 | v3.10.x |
@@ -55,7 +55,7 @@ Persiapan: lihat README → *Cara menyiapkan ulang*.
 | TC-B2 | Di dialog folder klik Cancel. | Kembali ke Projects tanpa perubahan. | ⬜ | ⬜ | | |
 | TC-B3 | Pilih folder project Node (mis. Nuxt/Vite). | Modal Add project dengan skeleton selama deteksi; Save dikunci sampai deteksi selesai. | ⬜ | ⬜ | | |
 | TC-B4 | Periksa hasil deteksi, klik Save (tanpa start). Lalu tambah project lain dengan port yang sudah dipakai. | Semua field terisi. Save menyimpan tanpa menjalankan. Port bentrok → pesan jelas sebelum start. | ⬜ | ⬜ | | |
-| TC-B5 | Add project dengan pilihan Services = sebuah profil dan *Start with project* dicentang, lalu Save & start. | Modal tertutup, project baru terpilih, output tampil di panel kanan; service di profil itu ikut menyala. | ⬜ | ⬜ | | |
+| TC-B5 | Add project dengan pilihan Services = sebuah profil dan *Start services with project* dinyalakan, lalu Save & start. | Modal tertutup, project baru terpilih, output tampil di panel kanan; service di profil itu ikut menyala. | ⬜ | ⬜ | | |
 | TC-B6 | Tunggu sampai Running. | Port tampil di kartu dan panel detail; tombol utama Open localhost:port. | ⬜ | ⬜ | | |
 | TC-B7 | Klik Open. | Browser default membuka `http://localhost:<port>`; tidak ada domain `.test` atau HTTPS lokal. | ⬜ | ⬜ | | |
 | TC-B8 | Add project untuk folder backend Node: `shop-api` (Hono), `acme-api` (Express), `billing-worker` (Fastify), `acme-admin` (NestJS), `docs-api` (AdonisJS, ada `ace`), masing-masing dengan script `dev`. | Terdeteksi Hono / Express / Fastify / NestJS / AdonisJS dengan logo 28 px; perintah `npm run dev` (pnpm/yarn/bun mengikuti lockfile); alasan mis. "hono in package.json dependencies · src/index.ts · Node … from mise.toml". | ⬜ | ⬜ | | v3.15.0 |
@@ -100,6 +100,8 @@ Persiapan: project yang gagal karena env, mis. Laravel tanpa `DB_*` padahal butu
 | TC-E6 | Nyalakan extension `intl`. | Toast berhasil, menawarkan Restart project. | ⬜ | ⬜ | | |
 | TC-E7 | Nyalakan `xdebug`. | Status *checking…* selama backup `php.ini` → tulis → `php -m`; toggle lain tetap bisa dipakai. | ⬜ | ⬜ | | |
 | TC-E8 | Nyalakan extension yang tidak cocok dengan versi PHP (bila ada). | Toggle kembali off; `php.ini` dikembalikan; banner "<ext> was not turned on. Nothing changed." berisi penyebab dan cara memperbaikinya. | ⬜ | ⬜ | | v3.13.0 |
+| TC-E9 | Runtimes → PHP → Install 8.4 (atau Node 22 bila PHP lama). Saat banner "Installing …" tampil, buka Logs, tunggu beberapa detik, kembali ke Runtimes. Ulangi, tetapi tetap di Logs sampai install selesai. | Kembali saat install berjalan: banner, baris progres mise, dan Cancel masih tampil; field Install nonaktif. Selesai saat di Logs: toast tetap muncul, dan saat kembali versi baru tampil dengan chip `new`. | ⬜ | ⬜ | | v3.15.4 |
+| TC-E10 | (a) Tool tanpa versi global (`mise ls --current` tidak menampilkannya), Install satu versi. (b) Tool yang sudah punya versi global, Install versi lain. | (a) Versi baru bertanda Global; toast "… and set it as the global version"; `php -v` (atau tool itu) di terminal baru langsung jalan; tray ikut menampilkan versi itu. (b) Versi global lama tidak berubah; toast hanya "Installed …". | ⬜ | ⬜ | | v3.15.4 |
 
 ## F · Update aplikasi (canvas F1–F5)
 
@@ -121,7 +123,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-G1 | Buka Logs dengan beberapa project dan service berjalan. | Semua sumber digabung dan diurutkan waktu; warna kolom sumber sesuai jenisnya. | ⬜ | ⬜ | | |
 | TC-G2 | Tab Projects → chip satu project. | Hanya output project itu; badge di chip = jumlah error; tombol Open project muncul. | ⬜ | ⬜ | | |
 | TC-G3 | Pilih Errors & warnings (All / Errors & warnings). | Baris biasa disembunyikan; footer menandai hasil terfilter. | ⬜ | ⬜ | | |
-| TC-G4 | Ketik teks di filter, klik Copy, lalu Clear. | Filter teks dan level bisa digabung; Copy hanya menyalin baris yang terlihat; Clear mengosongkan buffer sumber itu tanpa menghapus file. | ⬜ | ⬜ | | |
+| TC-G4 | Ketik teks di filter, klik Copy, lalu Clear. | Filter teks dan level bisa digabung; Copy hanya menyalin baris yang terlihat; Clear mengosongkan seluruh daftar log (semua sumber, bukan hanya yang terfilter). Project dan service tetap berjalan. | ⬜ | ⬜ | | |
 | TC-G5 | Matikan Follow lalu scroll ke atas; nyalakan lagi. Export logs. | Follow off = tidak lompat ke bawah; on = ikut baris baru. Footer "Last 500 lines per source". Export menghasilkan file. | ⬜ | ⬜ | | |
 
 ## H · Environments (canvas H1–H6)
@@ -198,7 +200,7 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 
 | ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
 |---|---|---|---|---|---|---|
-| TC-W1 | Settings → Container engine: Auto, lalu WSL containers, lalu Docker (bila Docker Desktop terpasang). | Auto memilih WSL containers; status Running dengan versi; catatan bahwa image/volume WSL containers terpisah dari Docker Desktop. | ⬜ | ➖ | | |
+| TC-W1 | Settings → General → Container engine: Auto, lalu WSL containers, lalu Docker (bila Docker Desktop terpasang). | Auto memilih WSL containers; status Running dengan versi; catatan bahwa image/volume WSL containers terpisah dari Docker Desktop. | ⬜ | ➖ | | |
 | TC-W2 | Buka terminal baru, jalankan `kova status` dan `kova help`. | Perintah ditemukan di PATH dan menampilkan status service. | ⬜ | ➖ | | |
 | TC-W3 | Jalankan Kova sebagai Administrator. | Peringatan Administrator di onboarding. | ⬜ | ➖ | | |
 | TC-W4 | Restore database: pilih file `.sql`, MySQL, Restore. | Service dinyalakan bila perlu, menunggu koneksi, dump dijalankan; hasil tampil di kartu. | ⬜ | ➖ | | Ulangi di L sebagai TC-L7 |

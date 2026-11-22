@@ -438,7 +438,7 @@ onMounted(async () => {
 
             <SettingRow
               label="Projects"
-              desc="Each project has its own &quot;Start this project when Kova opens&quot; option in Projects → Edit"
+              desc="Each project has its own &quot;Start this project when Kova opens&quot; option in its ⋯ menu → Project settings"
             >
               <UiButton variant="quiet" @click="setView('projects')">Open Projects</UiButton>
             </SettingRow>

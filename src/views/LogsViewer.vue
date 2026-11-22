@@ -277,7 +277,7 @@ async function exportLogs(): Promise<void> {
   let saved = false
   try {
     const filePath = await save({
-      defaultPath: 'servel-logs.txt',
+      defaultPath: 'kova-logs.txt',
       filters: [{ name: 'Logs', extensions: ['txt', 'log'] }],
     })
     if (filePath) {
