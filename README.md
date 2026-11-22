@@ -47,7 +47,7 @@ More in [Screenshots](#screenshots).
 - Windows: one click fixes HTTPS from PHP (curl error 60).
 
 **App**
-- One window with five screens: **Projects**, **Services**, **Runtimes**, **Logs**, **Settings**. The status bar shows the container engine, running services, live memory use (services, dev servers and Kova itself, for example `RAM 1.3 GB · Kova 186 MB`) and the version.
+- One window with five screens: **Projects**, **Services**, **Runtimes**, **Logs**, **Settings**. The status bar shows the container engine, running services, live memory use as a total with its parts, for example `RAM 849 MB (services 663 MB + Kova 186 MB)` (services, running dev servers and Kova itself; Kova and dev servers count private memory, the same figure as the Memory column in Windows Task Manager), and the version.
 - **Command palette** (`Ctrl K`, `⌘K` on macOS): jump to a screen, start or stop a service, start, stop, restart or open a project, start or stop a whole group, all from the keyboard. Typing a group name lists the projects in it.
 - In-app updates: a banner on every screen, download in the background, restart when you choose.
 - System tray popup with your projects (with their logos, sorted by group; **Show all** lists them under group headings), services and global PHP/Node versions; remembered selection, optional start when you sign in (in the tray), and a `kova` terminal command on Windows, macOS and Linux.
@@ -72,7 +72,7 @@ More in [Screenshots](#screenshots).
 
 ## Install
 
-Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `3.15.0`).
+Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `3.15.1`).
 
 > Kova ships **unsigned** for Windows and macOS. Workarounds are documented below; see [Code signing](#code-signing) for the plan.
 

@@ -27,7 +27,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
 | U · Tampilan & aksesibilitas | 11 | 0 | 0 | v3.14.0, v3.15.0 |
 | W · Khusus Windows | 4 | 0 | ➖ | v3.10.x |
-| L · Khusus Linux | 7 | ➖ | 0 | v3.12.0 |
+| L · Khusus Linux | 8 | ➖ | 0 | v3.12.0 |
 
 ---
 
@@ -215,3 +215,4 @@ Catat di *Catatan putaran*: distro, desktop environment, `docker version`, `dock
 | TC-L5 | Tanpa plugin Compose v2 (`docker compose version` gagal). Start service. | Pesan jelas bahwa plugin Compose v2 dibutuhkan dan cara memasangnya (`sudo apt install docker-compose-plugin`). Start service memberi pesan yang sama. | ➖ | ⬜ | | v3.12.0 |
 | TC-L6 | Settings → Command line → Install, lalu buka terminal baru: `kova status`. | `kova` tersalin ke `~/.local/bin/kova` dan berjalan (bila `~/.local/bin` ada di PATH). | ➖ | ⬜ | | |
 | TC-L7 | Restore database seperti TC-W4. | Sama dengan TC-W4. | ➖ | ⬜ | | |
+| TC-L8 | Jalankan `Kova_<versi>_amd64.AppImage` di distro dengan glibc 2.35 (mis. Ubuntu 22.04) dan di distro terbaru. | Aplikasi terbuka di keduanya, tanpa `GLIBC_x.y not found`. Bila gagal, kirim output `ldd --version`. | ➖ | ⬜ | | v3.15.2 |
