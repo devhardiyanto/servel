@@ -1,6 +1,8 @@
 <script setup lang="ts">
 // Projects: daftar di kiri, detail project terpilih di kanan.
 import { computed, inject, ref, watch } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import { appConfigDir, join } from '@tauri-apps/api/path'
 import ProjectsPanel from '@/components/ProjectsPanel.vue'
 import ProjectDetail from '@/components/ProjectDetail.vue'
 import ProjectDialogs from '@/components/ProjectDialogs.vue'
@@ -21,6 +23,22 @@ import { PROJECTS_PANEL, usePanelWidth } from '@/composables/usePanelWidth'
 const { config, loaded, loadError, load } = useConfig()
 
 const retrying = ref(false)
+/** Where config.json lives, shown with the read error so it can be fixed by hand. */
+const configDir = ref('')
+const configFile = ref('')
+watch(loadError, async (e) => {
+  if (!e || configFile.value) return
+  try {
+    configDir.value = await appConfigDir()
+    configFile.value = await join(configDir.value, 'config.json')
+  } catch {
+    configFile.value = ''
+  }
+})
+async function openConfigDir(): Promise<void> {
+  if (configDir.value) await invoke('project_open_in', { target: 'folder', path: configDir.value }).catch(() => {})
+}
+
 async function retry(): Promise<void> {
   retrying.value = true
   try {
@@ -96,10 +114,18 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
 
 <template>
   <div v-if="loadError" class="pv-state">
-    <UiBanner tone="err" title="Kova could not read its settings">
-      {{ loadError }}
-      <template #actions><UiButton :loading="retrying" @click="retry">Try again</UiButton></template>
+    <UiBanner tone="err" title="Couldn't load your projects">
+      {{ loadError }} Kova did not change the file.
+      <code v-if="configFile" class="pv-config-path">{{ configFile }}</code>
+      <template #actions>
+        <UiButton v-if="configDir" variant="quiet" @click="openConfigDir">Open folder</UiButton>
+        <UiButton :loading="retrying" @click="retry">Try again</UiButton>
+      </template>
     </UiBanner>
+    <div class="pv-unavailable">
+      <h2>Projects are unavailable</h2>
+      <p>Services and runtimes still work.</p>
+    </div>
   </div>
   <div v-else-if="!loaded" class="pv-state" aria-busy="true" aria-label="Loading projects">
     <div v-for="n in 3" :key="n" class="pv-skel">
@@ -174,6 +200,10 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
 .pv-search :deep(input) { padding-left: 32px; }
 .pv-sp { flex: 1; }
 
+.pv-config-path { display: block; margin-top: var(--space-2); font: 400 var(--text-xs) var(--font-mono); color: var(--muted); word-break: break-all; }
+.pv-unavailable { opacity: .55; text-align: center; padding: var(--space-8) 0; }
+.pv-unavailable h2 { margin: 0 0 var(--space-1); font-size: var(--text-md); font-weight: 600; color: var(--text); }
+.pv-unavailable p { margin: 0; font-size: var(--text-sm); color: var(--muted); }
 .pv-state { padding: var(--space-6) var(--space-8); display: flex; flex-direction: column; gap: var(--space-3); max-width: 720px; }
 .pv-skel {
   display: flex;

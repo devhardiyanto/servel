@@ -195,6 +195,9 @@ pub fn autostart(app: &AppHandle) {
         // Bersihkan sisa sesi yang mati paksa dulu, supaya port-nya bebas.
         process::cleanup_leftovers(&app).await;
         let Ok(cfg) = load_config(&app) else { return };
+        if !cfg.auto_start_projects {
+            return;
+        }
         for project in cfg.projects.iter().filter(|p| p.auto_start) {
             start_profile_services(&app, project);
             if let Err(e) = process::start(&app, project).await {
