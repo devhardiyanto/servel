@@ -306,8 +306,16 @@ fn map_error(stderr: &str, stdout: &str) -> String {
         .or_else(|| lines.iter().rev().find(|l| !l.contains("WARN") && !l.contains("ERROR")))
         .copied()
         .unwrap_or("mise failed");
-    msg.trim_start_matches("mise ERROR").trim().to_string()
+    let msg = msg.trim_start_matches("mise ERROR").trim().to_string();
+    if cfg!(target_os = "linux") && (msg.contains("Failed to configure PHP") || msg.contains("Failed to build PHP")) {
+        return format!("{}. {}", msg, PHP_LINUX_DEPS_HINT);
+    }
+    msg
 }
+
+/// Di Linux mise meng-compile PHP dari source; gagal configure hampir selalu
+/// karena paket build belum terpasang.
+pub const PHP_LINUX_DEPS_HINT: &str = "On Linux, mise builds PHP from source and needs build packages first. Debian/Ubuntu: sudo apt install build-essential autoconf bison re2c pkg-config libxml2-dev libsqlite3-dev libssl-dev libcurl4-openssl-dev libonig-dev libzip-dev libreadline-dev libpng-dev libjpeg-dev libfreetype-dev libicu-dev libgd-dev. Fedora: sudo dnf install gcc make autoconf bison re2c pkgconf libxml2-devel sqlite-devel openssl-devel libcurl-devel oniguruma-devel libzip-devel readline-devel libpng-devel libjpeg-turbo-devel freetype-devel libicu-devel gd-devel. Then install again.";
 
 /// Level baris output mise untuk Logs: `mise ERROR …` dan `✗` adalah
 /// error, `mise WARN …` peringatan. Progres (yang juga ditulis ke stderr) tidak.

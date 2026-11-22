@@ -125,8 +125,10 @@ pub fn union_with_running(requested: &[String], statuses: &[ServiceStatus]) -> V
 /// Bind ke `127.0.0.1` — portable lintas-OS (std::net), tak perlu parse `netstat`.
 /// Cukup untuk Docker (port ter-expose di loopback) maupun WSLC (Kova bind
 /// eksplisit ke `127.0.0.1`, dan WSLC mem-publish di loopback Windows).
+/// Docker mem-publish di 0.0.0.0, jadi program yang mendengar di alamat lain
+/// (mis. IP LAN) juga bentrok: dicek di kedua alamat.
 pub fn probe_host_port(port: u16) -> bool {
-    std::net::TcpListener::bind(("127.0.0.1", port)).is_err()
+    std::net::TcpListener::bind(("127.0.0.1", port)).is_err() || std::net::TcpListener::bind(("0.0.0.0", port)).is_err()
 }
 
 

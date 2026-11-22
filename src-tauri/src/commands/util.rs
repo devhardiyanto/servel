@@ -328,9 +328,52 @@ pub fn src_from_line(line: &str) -> String {
     "KOVA".to_string()
 }
 
+/// Port yang gagal di-bind Docker ("failed to bind host port 0.0.0.0:3306/tcp:
+/// address already in use"), beserta service-nya bila ada di baris yang sama.
+pub fn bind_conflicts(stderr_acc: &str) -> Vec<(String, Option<String>)> {
+    let mut out: Vec<(String, Option<String>)> = Vec::new();
+    for line in stderr_acc.lines() {
+        let Some(idx) = line.find("failed to bind host port ") else { continue };
+        let after = &line[idx + "failed to bind host port ".len()..];
+        let addr = after.split('/').next().unwrap_or("");
+        let port: String = addr.rsplit(':').next().unwrap_or("").chars().take_while(|c| c.is_ascii_digit()).collect();
+        if port.is_empty() || out.iter().any(|(p, _)| *p == port) {
+            continue;
+        }
+        let svc = SERVICE_IDS.iter().find(|id| line.contains(&format!("servel_{}", id))).map(|s| s.to_string());
+        out.push((port, svc));
+    }
+    out
+}
+
+/// Baris progres per layer image ("49ec2dab01d9 Downloading 93.32MB"). Ratusan
+/// baris per image dan tidak berguna di log; ringkasan "Image … Pulling/Pulled"
+/// tetap tampil.
+pub fn is_layer_progress(line: &str) -> bool {
+    let t = line.trim_start();
+    let id: String = t.chars().take_while(|c| c.is_ascii_hexdigit()).collect();
+    id.len() == 12 && t[12..].starts_with(' ')
+}
+
 /// Parse accumulated stderr dari docker compose untuk pesan error friendly.
 pub fn parse_docker_error(stderr_acc: &str) -> Option<String> {
     let lower = stderr_acc.to_lowercase();
+    let binds = bind_conflicts(stderr_acc);
+    if !binds.is_empty() {
+        let list = binds
+            .iter()
+            .map(|(p, s)| match s {
+                Some(s) => format!("{} ({})", p, s),
+                None => p.clone(),
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let (word, verb) = if binds.len() == 1 { ("Port", "is") } else { ("Ports", "are") };
+        return Some(format!(
+            "{} {} {} already used by another program on this computer, for example a database installed outside Docker. Stop that program, then press Retry. Services in the same start were not started either.",
+            word, list, verb
+        ));
+    }
     if lower.contains("port is already allocated") {
         if let Some(idx) = stderr_acc.find("Bind for 0.0.0.0:") {
             let after = &stderr_acc[idx + "Bind for 0.0.0.0:".len()..];
@@ -370,6 +413,9 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
     let stdout_task = tokio::spawn(async move {
         let mut reader = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = reader.next_line().await {
+            if is_layer_progress(&line) {
+                continue;
+            }
             let source = src_from_line(&line);
             let _ = app_out.emit(
                 "cmd-output",
@@ -385,6 +431,9 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
         while let Ok(Some(line)) = reader.next_line().await {
             if let Ok(mut buf) = stderr_buf_clone.lock() {
                 buf.push(line.clone());
+            }
+            if is_layer_progress(&line) {
+                continue;
             }
             let source = src_from_line(&line);
             // docker compose menulis progress (Pulling, Created, Started) ke
@@ -412,7 +461,8 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
         // Compose tidak ada / socket ditolak → pesan dengan langkah perbaikan.
         let msg = crate::runtime::docker::friendly_error(&acc)
             .or_else(|| parse_docker_error(&acc))
-            .unwrap_or_else(|| format!("docker compose failed (exit {})", status));
+            // `ExitStatus` sudah menulis "exit status: 1".
+            .unwrap_or_else(|| format!("docker compose failed ({})", status));
         let _ = app.emit(
             "cmd-output",
             serde_json::json!({ "line": msg, "stream": "stderr", "source": "KOVA" }),
@@ -426,6 +476,18 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn docker_bind_conflicts_and_layer_progress() {
+        let acc = " Container servel_mysql Error response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint servel_mysql (461f): failed to bind host port 0.0.0.0:3306/tcp: address already in use \n Container servel_postgres interrupted by the failure of Container servel_mysql \nError response from daemon: failed to set up container networking: driver failed programming external connectivity on endpoint servel_redis (6eb8): failed to bind host port 0.0.0.0:6379/tcp: address already in use";
+        assert_eq!(bind_conflicts(acc), vec![("3306".to_string(), Some("mysql".to_string())), ("6379".to_string(), Some("redis".to_string()))]);
+        let msg = parse_docker_error(acc).unwrap();
+        assert!(msg.starts_with("Ports 3306 (mysql), 6379 (redis) are already used"), "{msg}");
+        assert!(is_layer_progress(" 49ec2dab01d9 Downloading 93.32MB"));
+        assert!(is_layer_progress("576cb8ef4643 Pull complete 0B"));
+        assert!(!is_layer_progress(" Image mysql:8.0 Pulled "));
+        assert!(!is_layer_progress(" Container servel_mysql Created"));
+    }
 
     #[test]
     fn test_extract_semver_plain() {
