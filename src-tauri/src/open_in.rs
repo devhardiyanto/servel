@@ -75,6 +75,9 @@ fn not_found_message(target: Target) -> String {
 fn spawn(a: &Attempt, dir: &Path) -> std::io::Result<()> {
     let mut cmd = Command::new(a.program);
     cmd.args(&a.args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    // Terminal/editor yang dibuka dari AppImage tidak boleh mewarisi library-nya.
+    #[cfg(not(target_os = "windows"))]
+    crate::commands::util::apply_host_env_std(&mut cmd);
     if a.in_dir {
         cmd.current_dir(dir);
     }

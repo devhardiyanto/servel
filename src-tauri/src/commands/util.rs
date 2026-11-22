@@ -27,10 +27,69 @@ pub fn silent_command(program: &str) -> Command {
     // dll.) tak ketemu. Inject PATH hasil resolusi login-shell + dir umum.
     #[cfg(not(target_os = "windows"))]
     {
+        apply_host_env(&mut cmd);
         cmd.env("PATH", resolved_path().as_str());
     }
 
     cmd
+}
+
+/// Perubahan env agar program yang dijalankan Kova melihat lingkungan sistem,
+/// bukan lingkungan AppImage. AppRun mengarahkan `LD_LIBRARY_PATH`, `PATH`,
+/// `XDG_DATA_DIRS`, variabel GTK/GIO, dan lain-lain ke `$APPDIR` agar Kova
+/// memakai library bawaannya; diwariskan ke mise, `configure`, compiler, atau
+/// dev server, library itu tidak cocok dengan sistem (mis. `./configure` PHP
+/// gagal walau sama persis berhasil dari terminal). Entri di `$APPDIR`
+/// dibuang; variabel yang tinggal kosong dihapus. Di luar AppImage: kosong.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
+pub fn host_env_changes(vars: &[(String, String)]) -> Vec<(String, Option<String>)> {
+    let Some(appdir) = vars.iter().find(|(k, _)| k == "APPDIR").map(|(_, v)| v.trim_end_matches('/').to_string()) else {
+        return Vec::new();
+    };
+    if appdir.is_empty() {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for (k, v) in vars {
+        // GDK_BACKEND=x11 dan GTK_THEME kosong dipasang hook GTK AppImage untuk
+        // WebKit Kova; terminal/editor yang dibuka dari Kova memakai default-nya.
+        let gtk_hook = (k == "GDK_BACKEND" && v == "x11") || (k == "GTK_THEME" && v.is_empty());
+        if matches!(k.as_str(), "APPDIR" | "APPIMAGE" | "ARGV0" | "OWD") || gtk_hook {
+            out.push((k.clone(), None));
+        } else if v.contains(&appdir) {
+            let kept: Vec<&str> = v.split(':').filter(|p| !p.is_empty() && !p.starts_with(&appdir)).collect();
+            out.push((k.clone(), if kept.is_empty() { None } else { Some(kept.join(":")) }));
+        }
+    }
+    out
+}
+
+#[cfg(not(target_os = "windows"))]
+fn host_env() -> &'static [(String, Option<String>)] {
+    static ENV: std::sync::OnceLock<Vec<(String, Option<String>)>> = std::sync::OnceLock::new();
+    ENV.get_or_init(|| host_env_changes(&std::env::vars().collect::<Vec<_>>()))
+}
+
+/// Terapkan `host_env_changes` ke perintah tokio.
+#[cfg(not(target_os = "windows"))]
+pub fn apply_host_env(cmd: &mut Command) {
+    for (k, v) in host_env() {
+        match v {
+            Some(v) => cmd.env(k, v),
+            None => cmd.env_remove(k),
+        };
+    }
+}
+
+/// Terapkan `host_env_changes` ke perintah std (terminal, editor, shell login).
+#[cfg(not(target_os = "windows"))]
+pub fn apply_host_env_std(cmd: &mut std::process::Command) {
+    for (k, v) in host_env() {
+        match v {
+            Some(v) => cmd.env(k, v),
+            None => cmd.env_remove(k),
+        };
+    }
 }
 
 /// Windows: tambahkan ke PATH proses ini folder yang muncul di PATH sistem atau
@@ -194,9 +253,12 @@ fn build_resolved_path() -> String {
     parts.push("/usr/local/bin".to_string());
     parts.push("/opt/homebrew/bin".to_string());
 
+    // Direktori di dalam AppImage hanya untuk Kova sendiri.
+    let appdir = std::env::var("APPDIR").ok().filter(|d| !d.is_empty());
     let mut seen = HashSet::new();
     parts
         .into_iter()
+        .filter(|p| !appdir.as_deref().is_some_and(|d| p.starts_with(d)))
         .filter(|p| !p.is_empty() && seen.insert(p.clone()))
         .collect::<Vec<_>>()
         .join(":")
@@ -215,7 +277,9 @@ fn capture_login_shell_path() -> Option<String> {
     let (tx, rx) = mpsc::channel();
 
     std::thread::spawn(move || {
-        let out = StdCommand::new(&shell)
+        let mut c = StdCommand::new(&shell);
+        apply_host_env_std(&mut c);
+        let out = c
             .args(["-lic", "printf '%s' \"$PATH\""])
             .stdin(StdStdio::null())
             .stderr(StdStdio::null())
@@ -476,6 +540,36 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn appimage_env_is_stripped_for_children() {
+        let v = |k: &str, x: &str| (k.to_string(), x.to_string());
+        let vars = vec![
+            v("APPDIR", "/tmp/.mount_KovaAB"),
+            v("APPIMAGE", "/home/dev/Kova.AppImage"),
+            v("LD_LIBRARY_PATH", "/tmp/.mount_KovaAB/usr/lib:/tmp/.mount_KovaAB/usr/lib64"),
+            v("PATH", "/tmp/.mount_KovaAB/usr/bin:/usr/local/bin:/usr/bin"),
+            v("XDG_DATA_DIRS", "/tmp/.mount_KovaAB/usr/share:/usr/share"),
+            v("GDK_PIXBUF_MODULE_FILE", "/tmp/.mount_KovaAB/usr/lib/gdk-pixbuf/loaders.cache"),
+            v("GSETTINGS_SCHEMA_DIR", "/tmp/.mount_KovaAB//usr/share/glib-2.0/schemas"),
+            v("GDK_BACKEND", "x11"),
+            v("GTK_THEME", ""),
+            v("HOME", "/home/dev"),
+        ];
+        let got = host_env_changes(&vars);
+        let get = |k: &str| got.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone());
+        assert_eq!(get("LD_LIBRARY_PATH"), Some(None));
+        assert_eq!(get("PATH"), Some(Some("/usr/local/bin:/usr/bin".into())));
+        assert_eq!(get("XDG_DATA_DIRS"), Some(Some("/usr/share".into())));
+        assert_eq!(get("GDK_PIXBUF_MODULE_FILE"), Some(None));
+        assert_eq!(get("APPIMAGE"), Some(None));
+        assert_eq!(get("GSETTINGS_SCHEMA_DIR"), Some(None));
+        assert_eq!(get("GDK_BACKEND"), Some(None));
+        assert_eq!(get("GTK_THEME"), Some(None));
+        assert_eq!(get("HOME"), None);
+        // Di luar AppImage tidak ada yang diubah.
+        assert!(host_env_changes(&[v("PATH", "/usr/bin")]).is_empty());
+    }
 
     #[test]
     fn docker_bind_conflicts_and_layer_progress() {
