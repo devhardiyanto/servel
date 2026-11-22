@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ServiceLogo from '@/components/ui/ServiceLogo.vue'
 import { statsAt } from '@/composables/useServices'
 import { computed } from 'vue'
 import type { ServiceDef, ServiceUiState } from '@/types/service'
@@ -49,21 +50,6 @@ const idle = computed(() => {
 const failed = computed(() => !props.unknown && idle.value && !!props.state.error)
 const selectedIdle = computed(() => !props.unknown && props.state.selected && idle.value && !failed.value)
 
-const SERVICE_ICONS: Record<string, string> = {
-  mysql: '🐬',
-  postgres: '🐘',
-  redis: '⚡',
-  rabbitmq: '🐇',
-  mongodb: '🍃',
-  minio: '🗄️',
-  mailpit: '✉️',
-  gotenberg: '📄',
-}
-
-function icon(id: string): string {
-  return SERVICE_ICONS[id] ?? id.slice(0, 2).toUpperCase()
-}
-
 function formatPorts(def: ServiceDef): string {
   return def.ports.map((p) => `:${p.host}`).join(' / ')
 }
@@ -99,7 +85,7 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
       :label="`Include ${def.name} in the selection`"
       @click.stop="emit('toggle', def.id)"
     />
-    <div class="svc-icon">{{ icon(def.id) }}</div>
+    <div class="svc-icon"><ServiceLogo :id="def.id" /></div>
     <div class="svc-id">
       <span class="svc-name">{{ def.name }}</span>
       <span class="svc-version">{{ imageTag(def) }}</span>
@@ -159,8 +145,9 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
 }
 
 .svc-icon {
-  font-size: var(--text-md);
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   user-select: none;
 }
 

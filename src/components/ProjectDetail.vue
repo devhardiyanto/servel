@@ -116,6 +116,11 @@ const activeName = computed(() => {
   const n = p.value.activeEnv ?? ''
   return envs.value.some((e) => e.name === n) ? n : ''
 })
+/** "Default + 2 changes": an environment only stores what differs from Default. */
+const activeChanges = computed(() => {
+  const n = Object.keys(envs.value.find((e) => e.name === activeName.value)?.vars ?? {}).length
+  return `Default + ${n} ${n === 1 ? 'change' : 'changes'}`
+})
 const envOptions = computed(() => [
   { value: '', label: 'Default' },
   ...envs.value.map((e) => ({ value: e.name, label: e.name })),
@@ -380,6 +385,7 @@ const tabs = computed(() => [
           <dt>Environment</dt>
           <dd class="pd-rt">
             <UiChip tone="accent">{{ activeName || 'Default' }}</UiChip>
+            <span v-if="activeName && !restartToApply" class="pd-dim">{{ activeChanges }}</span>
             <span v-if="restartToApply" class="pd-dim">running with {{ runningEnv || 'Default' }} · restart to apply</span>
           </dd>
         </template>
@@ -449,6 +455,7 @@ const tabs = computed(() => [
         @retry="actions.restart(p)"
       />
       <p class="pd-dim">Added on top of the environment from mise. Values stay on this PC.</p>
+      <p class="pd-dim">Tip: Services › MySQL › Connect copies the connection values for you.</p>
       <p v-if="activeName" class="pd-dim">An empty value uses Default (shown greyed). Type a value to override it for {{ activeName }}; clear it to use Default again.</p>
       <UiStatusNotice
         v-if="pasteNote"

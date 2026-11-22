@@ -12,6 +12,8 @@ export interface PaletteCommand {
   keywords?: string
   /** Jenis project untuk logo framework di depan label. */
   kind?: string
+  /** Service id for its logo in front of the label. */
+  service?: string
   run: () => void | Promise<void>
 }
 

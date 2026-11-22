@@ -19,6 +19,8 @@ import { useUpdateCheck } from '@/composables/useUpdateCheck'
 import RuntimeTools from '@/components/RuntimeTools.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import SettingRow from '@/components/SettingRow.vue'
+import UiModal from '@/components/ui/UiModal.vue'
+import { useServices } from '@/composables/useServices'
 import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
 import { ENGINE_LABEL, type EnginePreference, type PrereqStatus } from '@/types/prereq'
 import { useEngineStatus } from '@/composables/useEngineStatus'
@@ -32,6 +34,7 @@ const {
   loaded,
   load,
   setAutoStart,
+  setAutoStartProjects,
   setRememberSession,
   setMinimizeToTray,
   setUiScale,
@@ -42,6 +45,13 @@ const {
   deleteProfile,
   reset,
 } = useConfig()
+
+/** Which projects the "start on launch" switch covers, as on the canvas. */
+const launchProjectsDesc = computed(() => {
+  const names = config.value.projects.filter((p) => p.autoStart).map((p) => p.name)
+  if (names.length === 0) return 'No project is marked yet. Turn it on per project in ⋯ → Project settings.'
+  return `${names.length} ${names.length === 1 ? 'project' : 'projects'}: ${names.join(', ')}`
+})
 
 // Settings tampil sebagai dua halaman di navigasi kiri: "settings"
 // (General, Services, About) dan "runtimes" (PHP/Node, runtime lain, extension).
@@ -286,6 +296,19 @@ onMounted(() => {
 })
 onUnmounted(() => window.removeEventListener('focus', onWindowFocus))
 
+/** Engine waiting for confirmation in the Switch engine dialog. */
+const pendingEngine = ref<EnginePreference | null>(null)
+const { runningCount: servicesRunning } = useServices()
+function requestEngine(value: EnginePreference): void {
+  if (switchingEngine.value || config.value.containerRuntime === value) return
+  pendingEngine.value = value
+}
+async function confirmEngine(): Promise<void> {
+  const v = pendingEngine.value
+  pendingEngine.value = null
+  if (v) await chooseEngine(v)
+}
+
 async function chooseEngine(value: EnginePreference): Promise<void> {
   if (switchingEngine.value || config.value.containerRuntime === value) return
   switchingEngine.value = true
@@ -436,11 +459,12 @@ onMounted(async () => {
               <UiToggle label="Remember last session" :on="config.rememberSession" @click="setRememberSession(!config.rememberSession)" />
             </SettingRow>
 
-            <SettingRow
-              label="Projects"
-              desc="Each project has its own &quot;Start this project when Kova opens&quot; option in its ⋯ menu → Project settings"
-            >
-              <UiButton variant="quiet" @click="setView('projects')">Open Projects</UiButton>
+            <SettingRow label="Start projects marked &quot;start on launch&quot;" :desc="launchProjectsDesc">
+              <UiToggle
+                label="Start projects marked start on launch"
+                :on="config.autoStartProjects !== false"
+                @click="setAutoStartProjects(config.autoStartProjects === false)"
+              />
             </SettingRow>
           </div>
 
@@ -492,7 +516,7 @@ onMounted(async () => {
                 label="Container engine"
                 :model-value="config.containerRuntime"
                 :options="ENGINE_OPTIONS.map((o) => ({ value: o.value, label: o.label, disabled: switchingEngine }))"
-                @update:model-value="chooseEngine($event as EnginePreference)"
+                @update:model-value="requestEngine($event as EnginePreference)"
               />
             </SettingRow>
 
@@ -523,7 +547,7 @@ onMounted(async () => {
               detail="They run your services without Docker Desktop. Your databases stay in Docker's volumes: dump them to a .sql file first, then use Restore database (Services → Connect → Data) after switching."
             >
               <template #actions>
-                <UiButton variant="primary" :disabled="switchingEngine" @click="chooseEngine('wslc')">Use WSL containers</UiButton>
+                <UiButton variant="primary" :disabled="switchingEngine" @click="requestEngine('wslc')">Use WSL containers</UiButton>
               </template>
             </UiStatusNotice>
 
@@ -566,7 +590,12 @@ onMounted(async () => {
           </div>
 
 
-          <div v-if="cli?.supported" class="section-block">
+          <div v-if="platform === 'windows'" class="section-block">
+            <div class="section-title">COMMAND LINE</div>
+            <SettingRow label="kova command" desc="The installer adds kova to your user PATH (%LOCALAPPDATA%\Kova\cli\bin). Open a new terminal to use it; if it is not found, run the Kova installer again." />
+          </div>
+
+          <div v-else-if="cli?.supported" class="section-block">
             <div class="section-title">COMMAND LINE</div>
 
             <SettingRow label="kova command" :desc="cliDesc">
@@ -793,6 +822,22 @@ onMounted(async () => {
         </template>
       </main>
     </div>
+
+    <UiModal
+      :open="!!pendingEngine"
+      :title="pendingEngine ? `Switch to ${ENGINE_OPTIONS.find((o) => o.value === pendingEngine)?.label}?` : ''"
+      size="sm"
+      @close="pendingEngine = null"
+    >
+      <p class="engine-confirm">
+        <template v-if="servicesRunning > 0">{{ servicesRunning }} running {{ servicesRunning === 1 ? 'service stays' : 'services stay' }} on the current engine; stop {{ servicesRunning === 1 ? 'it' : 'them' }} first and start {{ servicesRunning === 1 ? 'it' : 'them' }} again after the switch. </template>
+        WSL containers and Docker keep separate data, so databases from one engine are not visible on the other. Use Restore database to move them.
+      </p>
+      <template #footer>
+        <UiButton size="md" data-autofocus @click="pendingEngine = null">Cancel</UiButton>
+        <UiButton variant="primary" size="md" @click="confirmEngine">Switch engine</UiButton>
+      </template>
+    </UiModal>
   </div>
 </template>
 
@@ -1212,5 +1257,6 @@ onMounted(async () => {
   color: var(--red);
 }
 .profile-field { flex: 1; }
+.engine-confirm { margin: 0; line-height: 1.6; }
 .update-progress-note { margin: var(--space-2) 0 0; font-size: var(--text-xs); color: var(--faint); }
 </style>

@@ -18,6 +18,8 @@ export interface ConfigState {
   lastNodeVersion: string | null
   watchedPath: string | null
   autoStart: boolean
+  /** Start projects marked "start on launch" when Kova opens. */
+  autoStartProjects: boolean
   rememberSession: boolean
   minimizeToTray: boolean
   /** Skala antarmuka (zoom webview). */
@@ -46,6 +48,7 @@ const DEFAULT_CONFIG: ConfigState = {
   lastNodeVersion: null,
   watchedPath: null,
   autoStart: false,
+  autoStartProjects: true,
   rememberSession: true,
   minimizeToTray: true,
   uiScale: 1,
@@ -116,6 +119,11 @@ export function useConfig() {
 
   function setAutoStart(value: boolean): void {
     config.value.autoStart = value
+    scheduleSave()
+  }
+
+  function setAutoStartProjects(value: boolean): void {
+    config.value.autoStartProjects = value
     scheduleSave()
   }
 
@@ -326,6 +334,7 @@ export function useConfig() {
     saveImmediate,
     scheduleSave,
     setAutoStart,
+    setAutoStartProjects,
     setRememberSession,
     setMinimizeToTray,
     setStopServicesOnQuit,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import KovaMark from './KovaMark.vue'
 import type { ViewName } from '@/types/navigation'
 import { useServices } from '@/composables/useServices'
@@ -8,7 +8,7 @@ import { useProjectRuntime, isActive } from '@/composables/useProjectRuntime'
 import { useLogs } from '@/composables/useLogs'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
 
-defineProps<{ current: ViewName }>()
+const props = defineProps<{ current: ViewName }>()
 const emit = defineEmits<{ go: [view: ViewName]; palette: [] }>()
 
 const isMac = /mac/i.test(navigator.platform)
@@ -22,7 +22,28 @@ const { updateAvailable } = useUpdateCheck()
 const runningProjects = computed(
   () => config.value.projects.filter((p) => isActive(stateOf(p.id))).length,
 )
-const errorCount = computed(() => lines.value.filter((l) => l.level === 'error').length)
+// Errors the user has not dealt with yet: lines after the last visit to Logs,
+// minus those of projects that are running again (they recovered).
+const seen = ref<object | null>(null)
+watch(
+  () => [props.current, lines.value[lines.value.length - 1]] as const,
+  ([view, last]) => {
+    if (view === 'logs') seen.value = last ?? null
+  },
+  { immediate: true },
+)
+const recovered = computed(
+  () => new Set(config.value.projects.filter((p) => stateOf(p.id) === 'running').map((p) => p.name)),
+)
+const errorCount = computed(() => {
+  const from = seen.value ? lines.value.indexOf(seen.value as (typeof lines.value)[number]) + 1 : 0
+  let n = 0
+  for (let i = from; i < lines.value.length; i++) {
+    const l = lines.value[i]
+    if (l.level === 'error' && !recovered.value.has(l.src)) n++
+  }
+  return n
+})
 
 // Ikon stroke 16px untuk item nav rail.
 const ICONS: Record<ViewName, string[]> = {

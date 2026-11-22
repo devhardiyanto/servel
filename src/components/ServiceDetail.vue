@@ -7,6 +7,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiModal from '@/components/ui/UiModal.vue'
+import ServiceLogo from '@/components/ui/ServiceLogo.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiTabs from '@/components/ui/UiTabs.vue'
 import UiSegmented from '@/components/ui/UiSegmented.vue'
@@ -72,9 +74,16 @@ const volumes = computed(() => props.def.volumes ?? [])
 const restoring = ref(false)
 const restoreMsg = ref<{ ok: boolean; text: string } | null>(null)
 
+/** Chosen dump, waiting for the confirmation dialog. */
+const restoreFile = ref<string | null>(null)
 async function restore(): Promise<void> {
   const file = await openDialog({ multiple: false, title: `Choose a .sql dump for ${props.def.name}`, filters: [{ name: 'SQL', extensions: ['sql'] }] })
-  if (typeof file !== 'string') return
+  if (typeof file === 'string') restoreFile.value = file
+}
+async function confirmRestore(): Promise<void> {
+  const file = restoreFile.value
+  restoreFile.value = null
+  if (!file) return
   restoring.value = true
   restoreMsg.value = null
   try {
@@ -105,7 +114,7 @@ const formats = [
   <div class="sd">
     <header class="sd-head">
       <div class="sd-title">
-        <h2 class="sd-name">{{ def.name }}</h2>
+        <h2 class="sd-name"><ServiceLogo :id="def.id" :size="20" />{{ def.name }}</h2>
         <UiButton variant="quiet" aria-label="Close service details" @click="emit('close')">&times;</UiButton>
       </div>
       <div class="sd-meta">
@@ -174,6 +183,14 @@ const formats = [
       <p v-else class="sd-note">No output from Kova for {{ def.name }} in this session.</p>
       <p class="sd-note">Container output: <code class="sd-mono">kova logs {{ def.id }} -f</code></p>
     </div>
+
+    <UiModal :open="!!restoreFile" :title="`Restore into ${def.name}?`" size="sm" danger @close="restoreFile = null">
+      <p class="sd-confirm">Kova runs <code class="sd-mono">{{ restoreFile?.split(/[\\/]/).pop() }}</code> against {{ def.name }}. Most dumps drop and recreate the tables they contain, so existing data in those tables is replaced. This cannot be undone.</p>
+      <template #footer>
+        <UiButton size="md" data-autofocus @click="restoreFile = null">Cancel</UiButton>
+        <UiButton variant="danger" size="md" @click="confirmRestore">Restore</UiButton>
+      </template>
+    </UiModal>
   </div>
 </template>
 
@@ -208,4 +225,6 @@ const formats = [
 .sd-env__code:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .sd-sec { display: flex; flex-direction: column; gap: var(--space-2); }
 .sd-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); }
+.sd-confirm { margin: 0; line-height: 1.6; }
+.sd-name { display: inline-flex; align-items: center; gap: var(--space-2); }
 </style>

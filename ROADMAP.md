@@ -648,9 +648,16 @@ Canvas B8–B12 dan "Tray popup · v3.15".
 - [x] Status install runtime disimpan di luar halaman (`src/composables/useRuntimeInstall.ts`): banner, Cancel, dan progres tetap ada setelah pindah halaman; toast selesai dan chip `new` tetap muncul.
 - [x] Versi pertama sebuah tool langsung dijadikan global (`mise use -g`) bila belum ada versi global.
 
+### T — v3.16.0: sisa selisih kecil dengan canvas
+
+- [x] Use in project hanya untuk project yang memakai tool itu (jenis terdeteksi atau `mise.toml`), radio + tombol "Use PHP x", Show all projects (E5).
+- [x] Panel PHP extensions mengikuti versi yang dipasang, dijadikan global, atau dipakai di project (E6); toggle yang sedang diperiksa menampilkan *checking…* tanpa mengunci yang lain (E7).
+- [x] Toast "… is running on localhost:PORT [with <env>]" dengan Open (A9, C6, H6); badge Logs menghitung error yang belum dilihat dan bukan dari project yang sudah pulih (C6).
+- [x] Add project di palet (B1); tip Connect di tab Environment (C4); "Starting N services…" (D3); "Default + N changes" (H6); Show all services di profil kosong; error config dengan path dan Open folder; switch "Start projects marked start on launch" dengan daftarnya; konfirmasi ganti engine dan restore `.sql`; baris Command line di Windows.
+
 ## Status per 22 November 2026
 
-Versi terbaru: **v3.15.4**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.16.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 
@@ -666,19 +673,16 @@ Versi terbaru: **v3.15.4**. Semua milestone fitur A–S selesai di kode. Yang te
 
 Hasil audit artboard canvas (flow A–H, S-*, C-*, sitemap) terhadap `src/` pada 22 November:
 
-- [ ] Runtimes → Use in project hanya untuk project yang memakai tool itu (sekarang semua project dengan folder; TC-E5 mengharapkan hanya project PHP).
-- [ ] Toast "… is running on localhost:PORT" dengan tombol Open setelah project berjalan (A9, C6, H6).
-- [ ] Logs → Clear hanya mengosongkan sumber yang dipilih (sekarang semua buffer).
-- [ ] Add project dan Services: nama proses + PID yang memakai port (B4/Overlays, S-Services).
-- [ ] Banner "not answering" menyebut port yang dicetak app bila berbeda (S-Projects).
-- [ ] Konfirmasi sebelum ganti engine dan sebelum restore `.sql` dari panel service (sitemap).
-- [ ] Item kecil: Add project di palet, "Starting N services…" di header Services, "Show all services" di profil kosong, "Default + N changes" di Overview, path config + Open folder di error Projects, toggle extension yang sedang diperiksa menampilkan "checking…" tanpa mengunci toggle lain, panel PHP extensions mengikuti versi yang dipilih di daftar, badge Logs turun setelah project pulih (C6), dan ringkasan project "start on launch" di Settings.
+- [ ] Add project dan Services: nama proses + PID yang memakai port; "Change port" untuk service (B4/Overlays, S-Services). Effort M–L.
+- [ ] Banner "not answering" menyebut port yang dicetak app bila berbeda (S-Projects). Effort M.
+- Item kecil (S) dari audit ini selesai di v3.16.0 (lihat T).
 
 ### Keputusan pemilik
 
 - [ ] Ganti nama repo; lalu endpoint updater, README, dan tautan rilis dalam satu PR (lihat F).
 - [ ] Code signing (G3): ditunda sampai ada adopsi atau pengguna yang terhalang SmartScreen; opsi berbayar belum diperiksa.
 - [ ] Menu ⋯ per service (restart, shell, hapus data) dan "Add tool" (tool mise lain seperti Bun/Rust) ada di sitemap canvas, belum pernah dijadwalkan: putuskan dikerjakan atau dicoret dari canvas.
+- [ ] Services → **Stop all** menghentikan semua service, canvas D2 menulis "Stop profile"; Logs → **Clear** mengosongkan semua sumber, canvas G4 hanya sumber terpilih. Pertahankan perilaku aplikasi (dan perbarui canvas) atau ikuti canvas.
 - [ ] Canvas status bar masih format v3.15.0 (`RAM 1.3 GB · Kova 186 MB`); aplikasi sejak v3.15.1 menulis rincian. Perbarui canvas.
 
 ### Batasan yang tetap berlaku

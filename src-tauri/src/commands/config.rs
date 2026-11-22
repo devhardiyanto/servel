@@ -149,6 +149,9 @@ pub struct ConfigState {
     pub watched_path: Option<String>,
     #[serde(default)]
     pub auto_start: bool,
+    /// Start projects that have `auto_start` when Kova opens. Off = none of them.
+    #[serde(default = "default_true")]
+    pub auto_start_projects: bool,
     #[serde(default = "default_true")]
     pub remember_session: bool,
     #[serde(default = "default_true")]
@@ -369,6 +372,7 @@ impl Default for ConfigState {
             last_node_version: None,
             watched_path: None,
             auto_start: false,
+            auto_start_projects: true,
             remember_session: true,
             minimize_to_tray: true,
             ui_scale: 1.0,
@@ -611,6 +615,7 @@ mod tests {
             last_node_version: Some("20.0.0".to_string()),
             watched_path: Some("/home/user/project".to_string()),
             auto_start: true,
+            auto_start_projects: true,
             remember_session: false,
             minimize_to_tray: true,
             ui_scale: 1.0,
@@ -695,6 +700,7 @@ mod tests {
             last_node_version: None,
             watched_path: Some("/tmp/proj".to_string()),
             auto_start: true,
+            auto_start_projects: true,
             remember_session: true,
             minimize_to_tray: false,
             ui_scale: 1.0,
