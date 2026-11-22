@@ -46,6 +46,8 @@ windows-sys = { version = "0.59", features = [
   "Win32_System_Threading",
   # PATH terbaru dari registry (v3.7.2).
   "Win32_System_Registry",
+  # Private working set per proses (angka RAM Kova, sama dengan Task Manager).
+  "Win32_System_ProcessStatus",
 ] }
 
 [dev-dependencies]

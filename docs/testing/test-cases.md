@@ -191,7 +191,7 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-U8 | Sembunyikan jendela ke tray 30 detik, lalu buka lagi (pantau `docker stats`/`wslc stats` dan CPU Kova). | Saat tersembunyi tidak ada pengukuran; begitu jendela terlihat angka diperbarui lagi dalam ±2 detik. | ⬜ | ⬜ | | v3.15.0 |
 | TC-U9 | **W:** NVDA aktif di Projects selama 30 detik tanpa interaksi. | NVDA tidak membacakan angka RAM berulang; perubahan status engine tetap diumumkan. | ⬜ | ➖ | | v3.15.0 |
 | TC-U10 | Buka Projects dengan panel detail terbuka di jendela ±1100 px, project bernama panjang (≥ 24 karakter). | Tidak ada scroll horizontal; New group tampil sebagai ikon; nama project satu baris dengan elipsis (tooltip nama lengkap); port tetap terlihat di panel detail. Tidak ada kotak putih di pojok scrollbar. | ⬜ | ⬜ | | v3.15.1 |
-| TC-U11 | Jalankan beberapa service, lihat footer Services dan status bar. | Status bar menulis `RAM <total> (services <X> + Kova <Y>)`; X sama dengan angka di footer Services. | ⬜ | ⬜ | | v3.15.1 |
+| TC-U11 | Jalankan beberapa service, lihat footer Services dan status bar. | Status bar menulis `RAM <total> (services <X> + Kova <Y>)`; X sama dengan angka di footer Services. Y kira-kira sama dengan jumlah grup Kova + WebView2 Manager di Task Manager (W) atau Private di `smem`/smaps_rollup (L), selisih ≤ 15%. | ⬜ | ⬜ | | v3.15.1 |
 
 ## W · Khusus Windows
 

@@ -202,18 +202,94 @@ pub fn bytes_to_mb(bytes: u64) -> u64 {
     (bytes as f64 / 1_000_000.0).round() as u64
 }
 
-/// Ukur memori project dan Kova. `sys` disimpan antar putaran; hanya memori
-/// proses yang di-refresh (tanpa CPU, disk, argumen, environment), jadi
-/// murah walau dipanggil tiap 2 detik.
+/// Semua PID di pohon Kova dan di pohon tiap dev server: hanya proses ini
+/// yang memorinya dibaca.
+pub fn tree_pids(procs: &[ProcInfo], own: u32, dev_roots: &[u32]) -> HashSet<u32> {
+    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+    for &(pid, parent, _) in procs {
+        if let Some(pp) = parent.filter(|pp| *pp != pid) {
+            children.entry(pp).or_default().push(pid);
+        }
+    }
+    let mut seen = HashSet::new();
+    let mut stack: Vec<u32> = std::iter::once(own).chain(dev_roots.iter().copied()).collect();
+    while let Some(pid) = stack.pop() {
+        if seen.insert(pid) {
+            stack.extend(children.get(&pid).into_iter().flatten().copied());
+        }
+    }
+    seen
+}
+
+/// Jumlah `Private_Clean` + `Private_Dirty` (kB) dari `/proc/<pid>/smaps_rollup`, dalam byte.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn parse_smaps_private(text: &str) -> Option<u64> {
+    let mut kb = 0u64;
+    let mut found = false;
+    for line in text.lines() {
+        if let Some(rest) = line.strip_prefix("Private_Clean:").or_else(|| line.strip_prefix("Private_Dirty:")) {
+            kb += rest.split_whitespace().next()?.parse::<u64>().ok()?;
+            found = true;
+        }
+    }
+    found.then_some(kb * 1024)
+}
+
+/// Memori privat satu proses: tanpa halaman yang dibagi dengan proses lain
+/// (DLL, shared memory). Working set biasa menghitung halaman bersama itu di
+/// setiap proses WebView2, sehingga totalnya jauh di atas Task Manager.
+#[cfg(windows)]
+fn private_bytes(pid: u32) -> Option<u64> {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX2};
+    use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+    // SAFETY: handle diperiksa sebelum dipakai dan selalu ditutup; struct
+    // diisi nol dengan `cb` sesuai ukurannya, seperti yang diminta API.
+    unsafe {
+        let h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if h.is_null() {
+            return None;
+        }
+        let mut c: PROCESS_MEMORY_COUNTERS_EX2 = std::mem::zeroed();
+        c.cb = std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX2>() as u32;
+        let ok = K32GetProcessMemoryInfo(h, &mut c as *mut _ as *mut PROCESS_MEMORY_COUNTERS, c.cb);
+        CloseHandle(h);
+        (ok != 0).then_some(c.PrivateWorkingSetSize as u64)
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn private_bytes(pid: u32) -> Option<u64> {
+    std::fs::read_to_string(format!("/proc/{pid}/smaps_rollup")).ok().and_then(|t| parse_smaps_private(&t))
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
+fn private_bytes(_pid: u32) -> Option<u64> {
+    None
+}
+
+/// Ukur memori project dan Kova. `sys` disimpan antar putaran; dari sysinfo
+/// hanya daftar proses dan parent-nya yang dipakai. Memori dibaca per proses
+/// di pohon Kova dan dev server saja, sebagai memori privat (fallback: RSS
+/// dari sysinfo bila OS tidak memberikannya).
 pub fn measure_processes(sys: &mut sysinfo::System, dev_roots: &[u32]) -> (u64, u64) {
     use sysinfo::{ProcessRefreshKind, ProcessesToUpdate};
     sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_memory());
-    let procs: Vec<ProcInfo> = sys
+    let own = std::process::id();
+    let all: Vec<ProcInfo> = sys
         .processes()
         .iter()
         .map(|(pid, p)| (pid.as_u32(), p.parent().map(|pp| pp.as_u32()), p.memory()))
         .collect();
-    let (projects, kova) = split_process_memory(&procs, std::process::id(), dev_roots);
+    let wanted = tree_pids(&all, own, dev_roots);
+    let procs: Vec<ProcInfo> = all
+        .into_iter()
+        .map(|(pid, parent, rss)| {
+            let bytes = if wanted.contains(&pid) { private_bytes(pid).unwrap_or(rss) } else { 0 };
+            (pid, parent, bytes)
+        })
+        .collect();
+    let (projects, kova) = split_process_memory(&procs, own, dev_roots);
     (bytes_to_mb(projects), bytes_to_mb(kova))
 }
 
@@ -251,6 +327,16 @@ mod tests {
         assert_eq!(split_process_memory(&procs, 1, &[777]).0, 0);
         // Siklus parent (data OS yang aneh) tidak membuat loop.
         assert_eq!(split_process_memory(&[(1, Some(2), MB), (2, Some(1), MB)], 1, &[]), (0, 2 * MB));
+    }
+
+    #[test]
+    fn tree_and_private_memory() {
+        let procs: Vec<ProcInfo> = vec![(1, Some(0), 0), (2, Some(1), 0), (3, Some(2), 0), (20, Some(5), 0), (21, Some(20), 0), (99, Some(0), 0)];
+        let t = tree_pids(&procs, 1, &[20]);
+        assert_eq!(t, [1, 2, 3, 20, 21].into_iter().collect());
+        let smaps = "Rss:              120000 kB\nPss:               60000 kB\nPrivate_Clean:      1000 kB\nPrivate_Dirty:     40000 kB\nSwap:                  0 kB\n";
+        assert_eq!(parse_smaps_private(smaps), Some(41_000 * 1024));
+        assert_eq!(parse_smaps_private("Rss: 1 kB\n"), None);
     }
 
     #[test]
