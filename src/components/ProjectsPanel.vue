@@ -71,9 +71,13 @@ function expanded(s: Section): boolean {
 function runningIn(s: Section): number {
   return s.total.filter((p) => isActive(stateOf(p.id))).length
 }
+// Sama dengan tray: yang sedang start belum dihitung "running".
+function upIn(s: Section): number {
+  return s.total.filter((p) => ['running', 'unresponsive'].includes(stateOf(p.id))).length
+}
 function metaOf(s: Section): string {
   if (!s.total.length) return 'empty'
-  const r = runningIn(s)
+  const r = upIn(s)
   return `${s.total.length}${r ? ` · ${r} running` : ''}`
 }
 function canStartAll(s: Section): boolean {
