@@ -422,55 +422,78 @@ pub fn run() {
                 }
             });
 
-            // Polling kedua: stats engine (`docker stats` / `wslc stats`) untuk memory
-            // usage per container. Interval 5s (lebih lambat dari status 3s) karena lebih mahal.
-            // Backoff lokal saat error (3s -> 10s -> 30s) — daemon-down event sudah di-handle
-            // polling status, jadi di sini cukup silent backoff tanpa emit error.
+            // Polling kedua: RAM untuk status bar dan layar Services, tiap 2 detik
+            // selama jendela terlihat. Tiap putaran mengukur proses (Kova, WebView,
+            // dev server) dan, bila engine siap, container. Container yang gagal
+            // dibaca diberi jeda sendiri (10 s, lalu 30 s) tanpa emit error, karena
+            // daemon mati sudah dilaporkan polling status; angka proses tetap jalan.
             let stats_handle = app.handle().clone();
             let stats_daemon_ready = daemon_ready.clone();
             let stats_shutting_down = shutting_down.clone();
             tauri::async_runtime::spawn(async move {
-                use commands::stats::{interval_for, mode, sleep_or_mode_change};
+                use commands::stats::{interval_for, mode, sleep_or_mode_change, RamStats};
                 let down_delay = tokio::time::Duration::from_secs(30);
                 let mut consecutive_failures: u32 = 0;
+                let mut containers_at = tokio::time::Instant::now();
+                let mut services_mb: Option<u64> = None;
+                let mut sys = Some(sysinfo::System::new());
 
                 loop {
                     if stats_shutting_down.load(Ordering::Relaxed) {
                         break;
                     }
 
-                    // v3.10.1: jendela tersembunyi = jeda (tidak ada yang melihat
-                    // angka RAM); layar Services terbuka = tiap 2 detik.
+                    // Jendela tersembunyi: tidak ada yang melihat angkanya.
                     let Some(base_delay) = interval_for(mode()) else {
                         sleep_or_mode_change(down_delay).await;
                         continue;
                     };
 
-                    // Jangan spawn `docker stats` saat daemon down — itu yang memicu
-                    // loader-error popup docker.exe/wsl.exe. Tunggu status loop melaporkan UP.
-                    if !stats_daemon_ready.load(Ordering::Relaxed) {
-                        sleep_or_mode_change(down_delay).await;
-                        continue;
-                    }
+                    let roots = sites::process::running_pids(&stats_handle);
+                    let mut s = sys.take().unwrap_or_default();
+                    let ((projects_mb, kova_mb), s) = tauri::async_runtime::spawn_blocking(move || {
+                        let r = commands::stats::measure_processes(&mut s, &roots);
+                        (r, s)
+                    })
+                    .await
+                    .unwrap_or_else(|_| ((0, 0), sysinfo::System::new()));
+                    sys = Some(s);
 
-                    let current_delay = match commands::stats::fetch_container_stats().await {
-                        Ok(stats) => {
-                            consecutive_failures = 0;
-                            // v3.10.1: kirim juga snapshot kosong, supaya nilai lama
-                            // terhapus setelah semua service berhenti.
-                            let _ = stats_handle.emit("container-stats-changed", &stats);
-                            base_delay
-                        }
-                        Err(_) => {
-                            consecutive_failures = consecutive_failures.saturating_add(1);
-                            match consecutive_failures {
-                                1..=2 => tokio::time::Duration::from_secs(10),
-                                _ => tokio::time::Duration::from_secs(30),
+                    // Jangan spawn `docker stats` saat daemon down: itu yang memicu
+                    // popup loader-error docker.exe/wsl.exe.
+                    if !stats_daemon_ready.load(Ordering::Relaxed) {
+                        services_mb = None;
+                    } else if tokio::time::Instant::now() >= containers_at {
+                        match commands::stats::fetch_container_stats().await {
+                            Ok(stats) => {
+                                consecutive_failures = 0;
+                                services_mb = Some(stats.iter().map(|c| c.mem_mb).sum());
+                                // Snapshot kosong juga dikirim, supaya nilai lama
+                                // terhapus setelah semua service berhenti.
+                                let _ = stats_handle.emit("container-stats-changed", &stats);
+                            }
+                            Err(_) => {
+                                consecutive_failures = consecutive_failures.saturating_add(1);
+                                services_mb = None;
+                                containers_at = tokio::time::Instant::now()
+                                    + match consecutive_failures {
+                                        1..=2 => tokio::time::Duration::from_secs(10),
+                                        _ => tokio::time::Duration::from_secs(30),
+                                    };
                             }
                         }
-                    };
+                    }
 
-                    sleep_or_mode_change(current_delay).await;
+                    let measured_at = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as u64)
+                        .unwrap_or(0);
+                    let _ = stats_handle.emit(
+                        "ram-stats-changed",
+                        &RamStats { services_mb, projects_mb, kova_mb, measured_at },
+                    );
+
+                    sleep_or_mode_change(base_delay).await;
                 }
             });
 

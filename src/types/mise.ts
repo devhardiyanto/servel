@@ -21,7 +21,7 @@ export interface Project {
   path: string
   /** Profil service yang diterapkan saat project dipilih. */
   profileId?: string | null
-  /** Jenis hasil deteksi (laravel, vite, ...). Hanya label. */
+  /** Label jenis hasil deteksi ("Laravel", "Vite · Vue", ...). Hanya tampilan. */
   kind?: string
   /** Perintah dev server; `{port}` diganti port project. Kosong = tidak dijalankan Kova. */
   command?: string
@@ -29,7 +29,7 @@ export interface Project {
   port?: number
   /** Jalankan otomatis saat Kova dibuka. */
   autoStart?: boolean
-  /** Environment Default untuk dev server, di atas environment mise. */
+  /** Environment tambahan untuk dev server, di atas environment mise. */
   env?: Record<string, string>
   /** Environment lain; hanya nilai yang berbeda dari Default. */
   envs?: ProjectEnv[]
@@ -37,6 +37,14 @@ export interface Project {
   activeEnv?: string | null
   /** Start project ikut menyalakan service di profilnya. */
   startServices?: boolean
+  /** Kelompok di layar Projects; kosong atau id yang sudah dihapus = Ungrouped. */
+  groupId?: string | null
+}
+
+export interface ProjectGroup {
+  id: string
+  name: string
+  collapsed?: boolean
 }
 
 export interface MiseContext {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Drawer "Project settings" dan dialog hapus. Dibuka
-// dari menu ⋯ atau dari banner di panel detail lewat useProjectActions.
+// Drawer "Project settings" dan dialog hapus. Dibuka dari menu ⋯ atau dari
+// banner di panel detail lewat useProjectActions.
 import { computed, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
@@ -11,6 +11,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import CommandSuggestions from '@/components/CommandSuggestions.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
+import FrameworkChip from '@/components/FrameworkChip.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useVersionContext } from '@/composables/useVersionContext'
 import { useProjectRuntime, isActive } from '@/composables/useProjectRuntime'
@@ -29,11 +30,14 @@ const form = ref({ name: '', path: '', command: '', port: '', profileId: '', sta
 const formError = ref('')
 const portState = ref<{ free: boolean; reason: string; suggestion: number | null } | null>(null)
 const saving = ref(false)
+/** Hasil tombol Detect: jenis baru ikut disimpan, supaya logo dan label terbarui. */
+const detected = ref<{ label: string; reason: string } | null>(null)
 
 watch(editing, (p) => {
   if (!p) return
   formError.value = ''
   portState.value = null
+  detected.value = null
   form.value = {
     name: p.name,
     path: p.path,
@@ -91,6 +95,7 @@ async function redetect(): Promise<void> {
   try {
     const s = await runtime.detect(form.value.path, actions.takenPorts(p.id))
     form.value.command = s.detection.command
+    detected.value = s.detection.label ? { label: s.detection.label, reason: s.detection.reason || s.evidence.join(', ') } : null
     if (!form.value.port) form.value.port = String(s.port)
     formError.value = s.detection.command ? '' : 'Project type not recognized. Type the command yourself.'
   } catch (err) {
@@ -107,8 +112,8 @@ async function save(): Promise<void> {
   saving.value = true
   try {
     const pathChanged = form.value.path !== p.path
-    let kind = p.kind
-    if (pathChanged && form.value.path) {
+    let kind = detected.value?.label ?? p.kind
+    if (pathChanged && form.value.path && !detected.value) {
       kind = (await runtime.detect(form.value.path, actions.takenPorts(p.id))).detection.label
     }
     await updateProject(p.id, {
@@ -168,6 +173,10 @@ async function confirmRemove(): Promise<void> {
         />
         <UiButton class="pdl-row__btn" @click="redetect">Detect</UiButton>
       </div>
+      <p v-if="detected" class="pdl-det" role="status">
+        <FrameworkChip :kind="detected.label" />
+        <span>{{ detected.reason }}</span>
+      </p>
       <CommandSuggestions v-model="form.command" :path="form.path" />
       <UiInput
         v-model="form.port"
@@ -220,6 +229,7 @@ async function confirmRemove(): Promise<void> {
 
 <style scoped>
 .pdl-row { display: flex; align-items: flex-start; gap: var(--space-2); }
+.pdl-det { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin: calc(-1 * var(--space-1)) 0 0; font-size: var(--text-xs); color: var(--muted); }
 .pdl-row > :first-child { flex: 1; }
 .pdl-row__btn { margin-top: 22px; height: 32px; }
 .pdl-toggle { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text); }

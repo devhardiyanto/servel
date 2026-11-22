@@ -1,15 +1,21 @@
 <script setup lang="ts">
-// Palet perintah (v3.1): Ctrl K / Cmd K. Pindah layar, nyalakan atau matikan
-// service, start/stop/restart/buka project. Daftar dibangun dari state yang
-// sama dengan layar lain, jadi labelnya mengikuti keadaan saat ini.
+// Palet perintah: Ctrl K / Cmd K. Pindah layar, nyalakan atau matikan service,
+// start/stop/restart/buka project dan kelompok project. Daftar dibangun dari
+// state yang sama dengan layar lain, jadi labelnya mengikuti keadaan saat ini.
+// Project mengikuti urutan layar Projects (kelompok, lalu Ungrouped).
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useConfig } from '@/composables/useConfig'
 import { useServices } from '@/composables/useServices'
 import { isActive, useProjectRuntime } from '@/composables/useProjectRuntime'
-import { filterCommands, type PaletteCommand } from '@/utils/palette'
+import { canRun, useProjectActions } from '@/composables/useProjectActions'
+import { PROJECTS_PANEL, usePanelWidth } from '@/composables/usePanelWidth'
+import FrameworkLogo from '@/components/ui/FrameworkLogo.vue'
+import { filterCommands, projectCommandMeta, type PaletteCommand } from '@/utils/palette'
+import { groupIdOf, orderedProjects } from '@/utils/projectGroups'
 import type { ViewName } from '@/types/navigation'
 
+const props = defineProps<{ view?: ViewName | null }>()
 const emit = defineEmits<{ go: [view: ViewName] }>()
 
 const open = ref(false)
@@ -23,6 +29,8 @@ let lastFocus: HTMLElement | null = null
 const { config } = useConfig()
 const { definitions, uiState, selectedCount, runningCount, toggle, start, stop, stopAll } = useServices()
 const projectRt = useProjectRuntime()
+const actions = useProjectActions()
+const panel = usePanelWidth('projects', PROJECTS_PANEL)
 
 const VIEWS: { id: ViewName; label: string }[] = [
   { id: 'projects', label: 'Projects' },
@@ -35,19 +43,52 @@ const VIEWS: { id: ViewName; label: string }[] = [
 const commands = computed<PaletteCommand[]>(() => {
   const list: PaletteCommand[] = []
 
-  for (const p of config.value.projects) {
+  const groups = config.value.groups ?? []
+  for (const p of orderedProjects(config.value.projects, groups)) {
     if (!p.command || !p.path) continue
     const running = isActive(projectRt.stateOf(p.id))
-    const kw = `${p.kind ?? ''} project ${p.path}`
+    const { group, keywords: kw } = projectCommandMeta(p, groups)
+    const kind = p.kind
     if (running) {
       if (p.port) {
-        list.push({ id: `p-open-${p.id}`, label: `Open ${p.name}`, group: `localhost:${p.port}`, keywords: `${kw} browser`, run: () => openUrl(`http://localhost:${p.port}`) })
+        list.push({ id: `p-open-${p.id}`, label: `Open ${p.name}`, group: `localhost:${p.port}`, keywords: `${kw} browser`, kind, run: () => openUrl(`http://localhost:${p.port}`) })
       }
-      list.push({ id: `p-restart-${p.id}`, label: `Restart ${p.name}`, group: 'Project', keywords: kw, run: () => projectRt.restart(p) })
-      list.push({ id: `p-stop-${p.id}`, label: `Stop ${p.name}`, group: 'Project', keywords: kw, run: () => projectRt.stop(p.id) })
+      list.push({ id: `p-restart-${p.id}`, label: `Restart ${p.name}`, group, keywords: kw, kind, run: () => projectRt.restart(p) })
+      list.push({ id: `p-stop-${p.id}`, label: `Stop ${p.name}`, group, keywords: kw, kind, run: () => projectRt.stop(p.id) })
     } else {
-      list.push({ id: `p-start-${p.id}`, label: `Start ${p.name}`, group: 'Project', keywords: `${kw} run`, run: () => projectRt.start(p) })
+      list.push({ id: `p-start-${p.id}`, label: `Start ${p.name}`, group, keywords: `${kw} run`, kind, run: () => projectRt.start(p) })
     }
+  }
+
+  for (const g of groups) {
+    const inGroup = config.value.projects.filter((p) => groupIdOf(p, groups) === g.id)
+    if (inGroup.some((p) => canRun(p) && !isActive(projectRt.stateOf(p.id)))) {
+      list.push({ id: `g-start-${g.id}`, label: `Start group ${g.name}`, group: 'Group', keywords: 'all projects run', run: () => actions.startGroup(g.id) })
+    }
+    if (inGroup.some((p) => isActive(projectRt.stateOf(p.id)))) {
+      list.push({ id: `g-stop-${g.id}`, label: `Stop group ${g.name}`, group: 'Group', keywords: 'all projects', run: () => actions.stopGroup(g.id) })
+    }
+  }
+  list.push({
+    id: 'g-new',
+    label: 'New group',
+    group: 'Projects',
+    keywords: 'create group folder organize',
+    run: () => {
+      actions.renamingGroupId.value = null
+      actions.draftGroup.value = { projectId: null }
+      emit('go', 'projects')
+    },
+  })
+  if (props.view === 'projects' && config.value.projects.length) {
+    const hidden = panel.collapsed.value
+    list.push({
+      id: 'p-details',
+      label: hidden ? 'Show project details' : 'Hide project details',
+      group: 'Projects',
+      keywords: 'panel detail close open toggle',
+      run: () => { panel.collapsed.value = !hidden },
+    })
   }
 
   if (selectedCount.value > 0) {
@@ -168,7 +209,7 @@ defineExpose({ show })
           @mousemove="active = i"
           @click="run(cmd)"
         >
-          <span class="cp-label">{{ cmd.label }}</span>
+          <span class="cp-label"><FrameworkLogo v-if="cmd.kind" class="cp-logo" :kind="cmd.kind" :size="13" />{{ cmd.label }}</span>
           <span class="cp-group">{{ cmd.group }}</span>
         </li>
         <li v-if="results.length === 0" class="cp-empty">No command matches "{{ query }}".</li>
@@ -234,6 +275,7 @@ defineExpose({ show })
 }
 .cp-item--on { background: var(--surface2); color: var(--text); }
 .cp-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-logo { margin-right: 8px; vertical-align: -2px; }
 .cp-group { flex-shrink: 0; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--faint); }
 .cp-empty { padding: var(--space-4) var(--space-3); font-size: var(--text-sm); color: var(--faint); }
 .cp-error { margin: 0; padding: var(--space-2) var(--space-4); font-size: var(--text-xs); color: var(--red); }

@@ -2,7 +2,7 @@
 import UiButton from '@/components/ui/UiButton.vue'
 import UiIcon from '@/components/ui/UiIcon.vue'
 import UiInput from '@/components/ui/UiInput.vue'
-import { onMounted, onUnmounted, computed, inject, ref } from 'vue'
+import { onMounted, computed, inject, ref } from 'vue'
 import { useLogs } from '@/composables/useLogs'
 import { useServices } from '@/composables/useServices'
 import { useConfig } from '@/composables/useConfig'
@@ -21,9 +21,9 @@ const SKELETON_ROW_COUNT = 9
 
 const setView = inject(SetViewKey)!
 
-// Panel Connect (v2.10): satu service terbuka sekaligus.
+// Panel Connect: satu service terbuka sekaligus.
 const connectId = ref<string | null>(null)
-// Lebar panel service bisa diseret; seret habis ke kanan = tutup panel (v3.6.1).
+// Lebar panel service bisa diseret; seret habis ke kanan = tutup panel.
 const SVC_PANEL = { default: 320, min: 280, max: 480 }
 const svcPanel = usePanelWidth('services', SVC_PANEL)
 function toggleConnect(id: string): void {
@@ -93,9 +93,9 @@ const activeProfileId = computed(() => useConfig().config.value.activeProfileId)
 const activeProfileName = computed(() => profiles.value.find((p) => p.id === activeProfileId.value)?.name ?? 'this profile')
 
 /**
- * v3.14.0 (canvas D2): tombol utama memakai nama profil selama pilihan sama
- * dengan isi profil aktif ("Start Astra · 5"). Begitu switch diubah, tombol
- * kembali menjadi "Start selected".
+ * Tombol utama memakai nama profil selama pilihan sama dengan isi profil
+ * aktif ("Start Acme · 5"). Begitu switch diubah, tombol kembali menjadi
+ * "Start selected".
  */
 const selectionIsProfile = computed(() => {
   const p = profiles.value.find((x) => x.id === activeProfileId.value)
@@ -107,7 +107,7 @@ const startLabel = computed(() =>
   selectionIsProfile.value ? `Start ${activeProfileName.value}` : 'Start selected',
 )
 
-// v3.8 (S1/S5): Start / Retry dari baris service yang dipilih tetapi tidak berjalan.
+// Start / Retry dari baris service yang dipilih tetapi tidak berjalan.
 function startOne(id: string): void {
   void start([id])
 }
@@ -134,7 +134,6 @@ onMounted(async () => {
 
   const cfg = useConfig().config.value
 
-  // Restore selection UI dari config
   if (cfg.selectedServiceIds.length > 0) {
     setSelectedIds(cfg.selectedServiceIds)
   }
@@ -147,10 +146,8 @@ onMounted(async () => {
 
 })
 
-onUnmounted(() => {
-})
 
-/** Kanvas D: "Choose services" pada profil kosong membawa fokus ke switch pertama. */
+/** "Choose services" pada profil kosong membawa fokus ke switch pertama. */
 function focusFirstSwitch(): void {
   const el = document.querySelector<HTMLElement>('.services-table [role="switch"]')
   el?.scrollIntoView({ block: 'nearest' })
@@ -296,7 +293,6 @@ function focusFirstSwitch(): void {
           </div>
         </template>
       </div>
-      <!-- v3.10.0 (canvas .k-list footer): ringkasan di bawah daftar. -->
       <div v-if="definitions.length > 0" class="sw-summary">
         <span>{{ runningCount }} running<template v-if="runningRamMb > 0"> · {{ runningRamMb >= 1024 ? `${(runningRamMb / 1024).toFixed(1)} GB` : `${Math.round(runningRamMb)} MB` }}</template></span>
         <span class="sw-sp"></span>
@@ -433,7 +429,7 @@ function focusFirstSwitch(): void {
   min-height: 0;
 }
 
-/* v3.8.6 (canvas Services): judul layar di luar kartu tabel. */
+/* Judul layar di luar kartu tabel. */
 .sw-header {
   display: flex;
   flex-wrap: wrap;
@@ -526,14 +522,13 @@ function focusFirstSwitch(): void {
   color: var(--faint);
 }
 
-/* Skeleton row — mirror .svc-row grid sehingga real content tidak shift */
+/* Grid sama dengan .svc-row supaya isi asli tidak bergeser saat muncul. */
 .svc-row-skeleton {
   display: grid;
   grid-template-columns: 36px 24px 1fr 100px 68px 80px 76px;
   align-items: center;
   gap: var(--space-3);
   padding: 5px var(--space-4);
-  /* Height match-able dengan ServiceRow (svc-row punya font-size 12px + padding 5px) */
 }
 
 .svc-row-skeleton__id {

@@ -18,7 +18,8 @@ export interface SiteRuntime {
 /** Mirror `ProjectSuggestion` di src-tauri/src/sites/mod.rs. */
 export interface ProjectSuggestion {
   name: string
-  detection: { kind: string; label: string; command: string; defaultPort: number }
+  /** `reason`: alasan singkat deteksi, mis. "hono in package.json dependencies · src/index.ts". */
+  detection: { kind: string; label: string; command: string; defaultPort: number; reason?: string }
   port: number
   /** Berkas yang membuat jenisnya dikenali. */
   evidence: string[]

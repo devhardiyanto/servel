@@ -1,5 +1,5 @@
-// Umumkan perubahan status project ke pembaca layar: perubahan biasa lewat region
-// role="status" (polite), project yang berhenti dengan error lewat
+// Umumkan perubahan status project ke pembaca layar: perubahan biasa lewat
+// region role="status" (polite), project yang berhenti dengan error lewat
 // role="alert". Status awal saat aplikasi dibuka tidak diumumkan.
 import { ref, watch } from 'vue'
 import { useConfig } from '@/composables/useConfig'
@@ -29,6 +29,11 @@ export function describeChange(name: string, prev: SiteState, next: SiteRuntime)
 function say(target: typeof polite, text: string): void {
   target.value = ''
   setTimeout(() => (target.value = text), 50)
+}
+
+/** Umumkan hasil aksi pengguna (mis. project dipindah) lewat region polite. */
+export function announce(text: string): void {
+  say(polite, text)
 }
 
 export function useStatusAnnouncer() {

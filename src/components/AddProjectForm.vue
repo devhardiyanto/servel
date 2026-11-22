@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// Isi form tambah project (v3.4, canvas B3–B4 dan onboarding A6–A7): deteksi
-// jenis folder, cek port, lalu simpan. Dipakai modal Add project dan langkah
-// "First project" di onboarding; tombolnya milik pemanggil (save() diekspos).
+// Isi form tambah project: deteksi jenis folder, cek port, lalu simpan.
+// Dipakai modal Add project dan langkah "First project" di onboarding;
+// tombolnya milik pemanggil (save() diekspos).
 import { computed, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import UiInput from '@/components/ui/UiInput.vue'
@@ -10,6 +10,8 @@ import UiButton from '@/components/ui/UiButton.vue'
 import CommandSuggestions from '@/components/CommandSuggestions.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
+import FrameworkLogo from '@/components/ui/FrameworkLogo.vue'
+import { frameworkColor, frameworkIcon } from '@/utils/framework'
 import { useConfig } from '@/composables/useConfig'
 import { useProjectRuntime, type ProjectSuggestion } from '@/composables/useProjectRuntime'
 import { useProjectActions } from '@/composables/useProjectActions'
@@ -33,6 +35,12 @@ const formError = ref('')
 const saving = ref(false)
 
 const known = computed(() => !!suggestion.value && suggestion.value.detection.kind !== 'unknown')
+const logo = computed(() => frameworkIcon(suggestion.value?.detection.label))
+const why = computed(() => {
+  const d = suggestion.value
+  if (!d) return ''
+  return [d.detection.reason || d.evidence.join(', '), runtimeText.value].filter(Boolean).join(' · ')
+})
 
 const runtimeText = computed(() =>
   tools.value
@@ -151,9 +159,14 @@ defineExpose({ save, ready, saving, canStart: computed(() => !!form.value.comman
     <UiBanner v-else-if="detectError" tone="err" title="Could not read this folder">{{ detectError }}</UiBanner>
 
     <template v-else>
-      <UiBanner v-if="known" tone="ok" :title="`Detected ${suggestion?.detection.label}`">
-        {{ [suggestion?.evidence.join(', '), runtimeText].filter(Boolean).join(' · ') }}
-      </UiBanner>
+      <div v-if="known && logo" class="apf-det" role="status" :style="{ '--fw': frameworkColor(logo) }">
+        <span class="apf-det__tile"><FrameworkLogo :kind="suggestion?.detection.label" :size="16" /></span>
+        <span class="apf-det__body">
+          <span class="apf-det__title">Detected {{ suggestion?.detection.label }}</span>
+          <span v-if="why" class="apf-det__why">{{ why }}</span>
+        </span>
+      </div>
+      <UiBanner v-else-if="known" tone="ok" :title="`Detected ${suggestion?.detection.label}`">{{ why }}</UiBanner>
       <UiBanner v-else tone="warn" title="Couldn't tell how to run this folder">
         No package.json, composer.json, go.mod, artisan or Python project file found. Enter the command yourself.
       </UiBanner>
@@ -216,6 +229,30 @@ defineExpose({ save, ready, saving, canStart: computed(() => !!form.value.comman
 }
 @keyframes apf-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .apf-spinner { animation: none; } }
+.apf-det {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  font-size: var(--text-sm);
+}
+.apf-det__tile {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  border: 1px solid color-mix(in srgb, var(--fw) 45%, transparent);
+  background: color-mix(in srgb, var(--fw) 12%, transparent);
+}
+.apf-det__body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.apf-det__title { font-weight: 600; color: var(--text); }
+.apf-det__why { color: var(--muted); overflow-wrap: anywhere; }
 .apf-row { display: flex; gap: var(--space-3); align-items: flex-start; }
 .apf-row > :first-child { flex: 1; }
 .apf-use { margin-top: calc(-1 * var(--space-2)); }

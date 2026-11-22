@@ -2,7 +2,10 @@
 // Tombol ⋯ dengan menu aksi. Panah atas/bawah berpindah, Enter menjalankan,
 // Esc menutup dan mengembalikan fokus ke tombol. Item destruktif diletakkan
 // terakhir oleh pemanggil; `separator` menggambar garis di atas item.
-import { nextTick, onBeforeUnmount, ref } from 'vue'
+// Item dengan `children` membuka submenu di tempat yang sama (panah kanan atau
+// Enter); panah kiri atau "Back" kembali. Lebih mudah dipakai dengan keyboard
+// dan pembaca layar daripada submenu melayang di samping.
+import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 
 export interface MenuItem {
   id: string
@@ -11,21 +14,28 @@ export interface MenuItem {
   danger?: boolean
   disabled?: boolean
   separator?: boolean
+  children?: MenuItem[]
 }
 
-defineProps<{ items: MenuItem[]; label: string }>()
+const props = defineProps<{ items: MenuItem[]; label: string }>()
 const emit = defineEmits<{ select: [id: string] }>()
 
 const open = ref(false)
 const trigger = ref<HTMLButtonElement | null>(null)
 const menu = ref<HTMLElement | null>(null)
 const pos = ref({ top: 0, left: 0 })
+/** Item induk submenu yang sedang terbuka; null = menu utama. */
+const sub = ref<MenuItem | null>(null)
+const shown = computed<MenuItem[]>(() =>
+  sub.value ? [{ id: '__back', label: `‹ ${sub.value.label.replace(/\s*›$/, '')}` }, ...(sub.value.children ?? [])] : props.items,
+)
 
 function buttons(): HTMLButtonElement[] {
   return Array.from(menu.value?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])
 }
 
 async function show(): Promise<void> {
+  sub.value = null
   open.value = true
   await nextTick()
   const t = trigger.value?.getBoundingClientRect()
@@ -66,13 +76,33 @@ function onKey(e: KeyboardEvent): void {
   else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus() }
   else if (e.key === 'Home') { e.preventDefault(); items[0]?.focus() }
   else if (e.key === 'End') { e.preventDefault(); items[items.length - 1]?.focus() }
+  else if (e.key === 'ArrowRight') {
+    const it = shown.value.find((x) => `mi-${x.id}` === (document.activeElement as HTMLElement)?.dataset.mi)
+    if (it?.children) { e.preventDefault(); void enter(it) }
+  }
+  else if (e.key === 'ArrowLeft' && sub.value) { e.preventDefault(); void back() }
   else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); hide(true) }
   else if (e.key === 'Tab') { hide() }
 }
 
-function pick(id: string): void {
+async function enter(it: MenuItem): Promise<void> {
+  sub.value = it
+  await nextTick()
+  buttons()[1]?.focus()
+}
+
+async function back(): Promise<void> {
+  const parent = sub.value
+  sub.value = null
+  await nextTick()
+  menu.value?.querySelector<HTMLButtonElement>(`[data-mi="mi-${parent?.id}"]`)?.focus()
+}
+
+function pick(it: MenuItem): void {
+  if (it.id === '__back') return void back()
+  if (it.children) return void enter(it)
   hide(true)
-  emit('select', id)
+  emit('select', it.id)
 }
 
 onBeforeUnmount(() => hide())
@@ -100,18 +130,20 @@ onBeforeUnmount(() => hide())
       :style="{ top: `${pos.top}px`, left: `${pos.left}px` }"
       @keydown="onKey"
     >
-      <template v-for="it in items" :key="it.id">
+      <template v-for="it in shown" :key="it.id">
         <div v-if="it.separator" class="ui-menu__sep" role="separator"></div>
         <button
           type="button"
           class="ui-menu__item"
-          :class="{ 'ui-menu__item--danger': it.danger }"
+          :class="{ 'ui-menu__item--danger': it.danger, 'ui-menu__item--back': it.id === '__back' }"
           role="menuitem"
           tabindex="-1"
+          :data-mi="`mi-${it.id}`"
+          :aria-haspopup="it.children ? 'menu' : undefined"
           :disabled="it.disabled"
-          @click="pick(it.id)"
+          @click="pick(it)"
         >
-          {{ it.label }}<span v-if="it.hint" class="ui-menu__hint">{{ it.hint }}</span>
+          {{ it.label }}<span v-if="it.hint" class="ui-menu__hint">{{ it.hint }}</span><span v-if="it.children" class="ui-menu__hint" aria-hidden="true">›</span>
         </button>
       </template>
     </div>
@@ -167,6 +199,7 @@ onBeforeUnmount(() => hide())
 .ui-menu__item:focus-visible { background: var(--surface3); outline: none; }
 .ui-menu__item:disabled { color: var(--faint); cursor: not-allowed; }
 .ui-menu__item--danger { color: var(--red); }
+.ui-menu__item--back { color: var(--muted); }
 .ui-menu__hint { margin-left: auto; font: var(--text-xs) var(--font-mono); color: var(--muted); }
 .ui-menu__sep { height: 1px; margin: 4px 0; background: var(--border); }
 </style>

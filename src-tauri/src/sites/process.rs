@@ -491,8 +491,8 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
             ),
         }
     }
-    // Environment milik project dipasang paling akhir, jadi menimpa nilai mise:
-    // Default, lalu override environment aktif.
+    // Environment milik project dipasang paling akhir, jadi menimpa nilai mise.
+    // Default lalu override environment aktif.
     let env = site.effective_env();
     let env_label = site.active_env_entry().map(|e| e.name.as_str()).unwrap_or("Default");
     if !env.is_empty() {
@@ -742,6 +742,11 @@ pub fn snapshot<R: Runtime>(app: &AppHandle<R>) -> Vec<SiteRuntime> {
     app.state::<SiteProcs>().snapshot()
 }
 
+/// PID akar dev server yang sedang hidup, untuk menghitung RAM project.
+pub fn running_pids<R: Runtime>(app: &AppHandle<R>) -> Vec<u32> {
+    app.state::<SiteProcs>().entries.lock().unwrap().values().filter_map(|e| e.pid).collect()
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -783,6 +788,7 @@ mod tests {
             envs: Vec::new(),
             active_env: None,
             start_services: false,
+            group_id: None,
         }
     }
 
@@ -878,7 +884,7 @@ mod tests {
         };
         let dir = std::env::temp_dir();
         // `sh -c "<cmd> & wait"` membuat anak terpisah dari shell, seperti
-        // npm → node: Stop harus mematikan keduanya. Port dari SERVER_PORT,
+        // npm → node: Stop harus mematikan keduanya. Port dari SERVER_PORT
         // seperti `php artisan serve` di dalam `composer run dev`.
         let mut p = site(&dir.to_string_lossy(), "python3 -m http.server $SERVER_PORT --bind $SERVER_HOST & wait", port);
         p.id = "e2e".into();

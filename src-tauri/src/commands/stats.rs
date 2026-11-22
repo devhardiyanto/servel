@@ -1,10 +1,11 @@
 use serde::Serialize;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::OnceLock;
 use tokio::sync::Notify;
 
-/// Kecepatan polling RAM (v3.10.1). UI memberi tahu apa yang sedang dilihat:
-/// layar Services terbuka = cepat, jendela tersembunyi = jeda.
+/// Mode polling RAM dari UI. Angka di status bar terlihat di semua layar,
+/// jadi `normal` dan `fast` sama-sama tiap 2 detik; jendela tersembunyi = jeda.
 pub const MODE_NORMAL: u8 = 0;
 pub const MODE_FAST: u8 = 1;
 pub const MODE_PAUSED: u8 = 2;
@@ -22,9 +23,8 @@ pub fn mode() -> u8 {
 /// Jeda antar pengambilan untuk mode saat ini. `None` = jangan ambil.
 pub fn interval_for(mode: u8) -> Option<std::time::Duration> {
     match mode {
-        MODE_FAST => Some(std::time::Duration::from_secs(2)),
         MODE_PAUSED => None,
-        _ => Some(std::time::Duration::from_secs(5)),
+        _ => Some(std::time::Duration::from_secs(2)),
     }
 }
 
@@ -48,7 +48,7 @@ pub fn stats_set_mode(mode: String) {
     }
 }
 
-/// Single container memory snapshot — payload entry untuk event `container-stats-changed`.
+/// Memori satu container, entri event `container-stats-changed`.
 #[derive(Serialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ContainerMemStat {
@@ -132,6 +132,91 @@ pub async fn fetch_container_stats() -> Result<Vec<ContainerMemStat>, String> {
     crate::runtime::stats().await
 }
 
+/// Payload event `ram-stats-changed`, dikirim tiap putaran polling.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RamStats {
+    /// Jumlah memori container; `None` bila engine tidak bisa ditanya.
+    pub services_mb: Option<u64>,
+    /// Pohon proses semua dev server yang berjalan.
+    pub projects_mb: u64,
+    /// Proses Kova sendiri beserta proses WebView-nya.
+    pub kova_mb: u64,
+    /// Waktu pengukuran, milidetik sejak epoch.
+    pub measured_at: u64,
+}
+
+/// Satu proses: (pid, parent, byte memori).
+pub type ProcInfo = (u32, Option<u32>, u64);
+
+/// Bagi memori pohon proses Kova: subtree yang berakar di PID dev server
+/// dihitung sebagai project, sisanya (Kova dan WebView2/WebKit yang
+/// diluncurkannya) sebagai Kova. Dev server yang sudah tidak berada di bawah
+/// Kova tetap dihitung lewat akarnya. Hasil: (byte project, byte Kova).
+pub fn split_process_memory(procs: &[ProcInfo], own: u32, dev_roots: &[u32]) -> (u64, u64) {
+    let mut children: HashMap<u32, Vec<u32>> = HashMap::new();
+    let mut mem: HashMap<u32, u64> = HashMap::new();
+    for &(pid, parent, bytes) in procs {
+        mem.insert(pid, bytes);
+        if let Some(pp) = parent.filter(|pp| *pp != pid) {
+            children.entry(pp).or_default().push(pid);
+        }
+    }
+    let roots: HashSet<u32> = dev_roots.iter().copied().collect();
+    let mut seen: HashSet<u32> = HashSet::new();
+    let (mut projects, mut kova) = (0u64, 0u64);
+
+    let sum_tree = |start: u32, seen: &mut HashSet<u32>| -> u64 {
+        let mut total = 0;
+        let mut stack = vec![start];
+        while let Some(pid) = stack.pop() {
+            if !seen.insert(pid) {
+                continue;
+            }
+            total += mem.get(&pid).copied().unwrap_or(0);
+            stack.extend(children.get(&pid).into_iter().flatten().copied());
+        }
+        total
+    };
+
+    let mut stack = vec![own];
+    while let Some(pid) = stack.pop() {
+        if roots.contains(&pid) {
+            projects += sum_tree(pid, &mut seen);
+            continue;
+        }
+        if !seen.insert(pid) {
+            continue;
+        }
+        kova += mem.get(&pid).copied().unwrap_or(0);
+        stack.extend(children.get(&pid).into_iter().flatten().copied());
+    }
+    for &root in dev_roots {
+        projects += sum_tree(root, &mut seen);
+    }
+    (projects, kova)
+}
+
+/// Byte ke MB desimal, sama dengan angka container.
+pub fn bytes_to_mb(bytes: u64) -> u64 {
+    (bytes as f64 / 1_000_000.0).round() as u64
+}
+
+/// Ukur memori project dan Kova. `sys` disimpan antar putaran; hanya memori
+/// proses yang di-refresh (tanpa CPU, disk, argumen, environment), jadi
+/// murah walau dipanggil tiap 2 detik.
+pub fn measure_processes(sys: &mut sysinfo::System, dev_roots: &[u32]) -> (u64, u64) {
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate};
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::nothing().with_memory());
+    let procs: Vec<ProcInfo> = sys
+        .processes()
+        .iter()
+        .map(|(pid, p)| (pid.as_u32(), p.parent().map(|pp| pp.as_u32()), p.memory()))
+        .collect();
+    let (projects, kova) = split_process_memory(&procs, std::process::id(), dev_roots);
+    (bytes_to_mb(projects), bytes_to_mb(kova))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -139,8 +224,33 @@ mod tests {
     #[test]
     fn polling_interval_follows_mode() {
         assert_eq!(interval_for(MODE_FAST), Some(std::time::Duration::from_secs(2)));
-        assert_eq!(interval_for(MODE_NORMAL), Some(std::time::Duration::from_secs(5)));
+        assert_eq!(interval_for(MODE_NORMAL), Some(std::time::Duration::from_secs(2)));
         assert_eq!(interval_for(MODE_PAUSED), None);
+    }
+
+    #[test]
+    fn process_memory_is_split_between_dev_servers_and_kova() {
+        const MB: u64 = 1_000_000;
+        // 1 = Kova, 2 = WebView, 3 = renderer WebView, 10 = shell dev server
+        // (anak: 11 npm, 12 node), 20 = dev server yang sudah lepas dari Kova,
+        // 99 = proses lain di PC.
+        let procs: Vec<ProcInfo> = vec![
+            (1, Some(0), 90 * MB),
+            (2, Some(1), 60 * MB),
+            (3, Some(2), 36 * MB),
+            (10, Some(1), 2 * MB),
+            (11, Some(10), 50 * MB),
+            (12, Some(11), 300 * MB),
+            (20, Some(5), 60 * MB),
+            (99, Some(0), 999 * MB),
+        ];
+        let (projects, kova) = split_process_memory(&procs, 1, &[10, 20]);
+        assert_eq!((bytes_to_mb(projects), bytes_to_mb(kova)), (412, 186));
+        // Tanpa dev server: semua milik Kova; PID yang sudah mati diabaikan.
+        assert_eq!(split_process_memory(&procs, 1, &[]), (0, 538 * MB));
+        assert_eq!(split_process_memory(&procs, 1, &[777]).0, 0);
+        // Siklus parent (data OS yang aneh) tidak membuat loop.
+        assert_eq!(split_process_memory(&[(1, Some(2), MB), (2, Some(1), MB)], 1, &[]), (0, 2 * MB));
     }
 
     #[test]
