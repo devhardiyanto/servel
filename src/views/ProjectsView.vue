@@ -125,7 +125,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
         <span class="pv-sp"></span>
         <!-- Tanpa project, Add project ada di empty state; jangan dobel. -->
         <template v-if="config.projects.length">
-          <UiButton size="md" :disabled="!!actions.draftGroup.value" @click="newGroup"><UiIcon name="plus" />New group</UiButton>
+          <UiButton size="md" title="New group" :disabled="!!actions.draftGroup.value" @click="newGroup"><UiIcon name="plus" /><span class="pv-newgroup-label">New group</span></UiButton>
           <UiButton variant="primary" size="md" @click="actions.adding.value = true"><UiIcon name="plus" />Add project</UiButton>
         </template>
       </header>
@@ -193,8 +193,12 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
 .pv-list {
   flex: 1;
   min-width: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 18px 20px 16px;
+  /* Header dan kartu menyesuaikan lebar daftar, bukan lebar jendela:
+     panel detail yang terbuka mempersempit daftar. */
+  container: pv-list / inline-size;
 }
 .pv-detail {
   flex: none;
@@ -208,7 +212,13 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
   gap: var(--space-4);
 }
 .pv-list { display: flex; flex-direction: column; gap: var(--space-4); }
-.pv-bar { display: flex; align-items: center; gap: var(--space-3); }
+.pv-bar { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.pv-bar :deep(.ui-btn) { flex: none; }
+/* Daftar sempit: New group tinggal ikon (aria-label tetap "New group"). */
+@container pv-list (max-width: 600px) {
+  .pv-newgroup-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .pv-search { flex-basis: 200px; min-width: 96px; }
+}
 .pv-title { margin: 0; font-size: var(--text-xl); white-space: nowrap; font-weight: 600; color: var(--text); }
 .pv-count { font: 400 var(--text-xs) var(--font-mono); color: var(--faint); margin-left: var(--space-1); }
 .pv-strip {

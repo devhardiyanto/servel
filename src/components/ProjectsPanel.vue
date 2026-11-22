@@ -349,7 +349,7 @@ defineExpose({ startNewGroup })
             >
               <StatusDot class="pl-dot" :state="stateOf(p.id)" />
               <span class="pl-main">
-                <span class="pl-name">{{ p.name }}</span>
+                <span class="pl-name" :title="p.name">{{ p.name }}</span>
                 <span class="pl-path">{{ p.path || 'Folder not chosen yet' }}</span>
               </span>
               <FrameworkChip v-if="p.kind" :kind="p.kind" />
@@ -488,7 +488,13 @@ defineExpose({ startNewGroup })
 .pl-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .pl-card--sel { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--surface2); }
 .pl-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.pl-name { font-size: var(--text-md); font-weight: 600; }
+.pl-name { font-size: var(--text-md); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Daftar sempit (panel detail terbuka): port pindah ke panel detail saja,
+   supaya nama project tetap satu baris. */
+@container pv-list (max-width: 600px) {
+  .pl-card { grid-template-columns: auto minmax(0, 1fr) auto 88px; }
+  .pl-port { display: none; }
+}
 .pl-path { font: 400 var(--text-xs) var(--font-mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl-port { font: 400 var(--text-xs) var(--font-mono); color: var(--muted); text-align: right; }
 .pl-state { justify-self: end; }

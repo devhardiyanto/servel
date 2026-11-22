@@ -25,7 +25,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
-| U · Tampilan & aksesibilitas | 9 | 0 | 0 | v3.14.0, v3.15.0 |
+| U · Tampilan & aksesibilitas | 11 | 0 | 0 | v3.14.0, v3.15.0 |
 | W · Khusus Windows | 4 | 0 | ➖ | v3.10.x |
 | L · Khusus Linux | 7 | ➖ | 0 | v3.12.0 |
 
@@ -190,6 +190,8 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-U7 | Jalankan 1 service dan 1 project; amati status bar di Projects dan Settings selama 10 detik. | "RAM … · Kova … MB" berubah kira-kira tiap 2 detik tanpa teks bergeser; tooltip "Services … · Projects … · Kova … — measured at HH:MM:SS". Angka Kova tetap ada tanpa service. | ⬜ | ⬜ | | v3.15.0 |
 | TC-U8 | Sembunyikan jendela ke tray 30 detik, lalu buka lagi (pantau `docker stats`/`wslc stats` dan CPU Kova). | Saat tersembunyi tidak ada pengukuran; begitu jendela terlihat angka diperbarui lagi dalam ±2 detik. | ⬜ | ⬜ | | v3.15.0 |
 | TC-U9 | **W:** NVDA aktif di Projects selama 30 detik tanpa interaksi. | NVDA tidak membacakan angka RAM berulang; perubahan status engine tetap diumumkan. | ⬜ | ➖ | | v3.15.0 |
+| TC-U10 | Buka Projects dengan panel detail terbuka di jendela ±1100 px, project bernama panjang (≥ 24 karakter). | Tidak ada scroll horizontal; New group tampil sebagai ikon; nama project satu baris dengan elipsis (tooltip nama lengkap); port tetap terlihat di panel detail. Tidak ada kotak putih di pojok scrollbar. | ⬜ | ⬜ | | v3.15.1 |
+| TC-U11 | Jalankan beberapa service, lihat footer Services dan status bar. | Status bar menulis `RAM <total> (services <X> + Kova <Y>)`; X sama dengan angka di footer Services. | ⬜ | ⬜ | | v3.15.1 |
 
 ## W · Khusus Windows
 
