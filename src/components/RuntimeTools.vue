@@ -19,8 +19,9 @@ import { useConfig } from '@/composables/useConfig'
 import { useVersionContext } from '@/composables/useVersionContext'
 import { useLogs } from '@/composables/useLogs'
 import { useToast } from '@/composables/useToast'
+import { useRuntimeInstall, type RuntimeTool } from '@/composables/useRuntimeInstall'
 
-type Tool = 'php' | 'node' | 'go' | 'python'
+type Tool = RuntimeTool
 interface VersionRow { version: string; installed: boolean; global: boolean; usedBy: string[] }
 interface Overview { tool: string; global: string | null; versions: VersionRow[] }
 
@@ -84,13 +85,13 @@ let unlistenGlobal: UnlistenFn | null = null
 onUnmounted(() => unlistenGlobal?.())
 
 const rows = computed(() => data.value[tool.value]?.versions ?? [])
-/** Versi yang baru dipasang di sesi ini diberi chip `new`. */
-const freshVersions = ref(new Set<string>())
-const isFresh = (version: string): boolean => freshVersions.value.has(`${tool.value}@${version}`)
+const rtInstall = useRuntimeInstall()
+const isFresh = (version: string): boolean => rtInstall.fresh.value.has(`${tool.value}@${version}`)
 
 // --- Install -----------------------------------------------------------------
+// The job lives in useRuntimeInstall, so it survives leaving this page.
 const newVersion = ref('')
-const installing = ref<string | null>(null)
+const installing = computed(() => rtInstall.current.value)
 const installLine = computed(() => {
   if (!installing.value) return ''
   const l = [...lines.value].reverse().find((x) => x.src === 'MISE')
@@ -100,30 +101,23 @@ const installLine = computed(() => {
 async function install(version = newVersion.value.trim()): Promise<void> {
   if (!version || installing.value) return
   actionError.value = ''
-  installing.value = version
-  const before = new Set(rows.value.filter((r) => r.installed).map((r) => r.version))
-  const installedTool = tool.value
-  try {
-    await invoke('runtime_install_version', { tool: tool.value, version })
-    newVersion.value = ''
-    toast.show(`Installed ${meta.value.label} ${version}`)
-  } catch (err) {
-    if (!String(err).includes('cancelled')) actionError.value = String(err)
-    else toast.show(`Install of ${meta.value.label} ${version} cancelled`)
-  } finally {
-    installing.value = null
-    await load()
-    const added = (data.value[installedTool]?.versions ?? []).filter((r) => r.installed && !before.has(r.version))
-    if (added.length > 0) {
-      const next = new Set(freshVersions.value)
-      for (const r of added) next.add(`${installedTool}@${r.version}`)
-      freshVersions.value = next
-    }
-  }
+  const r = await rtInstall.install(tool.value, version)
+  if (r?.ok && newVersion.value.trim() === version) newVersion.value = ''
 }
 
+// Reload when an install finishes, including one that ended while this page
+// was closed (onMounted loads anyway in that case).
+watch(rtInstall.lastResult, (r) => {
+  if (!r) return
+  if (!r.ok && !r.cancelled) actionError.value = r.error
+  const { [r.tool]: _stale, ...rest } = data.value
+  data.value = rest
+  if (r.tool === tool.value) void load()
+  if (r.madeGlobal) void versionCtx.refresh()
+})
+
 async function cancelInstall(): Promise<void> {
-  await invoke('runtime_install_cancel')
+  await rtInstall.cancel()
 }
 
 // --- Aksi per versi -------------------------------------------------------------
@@ -244,7 +238,7 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
       </table>
     </template>
 
-    <UiBanner v-if="installing" tone="info" :title="`Installing ${meta.label} ${installing}`">
+    <UiBanner v-if="installing" tone="info" :title="`Installing ${TOOLS.find((t) => t.value === installing!.tool)?.label} ${installing.version}`">
       <code class="rtt-mono">{{ installLine || 'starting mise…' }}</code>
       <template #actions><UiButton @click="cancelInstall">Cancel</UiButton></template>
     </UiBanner>
