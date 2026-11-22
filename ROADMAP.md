@@ -1,6 +1,6 @@
-# Servel Roadmap
+# Kova Roadmap
 
-Status per versi. Item yang sudah rilis tetap dicatat supaya keputusan desainnya bisa ditelusuri.
+Kova (dulu **Servel**, berganti nama di v3.0.0). Status per versi. Item yang sudah rilis tetap dicatat supaya keputusan desainnya bisa ditelusuri; item yang sudah selesai atau usang di bagian lama diringkas dan diberi rujukan versi. Pekerjaan yang masih terbuka ada di [Status per 22 November 2026](#status-per-22-november-2026) di akhir file.
 
 ## v1.6.0 — WSL containers (Windows)
 
@@ -27,22 +27,17 @@ Tujuan: di Windows, Servel menjalankan service tanpa Docker Desktop dan tanpa di
   - Onboarding, banner Dashboard, dan Settings → Container engine menjadi engine-neutral, termasuk tombol pindah ke WSL containers satu klik.
   - Tema "soft": netral kebiruan, border translucent, aksen pastel, skala radius, Inter untuk UI dan mono hanya untuk data.
 
-### Perlu verifikasi di mesin Windows
+### Verifikasi di Windows
 
-Hal-hal berikut tidak bisa diuji tanpa `wslc` sungguhan. Parser sudah dibuat toleran terhadap beberapa bentuk output.
+- Terverifikasi di WSL 3.0.5: bentuk NDJSON `wslc container list --all --format json` dan `wslc stats --format json` (fixture di `src-tauri/src/runtime/fixtures/`); `wslc stop -t 30` (21 November 2026, v3.8.0).
+- CLI di PowerShell: dicatat lulus pada uji v2.5–v2.7 dan uji rc.1/rc.2 (alias `servel`, `kova.exe`).
+- Masih terbuka (prioritas rendah, lihat status terbaru): `wslc remove -f` saat definisi service berubah, dan apakah `.wslconfig` memengaruhi VM WSLC.
 
-- ~~Bentuk JSON `wslc container list --all --format json`~~ — **terverifikasi di WSL 3.0.5**: NDJSON bergaya Docker (`Names` string, `State` teks, exit code hanya di `Status`). Fixture: `src-tauri/src/runtime/fixtures/`.
-- ~~Bentuk JSON `wslc stats --format json`~~ — **terverifikasi di WSL 3.0.5**: NDJSON bergaya `docker stats` (`Name`, `MemUsage`); output kosong bila tidak ada container running; `--no-stream` tidak dikenali (tidak dipakai).
-- ~~`wslc stop -t 30`~~ — **terverifikasi di Windows (21 November 2026, v3.8.0)**: flag diterima, service berhenti tanpa error.
-- `wslc remove -f` (hanya dipakai saat definisi service berubah: container dibuat ulang, volume tetap).
-- Apakah `.wslconfig` memengaruhi VM WSLC.
-- CLI `servel`: belum pernah dijalankan di PowerShell sungguhan (lingkungan pengembangan tanpa pwsh). Algoritma hash sudah dicocokkan dengan Rust; sintaks skrip perlu diuji di Windows.
+### Batasan yang diketahui (masih berlaku per v3.15.4)
 
-### Batasan yang diketahui
-
-- Tidak ada network antar-container (`servel_default`). Service diakses dari host lewat `127.0.0.1`; dev lokal Servel tidak membutuhkan komunikasi antar-container.
-- Tidak ada restart policy, jadi service hidup kembali saat Servel auto-start, bukan saat Windows boot.
-- Data Docker Desktop tidak dimigrasikan otomatis.
+- WSLC: tidak ada network antar-container (Docker memakai `servel_default`). Service diakses dari host lewat `127.0.0.1`. Sejak v3.15.3 Docker juga mem-publish port di `127.0.0.1` saja.
+- WSLC: tidak ada restart policy, jadi service hidup kembali saat Kova auto-start, bukan saat Windows boot (Docker memakai `restart: unless-stopped`).
+- Data Docker Desktop tidak dimigrasikan otomatis (Import from Docker dihapus di v3.0.0-rc.1).
 
 ## v1.7.0 — mise sebagai version manager
 
@@ -84,11 +79,10 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
 - Onboarding: WSL containers + mise terdeteksi (2/2 ready).
 - Container buatan `servel.ps1` diadopsi apa adanya dan di-start lewat `wslc start`; service baru dibuat dengan `volume create` + `run` (pull image berjalan).
 
-### Perlu verifikasi di Windows
+### Verifikasi di Windows
 
-- `mise use --path <file>` benar-benar memperbarui file yang ditunjuk (bukan membuat baru) di mise 2026.11.x.
-- Format pesan error "not trusted" (pola yang dikenali: `Config files in <path> are not trusted`).
-- `mise install` dari Servel untuk versi yang belum terpasang.
+- `mise install` dan `mise use --path` dari aplikasi dicakup test case TC-E1, TC-E2, TC-E5 (`docs/testing/test-cases.md`); belum dijalankan di putaran 1.
+- Pesan "not trusted" kini ditangani banner **Trust** di Runtimes (`src/components/RuntimeTools.vue`), tetapi belum punya test case sendiri.
 
 ## v1.8.0 — data & kesehatan service
 
@@ -106,10 +100,10 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
   - PostgreSQL: `pg_dump -C` per database (bukan `pg_dumpall`, yang memuat `CREATE ROLE postgres`).
   - Hasil dump di-restore ke WSLC; file dump sementara dihapus.
 
-### Perlu verifikasi di Windows
+### Verifikasi
 
-- Restore `.sql` nyata ke MySQL dan PostgreSQL di WSLC.
-- Import from Docker (butuh mesin yang masih punya Docker Desktop + data Servel).
+- Restore `.sql` nyata: dicakup TC-W4 / TC-L7, belum dijalankan.
+- Import from Docker: usang, fitur dihapus di v3.0.0-rc.1 (E1).
 
 ## v1.9.0 — project sebagai pusat
 
@@ -118,19 +112,17 @@ Disetujui: cakupan terpisah dari v1.6; Servel boleh mengganti versi per project 
 - `Project.profileId`: memilih project di Dashboard juga menerapkan profil service-nya. Hanya selection yang berubah; container yang jalan tidak di-stop.
 - CLI `servel use <tool> <versi> [--global]` (target sama dengan `plan_use`), `servel projects` (read-only).
 
-### Ditunda
-
-- Menautkan Sites ke project (dikerjakan di v2.2 dengan melebur keduanya).
+- Menautkan Sites ke project: selesai di v2.2.0 (keduanya dilebur menjadi Projects).
 
 ## v2.0.0 — default baru
 
 ### Selesai
 
-- **WSL containers default di Windows** (`runtime::resolve`): Auto memilih WSLC kecuali Docker masih menyimpan container `servel_*`. Daemon Docker yang mati / sisa `docker.exe` tidak lagi menahan pengguna di Docker; data yang mungkin masih ada di sana bisa diambil lewat Import from Docker. Resolusi ulang hanya saat preferensi berubah, supaya simpan config tidak menunggu `docker ps`.
+- **WSL containers default di Windows** (`runtime::resolve`): Auto memilih WSLC kecuali Docker masih menyimpan container `servel_*`. Daemon Docker yang mati / sisa `docker.exe` tidak lagi menahan pengguna di Docker; data yang mungkin masih ada di sana bisa diambil lewat Import from Docker (fitur itu dihapus di v3.0.0-rc.1). Resolusi ulang hanya saat preferensi berubah, supaya simpan config tidak menunggu `docker ps`.
 - **mise di macOS/Linux**: modul `mise` sudah lintas platform (HOME, PATH login shell); ditambah test path Unix.
 - Clippy bersih tanpa warning.
 
-### Tidak bisa dikerjakan dari sisi kode
+### Tidak bisa dikerjakan dari sisi kode (masih berlaku per v3.15.4)
 
 - **Code signing Windows / notarization macOS**: butuh sertifikat Authenticode dan akun Apple Developer milik maintainer. Setelah tersedia, rahasianya cukup ditambahkan ke workflow `release`.
 - **`wslc compose` / endpoint Docker API**: menunggu Microsoft ([microsoft/WSL#40948](https://github.com/microsoft/WSL/issues/40948), [#40976](https://github.com/microsoft/WSL/issues/40976)). Servel tidak bergantung pada keduanya.
@@ -186,7 +178,7 @@ v1.6–v1.9 tidak dirilis terpisah. Tag `v2.0.0` menghasilkan satu rilis yang me
 - Node backend dan Go hanya mengikuti port bila aplikasinya membaca `PORT`; kalau tidak, isi port aplikasinya di Edit.
 - `php -S` / `artisan serve` melayani satu request pada satu waktu di Windows.
 - Dependensi project (`vendor`, `node_modules`) tidak dipasang otomatis.
-- Bila Servel mati paksa (crash/kill), dev server yang sedang jalan tidak ikut dihentikan.
+- ~~Bila Servel mati paksa (crash/kill), dev server yang sedang jalan tidak ikut dihentikan.~~ Diatasi di v2.3.0 (job object Windows + `running-projects.json`).
 - `%AppData%\Caddy` (data Caddy, termasuk kunci CA lama) tidak dihapus karena bisa dipakai instalasi Caddy lain.
 
 ## v2.2.1 — patch dari pemakaian
@@ -378,11 +370,11 @@ Urutan: A → B → C → D → E → F → G. Tiap milestone satu PR; tag dan p
 - [x] Catatan rilis `v3.0.0.md`, screenshot baru di `docs/screenshots/`.
 - [x] v3.0.0 terbit 15 November 2026 sebagai Latest.
 - [x] Uji Windows setelah terbit: Servel 2.11.1 → Check for updates → Kova 3.0.0 lewat updater bawaan; hanya Kova di Apps & features; `%LOCALAPPDATA%\Servel` hilang; `servel status` menampilkan pemberitahuan alias; data terbawa.
-- [ ] Ganti nama repo (oleh pemilik; GitHub mengalihkan URL lama; jangan membuat repo baru bernama `servel`). Setelah itu: URL repo di endpoint updater, README, dan tautan catatan rilis diperbarui lewat satu PR.
+- [ ] Ganti nama repo (oleh pemilik; GitHub mengalihkan URL lama; jangan membuat repo baru bernama `servel`). Setelah itu: URL repo di endpoint updater, README, dan tautan catatan rilis diperbarui lewat satu PR. *Per v3.15.4 masih terbuka: endpoint updater di `src-tauri/tauri.conf.json` masih menunjuk repo `…/servel`.*
 
 ## Status per 15 November 2026
 
-Rebrand dan tampilan baru selesai dengan v3.0.0. Milestone A–F tertutup kecuali ganti nama repo. Yang belum teruji: build macOS dan Linux v3 (tidak ada mesin uji), dan jalur start saat login dari Servel 2.11 yang sudah aktif (di mesin uji fitur itu tidak pernah dinyalakan).
+Rebrand dan tampilan baru selesai dengan v3.0.0. Milestone A–F tertutup kecuali ganti nama repo. Yang belum teruji: build macOS dan Linux v3 (tidak ada mesin uji), dan jalur start saat login dari Servel 2.11 yang sudah aktif (di mesin uji fitur itu tidak pernah dinyalakan). *Pembaruan 22 November: Linux (AppImage + Docker Engine) mulai dipakai di v3.15.2–v3.15.3; macOS masih belum pernah diuji.*
 
 ## Setelah v3.0.0
 
@@ -391,7 +383,7 @@ Penomoran: v3.x menambah fitur tanpa memutus apa pun dari Servel. **v4.0 adalah 
 ### G — v3.1: lanjutan
 
 - [x] G1 — Palet perintah Ctrl K / ⌘K (`CommandPalette.vue`, `utils/palette.ts`): pindah layar; start/stop service (sama dengan switch: start ikut memilih, stop melepas pilihan), Start selected, Stop all; project Start / Open / Restart / Stop sesuai keadaan. Tombol "Commands" di navigasi kiri. Pilihan service kini dipulihkan saat aplikasi dibuka, bukan saat layar Services dibuka.
-- [x] G2 — CLI `kova` untuk macOS dan Linux (`assets/cli/kova.sh`, POSIX sh). Dipasang dari Settings → General → Terminal ke `~/.local/bin/kova` (`cli_install.rs`; skrip ditanam di biner, file asing bernama `kova` tidak ditimpa). `up`/`down` dan perintah project dijalankan aplikasi lewat kanal kontrol (aksi baru `up`, `down`, `services`, dan balasan teks `plain`); `status`/`logs`/`shell` langsung ke Docker. Tidak ada `restore` dan `list` di CLI ini. Belum diuji di macOS/Linux sungguhan.
+- [x] G2 — CLI `kova` untuk macOS dan Linux (`assets/cli/kova.sh`, POSIX sh). Dipasang dari Settings → General → Terminal ke `~/.local/bin/kova` (`cli_install.rs`; skrip ditanam di biner, file asing bernama `kova` tidak ditimpa). `up`/`down` dan perintah project dijalankan aplikasi lewat kanal kontrol (aksi baru `up`, `down`, `services`, dan balasan teks `plain`); `status`/`logs`/`shell` langsung ke Docker. Tidak ada `restore` dan `list` di CLI ini (ditambah di v3.3.0). Belum diuji di macOS/Linux sungguhan.
 - G3 — Code signing: **ditunda**. SignPath Foundation menolak pengajuan (Juni 2026: proyek belum punya cukup adopsi publik). Diajukan ulang setelah ada adopsi, atau dibuka lagi bila ada pengguna yang terhalang peringatan SmartScreen. Pilihan berbayar (Certum Open Source, Azure Trusted Signing, SignPath berlangganan) belum diperiksa syarat dan harganya.
 
 ### H — v3.2.0: kelengkapan UI dari canvas
@@ -411,13 +403,12 @@ PR 2:
 - [x] Services: status memakai `StatusDot` (bentuk berbeda per status); engine tidak merespons, konflik port, dan gagal start memakai `UiBanner`; Copy .env / Copy URL memberi toast.
 - [x] Logs: tab memakai `UiTabs` (panah kiri/kanan); state kosong dan "tidak ada yang cocok" memakai `EmptyState`.
 - [x] Runtimes: dialog scope versi memakai `UiModal`. Settings: pilihan engine dan target restore memakai `UiSegmented`.
-- Belum dipindah ke komponen bersama: kolom isian di Runtimes dan PHP extensions, kartu prasyarat di onboarding, tombol log (`lv-btn`), pemilih service (`svc-toggle`). Tampilannya tidak berubah.
-- Belum diuji terhadap backend di Windows.
+- Sisa yang belum memakai komponen bersama (kolom isian Runtimes/PHP extensions, kartu prasyarat, `lv-btn`, `svc-toggle`) dipindah di v3.3.0 (I).
 
 ### H.1 — v3.2.1: satu instance
 
 - [x] Kova yang dibuka kedua kali meminta instance pertama menampilkan jendelanya (aksi `show` di kanal kontrol), lalu keluar. Dicek paling awal di `run()`, sebelum Tauri dibangun. Start saat login (`--hidden`) hanya memeriksa, tanpa memunculkan jendela. `control.json` dihapus sebelum restart setelah update supaya proses baru tidak menyerahkan diri ke proses lama.
-- [x] v3.2.0: `latest.json` terbit dengan 4 dari 8 platform karena job build menulisnya bergantian; diganti manual di rilis. Workflow belum diperbaiki.
+- [x] v3.2.0: `latest.json` terbit dengan 4 dari 8 platform karena job build menulisnya bergantian; diganti manual di rilis. Workflow diperbaiki di v3.3.0 (`latest.json` disusun sekali).
 
 ### I — v3.3.0: Python, CLI Unix, komponen bersama, aksesibilitas
 
@@ -426,7 +417,7 @@ PR 2:
 - [x] Sisa kolom isian (Runtimes, PHP extensions, profil, filter log), tombol log, kartu prasyarat, dan saklar service dipindah ke komponen bersama.
 - [x] Audit aksesibilitas WCAG 2.1 A/AA dengan axe-core di 12 layar: tanpa temuan setelah perbaikan kontras `--faint`, saklar service, pemilihan project lewat keyboard, dan nama aksesibel.
 - [x] Workflow rilis: tag dicek terhadap versi, "Run workflow" membuat tag, `latest.json` disusun sekali.
-- [ ] Uji di perangkat nyata: v3.2.x dan v3.3.0 di Windows; build dan CLI di macOS/Linux.
+- Uji di perangkat nyata v3.2.x–v3.3.0: digabung ke putaran uji v3.15.x (lihat status 22 November).
 
 ### J — v3.4.0: Projects, Add project, onboarding, update (kesesuaian canvas)
 
@@ -443,7 +434,7 @@ Audit per artboard (17 Nov) menemukan 12 dari 45 langkah flow sesuai canvas, 22 
 - [x] Panel service bertab (Connect, Data, Logs) dengan format .env; state kosong dan error Services.
 - [x] Logs: Open project, Copy, state "Lost the log stream".
 - [x] Settings: Diagnostics / Copy info.
-- [ ] Uji di perangkat nyata: v3.4.0 dan v3.5.0 di Windows (WebView2, unduh lalu restart, Cancel install, mise use/uninstall).
+- Uji di perangkat nyata v3.4.0–v3.5.0: unduh lalu restart dan Logs diuji 21 November (v3.7.x); Cancel install dan mise use/uninstall masuk TC-E2/TC-E5 putaran v3.15.x.
 
 "Lost the log stream" untuk service tidak dibuat: Kova tidak men-stream log container. Padanannya banner project berhenti di Logs.
 
@@ -462,7 +453,7 @@ Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-nav
 - [x] Ikon di nav rail.
 - [x] Perubahan status project diumumkan (`role="status"`, error lewat `role="alert"`); badge nav punya teks untuk pembaca layar.
 - [x] Baris `mise ERROR`/`✗` ditandai error dan `mise WARN` peringatan; pesan error tidak lagi "Run with --verbose…"; uninstall versi yang sedang dipakai menjelaskan penyebabnya.
-- [ ] Uji pembaca layar NVDA (perangkat pengguna).
+- Uji pembaca layar NVDA: masih terbuka, TC-U5 (lihat status 22 November).
 
 ### L.1 — v3.6.1: patch dari pemakaian
 
@@ -479,7 +470,7 @@ Canvas disinkronkan ke keputusan 17 Nov dulu (dropdown profil, tab Logs, sub-nav
 - [x] Hilang fokus = tertutup; klik ikon yang menutupnya tidak langsung membukanya lagi (jeda 300 ms).
 - [x] Menutup jendela utama dengan "Minimize to tray" mati tetap keluar lewat jalur Quit (popup tersembunyi tidak menahan aplikasi).
 - [x] Badge "active" di Settings › Services memakai chip standar.
-- [ ] Uji di Windows: posisi, DPI, multi-monitor, sudut dan bayangan, klik ulang ikon.
+- Uji di Windows: posisi, DPI 125%, klik ulang ikon lolos 21 November (v3.7.3–v3.7.4). Multi-monitor masih terbuka.
 
 ### M.1 — v3.7.1: toggle service saat hidup
 
@@ -603,25 +594,99 @@ Masukan 21 November: teks terasa terlalu besar, dan audit harus mencakup kompone
 - [x] `SERVER_PORT` dan `SERVER_HOST` disuntik bersama `PORT`, sehingga `php artisan serve` di dalam `composer run dev` mengikuti port project.
 - [x] Settings → About: kartu bersarang dihapus, baris update diberi ruang bawah.
 - [x] v3.10.3: Settings → Services: teks pembuka Profiles/Restore database tidak menempel ke tepi kartu, baris profil tanpa kartu bersarang, ruang bawah form profil.
-- [ ] Kandidat minor: pilih script dari `composer.json`/`package.json`, chip sumber log `[server]`/`[queue]`/`[vite]`, petunjuk bila `composer` tidak ditemukan.
+- [x] Kandidat minor (pilih script dari `composer.json`/`package.json`, chip sumber log `[server]`/`[queue]`/`[vite]`, petunjuk bila `composer` tidak ditemukan): selesai di v3.11.0.
 
-## Berikutnya
+## Setelah v3.10
 
 ### Q — Penutup revamp: milestone per minor (disepakati 21 November 2026)
 
 Dasar: audit flow A–H canvas terhadap aplikasi (v3.10.3). Semua minor, tanpa perubahan yang memutus kompatibilitas; yang memutus kompatibilitas tetap di v4.0. Bukti uji di [docs/testing/test-cases.md](docs/testing/test-cases.md).
 
-- [ ] **v3.10.x — baseline uji.** Putaran 1 di Windows (wslc) dan Linux (Docker Engine, tanpa Docker Desktop) dengan v3.10.3; temuan menjadi patch 3.10.x.
+- [ ] **Baseline uji.** Semula dengan v3.10.3; dipindah ke putaran 1 dengan **v3.15.x** di Windows (wslc) dan Linux (Docker Engine, tanpa Docker Desktop). Temuan Linux awal sudah menjadi v3.15.2–v3.15.3; tabel test case masih kosong.
 - [x] **v3.11.0 — Scripts & `composer run dev`.** Pilih script dari `composer.json`/`package.json`; chip sumber log dari prefiks `concurrently` (`[server]`/`[queue]`/`[vite]`); petunjuk bila `composer`/`npm` tidak ditemukan; keputusan default Laravel. Menutup TC-S*, TC-G*.
 - [x] **v3.12.0 — Linux Docker.** Pesan jelas untuk `docker.sock` permission denied (`usermod -aG docker`), plugin Compose v2 tidak ada, daemon mati; kartu onboarding Linux menyesuaikan. Menutup TC-L*, TC-A2/L, TC-D*/L.
 - [x] **v3.13.0 — Runtimes & Update.** Chip `new` setelah install (E3), teks rollback extension (E8), Later = pasang saat Kova ditutup (F3), What's new setelah update (F4). Menutup TC-E*, TC-F*.
 - [x] **v3.14.0 — Penutup revamp.** Keputusan final D2 (Start profile vs toggle), semua ◐ di canvas diselesaikan, canvas final, uji NVDA, regresi penuh A–H di dua OS. Selesai bila tidak ada ◐ tersisa dan semua baris test case ✅/➖. *Dirilis bersama v3.11.0–v3.13.0 sebagai satu tag v3.14.0; draft rilis menggabungkan catatannya (`scripts/release-notes.sh`). Uji di perangkat menyusul (lihat docs/testing).*
 
-### v3.x — kandidat, belum diputuskan
+### R — v3.14.1: popup tray untuk banyak project
 
-- [x] Catatan status canvas diperbarui per v3.8.4 (21 November 2026), termasuk penyimpangan yang memang benar.
-- [x] v3.9.0 — Environments per project (canvas Flow H): lihat O di atas.
-- [x] **v3.15.0 — Kelompok project dan logo framework** (canvas B8–B12, tray v3.15). Deteksi Go, React, Hono, Express, AdonisJS, Fastify, NestJS (backend menang atas frontend) dengan alasan deteksi; chip berlogo dari simple-icons (CC0, dibundel); kelompok project (lipat, Start all, Rename, Stop all, Delete); urutan lewat seret dan Alt+↑/↓; klik kartu terpilih menutup panel detail; tray dan menu Linux mengikuti kelompok; palet perintah per kelompok; RAM Kova dan dev server di status bar tiap 2 detik. Uji di perangkat: TC-B8–B10, TC-P*, TC-T7–T9, TC-U6–U9.
+- [x] Popup tray menampilkan maks. 5 project; yang berjalan, memulai, tidak menjawab, atau exited naik ke atas. "Show all N projects" membuka daftar bergulir (±8 baris) dengan Find a project; Esc mengosongkan pencarian dulu.
+- [x] Tinggi popup dibatasi tinggi layar (maks. 760 px); yang menyusut hanya daftar project, jadi Services, versi global, Open Kova, dan Quit Kova selalu terlihat.
+- [x] Menu tray Linux: 5 project teratas langsung, sisanya di submenu "More projects (N)".
+
+### S — v3.15.0: kelompok project, logo framework, RAM Kova
+
+Canvas B8–B12 dan "Tray popup · v3.15".
+
+- [x] Deteksi Go, React (tanpa Vite), Hono, Express, AdonisJS, Fastify, NestJS; backend menang atas frontend; alasan deteksi di Add project. Tombol Detect di Project settings ikut memperbarui jenis.
+- [x] Chip berlogo framework (simple-icons 13.21.0, CC0, dibundel di `src/utils/frameworkIcons.ts`) di kartu, detail, Add project, tray, dan palet.
+- [x] Kelompok project: New group, lipat (diingat), Start all, Rename, Stop all, Delete group; Ungrouped selalu terakhir; pencarian juga mencocokkan nama kelompok.
+- [x] Urutan lewat seret (pegangan ⋮⋮) dan Alt+↑/↓; menu ⋯ Move to group / Move up / Move down; diumumkan ke pembaca layar.
+- [x] Klik kartu terpilih menutup panel detail; tombol ‹ dan Esc.
+- [x] Palet: Start/Stop group, New group, Hide/Show project details. Tray dan menu Linux mengikuti kelompok.
+- [x] RAM di status bar (service + dev server + Kova, tiap 2 detik selama jendela terlihat). Config: `groups`/`groupId` opsional.
+
+### S.1 — v3.15.1: jendela sempit, rincian RAM
+
+- [x] Header dan kartu Projects mengikuti lebar daftar (container query): tidak ada scroll horizontal saat panel detail terbuka; New group jadi ikon di bawah 600 px.
+- [x] Status bar menulis rincian `RAM … (services … + Kova …)`; angka Kova dan project memakai memori privat (Windows private working set, Linux `smaps_rollup`), bukan working set.
+- [x] Pojok scrollbar tidak lagi putih di WebView2.
+
+### S.2 — v3.15.2: AppImage di distro lama
+
+- [x] Build Linux dikunci ke Ubuntu 22.04 (glibc 2.35); `scripts/check-glibc.sh` menahan build dan `latest.json` bila AppImage butuh glibc lebih baru.
+
+### S.3 — v3.15.3: perbaikan dari uji Linux
+
+- [x] RAM Kova di Linux tidak lagi menghitung tiap thread sebagai proses.
+- [x] Port Docker di-publish di `127.0.0.1` saja (sama dengan WSL containers); tidak bentrok dengan program yang mendengarkan port yang sama di alamat lain (mis. Tailscale), dan service tidak lagi terbuka ke LAN. Container lama dibuat ulang otomatis; volume tetap.
+- [x] Pesan port bentrok menyebut port dan service-nya; log pull image tidak lagi membanjiri layar.
+- [x] Program yang dijalankan dari AppImage (mise, docker, dev server, terminal, editor) mendapat lingkungan sistem, bukan library AppImage; gagal build PHP di Linux menyertakan daftar paket build.
+
+### S.4 — v3.15.4: install runtime yang tidak hilang
+
+- [x] Status install runtime disimpan di luar halaman (`src/composables/useRuntimeInstall.ts`): banner, Cancel, dan progres tetap ada setelah pindah halaman; toast selesai dan chip `new` tetap muncul.
+- [x] Versi pertama sebuah tool langsung dijadikan global (`mise use -g`) bila belum ada versi global.
+
+## Status per 22 November 2026
+
+Versi terbaru: **v3.15.4**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+
+### Uji di perangkat (prioritas tinggi)
+
+- [ ] Putaran 1 test case dengan v3.15.x (tabel mencatat v3.15.3; pakai rilis terbaru) di Windows (wslc) dan Linux (Docker Engine): semua baris di [docs/testing/test-cases.md](docs/testing/test-cases.md) masih ⬜. Termasuk regresi v3.9–v3.15 yang belum pernah diuji di Windows sungguhan (Environments, Scripts, Later = pasang saat ditutup, What's new, kelompok project, RAM, install runtime v3.15.4).
+- [ ] Restore `.sql` nyata ke MySQL dan PostgreSQL (TC-W4 / TC-L7).
+- [ ] Pembaca layar NVDA (TC-U5) dan popup tray di multi-monitor.
+- [ ] Pintasan webview yang dimatikan (`utils/webviewGuards.ts`) di WebView2 sungguhan.
+- [ ] CLI `kova` di Linux/macOS sungguhan (`assets/cli/kova.sh`).
+- [ ] macOS: build, updater, tray, CLI. Belum pernah dijalankan.
+- [ ] Prioritas rendah: `wslc remove -f` saat definisi service berubah; apakah `.wslconfig` memengaruhi VM WSLC.
+
+### Selisih dengan canvas (prioritas sedang, semua minor)
+
+Hasil audit artboard canvas (flow A–H, S-*, C-*, sitemap) terhadap `src/` pada 22 November:
+
+- [ ] Runtimes → Use in project hanya untuk project yang memakai tool itu (sekarang semua project dengan folder; TC-E5 mengharapkan hanya project PHP).
+- [ ] Toast "… is running on localhost:PORT" dengan tombol Open setelah project berjalan (A9, C6, H6).
+- [ ] Logs → Clear hanya mengosongkan sumber yang dipilih (sekarang semua buffer).
+- [ ] Add project dan Services: nama proses + PID yang memakai port (B4/Overlays, S-Services).
+- [ ] Banner "not answering" menyebut port yang dicetak app bila berbeda (S-Projects).
+- [ ] Konfirmasi sebelum ganti engine dan sebelum restore `.sql` dari panel service (sitemap).
+- [ ] Item kecil: Add project di palet, "Starting N services…" di header Services, "Show all services" di profil kosong, "Default + N changes" di Overview, path config + Open folder di error Projects, toggle extension yang sedang diperiksa menampilkan "checking…" tanpa mengunci toggle lain, panel PHP extensions mengikuti versi yang dipilih di daftar, badge Logs turun setelah project pulih (C6), dan ringkasan project "start on launch" di Settings.
+
+### Keputusan pemilik
+
+- [ ] Ganti nama repo; lalu endpoint updater, README, dan tautan rilis dalam satu PR (lihat F).
+- [ ] Code signing (G3): ditunda sampai ada adopsi atau pengguna yang terhalang SmartScreen; opsi berbayar belum diperiksa.
+- [ ] Menu ⋯ per service (restart, shell, hapus data) dan "Add tool" (tool mise lain seperti Bun/Rust) ada di sitemap canvas, belum pernah dijadwalkan: putuskan dikerjakan atau dicoret dari canvas.
+- [ ] Canvas status bar masih format v3.15.0 (`RAM 1.3 GB · Kova 186 MB`); aplikasi sejak v3.15.1 menulis rincian. Perbarui canvas.
+
+### Batasan yang tetap berlaku
+
+- WSLC tanpa network antar-container dan tanpa restart policy (lihat v1.6.0); `wslc compose` / Docker API masih menunggu Microsoft.
+- Dependensi project (`vendor`, `node_modules`) tidak dipasang otomatis; `php -S` / `artisan serve` satu request sekaligus di Windows.
+- Updater: private key hilang = pengguna terpasang tidak bisa auto-update; PECL tanpa checksum dari sumber.
+- RAM Kova di macOS lebih kecil dari sebenarnya (proses WebKit tidak berada di bawah proses Kova).
 
 ### Ditunda — sampai ada kebutuhan pengguna
 
@@ -630,4 +695,4 @@ Dasar: audit flow A–H canvas terhadap aplikasi (v3.10.3). Semua minor, tanpa p
 ### v4.0 — pemutusan kompatibilitas Servel (belum dijadwalkan)
 
 - Perintah terminal `servel` dihapus; hanya `kova`. Pemberitahuan di terminal ("keeps working until v4.0") merujuk ke rilis ini.
-- Kandidat, masing-masing butuh migrasi dan keputusan terpisah: nama container/volume `servel_*` → `kova_*`, folder data `com.devhardiyanto.servel`, field config lama (`versionProvider`), migrasi config v7.
+- Kandidat, masing-masing butuh migrasi dan keputusan terpisah: nama container/volume `servel_*` → `kova_*`, folder data dengan bundle id lama (`com.devhardiyanto.servel`), field config lama (`versionProvider`), migrasi config v7.

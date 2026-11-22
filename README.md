@@ -7,8 +7,8 @@ _Kova was called **Servel** up to v2.11. Your services, projects and settings ca
 Kova is a desktop app (Tauri 2 + Vue 3) that runs your local development environment from one window:
 
 - **Services**: MySQL, PostgreSQL, Redis and friends in containers (WSL containers on Windows, or Docker).
-- **Projects**: your Laravel, Vite, Next, Nuxt, Node or Go apps, started for you on a fixed `localhost:<port>` and sorted into groups.
-- **Versions**: PHP and Node per project through [mise](https://mise.jdx.dev), plus PHP extensions per version.
+- **Projects**: your Laravel, Vite, Next, Nuxt, Node, Go or Python apps, started for you on a fixed `localhost:<port>` and sorted into groups.
+- **Versions**: PHP, Node, Go and Python per project through [mise](https://mise.jdx.dev), plus PHP extensions per version.
 
 No more juggling three terminals every morning.
 
@@ -28,7 +28,7 @@ More in [Screenshots](#screenshots).
 - **Groups**: put projects into groups (for example one per client or product). Each group folds open or closed, shows how many of its projects run, and has **Start all**, **Stop all**, Rename and Delete. Projects outside a group are listed under **Ungrouped**.
 - **Reorder by dragging** the ⋮⋮ handle on a card, also into another group. Without a mouse: focus the handle and press `Alt ↑` / `Alt ↓`, or use **⋯ → Move to group / Move up / Move down**.
 - Start, Stop, Restart and Open each project at `localhost:<port>`; its output goes to the Logs viewer.
-- The dev server runs with the PHP/Node/Go versions from the project's `mise.toml`, plus any environment variables you set for that project.
+- The dev server runs with the PHP/Node/Go versions from the project's `mise.toml`, plus any environment variables you set for that project. Besides **Default** a project can have named environments (for example `staging-db`) that only store the values that differ; pick one and restart to use it.
 - Optionally start a project when Kova opens, and link it to a service profile.
 - A **detail panel** per project with Overview (versions mise resolves for that folder, service profile, recent output), Environment (variables, Save & restart) and Logs tabs. Drag its edge to resize it, or drag it all the way right to hide it. Clicking the selected card again also hides it.
 - Dev servers stop when Kova quits, and do not linger if Kova crashes.
@@ -72,7 +72,7 @@ More in [Screenshots](#screenshots).
 
 ## Install
 
-Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `3.15.1`).
+Download the installer for your OS from the [Releases page](https://github.com/devhardiyanto/servel/releases). File names below use `<version>` (for example `3.15.4`).
 
 > Kova ships **unsigned** for Windows and macOS. Workarounds are documented below; see [Code signing](#code-signing) for the plan.
 
@@ -89,7 +89,7 @@ Download the installer for your OS from the [Releases page](https://github.com/d
 
 **Upgrading from Servel 2.x:** use **Check for updates** in Servel, or run the Kova installer. The installer removes the old Servel app for you. Projects, profiles, settings and database volumes are kept: the data folder (`com.devhardiyanto.servel`) and the `servel_*` containers keep their names on purpose. In the terminal, `servel` still works until v4.0 and prints a one-line reminder to use `kova`.
 
-**Updating:** when a new version is out, a banner appears at the top of every screen. **Update** downloads it in the background (it is checked against the update signing key) while projects and services keep running; when it is ready, choose **Restart now** or **Later**. **Settings → About → Check for updates** checks again on demand. Versions before 2.1 update by installing the new release manually once.
+**Updating:** when a new version is out, a banner appears at the top of every screen. **Update** downloads it in the background (it is checked against the update signing key) while projects and services keep running; when it is ready, choose **Restart now**, or **Later** to install it when you quit Kova. **Settings → About → Check for updates** checks again on demand. Versions before 2.1 update by installing the new release manually once.
 
 If you changed `.wslconfig`, restart WSL once so it takes effect:
 
@@ -106,9 +106,11 @@ wsl --shutdown
    xattr -d com.apple.quarantine /Applications/Kova.app
    ```
 4. Launch Kova from Applications or Spotlight.
-5. Optional: add the `kova` terminal command from **Settings → General → Terminal** (see [`kova` terminal command](#kova-terminal-command-macos-and-linux)).
+5. Optional: add the `kova` terminal command from **Settings → General → Command line** (see [`kova` terminal command](#kova-terminal-command-macos-and-linux)).
 
 ### Linux
+
+The AppImage needs glibc 2.35 or newer: Ubuntu 22.04 and newer, Debian 12, Fedora 36 and newer, or a distro of the same age. On an older distro it stops with `version 'GLIBC_2.xx' not found`.
 
 1. Download `Kova_<version>_amd64.AppImage` from Releases.
 2. Make it executable and run:
@@ -116,7 +118,7 @@ wsl --shutdown
    chmod +x Kova_<version>_amd64.AppImage
    ./Kova_<version>_amd64.AppImage
    ```
-3. Optional: add the `kova` terminal command from **Settings → General → Terminal** (see [`kova` terminal command](#kova-terminal-command-macos-and-linux)).
+3. Optional: add the `kova` terminal command from **Settings → General → Command line** (see [`kova` terminal command](#kova-terminal-command-macos-and-linux)).
 
 ---
 
@@ -130,7 +132,7 @@ If you install one of them while Kova is open (for example `wsl --update`, Docke
 
 #### Windows — WSL containers (recommended)
 
-Since v1.6 Kova can run services on **WSL containers** (`wslc.exe`), the container engine that ships with WSL 3.0.1 and newer. You do not need Docker Desktop or a dedicated Linux distro.
+Since v1.6 (then still called Servel) Kova can run services on **WSL containers** (`wslc.exe`), the container engine that ships with WSL 3.0.1 and newer. You do not need Docker Desktop or a dedicated Linux distro.
 
 ```powershell
 wsl --update
@@ -161,6 +163,7 @@ kova shell postgres            # shell inside the container
 kova restore mysql D:\backup\dump.sql   # or a folder of .sql files
 kova use php@8.3               # via mise, in the current project folder (kova use php 8.3 also works)
 kova use node@22 --global      # change the global version
+kova list                      # available services, images and ports
 kova service up mysql          # same as kova up mysql
 kova projects                  # list projects from the app, with their localhost URLs
 kova start acme-api           # start a project's dev server (the Kova app must be open)
@@ -179,7 +182,7 @@ export PATH="$PATH:$(cygpath "$LOCALAPPDATA")/Kova/cli/bin"
 
 #### `kova` terminal command (macOS and Linux)
 
-Open **Settings → General → Terminal** and click **Install**. Kova copies the command to `~/.local/bin/kova`; if that folder is not on your PATH, the same screen shows the line to add to your shell profile. After a Kova update, the button reads **Update** when the installed command is older.
+Open **Settings → General → Command line** and click **Install** next to **kova command**. Kova copies the command to `~/.local/bin/kova`; if that folder is not on your PATH, the same screen shows the line to add to your shell profile. After a Kova update, the button reads **Update** when the installed command is older.
 
 ```bash
 kova up                        # start the services selected in the app
@@ -198,12 +201,13 @@ kova ps                        # state and URL of every project
 kova preflight                 # check Docker, mise and whether the app is open
 ```
 
-How it differs from Windows: `up`, `down` and the project commands are carried out by the Kova app, so **the app must be open** (it may sit in the tray). `status`, `logs` and `shell` talk to Docker directly and work without the app. `kova list` shows the available services, and `kova restore mysql dump.sql` (or a folder of `.sql` files, loaded in name order) starts the service, waits until it accepts connections and loads the dump.
+How it differs from Windows: `up`, `down`, `list`, `restore` and the project commands are carried out by the Kova app, so **the app must be open** (it may sit in the tray). `status`, `logs` and `shell` talk to Docker directly and work without the app. `kova list` shows the available services, and `kova restore mysql dump.sql` (or a folder of `.sql` files, loaded in name order) starts the service, waits until it accepts connections and loads the dump.
 
 #### Docker
 
 - **Windows / macOS:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) — make sure it is running before starting any service from Kova.
 - **Linux:** [Docker Engine](https://docs.docker.com/engine/install/) + the Compose v2 plugin. Add your user to the `docker` group so you do not need `sudo`.
+- Ports are published on `127.0.0.1` only, as with WSL containers, so services are not reachable from your LAN and do not clash with programs that listen on the same port on another address (for example `tailscaled` on your Tailscale IP). Containers created by Kova 3.15.2 or older are recreated on their next start; the data stays in the volumes.
 
 ### mise — PHP, Node, Go and Python versions
 
@@ -215,7 +219,7 @@ How it differs from Windows: `up`, `down` and the project commands are carried o
 
 ## First run
 
-On first launch Kova walks through three steps: **Engine** (WSL containers or Docker; **Refresh checks** looks again after you install one), **Runtimes** (mise: **Install mise**, or **I'll install it myself** to see the command), and **First project** (pick a folder, check what was detected, then **Add & start**). Each step after the first can be skipped. Setup runs once: after that Kova opens on Projects. To go through it again, use **Settings → General → Run setup again**.
+On first launch Kova walks through three steps: **Engine** (WSL containers or Docker; **Check again** looks again after you install one), **Runtimes** (mise: **Install mise**, or **I'll install it myself** to see the command), and **First project** (pick a folder, check what was detected, then **Add & start**). Each step after the first can be skipped. Setup runs once: after that Kova opens on Projects. To go through it again, use **Settings → General → Run setup again**.
 
 On Windows, if Docker is not installed but WSL containers already are (WSL 3.0.1 or newer), the Engine step says so and offers **Use WSL containers** or **Docker Desktop ↗**; it asks you to run `wsl --update` only when WSL containers are missing.
 
@@ -232,7 +236,7 @@ Press `Ctrl K` (`⌘K` on macOS) anywhere to open the command palette: type part
 ### Services
 
 1. Toggle the services you need. The selection is saved as a **profile**; create more profiles in **Settings → Services**.
-2. Click **Start selected**. Each service shows "starting" until it accepts connections, then "up".
+2. Click **Start selected** (it reads **Start <profile>** while the selection matches a profile). Each service shows "starting" until it accepts connections, then "up".
 3. **Stop all** stops every service; the data stays in volumes.
 4. **Connect** on a row opens the service panel: **Connect** shows host, port and credentials, and the `.env` lines in three formats (**Laravel**, **URL**, **Go**) to copy into your project; **Data** lists the volumes and restores a `.sql` dump (MySQL, PostgreSQL); **Logs** shows what Kova did for that service.
 
@@ -257,12 +261,12 @@ To load data: **Settings → Services → Restore database** (pick a `.sql` dump
 
 1. Click **Add project** and pick the folder. Kova shows what it detected (and from which files), a suggested **Command**, and a **Port** it has checked is free; if the port is taken, **Use <next port>** picks the next free one.
 2. Click **Save & start**. Nothing is added until you save.
-3. Select the project in the list. The panel on the right has **Open localhost:<port>**, Stop and Restart, a **⋯** menu (Open folder, Terminal here, Open in VS Code, Copy URL, Project settings, Remove project), and three tabs:
+3. Select the project in the list. The panel on the right has **Open localhost:<port>**, Stop and Restart, a **⋯** menu (Open folder, Terminal here, Open in VS Code, Copy URL, Move to group, Move up / Move down, Project settings, Remove project), and three tabs:
    - **Overview**: type, command, folder, versions from mise, the profile's services, and recent output. If the project stops with an error, the last line is shown with **View log**, **Environment** and **Restart**.
-   - **Environment**: variables for this project's dev server, one row each. **Save & restart** applies them right away.
+   - **Environment**: variables for this project's dev server, one row each, or as `.env` text with **Edit as .env** (pasting `KEY=VALUE` lines into a name field also works). **Save & restart** applies them right away. **New environment** adds a named set next to **Default** that keeps only the values it changes; the picker chooses which one the next start uses, and a running project keeps its environment until you restart it.
    - **Logs**: the last 500 lines, and **Open in Logs** for the full view.
 
-With more than three projects a search box appears above the list; it also matches group names.
+The search box above the list matches project names and group names.
 
 **Groups:** click **New group** above the list and give it a name. Drag a project's ⋮⋮ handle (it shows on hover or focus) to reorder it or to drop it into a group, or use **⋯ → Move to group** on the project. With the keyboard, focus the handle and press `Alt ↑` / `Alt ↓`. The arrow next to a group folds it (Kova remembers that); **Start all** and the group's **⋯** menu (Rename, Stop all, Delete group) act on all its projects. Deleting a group keeps its projects; they move to **Ungrouped**, which is always last.
 
@@ -270,7 +274,7 @@ With more than three projects a search box appears above the list; it also match
 |---|---|
 | **Command** | Any command, run in the project folder. `{port}` is replaced by the port, and the `PORT` variable is set to it. **Detect** fills it in again. Leave it empty to use the project only for versions and services. |
 | **Port** | Fixed port on `localhost` (1024–65535). |
-| **Services** | Service profile applied when you pick this project under **Versions for** on Runtimes. Turn on **Start services with project** to have Start, Restart and start-on-launch also start that profile's services; running services are left alone and stopping the project stops none. |
+| **Services** | Service profile for this project; its services are listed on the project's Overview tab. Turn on **Start services with project** to have Start, Restart and start-on-launch also start that profile's services; running services are left alone and stopping the project stops none. |
 | **Start when Kova opens** | Start this project when Kova opens. |
 
 These fields are in **⋯ → Project settings**; environment variables are on the **Environment** tab.
@@ -287,7 +291,7 @@ Examples of commands Kova suggests:
 | Node backend | `npm run dev` (reads `PORT`) |
 | Go | `go run .` or `air` (reads `PORT`) |
 
-`npm` becomes `pnpm`, `yarn` or `bun` when that lockfile is present. **Restart** stops the project, waits for the port to be free and starts it again. Output shows under **Logs → Projects**. There, pick a project chip to see only its output (when a project runs several processes, for example `composer run dev` with `[server]` and `[queue]` prefixes, a second row of chips shows each process on its own), or **Errors & warnings** to hide everything else; each project keeps its own last 500 lines. **Filter lines** (or `Ctrl F`) narrows the list to lines containing the words you type and highlights them. Only the newest 1,000 lines are shown at first; **Show older lines** at the top loads more. When a project exits or stops answering, **View log** on its panel opens this view for that project. With a project chip selected, **Open project** jumps to that project, and a project that stopped keeps its output with a **Start** button. **Copy** copies the lines in view.
+`npm` becomes `pnpm`, `yarn` or `bun` when that lockfile is present. **Restart** stops the project, waits for the port to be free and starts it again. Output shows under **Logs → Projects**. There, pick a project chip to see only its output (when a project runs several processes, for example `composer run dev` with `[server]` and `[queue]` prefixes, a second row of chips shows each process on its own), or **Errors & warnings** to hide everything else; each project keeps its own last 500 lines. **Filter lines** (or `Ctrl F`) narrows the list to lines containing the words you type and highlights them. Only the newest 1,000 lines are shown at first; **Show older lines** at the top loads more. When a project exits or stops answering, **View log** on its panel opens this view for that project. With a project chip selected, **Open project** jumps to that project, and a project that stopped keeps its output with a **Start** button. **Copy** copies the lines in view, **Follow** keeps the newest line in view, **Clear** empties the log list (every source, not only the lines in view), and **Export logs** saves the lines in view to a text file.
 
 For bug reports, **Settings → About → Diagnostics → Copy info** copies the Kova, engine and mise versions and the data folder path.
 
@@ -301,7 +305,7 @@ Notes:
 
 - **Runtimes** has a tab for PHP, Node, Go and Python. Each lists the installed versions, marks the **global** one, and shows **Used by**: the projects whose `mise.toml` asks for that version. A version a project asks for but that is not installed is listed as **not installed**, with Install in its menu.
 - The **⋯** menu on a version: **Set as global** (`mise use -g`), **Use in project…** (pick a project; Kova writes the version to its `mise.toml`, and the project restarts only when you say so), and **Remove** (only for versions nothing uses).
-- **Install** takes a version such as `8.4` or `22`; progress shows above the box, and **Cancel** stops it.
+- **Install** takes a version such as `8.4` or `22`; progress shows above the box, and **Cancel** stops it. The install keeps running, and its progress stays visible, when you switch to another screen. The first version of a tool that has no global version yet becomes the global one, so the command works in a terminal straight away.
 - A `mise.toml` that mise does not trust yet shows a **Trust** button.
 - **Global versions** in the tray popup (on Linux, the tray menu's PHP and Node submenus) change the global version; Runtimes updates to match.
 
@@ -317,7 +321,7 @@ Extensions that are not bundled (redis, xdebug, imagick, mongodb, ...) can be do
 
 ### Tray menu
 
-Click the tray icon to open a small Kova panel next to it (it follows where your taskbar is): your projects with coloured status and framework logo, running ones first and the rest in group order (click a running one to open it in the browser, a stopped one to start it; **Show all** lists every project under its group, and **Find a project** also matches group names), the services you selected or that are running, each with its status (click one to start or stop just that service), **Start selected services** and **Stop all services**, **Global versions** for PHP and Node (click one to pick another installed version as the global version), **Open Kova** and **Quit Kova**. It closes when you click elsewhere or press Esc. Left-click and right-click both open it. On Linux, where the tray icon does not report clicks, clicking the icon opens a menu instead: **Open Kova**, your projects with their status (the top five directly, the rest in a submenu per group), **Start selected services**, **Stop all services (N running)** while services run, the **PHP (global)** and **Node (global)** version submenus, and **Quit Kova**. Hovering the icon shows the Kova version and how many services are running. Closing the window keeps Kova in the tray (change it in **Settings → General**). **Quit Kova** stops running projects and then the services, shows "Stopping services…" while it waits (up to 60 seconds), and closes. Data in the volumes is kept, and the services you had selected start again next time if **Settings → General → Start services** is on (**Remember last session** keeps that selection between launches). To leave services running after Kova quits, turn off **Settings → General → Stop services when Kova quits**. Installing an update restarts Kova without stopping services.
+Click the tray icon to open a small Kova panel next to it (it follows where your taskbar is): your projects with coloured status and framework logo, running ones first and the rest in group order (click a running one to open it in the browser, a stopped one to start it; **Show all** lists every project under its group, and **Find a project** also matches group names), the services you selected or that are running, each with its status (click one to start or stop just that service), **Start selected services** and **Stop all services**, **Global versions** for PHP and Node (click one to pick another installed version as the global version), **Open Kova** and **Quit Kova**. It closes when you click elsewhere or press Esc. Left-click and right-click both open it. On Linux, where the tray icon does not report clicks (on GNOME it needs the AppIndicator extension to show at all), clicking the icon opens a menu instead: **Open Kova**, your projects with their status (the top five directly, the rest in a submenu per group), **Start selected services**, **Stop all services (N running)** while services run, the **PHP (global)** and **Node (global)** version submenus, and **Quit Kova**. Hovering the icon shows the Kova version and how many services are running. Closing the window keeps Kova in the tray (change it in **Settings → General**). **Quit Kova** stops running projects and then the services, shows "Stopping services…" while it waits (up to 60 seconds), and closes. Data in the volumes is kept, and the services you had selected start again next time if **Settings → General → Start services** is on (**Remember last session** keeps that selection between launches). To leave services running after Kova quits, turn off **Settings → General → Stop services when Kova quits**. Installing an update restarts Kova without stopping services.
 
 ---
 
@@ -325,7 +329,7 @@ Click the tray icon to open a small Kova panel next to it (it follows where your
 
 ### "Port already in use" when starting a service
 
-Another process is bound to the port Kova needs. Find it and stop it:
+Another program is bound to the port Kova needs on `127.0.0.1` or on all addresses; the message names the port and the service, for example "Ports 3306 (mysql), 6379 (redis) are already used by another program on this computer". A program that only listens on another address, such as `tailscaled` on your Tailscale IP, does not get in the way. Find the program and stop it:
 
 ```powershell
 # Windows
@@ -380,6 +384,10 @@ Releases are not notarized yet, so this is needed after each manual install.
 
 PHP on Windows has no certificate list. Open **Runtimes → PHP extensions** and click **Fix HTTPS certificates** for the PHP version you use. For a single project only, you can instead add `SSL_CERT_FILE=<path to ca-bundle.crt>` to its **Environment**.
 
+### Installing PHP fails with "Failed to configure PHP" (Linux)
+
+On Linux mise builds PHP from source, so the build packages must be installed first. The error message lists them; on Debian/Ubuntu that is `build-essential autoconf bison re2c pkg-config` plus the `-dev` packages for libxml2, sqlite3, ssl, curl, onig, zip, readline, png, jpeg, freetype, icu and gd (`libgd-dev`). Install them and click Install again. The AppImage does not pass its own bundled libraries to mise, so an install that works from your terminal also works from Kova.
+
 ### PHP extension change was undone
 
 PHP printed a startup error with the new setting, so Kova restored `php.ini`; the message shows PHP's own error. Usually the DLL does not match the PHP version, thread safety (TS/NTS) or architecture. Download the matching build and try again.
@@ -416,7 +424,7 @@ npm install
 npm run tauri dev
 ```
 
-Requirements: Node.js 20 LTS, Rust stable (via [rustup](https://rustup.rs/)), and platform-specific build tools (Visual Studio Build Tools "Desktop development with C++" on Windows; Xcode Command Line Tools on macOS; standard `build-essential` + `libwebkit2gtk-4.1-dev` on Linux).
+Requirements: Node.js 20 LTS, Rust stable (via [rustup](https://rustup.rs/)), and platform-specific build tools (Visual Studio Build Tools "Desktop development with C++" on Windows; Xcode Command Line Tools on macOS; on Linux `build-essential`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev` and `libssl-dev`).
 
 ---
 

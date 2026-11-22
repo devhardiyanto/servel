@@ -721,10 +721,7 @@ pub async fn runtime_overview(tool: String, projects: Vec<ProjectRef>) -> Result
     let installed =
         parse_installed(&capture(&["ls".into(), "--installed".into(), "--json".into(), tool.clone()], &home).await?);
     let roots = global_config_roots(&env_lookup);
-    let global = parse_current(&capture(&["ls".into(), "--current".into(), "--json".into()], &home).await?, &roots)
-        .into_iter()
-        .find(|t| t.tool == tool && t.scope == SourceScope::Global)
-        .map(|t| t.version);
+    let global = global_version(&tool, &home, &roots).await?;
     let mut uses = Vec::new();
     for p in &projects {
         let dir = PathBuf::from(&p.path);
@@ -743,10 +740,28 @@ pub async fn runtime_overview(tool: String, projects: Vec<ProjectRef>) -> Result
 /// Pasang versi untuk tool apa pun di Runtimes. Bisa dibatalkan dengan
 /// `runtime_install_cancel`.
 #[tauri::command]
-pub async fn runtime_install_version(app: AppHandle, tool: String, version: String) -> Result<(), String> {
+pub async fn runtime_install_version(app: AppHandle, tool: String, version: String) -> Result<bool, String> {
     check_any_tool(&tool)?;
     validate_version(&version)?;
-    run_logged(&app, &["install".into(), format!("{}@{}", tool, version)], &home_dir()).await
+    let home = home_dir();
+    run_logged(&app, &["install".into(), format!("{}@{}", tool, version)], &home).await?;
+    // The first version of a tool becomes the global one, so `php` works in a
+    // terminal right away. A failure here does not undo the install.
+    let roots = global_config_roots(&env_lookup);
+    if !matches!(global_version(&tool, &home, &roots).await, Ok(None)) {
+        return Ok(false);
+    }
+    if run_logged(&app, &["use".into(), "-g".into(), format!("{}@{}", tool, version)], &home).await.is_err() {
+        return Ok(false);
+    }
+    let _ = app.emit("runtime-global-changed", serde_json::json!({ "tool": tool, "version": version }));
+    Ok(true)
+}
+
+/// Version set in the global mise config for `tool`, if any.
+async fn global_version(tool: &str, home: &Path, roots: &[String]) -> Result<Option<String>, String> {
+    let out = capture(&["ls".into(), "--current".into(), "--json".into()], home).await?;
+    Ok(parse_current(&out, roots).into_iter().find(|t| t.tool == tool && t.scope == SourceScope::Global).map(|t| t.version))
 }
 
 #[tauri::command]

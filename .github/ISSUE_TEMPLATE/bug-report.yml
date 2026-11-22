@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible bug in Servel.
+description: Report a reproducible bug in Kova.
 title: "[Bug]: "
 labels: ["bug", "needs-triage"]
 body:
@@ -11,9 +11,9 @@ body:
   - type: input
     id: version
     attributes:
-      label: Servel version
-      description: See the bottom-right of the app, or run `servel --version`.
-      placeholder: "v1.0.0-beta.1"
+      label: Kova version
+      description: Shown at the bottom-right of the app, or in Settings → About.
+      placeholder: "v3.15.4"
     validations:
       required: true
 
@@ -34,11 +34,18 @@ body:
       required: true
 
   - type: input
-    id: docker
+    id: engine
     attributes:
-      label: Docker version
-      description: Output of `docker --version` (only if relevant).
-      placeholder: "Docker version 27.x.x"
+      label: Container engine
+      description: WSL containers or Docker Engine, with its version (Settings → About → Diagnostics → Copy info lists it).
+      placeholder: "Docker Engine 29.1 + Compose 2.40"
+
+  - type: input
+    id: mise
+    attributes:
+      label: mise version
+      description: Only if the bug is about Runtimes or PHP extensions. Shown at the top-right of Runtimes.
+      placeholder: "2026.11.12"
 
   - type: textarea
     id: repro
@@ -46,9 +53,9 @@ body:
       label: Steps to reproduce
       description: Minimal steps to trigger the bug.
       placeholder: |
-        1. Open Servel
+        1. Open Kova
         2. Toggle MySQL ON
-        3. Click tray "Start all selected"
+        3. Click tray "Start selected services"
         4. ...
     validations:
       required: true
@@ -83,5 +90,5 @@ body:
       options:
         - label: I have searched existing issues and confirmed this is not a duplicate.
           required: true
-        - label: I am on the latest Servel release.
+        - label: I am on the latest Kova release.
           required: true
