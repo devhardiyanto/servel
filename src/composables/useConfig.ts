@@ -37,6 +37,8 @@ export interface ConfigState {
   stopServicesOnQuit: boolean
   /** Onboarding sudah dilewati sekali. */
   onboarded: boolean
+  /** Services › Change port: port di PC per service id. */
+  servicePorts?: Record<string, number>
 }
 
 const DEFAULT_CONFIG: ConfigState = {
@@ -125,6 +127,15 @@ export function useConfig() {
   function setAutoStartProjects(value: boolean): void {
     config.value.autoStartProjects = value
     scheduleSave()
+  }
+
+  /** Port di PC untuk satu service; `null` = kembali ke port bawaan. Disimpan langsung. */
+  async function setServicePort(id: string, port: number | null): Promise<void> {
+    const next = { ...(config.value.servicePorts ?? {}) }
+    if (port === null) delete next[id]
+    else next[id] = port
+    config.value.servicePorts = next
+    await saveImmediate()
   }
 
   function setRememberSession(value: boolean): void {
@@ -335,6 +346,7 @@ export function useConfig() {
     scheduleSave,
     setAutoStart,
     setAutoStartProjects,
+    setServicePort,
     setRememberSession,
     setMinimizeToTray,
     setStopServicesOnQuit,

@@ -507,7 +507,7 @@ mod tests {
     }
 
     fn rt(state: SiteState, exit_code: Option<i32>) -> SiteRuntime {
-        SiteRuntime { id: "p1".into(), state, exit_code, last_line: None, env_name: None }
+        SiteRuntime { id: "p1".into(), state, exit_code, last_line: None, env_name: None, printed_port: None }
     }
 
     #[test]

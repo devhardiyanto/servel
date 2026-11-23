@@ -132,6 +132,27 @@ pub fn probe_host_port(port: u16) -> bool {
 
 /// Inti load_services tanpa #[tauri::command], bisa dipanggil internal.
 pub(crate) async fn load_services_internal(app: &AppHandle) -> Result<Vec<ServiceDef>, String> {
+    let mut defs = load_builtin_services(app)?;
+    if let Some(state) = app.try_state::<std::sync::Mutex<crate::commands::config::ConfigState>>() {
+        if let Ok(cfg) = state.lock() {
+            apply_port_overrides(&mut defs, &cfg.service_ports);
+        }
+    }
+    Ok(defs)
+}
+
+/// Services › Change port: ganti port di PC pada port pertama service.
+pub fn apply_port_overrides(defs: &mut [ServiceDef], ports: &std::collections::BTreeMap<String, u16>) {
+    for d in defs.iter_mut() {
+        if let (Some(p), Some(first)) = (ports.get(&d.id), d.ports.first_mut()) {
+            if *p >= 1024 {
+                first.host = p.to_string();
+            }
+        }
+    }
+}
+
+fn load_builtin_services(app: &AppHandle) -> Result<Vec<ServiceDef>, String> {
     let resource_path = app
         .path()
         .resource_dir()

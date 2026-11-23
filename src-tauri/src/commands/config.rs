@@ -186,6 +186,10 @@ pub struct ConfigState {
     /// Onboarding sudah dilewati sekali; Kova langsung membuka Projects.
     #[serde(default)]
     pub onboarded: bool,
+    /// Port di PC per service (Services › Change port). Hanya port pertama
+    /// service; port di dalam container tidak berubah.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub service_ports: std::collections::BTreeMap<String, u16>,
 }
 
 fn default_true() -> bool {
@@ -389,6 +393,7 @@ impl Default for ConfigState {
             active_project_id: None,
             stop_services_on_quit: true,
             onboarded: false,
+            service_ports: Default::default(),
         }
     }
 }
@@ -632,6 +637,7 @@ mod tests {
             active_project_id: None,
             stop_services_on_quit: true,
             onboarded: false,
+            service_ports: Default::default(),
         };
 
         let json = serde_json::to_string(&original).expect("serialize gagal");
@@ -732,6 +738,7 @@ mod tests {
             active_project_id: Some("p1".into()),
             stop_services_on_quit: true,
             onboarded: true,
+            service_ports: Default::default(),
         };
         let json = serde_json::to_string_pretty(&cfg).expect("serialize");
 

@@ -177,7 +177,7 @@ export function useProjectActions() {
     setError(p.id, '')
     try {
       if (id === 'folder' || id === 'terminal' || id === 'vscode') {
-        await invoke('project_open_in', { target: id, path: p.path })
+        await invoke('project_open_in', { target: id, path: p.path, projectId: p.id })
       } else if (id === 'copy-url') {
         await navigator.clipboard.writeText(projectUrl(p))
         toast.show(`Copied ${projectUrl(p)}`)

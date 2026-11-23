@@ -3,6 +3,8 @@
 // Environment, Logs.
 import { computed, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { openUrl } from '@tauri-apps/plugin-opener'
+import PortOwnerBanner from '@/components/PortOwnerBanner.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiMenu from '@/components/ui/UiMenu.vue'
@@ -40,6 +42,37 @@ const state = computed(() => runtime.stateOf(p.value.id))
 const info = computed(() => runtime.infoOf(p.value.id))
 const busy = computed(() => !!actions.busy.value[p.value.id])
 const error = computed(() => actions.errors.value[p.value.id] ?? '')
+/** Start ditolak karena port dipakai program lain: port itu. */
+const busyPort = computed(() => {
+  const m = /^port (\d+) is used by another program/.exec(error.value)
+  return m ? Number(m[1]) : null
+})
+const portSuggestion = ref<number | null>(null)
+watch(busyPort, async (port) => {
+  portSuggestion.value = null
+  if (!port) return
+  try {
+    const r = await invoke<{ suggestion: number | null }>('project_port_check', { port, taken: actions.takenPorts(p.value.id) })
+    portSuggestion.value = r.suggestion
+  } catch {
+    portSuggestion.value = null
+  }
+}, { immediate: true })
+/** Port yang dicetak app, bila berbeda dari port project. */
+const printedPort = computed(() => {
+  const n = info.value?.printedPort ?? null
+  return n && n !== p.value.port ? n : null
+})
+async function usePort(port: number | null): Promise<void> {
+  if (!port) return
+  actions.setError(p.value.id, '')
+  await updateProject(p.value.id, { port })
+  const updated = config.value.projects.find((x) => x.id === p.value.id)
+  if (updated) await (isActive(state.value) ? actions.restart(updated) : actions.start(updated))
+}
+async function openPrinted(): Promise<void> {
+  if (printedPort.value) await openUrl(`http://localhost:${printedPort.value}/`).catch(() => {})
+}
 const up = computed(() => state.value === 'running' || state.value === 'unresponsive')
 
 const statusLine = computed(
@@ -96,7 +129,7 @@ function sourceLabel(t: ToolCurrent): string {
 
 async function openIn(target: 'folder' | 'terminal' | 'vscode'): Promise<void> {
   try {
-    await invoke('project_open_in', { target, path: p.value.path })
+    await invoke('project_open_in', { target, path: p.value.path, projectId: p.value.id })
   } catch (err) {
     actions.setError(p.value.id, String(err))
   }
@@ -374,7 +407,16 @@ const tabs = computed(() => [
 
     <!-- Overview -->
     <div v-if="tab === 'overview'" class="pd-body" role="tabpanel">
-      <UiBanner v-if="error" tone="err" title="That did not work">{{ error }}</UiBanner>
+      <PortOwnerBanner
+        v-if="busyPort"
+        :key="busyPort"
+        :port="busyPort"
+        :subject="p.name"
+        :suggestion="portSuggestion"
+        @use-port="usePort"
+        @stopped="actions.start(p)"
+      />
+      <UiBanner v-else-if="error" tone="err" title="That did not work">{{ error }}</UiBanner>
       <UiBanner
         v-else-if="state === 'exited'"
         tone="err"
@@ -385,6 +427,14 @@ const tabs = computed(() => [
           <UiButton @click="actions.viewLog(p)">View log</UiButton>
           <UiButton @click="tab = 'env'">Environment</UiButton>
           <UiButton variant="accent" :loading="busy" @click="actions.start(p)">Restart</UiButton>
+        </template>
+      </UiBanner>
+      <UiBanner v-else-if="state === 'unresponsive' && printedPort" tone="warn" :title="`Nothing answers on :${p.port}`">
+        The app printed <code class="pd-mono">http://localhost:{{ printedPort }}/</code>. Its command probably ignores the port Kova sets.
+        <template #actions>
+          <UiButton variant="accent" :loading="busy" @click="usePort(printedPort)">Use {{ printedPort }} for {{ p.name }}</UiButton>
+          <UiButton @click="openPrinted"><UiIcon name="external" />Open localhost:{{ printedPort }}</UiButton>
+          <UiButton @click="actions.viewLog(p)">View log</UiButton>
         </template>
       </UiBanner>
       <UiBanner v-else-if="state === 'unresponsive'" tone="warn" :title="`Running, but nothing answers on :${p.port}`">

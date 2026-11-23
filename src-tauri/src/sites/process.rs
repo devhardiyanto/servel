@@ -61,6 +61,20 @@ fn wsl_not_found_hint(code: Option<i32>, command: &str, distro: &str) -> Option<
     ))
 }
 
+/// ENV untuk Terminal here: sama dengan Start, tanpa variabel tampilan log.
+pub fn terminal_env(site: &Project) -> Vec<(String, String)> {
+    let mut out = vec![
+        ("PORT".to_string(), site.port.to_string()),
+        ("SERVER_PORT".to_string(), site.port.to_string()),
+        ("SERVER_HOST".to_string(), "127.0.0.1".to_string()),
+    ];
+    for (k, v) in site.effective_env() {
+        out.retain(|(x, _)| *x != k);
+        out.push((k, v));
+    }
+    out
+}
+
 /// Petunjuk untuk baris output yang dikenali. WSL menulis
 /// RPC_S_SERVER_UNAVAILABLE bila service-nya tidak bisa dihubungi.
 fn output_hint(line: &str) -> Option<&'static str> {
@@ -70,6 +84,43 @@ fn output_hint(line: &str) -> Option<&'static str> {
         );
     }
     None
+}
+
+/// Port yang dicetak dev server: URL lokal (`http://localhost:3000/`,
+/// `http://127.0.0.1:8000`, `http://0.0.0.0:5173`, `http://[::1]:4000`) atau `listening on :8080` /
+/// `listening on port 8080`. Port < 1024 diabaikan.
+pub fn printed_port(line: &str) -> Option<u16> {
+    let lower = line.to_ascii_lowercase();
+    let digits = |s: &str| -> Option<u16> {
+        let d: String = s.chars().take_while(|c| c.is_ascii_digit()).collect();
+        d.parse::<u16>().ok().filter(|p| *p >= 1024)
+    };
+    let mut found = None;
+    // Hanya URL http(s): baris koneksi database (`localhost:5432`) bukan port app.
+    for scheme in ["http://", "https://"] {
+        let mut rest = lower.as_str();
+        while let Some(i) = rest.find(scheme) {
+            rest = &rest[i + scheme.len()..];
+            for host in ["localhost:", "127.0.0.1:", "0.0.0.0:", "[::1]:", "[::]:"] {
+                if let Some(after) = rest.strip_prefix(host) {
+                    if let Some(p) = digits(after) {
+                        found = Some(p);
+                    }
+                }
+            }
+        }
+    }
+    if found.is_none() {
+        for key in ["listening on port ", "listening on :", "listening at :", "running on port ", "started on port "] {
+            if let Some(i) = lower.find(key) {
+                found = digits(&lower[i + key.len()..]);
+                if found.is_some() {
+                    break;
+                }
+            }
+        }
+    }
+    found
 }
 
 /// Folder UNC (`\\wsl.localhost\…`, `\\server\share`). `cmd` tidak bisa
@@ -124,6 +175,9 @@ pub struct SiteRuntime {
     /// Environment yang dipakai saat proses ini dimulai. `None` =
     /// Default. Dipakai UI untuk "Restart to use …".
     pub env_name: Option<String>,
+    /// Port terakhir yang dicetak app di output (`http://localhost:3000`,
+    /// `listening on :8080`). UI membandingkannya dengan port project.
+    pub printed_port: Option<u16>,
 }
 
 struct Entry {
@@ -138,6 +192,7 @@ struct Entry {
     env_name: Option<String>,
     /// Project WSL: (distro, PGID) proses di dalam distro, untuk Stop.
     wsl_group: Option<(String, u32)>,
+    printed_port: Option<u16>,
 }
 
 #[derive(Default)]
@@ -170,6 +225,7 @@ impl SiteProcs {
                 exit_code: e.exit_code,
                 last_line: e.last_line.clone(),
                 env_name: e.env_name.clone(),
+                printed_port: e.printed_port,
             })
             .collect();
         out.sort_by(|a, b| a.id.cmp(&b.id));
@@ -376,7 +432,7 @@ mod job {
 
 /// Waktu mulai proses menurut OS, sebagai teks pembanding. `None` bila proses
 /// tidak ada. Unix: `ps -o lstart=`; Windows: tidak dipakai (job object).
-async fn process_started(pid: u32) -> Option<String> {
+pub(crate) async fn process_started(pid: u32) -> Option<String> {
     #[cfg(not(target_os = "windows"))]
     {
         let out = silent_command("ps")
@@ -616,6 +672,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
             generation,
             env_name: site.active_env_entry().map(|e| e.name.clone()),
             wsl_group: None,
+            printed_port: None,
         },
     );
     emit_status(app);
@@ -807,6 +864,9 @@ async fn pump<R: Runtime, B: tokio::io::AsyncBufRead + Unpin>(
         if let Some(e) = map.get_mut(&id) {
             if e.generation == generation {
                 e.last_line = Some(hint.unwrap_or(line).to_string());
+                if let Some(port) = printed_port(line) {
+                    e.printed_port = Some(port);
+                }
             }
         }
     }
@@ -936,6 +996,20 @@ pub fn running_pids<R: Runtime>(app: &AppHandle<R>) -> Vec<u32> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn finds_the_printed_port() {
+        use super::printed_port;
+        assert_eq!(printed_port("  ➜  Local:   http://localhost:3000/"), Some(3000));
+        assert_eq!(printed_port("INFO  Server running on [http://127.0.0.1:8001]."), Some(8001));
+        assert_eq!(printed_port("listening on :8080"), Some(8080));
+        assert_eq!(printed_port("Listening on port 4000"), Some(4000));
+        assert_eq!(printed_port("Network: http://0.0.0.0:5173/"), Some(5173));
+        assert_eq!(printed_port("connected to postgres at localhost:5432 then http://localhost:3001"), Some(3001));
+        assert_eq!(printed_port("connected to localhost:5432"), None);
+        assert_eq!(printed_port("GET /api 200 in 12ms"), None);
+        assert_eq!(printed_port("http://localhost:80/"), None);
+    }
+
     #[test]
     fn unc_folder_runs_through_pushd() {
         use super::{is_unc, mapped_drive, output_hint, unc_wrap};

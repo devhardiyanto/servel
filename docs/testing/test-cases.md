@@ -22,6 +22,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | F · Update | 7 | 0 | 0 | v3.13.0, v3.16.2 |
 | G · Logs | 6 | 0 | 0 | v3.11.0, v3.16.0 |
 | H · Environments | 9 | 0 | 0 | v3.10.x, v3.16.1 |
+| I · Port & Terminal | 6 | 0 | 0 | v3.18.0 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
@@ -143,6 +144,17 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-H7 | Isi `APP_ENV=local` di Default, sementara `.env` project berisi `APP_ENV=production` dan `DB_HOST=…`. Start project (Laravel), cek `env('APP_ENV')` dan `env('DB_HOST')`. | `APP_ENV` = `local` (dari Kova); `DB_HOST` tetap dari `.env`. Teks tab menjelaskan aturan ini. | ⬜ | ⬜ | | v3.16.1 |
 | TC-H8 | Default dengan lebih dari 10 variabel; ketik sebagian nama atau nilai di Search. Lalu Add variable saat Search terisi. | Search hanya muncul di atas 10 baris; daftar tersaring; "No variable matches" bila kosong; baris baru tetap tampil. | ⬜ | ⬜ | | v3.16.1 |
 | TC-H9 | Di environment bernama, override dua nilai Default dan tambah satu variabel baru; Save, pindah ke Default lalu kembali. | Dua override di paling atas dengan border aksen, lalu variabel baru, lalu baris Default lain. Baris tidak berpindah saat mengetik. | ⬜ | ⬜ | | v3.16.1 |
+
+## I · Port & Terminal (canvas Flow I1–I11)
+
+| ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
+|---|---|---|---|---|---|---|
+| TC-I1 | Jalankan `npx http-server -p 3001` di terminal, lalu Start project yang memakai 3001. | Banner "Port 3001 is used by another program" menyebut `node.exe`/`node` dan PID-nya; tombol Use 3002, Stop node…, Check again. | ⬜ | ⬜ | | v3.18.0 |
+| TC-I2 | Dari TC-I1 klik Stop node… lalu Stop program and start. Ulangi dengan Use 3002. | Dialog menampilkan program, command, PID; program berhenti dan project jalan di 3001. Use 3002: port tersimpan, project jalan di 3002, program lain tetap jalan. | ⬜ | ⬜ | | v3.18.0 |
+| TC-I3 | Project Vite dengan command `npm run dev` (tanpa `--port`), port project 5174. | Status not answering; banner "Nothing answers on :5174 · The app printed http://localhost:5173/"; Use 5173 mengganti port dan restart → running. | ⬜ | ⬜ | | v3.18.0 |
+| TC-I4 | Jalankan MySQL lokal (atau program lain) di 3306, Start service MySQL. | Banner menyebut program + PID; Change port… membuka dialog dengan port bebas; Change port and start → MySQL jalan di port baru, Connect dan Copy .env memakai port baru. | ⬜ | ⬜ | | v3.18.0 |
+| TC-I5 | Dari TC-I4 buka Change port… lagi, klik Use the default port. | MySQL kembali ke 3306 (container dibuat ulang, data tetap). | ⬜ | ⬜ | | v3.18.0 |
+| TC-I6 | Project dengan variabel di tab Environment: Terminal here (panel dan menu ⋯). Cek `echo $env:APP_ENV` / `echo $APP_ENV`, `php -v`. Ulangi untuk project Run inside WSL. | Baris pertama "Kova: … from <project> > Default"; nilai sama dengan tab Environment; versi PHP/Node sesuai project; script sementara sudah terhapus. WSL: terminal di distro dengan variabel yang sama. | ⬜ | ⬜ | | v3.18.0 |
 
 ## S · Scripts & dev server (regresi v3.10.2, persiapan v3.11.0)
 

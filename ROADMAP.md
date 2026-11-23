@@ -672,9 +672,16 @@ Canvas B8–B12 dan "Tray popup · v3.15".
 - [ ] Uji di Windows sungguhan (TC-W7–W10), termasuk localhost forwarding untuk server yang listen di 127.0.0.1.
 - [ ] Belum: Runtimes (install versi) dan PHP extensions untuk distro.
 
+### X — v3.18.0: port dan Terminal here (canvas Flow I)
+
+- [x] Pemilik port (nama + PID) dengan Use port lain / Stop program (konfirmasi, PID diverifikasi dengan waktu mulai).
+- [x] Not answering: banner menyebut port yang dicetak app, Use <port>.
+- [x] Services › Change port (port di PC; container dibuat ulang, volume tetap).
+- [x] Terminal here membawa ENV project dan versi mise.
+
 ## Status per 23 November 2026
 
-Versi terbaru: **v3.17.1**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.18.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 
@@ -690,8 +697,8 @@ Versi terbaru: **v3.17.1**. Semua milestone fitur A–S selesai di kode. Yang te
 
 Hasil audit artboard canvas (flow A–H, S-*, C-*, sitemap) terhadap `src/` pada 22 November:
 
-- [ ] Add project dan Services: nama proses + PID yang memakai port; "Change port" untuk service (B4/Overlays, S-Services). Effort M–L.
-- [ ] Banner "not answering" menyebut port yang dicetak app bila berbeda (S-Projects). Effort M.
+- [x] Add project dan Services: nama proses + PID yang memakai port; "Change port" untuk service (v3.18.0).
+- [x] Banner "not answering" menyebut port yang dicetak app bila berbeda (v3.18.0).
 - Item kecil (S) dari audit ini selesai di v3.16.0 (lihat T).
 
 ### Keputusan pemilik

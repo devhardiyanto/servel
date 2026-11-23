@@ -13,6 +13,7 @@ mod tray;
 mod tray_popup;
 mod shutdown;
 mod wsl;
+mod port_owner;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -148,6 +149,8 @@ pub fn run() {
             mise::mise_project_tools,
             wsl::wsl_project_tools,
             wsl::wsl_path_info,
+            port_owner::port_owner,
+            port_owner::port_owner_stop,
             mise::mise_install_winget,
             mise::runtime_versions,
             mise::runtime_install,

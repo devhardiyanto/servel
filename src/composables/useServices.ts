@@ -294,6 +294,21 @@ export function useServices() {
     }, 0),
   )
 
+  /** Muat ulang definisi (setelah Change port atau custom service berubah). */
+  async function reloadDefinitions(): Promise<void> {
+    const defs = await call<ServiceDef[]>('load_services')
+    if (defs) {
+      definitions.value = defs
+      initUiState(defs)
+    }
+  }
+
+  /** Stop lalu start satu service, mis. agar port baru dipakai. */
+  async function restart(id: string): Promise<void> {
+    if (uiState.value[id]?.status === 'running') await stop([id])
+    await start([id])
+  }
+
   async function load(): Promise<void> {
     if (initialized) return
     initialized = true
@@ -525,5 +540,7 @@ export function useServices() {
     stopAll,
     dismissPortConflicts,
     startIgnoringConflicts,
+    reloadDefinitions,
+    restart,
   }
 }

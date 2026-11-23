@@ -13,6 +13,8 @@ export interface SiteRuntime {
   lastLine: string | null
   /** Environment yang dipakai saat proses dimulai; null = Default. */
   envName?: string | null
+  /** Port terakhir yang dicetak app di output (http://localhost:3000, listening on :8080). */
+  printedPort?: number | null
 }
 
 /** Mirror `ProjectSuggestion` di src-tauri/src/sites/mod.rs. */
