@@ -2,8 +2,8 @@
 //! (bila "Stop services when Kova quits" menyala), baru keluar.
 //!
 //! Dipakai oleh menu tray "Quit Kova" dan oleh penutupan jendela terakhir saat
-//! "Minimize to tray" mati. Update (`update_apply`) melewati langkah ini lewat
-//! `skip()`: installer mengambil alih, dan service sengaja dibiarkan berjalan.
+//! "Minimize to tray" mati. Update (`update_apply`) menjalankan langkah yang
+//! sama sendiri sebelum installer mengambil alih, lalu melewati `begin` lewat `skip()`.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
@@ -36,7 +36,7 @@ pub fn skip() {
     DONE.store(true, Ordering::SeqCst);
 }
 
-fn stop_services_enabled(app: &AppHandle) -> bool {
+pub fn stop_services_enabled(app: &AppHandle) -> bool {
     app.try_state::<Mutex<ConfigState>>()
         .and_then(|s| s.lock().ok().map(|c| c.stop_services_on_quit))
         .unwrap_or(true)
@@ -45,6 +45,22 @@ fn stop_services_enabled(app: &AppHandle) -> bool {
 fn set_tooltip(app: &AppHandle, text: &str) {
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some(text));
+    }
+}
+
+/// Hentikan service container dengan batas waktu. `label` muncul di log
+/// ("quit" atau "update").
+pub async fn stop_services_now(app: &AppHandle, label: &str) {
+    emit_log_line(app, "KOVA", &format!("{}: stopping services", label));
+    let result = tokio::time::timeout(SERVICES_TIMEOUT, async {
+        let defs = crate::commands::services::load_services_internal(app).await?;
+        crate::runtime::stop_all(app, &defs).await
+    })
+    .await;
+    match result {
+        Ok(Ok(())) => emit_log_line(app, "KOVA", &format!("{}: services stopped", label)),
+        Ok(Err(e)) => emit_log_line(app, "KOVA", &format!("{}: could not stop services: {}", label, e)),
+        Err(_) => emit_log_line(app, "KOVA", &format!("{}: services did not stop within 60 s; going on", label)),
     }
 }
 
@@ -60,19 +76,8 @@ pub fn begin(app: &AppHandle) {
         set_tooltip(&app, if stop_services { "Kova — stopping services…" } else { "Kova — quitting…" });
 
         crate::sites::process::stop_all(&app).await;
-
         if stop_services {
-            emit_log_line(&app, "KOVA", "quit: stopping services");
-            let result = tokio::time::timeout(SERVICES_TIMEOUT, async {
-                let defs = crate::commands::services::load_services_internal(&app).await?;
-                crate::runtime::stop_all(&app, &defs).await
-            })
-            .await;
-            match result {
-                Ok(Ok(())) => emit_log_line(&app, "KOVA", "quit: services stopped"),
-                Ok(Err(e)) => emit_log_line(&app, "KOVA", &format!("quit: could not stop services: {}", e)),
-                Err(_) => emit_log_line(&app, "KOVA", "quit: services did not stop within 60 s; quitting anyway"),
-            }
+            stop_services_now(&app, "quit").await;
         }
 
         crate::updater::install_pending_on_quit(&app);

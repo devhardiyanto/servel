@@ -97,9 +97,13 @@ pub async fn update_apply(app: AppHandle) -> Result<(), String> {
         .ok_or_else(|| "the update is not downloaded yet".to_string())?;
 
     // Installer Windows menutup Kova secara paksa, jadi hook "stop saat
-    // keluar" tidak sempat berjalan. Hentikan dev server di sini; kalau tidak,
-    // prosesnya tertinggal memegang port dan Start setelah update gagal.
+    // keluar" tidak sempat berjalan. Hentikan dev server dan (sesuai setelan
+    // "Stop services when Kova quits") service di sini, supaya tidak ada proses
+    // atau container yang tertinggal memegang port saat Kova dibuka lagi.
     crate::sites::process::stop_all(&app).await;
+    if crate::shutdown::stop_services_enabled(&app) {
+        crate::shutdown::stop_services_now(&app, "update").await;
+    }
 
     update
         .install(bytes)
@@ -107,7 +111,7 @@ pub async fn update_apply(app: AppHandle) -> Result<(), String> {
 
     // Instance baru tidak boleh menyerahkan diri ke proses ini yang sedang keluar.
     crate::control::forget();
-    // Restart untuk update tidak menghentikan service (lihat shutdown.rs).
+    // Langkah rapi sudah dijalankan di atas.
     crate::shutdown::skip();
     app.restart();
 }

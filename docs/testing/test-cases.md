@@ -19,14 +19,14 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | C · Project gagal | 6 | 0 | 0 | v3.10.x |
 | D · Services | 8 | 0 | 0 | v3.12.0, v3.14.0, v3.15.3 |
 | E · Runtimes | 12 | 0 | 0 | v3.13.0, v3.15.4, v3.16.0 |
-| F · Update | 6 | 0 | 0 | v3.13.0 |
+| F · Update | 7 | 0 | 0 | v3.13.0, v3.16.2 |
 | G · Logs | 6 | 0 | 0 | v3.11.0, v3.16.0 |
 | H · Environments | 9 | 0 | 0 | v3.10.x, v3.16.1 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
 | U · Tampilan & aksesibilitas | 13 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0 |
-| W · Khusus Windows | 4 | 0 | ➖ | v3.10.x |
+| W · Khusus Windows | 6 | 0 | ➖ | v3.10.x, v3.16.2 |
 | L · Khusus Linux | 11 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3 |
 
 ---
@@ -117,6 +117,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-F4 | Klik Restart now. | Kova terbuka lagi di versi baru; status bar menampilkan versi itu; What's new membuka catatan rilis. | ⬜ | ⬜ | | What's new: v3.13.0 (toast "Kova updated to X") |
 | TC-F5 | Putus jaringan, lalu Settings → About → Check for updates. | "Could not check for updates" dengan pesan error, Retry, dan Open release page; tidak tampil sebagai "latest version". | ⬜ | ⬜ | | |
 | TC-F6 | Jaringan normal, Check for updates. | "You have the latest version · checked HH:MM", di dalam kartu About tanpa kartu bersarang. | ⬜ | ⬜ | | v3.10.2 |
+| TC-F7 | Jalankan satu project dan satu service, lalu update dengan Restart now (Stop services when Kova quits menyala). Ulangi dengan setelan itu mati. | Log mencatat "update: stopping services" / "services stopped"; setelah Kova terbuka lagi, port project bebas dan Start langsung berhasil. Dengan setelan mati, service tetap berjalan. | ⬜ | ⬜ | | v3.16.2 |
 
 ## G · Logs (canvas G1–G4)
 
@@ -212,6 +213,8 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-W2 | Buka terminal baru, jalankan `kova status` dan `kova help`. | Perintah ditemukan di PATH dan menampilkan status service. | ⬜ | ➖ | | |
 | TC-W3 | Jalankan Kova sebagai Administrator. | Peringatan Administrator di onboarding. | ⬜ | ➖ | | |
 | TC-W4 | Restore database: pilih file `.sql`, MySQL, Restore. | Service dinyalakan bila perlu, menunggu koneksi, dump dijalankan; hasil tampil di kartu. | ⬜ | ➖ | | Ulangi di L sebagai TC-L7 |
+| TC-W5 | Project dengan folder `\\wsl.localhost\<distro>\…` dan command relatif (mis. `go run .`). Start, Stop, ulangi 3 kali; cek `net use`. | Tidak ada peringatan UNC; command berjalan di folder project; setelah Stop tidak ada drive sementara yang tertinggal di `net use`. | ⬜ | ➖ | | v3.16.2 |
+| TC-W6 | Command yang mencetak `RPC_S_SERVER_UNAVAILABLE` (mis. `wslc` saat WSL bermasalah). | Log menampilkan petunjuk "WSL did not answer. Run `wsl --shutdown`…"; kartu project menampilkan petunjuk itu. | ⬜ | ➖ | | v3.16.2 |
 
 ## L · Khusus Linux (Docker Engine, tanpa Docker Desktop)
 

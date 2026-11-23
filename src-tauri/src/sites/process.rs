@@ -48,6 +48,37 @@ fn not_found_hint(code: Option<i32>, command: &str) -> Option<String> {
     Some(format!("{} was not found.{}", program, how))
 }
 
+/// Petunjuk untuk baris output yang dikenali. WSL menulis
+/// RPC_S_SERVER_UNAVAILABLE bila service-nya tidak bisa dihubungi.
+fn output_hint(line: &str) -> Option<&'static str> {
+    if line.contains("RPC_S_SERVER_UNAVAILABLE") {
+        return Some(
+            "WSL did not answer. Run `wsl --shutdown`, then Start again. If it keeps happening, run the same command in a terminal: if it fails there too, the problem is in WSL, not in Kova.",
+        );
+    }
+    None
+}
+
+/// Folder UNC (`\\wsl.localhost\…`, `\\server\share`). `cmd` tidak bisa
+/// memakainya sebagai folder kerja dan pindah ke C:\Windows.
+fn is_unc(path: &str) -> bool {
+    path.starts_with(r"\\")
+}
+
+/// Di folder UNC, `pushd` memetakan drive sementara lalu masuk ke folder itu;
+/// `cd` mencetak folder barunya (dibaca Kova untuk melepas drive setelah
+/// proses selesai). Gagal `pushd` = keluar dengan 1, command tidak dijalankan.
+/// `&&`/`||` mengikat lebih kuat dari `&`, jadi `&` di command pengguna aman.
+fn unc_wrap(path: &str, line: &str) -> String {
+    format!("pushd \"{}\" || exit /b 1 & cd & {}", path, line)
+}
+
+/// Drive dari baris `cd` pertama, mis. `Z:\home\dev\app` → `Z:`.
+fn mapped_drive(line: &str) -> Option<String> {
+    let b = line.as_bytes();
+    (b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && b[2] == b'\\').then(|| line[..2].to_uppercase())
+}
+
 /// Status berikutnya dari pengecekan port. `None` = tidak berubah.
 fn ready_transition(state: SiteState, open: bool, timed_out: bool) -> Option<SiteState> {
     match (state, open, timed_out) {
@@ -461,8 +492,10 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
 
     let source = site.name.clone();
     let line = render_command(site.command.trim(), site.port);
-    let mut cmd = shell_command(&line);
-    cmd.current_dir(&site.path)
+    let unc = cfg!(target_os = "windows") && is_unc(&site.path);
+    let mut cmd = shell_command(&if unc { unc_wrap(&site.path, &line) } else { line.clone() });
+    // Folder UNC dimasuki lewat `pushd`; folder kerja `cmd` sendiri harus lokal.
+    cmd.current_dir(if unc { std::env::temp_dir() } else { std::path::PathBuf::from(&site.path) })
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -538,17 +571,20 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     );
     emit_status(app);
 
+    // Drive sementara dari `pushd` (folder UNC), dilepas setelah proses selesai.
+    let drive: std::sync::Arc<Mutex<Option<String>>> = Default::default();
+
     // Output → panel log. stderr diperlakukan sebagai output biasa: `php -S`
     // dan banyak dev server menulis log normalnya ke stderr.
-    for (reader_app, id, src, stream) in [
-        (app.clone(), site.id.clone(), source.clone(), child.stdout.take().map(Pipe::Out)),
-        (app.clone(), site.id.clone(), source.clone(), child.stderr.take().map(Pipe::Err)),
+    for (reader_app, id, src, stream, capture) in [
+        (app.clone(), site.id.clone(), source.clone(), child.stdout.take().map(Pipe::Out), unc.then(|| drive.clone())),
+        (app.clone(), site.id.clone(), source.clone(), child.stderr.take().map(Pipe::Err), None),
     ] {
         let Some(stream) = stream else { continue };
         tauri::async_runtime::spawn(async move {
             match stream {
-                Pipe::Out(s) => pump(reader_app, id, src, generation, BufReader::new(s)).await,
-                Pipe::Err(s) => pump(reader_app, id, src, generation, BufReader::new(s)).await,
+                Pipe::Out(s) => pump(reader_app, id, src, generation, BufReader::new(s), capture).await,
+                Pipe::Err(s) => pump(reader_app, id, src, generation, BufReader::new(s), capture).await,
             }
         });
     }
@@ -558,8 +594,12 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     let wait_id = site.id.clone();
     let wait_src = source.clone();
     let wait_cmd = line.clone();
+    let wait_drive = drive.clone();
     tauri::async_runtime::spawn(async move {
         let code = child.wait().await.ok().and_then(|s| s.code());
+        if unc {
+            release_drive(&wait_drive).await;
+        }
         let procs = wait_app.state::<SiteProcs>();
         record_remove(&procs, &wait_id);
         let mut requested = false;
@@ -656,22 +696,50 @@ async fn pump<R: Runtime, B: tokio::io::AsyncBufRead + Unpin>(
     source: String,
     generation: u64,
     reader: B,
+    mut capture: Option<std::sync::Arc<Mutex<Option<String>>>>,
 ) {
     let mut lines = reader.lines();
+    let mut hinted = false;
     while let Ok(Some(raw)) = lines.next_line().await {
         let line = strip_ansi(&raw);
         let line = line.trim_end();
         if line.trim().is_empty() {
             continue;
         }
+        // Baris pertama dari `cd` (folder UNC): simpan drive-nya, jangan tampilkan.
+        if let Some(slot) = capture.take() {
+            if let Some(d) = mapped_drive(line) {
+                *slot.lock().unwrap() = Some(d);
+                continue;
+            }
+        }
         emit_log(&app, &source, line, line_level(line));
+        let hint = if hinted { None } else { output_hint(line) };
+        if let Some(h) = hint {
+            hinted = true;
+            emit_log(&app, &source, h, Some("error"));
+        }
         let procs = app.state::<SiteProcs>();
         let mut map = procs.entries.lock().unwrap();
         if let Some(e) = map.get_mut(&id) {
             if e.generation == generation {
-                e.last_line = Some(line.to_string());
+                e.last_line = Some(hint.unwrap_or(line).to_string());
             }
         }
+    }
+}
+
+/// Lepas drive sementara dari `pushd`. Proses yang dihentikan paksa tidak
+/// sempat menjalankan `popd`, jadi Kova melepasnya sendiri. Baris `cd` bisa
+/// baru terbaca sesaat setelah proses selesai, jadi tunggu sebentar.
+async fn release_drive(slot: &std::sync::Arc<Mutex<Option<String>>>) {
+    let mut d = slot.lock().unwrap().take();
+    if d.is_none() {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        d = slot.lock().unwrap().take();
+    }
+    if let Some(d) = d {
+        let _ = silent_command("net").args(["use", &d, "/delete", "/y"]).output().await;
     }
 }
 
@@ -727,6 +795,15 @@ pub async fn stop_all<R: Runtime>(app: &AppHandle<R>) {
     for pid in pids {
         kill_tree(pid).await;
     }
+    // Tunggu proses benar-benar selesai (maks 10 dtk), supaya port dan drive
+    // sementara sudah lepas sebelum Kova keluar atau installer berjalan.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while procs.entries.lock().unwrap().values().any(|e| e.pid.is_some()) {
+        if tokio::time::Instant::now() >= deadline {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
 
 /// Hapus catatan site yang sudah tidak berjalan (mis. setelah site dihapus).
@@ -749,6 +826,21 @@ pub fn running_pids<R: Runtime>(app: &AppHandle<R>) -> Vec<u32> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unc_folder_runs_through_pushd() {
+        use super::{is_unc, mapped_drive, output_hint, unc_wrap};
+        assert!(is_unc(r"\\wsl.localhost\Ubuntu-24.04\home\dev\app"));
+        assert!(!is_unc(r"D:\dev\app"));
+        assert_eq!(
+            unc_wrap(r"\\wsl.localhost\U\app", "go run . & echo x"),
+            r#"pushd "\\wsl.localhost\U\app" || exit /b 1 & cd & go run . & echo x"#
+        );
+        assert_eq!(mapped_drive(r"z:\home\dev\app").as_deref(), Some("Z:"));
+        assert_eq!(mapped_drive("listening on :8080"), None);
+        assert!(output_hint("Error code: RPC_S_SERVER_UNAVAILABLE").unwrap().contains("wsl --shutdown"));
+        assert_eq!(output_hint("ok"), None);
+    }
+
     #[test]
     fn missing_program_gets_a_named_hint() {
         use super::not_found_hint;
