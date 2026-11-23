@@ -26,7 +26,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
 | U · Tampilan & aksesibilitas | 13 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0 |
-| W · Khusus Windows | 6 | 0 | ➖ | v3.10.x, v3.16.2 |
+| W · Khusus Windows | 10 | 0 | ➖ | v3.10.x, v3.16.2, v3.17.0 |
 | L · Khusus Linux | 11 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3 |
 
 ---
@@ -215,6 +215,10 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-W4 | Restore database: pilih file `.sql`, MySQL, Restore. | Service dinyalakan bila perlu, menunggu koneksi, dump dijalankan; hasil tampil di kartu. | ⬜ | ➖ | | Ulangi di L sebagai TC-L7 |
 | TC-W5 | Project dengan folder `\\wsl.localhost\<distro>\…` dan command relatif (mis. `go run .`). Start, Stop, ulangi 3 kali; cek `net use`. | Tidak ada peringatan UNC; command berjalan di folder project; setelah Stop tidak ada drive sementara yang tertinggal di `net use`. | ⬜ | ➖ | | v3.16.2 |
 | TC-W6 | Command yang mencetak `RPC_S_SERVER_UNAVAILABLE` (mis. `wslc` saat WSL bermasalah). | Log menampilkan petunjuk "WSL did not answer. Run `wsl --shutdown`…"; kartu project menampilkan petunjuk itu. | ⬜ | ➖ | | v3.16.2 |
+| TC-W7 | Add project dari `\\wsl.localhost\Ubuntu-24.04\home\…` (project Go), command `go run .`, port 8080. | Switch *Run inside WSL (Ubuntu-24.04)* menyala; Overview menampilkan *Runs in: WSL · Ubuntu-24.04* dan versi Go dari distro; Start → log `(in Ubuntu-24.04:/home/… in WSL)`, status Running, `localhost:8080` terbuka dari browser Windows. | ⬜ | ➖ | | v3.17.0 |
+| TC-W8 | Isi `HTTP_ADDR` dan satu variabel lain di tab Environment; Start; cetak variabelnya dari aplikasi (atau command `env \| grep HTTP_ADDR`). | Nilai dari Kova terbaca di dalam distro; `PORT` = port project. | ⬜ | ➖ | | v3.17.0 |
+| TC-W9 | Stop project WSL yang sedang jalan, lalu Start lagi; ulangi 3 kali. Cek `ps -ef` di distro. | Tidak ada proses yang tertinggal; port bebas; Start berikutnya langsung berhasil. | ⬜ | ➖ | | v3.17.0 |
+| TC-W10 | Project WSL: Terminal here, Open in VS Code. Project lama dengan command `wslc …`: switch mati, Start. | Terminal terbuka di distro pada folder project; VS Code membuka Remote WSL; project `wslc` tetap jalan dengan program Windows. | ⬜ | ➖ | | v3.17.0 |
 
 ## L · Khusus Linux (Docker Engine, tanpa Docker Desktop)
 

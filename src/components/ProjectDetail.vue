@@ -23,6 +23,7 @@ import { useToast } from '@/composables/useToast'
 import { useProjectRuntime, isActive } from '@/composables/useProjectRuntime'
 import { useProjectActions, canRun, missingReason } from '@/composables/useProjectActions'
 import type { Project, ToolCurrent } from '@/types/mise'
+import { wslDistro, wslLinuxPath } from '@/utils/wsl'
 
 const props = defineProps<{ project: Project }>()
 
@@ -49,6 +50,8 @@ const statusLine = computed(
 )
 
 // --- Overview ---------------------------------------------------------------
+/** Distro WSL tempat command dijalankan; `null` = Windows/OS ini. */
+const runsInWsl = computed(() => (p.value.wsl ? wslDistro(p.value.path) : null))
 const tools = ref<ToolCurrent[] | null>(null)
 async function loadTools(): Promise<void> {
   if (!p.value.path) {
@@ -56,12 +59,15 @@ async function loadTools(): Promise<void> {
     return
   }
   try {
-    tools.value = await invoke<ToolCurrent[]>('mise_project_tools', { path: p.value.path })
+    tools.value = runsInWsl.value
+      ? await invoke<ToolCurrent[]>('wsl_project_tools', { path: p.value.path })
+      : await invoke<ToolCurrent[]>('mise_project_tools', { path: p.value.path })
   } catch {
     tools.value = []
   }
 }
 onMounted(loadTools)
+watch(() => [p.value.path, p.value.wsl], loadTools)
 
 const profile = computed(() =>
   p.value.profileId ? config.value.profiles.find((x) => x.id === p.value.profileId) : undefined,
@@ -397,6 +403,10 @@ const tabs = computed(() => [
         <dd class="pd-mono pd-wrap">{{ p.command || '—' }}</dd>
         <dt>Folder</dt>
         <dd class="pd-mono pd-wrap pd-muted">{{ p.path || 'Not chosen yet' }}</dd>
+        <template v-if="runsInWsl">
+          <dt>Runs in</dt>
+          <dd>WSL · {{ runsInWsl }} <span class="pd-mono pd-muted">{{ wslLinuxPath(p.path) }}</span></dd>
+        </template>
         <template v-if="envs.length">
           <dt>Environment</dt>
           <dd class="pd-rt">

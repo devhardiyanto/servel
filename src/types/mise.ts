@@ -39,6 +39,8 @@ export interface Project {
   startServices?: boolean
   /** Kelompok di layar Projects; kosong atau id yang sudah dihapus = Ungrouped. */
   groupId?: string | null
+  /** Windows, folder di distro WSL: jalankan command di dalam distro. */
+  wsl?: boolean
 }
 
 export interface ProjectGroup {

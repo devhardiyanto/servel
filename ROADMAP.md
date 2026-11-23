@@ -663,11 +663,18 @@ Canvas B8–B12 dan "Tray popup · v3.15".
 
 - [x] Folder UNC di Windows dimasuki lewat `pushd` (drive dilepas setelah proses selesai); petunjuk untuk `RPC_S_SERVER_UNAVAILABLE`.
 - [x] Restart now menghentikan project dan (sesuai setelan) service sebelum installer, dan menunggu proses selesai.
-- [ ] Dukungan penuh project di distro WSL: command dijalankan lewat `wsl.exe -d <distro> --cd`, ENV lewat `WSLENV`, Stop mematikan proses di dalam distro. Effort M.
+- [x] Dukungan penuh project di distro WSL: selesai di v3.17.0 (lihat W).
+
+### W — v3.17.0: project di dalam distro WSL
+
+- [x] Switch *Run inside WSL* per project (default menyala untuk folder WSL baru); start lewat `wsl.exe -d <distro> --cd`, ENV lewat `WSLENV`, Stop TERM/KILL grup proses di distro.
+- [x] Overview: *Runs in* dan versi tool dari distro; Terminal here dan VS Code Remote WSL.
+- [ ] Uji di Windows sungguhan (TC-W7–W10), termasuk localhost forwarding untuk server yang listen di 127.0.0.1.
+- [ ] Belum: Runtimes (install versi) dan PHP extensions untuk distro; deteksi versi di Add project memakai mise Windows.
 
 ## Status per 23 November 2026
 
-Versi terbaru: **v3.16.2**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.17.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 
