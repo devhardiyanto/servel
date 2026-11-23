@@ -3,6 +3,7 @@
 //! - `detect`: kenali jenis project → usulan perintah dan port.
 //! - `process`: jalankan/hentikan dev server.
 
+pub mod container;
 pub mod detect;
 pub mod process;
 

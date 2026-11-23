@@ -24,6 +24,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | H · Environments | 9 | 0 | 0 | v3.10.x, v3.16.1 |
 | I · Port & Terminal | 6 | 0 | 0 | v3.18.0 |
 | J · Custom service & menu | 6 | 0 | 0 | v3.19.0 |
+| K · Container mode | 5 | 0 | 0 | v3.20.0 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
@@ -167,6 +168,16 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-J4 | Menu ⋯ MySQL › Delete data… dengan backup dicentang. | Fokus awal Cancel; setelah Delete data: file `kova-mysql-<waktu>.sql` di Downloads, MySQL start lagi kosong (database lama hilang); toast menyebut lokasi backup. | ⬜ | ⬜ | | v3.19.0 |
 | TC-J5 | Menu ⋯ Elasticsearch › Edit service… ganti port di PC ke 9201, Save and restart. Lalu Remove service… tanpa dan dengan Also delete its data. | Port baru dipakai; Remove menghapus container dan definisi; dengan centang, volume `servel_elasticsearch_data` ikut terhapus. | ⬜ | ⬜ | | v3.19.0 |
 | TC-J6 | Menu ⋯ › Restart dan View logs pada service yang berjalan. | Restart = stop lalu start; View logs membuka panel service di tab Logs. | ⬜ | ⬜ | | v3.19.0 |
+
+## K · Project container mode (canvas Flow K1–K7)
+
+| ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
+|---|---|---|---|---|---|---|
+| TC-K1 | Project Go dengan Dockerfile (app listen di 8080). Project settings › Run with: Dockerfile, Save, Start. | Log menampilkan `$ … build -t kova/<nama> …` lalu `$ … run --rm --name kova-<nama> …`; status Running; `localhost:8080` menjawab; Overview: Runs in Container. | ⬜ | ⬜ | | v3.20.0 |
+| TC-K2 | Isi `APP_ENV=local` di tab Environment; cetak dari app di container. | Nilai terbaca di container; `PORT` = port project. | ⬜ | ⬜ | | v3.20.0 |
+| TC-K3 | Stop, lalu Start lagi; ulangi 3 kali. Cek `docker ps -a` / `wslc list`. | Tidak ada container `kova-<nama>` yang tertinggal setelah Stop; Start berikutnya langsung jalan. | ⬜ | ⬜ | | v3.20.0 |
+| TC-K4 | Buat error kompilasi di kode, Start. | Status exited; banner dengan baris error terakhir; View log menampilkan output build. Perbaiki, Restart → jalan. | ⬜ | ⬜ | | v3.20.0 |
+| TC-K5 | Engine Docker: Run with: Compose pada folder dengan `compose.yaml` (api + redis), nyalakan *Use Kova's redis*. Start, lalu Stop. Ganti engine ke WSL containers dan buka Run with: Compose. | `compose up --build --scale redis=0`; api menjangkau Kova redis sebagai `servel_redis`; Stop = compose down. Di WSL containers muncul peringatan "Compose needs the Docker engine". | ⬜ | ⬜ | | v3.20.0 |
 
 ## S · Scripts & dev server (regresi v3.10.2, persiapan v3.11.0)
 

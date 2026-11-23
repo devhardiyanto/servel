@@ -84,7 +84,14 @@ const statusLine = computed(
 
 // --- Overview ---------------------------------------------------------------
 /** Distro WSL tempat command dijalankan; `null` = Windows/OS ini. */
-const runsInWsl = computed(() => (p.value.wsl ? wslDistro(p.value.path) : null))
+const runsInWsl = computed(() => (p.value.wsl && (p.value.runMode ?? 'command') === 'command' ? wslDistro(p.value.path) : null))
+/** Run with: Dockerfile / Compose → "Container · kova/<nama>". */
+const containerLabel = computed(() => {
+  const slug = p.value.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'project'
+  if (p.value.runMode === 'dockerfile') return `Container · kova/${slug} (${p.value.container?.dockerfile || 'Dockerfile'})`
+  if (p.value.runMode === 'compose') return `Compose · ${p.value.container?.composeFile || 'compose.yaml'} (project kova-${slug})`
+  return ''
+})
 const tools = ref<ToolCurrent[] | null>(null)
 async function loadTools(): Promise<void> {
   if (!p.value.path) {
@@ -450,10 +457,14 @@ const tabs = computed(() => [
         <dt>Type</dt>
         <dd><FrameworkChip v-if="p.kind" :kind="p.kind" /><template v-else>Not detected</template></dd>
         <dt>Command</dt>
-        <dd class="pd-mono pd-wrap">{{ p.command || '—' }}</dd>
+        <dd class="pd-mono pd-wrap">{{ containerLabel ? (p.runMode === 'compose' ? 'docker compose up --build' : 'build + run') : p.command || '—' }}</dd>
         <dt>Folder</dt>
         <dd class="pd-mono pd-wrap pd-muted">{{ p.path || 'Not chosen yet' }}</dd>
-        <template v-if="runsInWsl">
+        <template v-if="containerLabel">
+          <dt>Runs in</dt>
+          <dd>{{ containerLabel }}</dd>
+        </template>
+        <template v-else-if="runsInWsl">
           <dt>Runs in</dt>
           <dd>WSL · {{ runsInWsl }} <span class="pd-mono pd-muted">{{ wslLinuxPath(p.path) }}</span></dd>
         </template>

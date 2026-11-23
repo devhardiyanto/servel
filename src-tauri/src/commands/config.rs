@@ -78,6 +78,47 @@ pub struct Project {
     /// dalam distro itu (lihat `wsl.rs`), bukan dengan tool Windows.
     #[serde(default)]
     pub wsl: bool,
+    /// Cara menjalankan project: `command` (default), `dockerfile`, `compose`.
+    #[serde(default, skip_serializing_if = "RunMode::is_command")]
+    pub run_mode: RunMode,
+    /// Setelan mode container (Dockerfile / compose).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub container: Option<ContainerSpec>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum RunMode {
+    #[default]
+    Command,
+    Dockerfile,
+    Compose,
+}
+
+impl RunMode {
+    pub fn is_command(&self) -> bool {
+        *self == RunMode::Command
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ContainerSpec {
+    /// Dockerfile relatif terhadap folder project. Kosong = `Dockerfile`.
+    #[serde(default)]
+    pub dockerfile: String,
+    /// Port yang didengar app di dalam container. 0 = sama dengan port project.
+    #[serde(default)]
+    pub container_port: u16,
+    /// Docker: gabung ke network service Kova (`servel_default`).
+    #[serde(default = "crate::commands::config::default_true")]
+    pub join_services: bool,
+    /// File compose relatif terhadap folder project. Kosong = `compose.yaml`.
+    #[serde(default)]
+    pub compose_file: String,
+    /// Service compose yang tidak dijalankan karena Kova sudah punya.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub skip_compose_services: Vec<String>,
 }
 
 /// Satu environment project selain Default.
@@ -195,7 +236,7 @@ pub struct ConfigState {
     pub custom_services: Vec<crate::commands::services::ServiceDef>,
 }
 
-fn default_true() -> bool {
+pub fn default_true() -> bool {
     true
 }
 
@@ -274,6 +315,8 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
                 start_services: false,
                 group_id: None,
                 wsl: false,
+                run_mode: Default::default(),
+                container: None,
             });
         }
     }
@@ -301,6 +344,8 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
             start_services: false,
             group_id: None,
             wsl: false,
+            run_mode: Default::default(),
+            container: None,
         });
     }
 
@@ -738,6 +783,8 @@ mod tests {
                 start_services: true,
                 group_id: None,
                 wsl: false,
+                run_mode: Default::default(),
+                container: None,
             }],
             groups: Vec::new(),
             active_project_id: Some("p1".into()),

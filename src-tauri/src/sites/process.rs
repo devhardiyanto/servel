@@ -517,7 +517,7 @@ pub fn validate(site: &Project) -> Result<(), String> {
     if !Path::new(&site.path).is_dir() {
         return Err(format!("folder not found: {}", site.path));
     }
-    if site.command.trim().is_empty() {
+    if site.command.trim().is_empty() && site.run_mode.is_command() {
         return Err("the command is empty".to_string());
     }
     if site.port < 1024 {
@@ -562,27 +562,45 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     }
 
     let source = site.name.clone();
-    let line = render_command(site.command.trim(), site.port);
+    // Run with: Dockerfile / Compose → script engine (lihat `container.rs`).
+    let cplan = if site.run_mode.is_command() {
+        None
+    } else {
+        let mut names: Vec<String> = vec!["PORT".into()];
+        names.extend(site.effective_env().into_keys());
+        Some(super::container::plan(site, crate::runtime::ensure_resolved().await, &names)?)
+    };
+    let line = match &cplan {
+        Some(c) => c.summary.clone(),
+        None => render_command(site.command.trim(), site.port),
+    };
     // "Run inside WSL": command dijalankan di distro, bukan oleh cmd Windows.
-    let wsl_target = if cfg!(target_os = "windows") && site.wsl {
+    let wsl_target = if cfg!(target_os = "windows") && site.wsl && cplan.is_none() {
         Some(crate::wsl::parse(&site.path).ok_or_else(|| {
             "Run inside WSL needs a folder in a WSL distro (\\\\wsl.localhost\\<distro>\\…)".to_string()
         })?)
     } else {
         None
     };
-    let unc = cfg!(target_os = "windows") && wsl_target.is_none() && is_unc(&site.path);
-    let mut cmd = match &wsl_target {
-        Some(wp) => {
+    let unc = cfg!(target_os = "windows") && wsl_target.is_none() && cplan.is_none() && is_unc(&site.path);
+    let mut cmd = match (&cplan, &wsl_target) {
+        (Some(c), _) => {
+            let mut x = silent_command(&c.program);
+            x.args(&c.args);
+            #[cfg(unix)]
+            x.process_group(0);
+            x
+        }
+        (None, Some(wp)) => {
             let mut c = silent_command("wsl.exe");
             c.args(crate::wsl::start_args(wp, &line));
             c
         }
-        None => shell_command(&if unc { unc_wrap(&site.path, &line) } else { line.clone() }),
+        (None, None) => shell_command(&if unc { unc_wrap(&site.path, &line) } else { line.clone() }),
     };
     // Folder UNC dimasuki lewat `pushd` (atau `--cd` di WSL); folder kerja
     // proses Windows-nya sendiri harus lokal.
-    cmd.current_dir(if unc || wsl_target.is_some() {
+    cmd.current_dir(if unc || wsl_target.is_some() || (cplan.is_some() && is_unc(&site.path)) {
         std::env::temp_dir()
     } else {
         std::path::PathBuf::from(&site.path)
@@ -603,7 +621,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
 
     // Versi PHP/Node/Go mengikuti mise.toml project bila mise terpasang.
     // Di WSL, mise milik distro yang dipakai (lihat `wsl::start_script`).
-    if wsl_target.is_none() && crate::mise::version().await.is_some() {
+    if wsl_target.is_none() && cplan.is_none() && crate::mise::version().await.is_some() {
         match crate::mise::env_for(Path::new(&site.path)).await {
             Ok(env) => {
                 cmd.envs(env);
@@ -636,9 +654,10 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
         cmd.env("WSLENV", crate::wsl::wslenv(existing.as_deref(), &names));
     }
 
-    let place = match &wsl_target {
-        Some(wp) => format!("{}:{} in WSL", wp.distro, wp.path),
-        None => site.path.clone(),
+    let place = match (&cplan, &wsl_target) {
+        (Some(_), _) => format!("{} · container", site.path),
+        (None, Some(wp)) => format!("{}:{} in WSL", wp.distro, wp.path),
+        (None, None) => site.path.clone(),
     };
     emit_log(app, &source, &format!("$ {}  (in {})", line, place), None);
     let mut child = cmd.spawn().map_err(|e| format!("could not run the command: {}", e))?;
@@ -711,10 +730,15 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     let wait_cmd = line.clone();
     let wait_drive = drive.clone();
     let wait_distro = wsl_target.as_ref().map(|w| w.distro.clone());
+    let wait_cleanup = cplan.as_ref().map(|c| c.cleanup.clone());
     tauri::async_runtime::spawn(async move {
         let code = child.wait().await.ok().and_then(|s| s.code());
         if unc {
             release_drive(&wait_drive).await;
+        }
+        // Mode container: hapus container / compose down supaya nama dan port bebas.
+        if let Some(c) = &wait_cleanup {
+            super::container::cleanup(c).await;
         }
         let procs = wait_app.state::<SiteProcs>();
         record_remove(&procs, &wait_id);
@@ -1066,6 +1090,8 @@ mod tests {
             start_services: false,
             group_id: None,
             wsl: false,
+            run_mode: Default::default(),
+            container: None,
         }
     }
 

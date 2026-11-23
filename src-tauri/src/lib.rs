@@ -154,6 +154,7 @@ pub fn run() {
             commands::service_actions::service_shell,
             commands::service_actions::service_delete_data,
             commands::service_actions::service_remove,
+            sites::container::project_container_info,
             mise::mise_install_winget,
             mise::runtime_versions,
             mise::runtime_install,

@@ -684,9 +684,13 @@ Canvas B8–B12 dan "Tray popup · v3.15".
 - [x] Add / Edit / Remove custom service (image, port, ENV, data, Ready when, Connect values), dirapikan backend.
 - [x] Menu ⋯: Restart, Open shell, Change port, View logs, Delete data (backup .sql untuk MySQL/PostgreSQL).
 
+### Z — v3.20.0: project container mode (canvas Flow K)
+
+- [x] Run with: Dockerfile (build + run, `-e NAMA`, network service di Docker) dan Compose (Docker saja, lewati service yang sama dengan Kova). Stop membersihkan container.
+
 ## Status per 23 November 2026
 
-Versi terbaru: **v3.19.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.20.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 
@@ -723,7 +727,7 @@ Hasil audit artboard canvas (flow A–H, S-*, C-*, sitemap) terhadap `src/` pada
 
 ### Ditunda — sampai ada kebutuhan pengguna
 
-- Dukungan Dockerfile/compose per project. Ditunda per 20 November 2026: belum ada kebutuhan dari pengguna; dibuka lagi bila permintaannya banyak. Bila dibuka, mulai dengan spike: verifikasi `wslc build`, bind mount folder project, dan jaringan ke service. Docker jelas bisa; dukungan wslc belum pasti dan `wslc compose` belum ada.
+- ~~Dukungan Dockerfile/compose per project~~ — selesai di v3.20.0. Catatan lama: ditunda per 20 November 2026: belum ada kebutuhan dari pengguna; dibuka lagi bila permintaannya banyak. Bila dibuka, mulai dengan spike: verifikasi `wslc build`, bind mount folder project, dan jaringan ke service. Docker jelas bisa; dukungan wslc belum pasti dan `wslc compose` belum ada.
 
 ### v4.0 — pemutusan kompatibilitas Servel (belum dijadwalkan)
 

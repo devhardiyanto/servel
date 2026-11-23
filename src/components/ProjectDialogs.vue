@@ -12,6 +12,10 @@ import CommandSuggestions from '@/components/CommandSuggestions.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
 import { wslDistro } from '@/utils/wsl'
+import UiSegmented from '@/components/ui/UiSegmented.vue'
+import { useEngineStatus } from '@/composables/useEngineStatus'
+import { useServices } from '@/composables/useServices'
+import type { RunMode } from '@/types/mise'
 import FrameworkChip from '@/components/FrameworkChip.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useVersionContext } from '@/composables/useVersionContext'
@@ -28,6 +32,29 @@ const editing = computed(() => config.value.projects.find((p) => p.id === editin
 const removing = computed(() => config.value.projects.find((p) => p.id === removingId.value) ?? null)
 
 const form = ref({ name: '', path: '', command: '', port: '', profileId: '', startServices: false, autoStart: false, wsl: false })
+// Run with (Flow K): Command, Dockerfile, atau Compose.
+const runMode = ref<RunMode>('command')
+const cform = ref({ dockerfile: '', containerPort: '', joinServices: true, composeFile: '', skip: [] as string[] })
+const cinfo = ref<{ dockerfile: boolean; composeFile: string | null; composeServices: string[] } | null>(null)
+const { engine } = useEngineStatus()
+const svc = useServices()
+const runModes = [
+  { value: 'command', label: 'Command' },
+  { value: 'dockerfile', label: 'Dockerfile' },
+  { value: 'compose', label: 'Compose' },
+]
+/** Service compose yang namanya sama dengan service Kova: tawarkan pakai milik Kova. */
+const overlapping = computed(() => (cinfo.value?.composeServices ?? []).filter((n) => svc.definitions.value.some((d) => d.id === n || d.name.toLowerCase() === n.toLowerCase())))
+async function loadContainerInfo(): Promise<void> {
+  cinfo.value = null
+  if (!form.value.path) return
+  try {
+    cinfo.value = await invoke('project_container_info', { path: form.value.path })
+  } catch {
+    cinfo.value = null
+  }
+}
+watch(() => form.value.path, loadContainerInfo)
 const formDistro = computed(() => wslDistro(form.value.path))
 const formError = ref('')
 const portState = ref<{ free: boolean; reason: string; suggestion: number | null } | null>(null)
@@ -50,6 +77,16 @@ watch(editing, (p) => {
     autoStart: p.autoStart ?? false,
     wsl: p.wsl ?? false,
   }
+  runMode.value = p.runMode ?? 'command'
+  const c = p.container ?? {}
+  cform.value = {
+    dockerfile: c.dockerfile ?? '',
+    containerPort: c.containerPort ? String(c.containerPort) : '',
+    joinServices: c.joinServices ?? true,
+    composeFile: c.composeFile ?? '',
+    skip: [...(c.skipComposeServices ?? [])],
+  }
+  void loadContainerInfo()
 })
 
 let timer: ReturnType<typeof setTimeout> | undefined
@@ -129,6 +166,14 @@ async function save(): Promise<void> {
       startServices: form.value.profileId ? form.value.startServices : false,
       autoStart: form.value.autoStart,
       wsl: formDistro.value ? form.value.wsl : false,
+      runMode: runMode.value,
+      container: runMode.value === 'command' ? null : {
+        dockerfile: cform.value.dockerfile.trim(),
+        containerPort: Number(cform.value.containerPort) || 0,
+        joinServices: cform.value.joinServices,
+        composeFile: cform.value.composeFile.trim(),
+        skipComposeServices: cform.value.skip,
+      },
     })
     if (pathChanged) await versionCtx.refresh()
     editingId.value = null
@@ -167,7 +212,38 @@ async function confirmRemove(): Promise<void> {
         <UiInput v-model="form.path" label="Folder" mono readonly aria-label="Folder" />
         <UiButton class="pdl-row__btn" @click="changeFolder">Change</UiButton>
       </div>
-      <div class="pdl-row">
+      <div class="pdl-run">
+        <span class="pdl-label">Run with</span>
+        <UiSegmented v-model="runMode" :options="runModes" label="Run with" />
+        <p class="pdl-hint">{{ runMode === 'command'
+          ? 'Kova runs the command in the project folder.'
+          : runMode === 'dockerfile'
+            ? 'Kova builds the image and runs it as a container next to the services. Environment tab values are passed with -e.'
+            : 'Kova runs docker compose up for this folder. Stop runs compose down.' }}</p>
+      </div>
+      <template v-if="runMode === 'dockerfile'">
+        <div class="pdl-grid2">
+          <UiInput v-model="cform.dockerfile" label="Dockerfile" mono placeholder="Dockerfile" :help="cinfo?.dockerfile || cform.dockerfile ? '' : 'No Dockerfile found in the folder'" />
+          <UiInput v-model="cform.containerPort" label="Port in the container" mono :placeholder="form.port || '8080'" help="Empty = same as Port below" />
+        </div>
+      </template>
+      <template v-if="runMode === 'compose'">
+        <UiBanner v-if="engine === 'wslc'" tone="warn" title="Compose needs the Docker engine">WSL containers has no compose yet. Switch the engine in Settings › Services, or use Dockerfile.</UiBanner>
+        <UiInput v-model="cform.composeFile" label="Compose file" mono :placeholder="cinfo?.composeFile ?? 'compose.yaml'" :help="cinfo?.composeServices.length ? `Found: ${cinfo.composeServices.join(', ')}` : 'No compose file found in the folder'" />
+        <div v-if="overlapping.length" class="pdl-overlap">
+          <span class="pdl-label">Also a Kova service</span>
+          <label v-for="n in overlapping" :key="n" class="pdl-toggle">
+            <UiToggle size="sm" :on="cform.skip.includes(n)" :label="`Use Kova's ${n}`" @click="cform.skip = cform.skip.includes(n) ? cform.skip.filter((x) => x !== n) : [...cform.skip, n]" />
+            Use Kova's {{ n }} (shared data) instead of the compose one
+          </label>
+        </div>
+      </template>
+      <label v-if="runMode !== 'command'" class="pdl-toggle" :class="{ 'pdl-toggle--off': engine === 'wslc' }">
+        <UiToggle size="sm" :on="cform.joinServices && engine !== 'wslc'" :disabled="engine === 'wslc'" label="Join the services network" @click="cform.joinServices = !cform.joinServices" />
+        Join the services network (reach MySQL as servel_mysql:3306)
+      </label>
+      <p v-if="runMode !== 'command' && engine === 'wslc'" class="pdl-hint">WSL containers has no shared network; the container reaches services through their ports on this PC.</p>
+      <div v-if="runMode === 'command'" class="pdl-row">
         <UiInput
           v-model="form.command"
           label="Command"
@@ -181,7 +257,7 @@ async function confirmRemove(): Promise<void> {
         <FrameworkChip :kind="detected.label" />
         <span>{{ detected.reason }}</span>
       </p>
-      <CommandSuggestions v-model="form.command" :path="form.path" />
+      <CommandSuggestions v-if="runMode === 'command'" v-model="form.command" :path="form.path" />
       <UiInput
         v-model="form.port"
         label="Port"
@@ -209,7 +285,7 @@ async function confirmRemove(): Promise<void> {
         <UiToggle size="sm" :on="form.autoStart" label="Start when Kova opens" @click="form.autoStart = !form.autoStart" />
         Start when Kova opens
       </label>
-      <template v-if="formDistro">
+      <template v-if="formDistro && runMode === 'command'">
         <label class="pdl-toggle">
           <UiToggle size="sm" :on="form.wsl" :label="`Run inside WSL (${formDistro})`" @click="form.wsl = !form.wsl" />
           Run inside WSL ({{ formDistro }})
@@ -250,4 +326,8 @@ async function confirmRemove(): Promise<void> {
 .pdl-hint { margin: 0; font-size: var(--text-xs); color: var(--faint); }
 .pdl-text { margin: 0; line-height: 1.6; }
 .pdl-text code { font: 400 var(--text-xs) var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+.pdl-run { display: flex; flex-direction: column; gap: var(--space-2); }
+.pdl-label { font-size: var(--text-xs); font-weight: 500; color: var(--muted); }
+.pdl-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.pdl-overlap { display: flex; flex-direction: column; gap: var(--space-2); }
 </style>
