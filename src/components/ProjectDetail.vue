@@ -137,10 +137,25 @@ function savedMap(name: string): Record<string, string> {
 function buildRows(name: string, overrides: Record<string, string>): Row[] {
   if (!name) return Object.entries(overrides).map(([k, v]) => ({ k, v }))
   const defaults = p.value.env ?? {}
-  const out: Row[] = Object.entries(defaults).map(([k, dv]) => ({ k, v: overrides[k] ?? '', ph: dv, inh: true }))
-  for (const [k, v] of Object.entries(overrides)) if (!(k in defaults)) out.push({ k, v })
-  return out
+  const inherited: Row[] = Object.entries(defaults).map(([k, dv]) => ({ k, v: overrides[k] ?? '', ph: dv, inh: true }))
+  const added: Row[] = Object.entries(overrides).filter(([k]) => !(k in defaults)).map(([k, v]) => ({ k, v }))
+  // What this environment changes goes first: overrides of Default, then its
+  // own variables, then the Default rows it leaves alone. Sorted only when the
+  // rows are built, so a row does not jump while the user types in it.
+  return [...inherited.filter((r) => r.v !== ''), ...added, ...inherited.filter((r) => r.v === '')]
 }
+
+// Search shows once the list is long enough to need it.
+const ENV_SEARCH_MIN = 10
+const envSearch = ref('')
+const showEnvSearch = computed(() => !textMode.value && rows.value.length > ENV_SEARCH_MIN)
+/** Rows with their index in `rows`. New rows without a name always show. */
+const visibleRows = computed(() => {
+  const q = showEnvSearch.value ? envSearch.value.trim().toLowerCase() : ''
+  const all = rows.value.map((r, i) => ({ r, i }))
+  if (!q) return all
+  return all.filter(({ r }) => r.k.trim() === '' || r.k.toLowerCase().includes(q) || r.v.toLowerCase().includes(q))
+})
 
 /** Baris yang benar-benar disimpan: di environment lain, baris Default kosong = tidak di-override. */
 function effectiveRows(src: Row[]): Row[] {
@@ -157,6 +172,7 @@ watch(
   () => {
     textMode.value = false
     pasteNote.value = null
+    envSearch.value = ''
     resetRows()
   },
   { immediate: true },
@@ -454,7 +470,7 @@ const tabs = computed(() => [
         retry-label="Restart"
         @retry="actions.restart(p)"
       />
-      <p class="pd-dim">Added on top of the environment from mise. Values stay on this PC.</p>
+      <p class="pd-dim">Used when Kova starts the project. A name set here wins over the same name in the project's .env file; names you leave out still come from .env. Values stay on this PC.</p>
       <p class="pd-dim">Tip: Services › MySQL › Connect copies the connection values for you.</p>
       <p v-if="activeName" class="pd-dim">An empty value uses Default (shown greyed). Type a value to override it for {{ activeName }}; clear it to use Default again.</p>
       <UiStatusNotice
@@ -476,7 +492,16 @@ const tabs = computed(() => [
         placeholder="APP_ENV=local"
       />
       <template v-else>
-        <div v-for="(r, i) in rows" :key="i" class="pd-env">
+        <UiInput
+          v-if="showEnvSearch"
+          v-model="envSearch"
+          type="search"
+          mono
+          aria-label="Search variables"
+          :placeholder="`Search ${rows.length} variables`"
+        />
+        <p v-if="showEnvSearch && envSearch.trim() && visibleRows.length === 0" class="pd-dim">No variable matches "{{ envSearch.trim() }}".</p>
+        <div v-for="{ r, i } in visibleRows" :key="i" class="pd-env" :class="{ 'pd-env--override': r.inh && r.v !== '' }">
           <UiInput
             v-model="r.k"
             mono
@@ -612,6 +637,7 @@ const tabs = computed(() => [
 .pd-text { margin: 0; line-height: 1.6; }
 .pd-env-del { margin-right: auto; }
 .pd-env { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }
+.pd-env--override :deep(input) { border-color: var(--accent); }
 .pd-env-actions { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; }
 .pd-env-actions .pd-dim { margin-right: auto; }
 </style>
