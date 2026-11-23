@@ -670,11 +670,32 @@ Canvas B8–B12 dan "Tray popup · v3.15".
 - [x] Switch *Run inside WSL* per project (default menyala untuk folder WSL baru); start lewat `wsl.exe -d <distro> --cd`, ENV lewat `WSLENV`, Stop TERM/KILL grup proses di distro.
 - [x] Overview: *Runs in* dan versi tool dari distro; Terminal here dan VS Code Remote WSL.
 - [ ] Uji di Windows sungguhan (TC-W7–W10), termasuk localhost forwarding untuk server yang listen di 127.0.0.1.
-- [ ] Belum: Runtimes (install versi) dan PHP extensions untuk distro.
+- [x] Runtimes untuk distro (v3.21.0). PHP extensions untuk distro: belum.
+
+### X — v3.18.0: port dan Terminal here (canvas Flow I)
+
+- [x] Pemilik port (nama + PID) dengan Use port lain / Stop program (konfirmasi, PID diverifikasi dengan waktu mulai).
+- [x] Not answering: banner menyebut port yang dicetak app, Use <port>.
+- [x] Services › Change port (port di PC; container dibuat ulang, volume tetap).
+- [x] Terminal here membawa ENV project dan versi mise.
+
+### Y — v3.19.0: custom service dan menu ⋯ (canvas Flow J)
+
+- [x] Add / Edit / Remove custom service (image, port, ENV, data, Ready when, Connect values), dirapikan backend.
+- [x] Menu ⋯: Restart, Open shell, Change port, View logs, Delete data (backup .sql untuk MySQL/PostgreSQL).
+
+### Z — v3.20.0: project container mode (canvas Flow K)
+
+- [x] Run with: Dockerfile (build + run, `-e NAMA`, network service di Docker) dan Compose (Docker saja, lewati service yang sama dengan Kova). Stop membersihkan container.
+
+### AA — v3.21.0: Runtimes di distro WSL dan Add tool (canvas Flow L)
+
+- [x] Runtimes › Windows | WSL · distro: daftar/install/global/use in/remove lewat mise di distro; Install mise di distro.
+- [x] Add tool: tab untuk tool mise lain, versi terbaru dipasang di Windows atau distro.
 
 ## Status per 23 November 2026
 
-Versi terbaru: **v3.17.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.21.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 
@@ -690,15 +711,15 @@ Versi terbaru: **v3.17.0**. Semua milestone fitur A–S selesai di kode. Yang te
 
 Hasil audit artboard canvas (flow A–H, S-*, C-*, sitemap) terhadap `src/` pada 22 November:
 
-- [ ] Add project dan Services: nama proses + PID yang memakai port; "Change port" untuk service (B4/Overlays, S-Services). Effort M–L.
-- [ ] Banner "not answering" menyebut port yang dicetak app bila berbeda (S-Projects). Effort M.
+- [x] Add project dan Services: nama proses + PID yang memakai port; "Change port" untuk service (v3.18.0).
+- [x] Banner "not answering" menyebut port yang dicetak app bila berbeda (v3.18.0).
 - Item kecil (S) dari audit ini selesai di v3.16.0 (lihat T).
 
 ### Keputusan pemilik
 
 - [ ] Ganti nama repo; lalu endpoint updater, README, dan tautan rilis dalam satu PR (lihat F).
 - [ ] Code signing (G3): ditunda sampai ada adopsi atau pengguna yang terhalang SmartScreen; opsi berbayar belum diperiksa.
-- [ ] Menu ⋯ per service (restart, shell, hapus data) dan "Add tool" (tool mise lain seperti Bun/Rust) ada di sitemap canvas, belum pernah dijadwalkan: putuskan dikerjakan atau dicoret dari canvas.
+- [x] Menu ⋯ per service (v3.19.0). "Add tool": v3.21.0.
 - [ ] Services → **Stop all** menghentikan semua service, canvas D2 menulis "Stop profile"; Logs → **Clear** mengosongkan semua sumber, canvas G4 hanya sumber terpilih. Pertahankan perilaku aplikasi (dan perbarui canvas) atau ikuti canvas.
 - [ ] Canvas status bar masih format v3.15.0 (`RAM 1.3 GB · Kova 186 MB`); aplikasi sejak v3.15.1 menulis rincian. Perbarui canvas.
 
@@ -711,7 +732,7 @@ Hasil audit artboard canvas (flow A–H, S-*, C-*, sitemap) terhadap `src/` pada
 
 ### Ditunda — sampai ada kebutuhan pengguna
 
-- Dukungan Dockerfile/compose per project. Ditunda per 20 November 2026: belum ada kebutuhan dari pengguna; dibuka lagi bila permintaannya banyak. Bila dibuka, mulai dengan spike: verifikasi `wslc build`, bind mount folder project, dan jaringan ke service. Docker jelas bisa; dukungan wslc belum pasti dan `wslc compose` belum ada.
+- ~~Dukungan Dockerfile/compose per project~~ — selesai di v3.20.0. Catatan lama: ditunda per 20 November 2026: belum ada kebutuhan dari pengguna; dibuka lagi bila permintaannya banyak. Bila dibuka, mulai dengan spike: verifikasi `wslc build`, bind mount folder project, dan jaringan ke service. Docker jelas bisa; dukungan wslc belum pasti dan `wslc compose` belum ada.
 
 ### v4.0 — pemutusan kompatibilitas Servel (belum dijadwalkan)
 

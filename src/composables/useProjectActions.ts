@@ -46,13 +46,18 @@ export function projectUrl(p: Project): string {
   return `http://localhost:${p.port}`
 }
 
+/** Project dijalankan sebagai container (Dockerfile / compose), bukan command. */
+export function isContainerMode(p: Project): boolean {
+  return p.runMode === 'dockerfile' || p.runMode === 'compose'
+}
+
 export function canRun(p: Project): boolean {
-  return !!p.path && !!p.command?.trim() && (p.port ?? 0) >= 1024
+  return !!p.path && (isContainerMode(p) || !!p.command?.trim()) && (p.port ?? 0) >= 1024
 }
 
 export function missingReason(p: Project): string {
   if (!p.path) return 'Choose the project folder first.'
-  if (!p.command?.trim()) return 'No command yet. Open Project settings and fill it in.'
+  if (!isContainerMode(p) && !p.command?.trim()) return 'No command yet. Open Project settings and fill it in.'
   if ((p.port ?? 0) < 1024) return 'Set a port (1024–65535) in Project settings.'
   return ''
 }
@@ -177,7 +182,7 @@ export function useProjectActions() {
     setError(p.id, '')
     try {
       if (id === 'folder' || id === 'terminal' || id === 'vscode') {
-        await invoke('project_open_in', { target: id, path: p.path })
+        await invoke('project_open_in', { target: id, path: p.path, projectId: p.id })
       } else if (id === 'copy-url') {
         await navigator.clipboard.writeText(projectUrl(p))
         toast.show(`Copied ${projectUrl(p)}`)

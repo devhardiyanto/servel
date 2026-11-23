@@ -22,6 +22,10 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | F · Update | 7 | 0 | 0 | v3.13.0, v3.16.2 |
 | G · Logs | 6 | 0 | 0 | v3.11.0, v3.16.0 |
 | H · Environments | 9 | 0 | 0 | v3.10.x, v3.16.1 |
+| I · Port & Terminal | 6 | 0 | 0 | v3.18.0 |
+| J · Custom service & menu | 6 | 0 | 0 | v3.19.0 |
+| K · Container mode | 5 | 0 | 0 | v3.20.0 |
+| L2 · Runtimes WSL & Add tool | 5 | 0 | 0 | v3.21.0 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
@@ -143,6 +147,48 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-H7 | Isi `APP_ENV=local` di Default, sementara `.env` project berisi `APP_ENV=production` dan `DB_HOST=…`. Start project (Laravel), cek `env('APP_ENV')` dan `env('DB_HOST')`. | `APP_ENV` = `local` (dari Kova); `DB_HOST` tetap dari `.env`. Teks tab menjelaskan aturan ini. | ⬜ | ⬜ | | v3.16.1 |
 | TC-H8 | Default dengan lebih dari 10 variabel; ketik sebagian nama atau nilai di Search. Lalu Add variable saat Search terisi. | Search hanya muncul di atas 10 baris; daftar tersaring; "No variable matches" bila kosong; baris baru tetap tampil. | ⬜ | ⬜ | | v3.16.1 |
 | TC-H9 | Di environment bernama, override dua nilai Default dan tambah satu variabel baru; Save, pindah ke Default lalu kembali. | Dua override di paling atas dengan border aksen, lalu variabel baru, lalu baris Default lain. Baris tidak berpindah saat mengetik. | ⬜ | ⬜ | | v3.16.1 |
+
+## I · Port & Terminal (canvas Flow I1–I11)
+
+| ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
+|---|---|---|---|---|---|---|
+| TC-I1 | Jalankan `npx http-server -p 3001` di terminal, lalu Start project yang memakai 3001. | Banner "Port 3001 is used by another program" menyebut `node.exe`/`node` dan PID-nya; tombol Use 3002, Stop node…, Check again. | ⬜ | ⬜ | | v3.18.0 |
+| TC-I2 | Dari TC-I1 klik Stop node… lalu Stop program and start. Ulangi dengan Use 3002. | Dialog menampilkan program, command, PID; program berhenti dan project jalan di 3001. Use 3002: port tersimpan, project jalan di 3002, program lain tetap jalan. | ⬜ | ⬜ | | v3.18.0 |
+| TC-I3 | Project Vite dengan command `npm run dev` (tanpa `--port`), port project 5174. | Status not answering; banner "Nothing answers on :5174 · The app printed http://localhost:5173/"; Use 5173 mengganti port dan restart → running. | ⬜ | ⬜ | | v3.18.0 |
+| TC-I4 | Jalankan MySQL lokal (atau program lain) di 3306, Start service MySQL. | Banner menyebut program + PID; Change port… membuka dialog dengan port bebas; Change port and start → MySQL jalan di port baru, Connect dan Copy .env memakai port baru. | ⬜ | ⬜ | | v3.18.0 |
+| TC-I5 | Dari TC-I4 buka Change port… lagi, klik Use the default port. | MySQL kembali ke 3306 (container dibuat ulang, data tetap). | ⬜ | ⬜ | | v3.18.0 |
+| TC-I6 | Project dengan variabel di tab Environment: Terminal here (panel dan menu ⋯). Cek `echo $env:APP_ENV` / `echo $APP_ENV`, `php -v`. Ulangi untuk project Run inside WSL. | Baris pertama "Kova: … from <project> > Default"; nilai sama dengan tab Environment; versi PHP/Node sesuai project; script sementara sudah terhapus. WSL: terminal di distro dengan variabel yang sama. | ⬜ | ⬜ | | v3.18.0 |
+
+## J · Custom service & menu ⋯ (canvas Flow J1–J8)
+
+| ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
+|---|---|---|---|---|---|---|
+| TC-J1 | Services › Add service: Elasticsearch, `elasticsearch:8.15.0`, port 9200/9200, ENV `discovery.type=single-node` + `xpack.security.enabled=false`, data `/usr/share/elasticsearch/data`, Ready when HTTP `/_cluster/health`, Connect `ELASTICSEARCH_URL=http://localhost:{port}`. Add and start. | Grup *custom* berisi Elasticsearch (chip custom); status starting → running setelah HTTP menjawab; Connect menampilkan URL dan nama network; `curl localhost:9200` menjawab. | ⬜ | ⬜ | | v3.19.0 |
+| TC-J2 | Tambahkan Elasticsearch ke profil, Stop all, Start profil; restart Kova. | Ikut start bersama profil; definisinya tetap ada setelah restart Kova; data index tetap ada. | ⬜ | ⬜ | | v3.19.0 |
+| TC-J3 | Menu ⋯ MySQL › Open shell. Juga pada Elasticsearch. | Terminal baru di dalam container (prompt bash/sh); `mysql -uroot` jalan. | ⬜ | ⬜ | | v3.19.0 |
+| TC-J4 | Menu ⋯ MySQL › Delete data… dengan backup dicentang. | Fokus awal Cancel; setelah Delete data: file `kova-mysql-<waktu>.sql` di Downloads, MySQL start lagi kosong (database lama hilang); toast menyebut lokasi backup. | ⬜ | ⬜ | | v3.19.0 |
+| TC-J5 | Menu ⋯ Elasticsearch › Edit service… ganti port di PC ke 9201, Save and restart. Lalu Remove service… tanpa dan dengan Also delete its data. | Port baru dipakai; Remove menghapus container dan definisi; dengan centang, volume `servel_elasticsearch_data` ikut terhapus. | ⬜ | ⬜ | | v3.19.0 |
+| TC-J6 | Menu ⋯ › Restart dan View logs pada service yang berjalan. | Restart = stop lalu start; View logs membuka panel service di tab Logs. | ⬜ | ⬜ | | v3.19.0 |
+
+## K · Project container mode (canvas Flow K1–K7)
+
+| ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
+|---|---|---|---|---|---|---|
+| TC-K1 | Project Go dengan Dockerfile (app listen di 8080). Project settings › Run with: Dockerfile, Save, Start. | Log menampilkan `$ … build -t kova/<nama> …` lalu `$ … run --rm --name kova-<nama> …`; status Running; `localhost:8080` menjawab; Overview: Runs in Container. | ⬜ | ⬜ | | v3.20.0 |
+| TC-K2 | Isi `APP_ENV=local` di tab Environment; cetak dari app di container. | Nilai terbaca di container; `PORT` = port project. | ⬜ | ⬜ | | v3.20.0 |
+| TC-K3 | Stop, lalu Start lagi; ulangi 3 kali. Cek `docker ps -a` / `wslc list`. | Tidak ada container `kova-<nama>` yang tertinggal setelah Stop; Start berikutnya langsung jalan. | ⬜ | ⬜ | | v3.20.0 |
+| TC-K4 | Buat error kompilasi di kode, Start. | Status exited; banner dengan baris error terakhir; View log menampilkan output build. Perbaiki, Restart → jalan. | ⬜ | ⬜ | | v3.20.0 |
+| TC-K5 | Engine Docker: Run with: Compose pada folder dengan `compose.yaml` (api + redis), nyalakan *Use Kova's redis*. Start, lalu Stop. Ganti engine ke WSL containers dan buka Run with: Compose. | `compose up --build --scale redis=0`; api menjangkau Kova redis sebagai `servel_redis`; Stop = compose down. Di WSL containers muncul peringatan "Compose needs the Docker engine". | ⬜ | ⬜ | | v3.20.0 |
+
+## L2 · Runtimes WSL & Add tool (canvas Flow L1–L6)
+
+| ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
+|---|---|---|---|---|---|---|
+| TC-RW1 | Windows dengan distro Ubuntu-24.04 tanpa mise: Runtimes › Go › WSL · Ubuntu-24.04. | Empty state "mise is not installed in Ubuntu-24.04"; Install mise memasang mise (log di Logs › MISE); halaman lalu menampilkan versi Go di distro. | ⬜ | ➖ | | v3.21.0 |
+| TC-RW2 | Di WSL · Ubuntu-24.04, Install Go 1.23; Set as global; Use in project (project WSL). | Versi terpasang di distro (`go version` di terminal Ubuntu); global di `~/.config/mise`; `mise.toml` project di distro berisi go. | ⬜ | ➖ | | v3.21.0 |
+| TC-RW3 | Add tool › Bun › Install on Windows. Ulangi dengan Install on WSL. | Tab Bun muncul dan aktif; Bun latest terpasang dan jadi global; `bun --version` jalan di terminal baru. | ⬜ | ⬜ | | v3.21.0 |
+| TC-RW4 | Add tool: ketik `java`, pilih; install versi `temurin-21`. | Diterima (bukan "version is not valid"); terpasang. | ⬜ | ⬜ | | v3.21.0 |
+| TC-RW5 | Tab Bun › Remove tab; restart Kova. | Tab hilang dan tetap hilang; versi Bun yang terpasang masih ada di `mise ls`. | ⬜ | ⬜ | | v3.21.0 |
 
 ## S · Scripts & dev server (regresi v3.10.2, persiapan v3.11.0)
 

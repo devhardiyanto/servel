@@ -6,6 +6,8 @@ import type { ServiceDef, ServiceUiState } from '@/types/service'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
 import StatusDot, { type DotState } from '@/components/ui/StatusDot.vue'
+import UiMenu, { type MenuItem } from '@/components/ui/UiMenu.vue'
+import UiChip from '@/components/ui/UiChip.vue'
 
 const props = defineProps<{
   def: ServiceDef
@@ -37,7 +39,24 @@ const emit = defineEmits<{
   connect: [id: string]
   /** Start ulang service yang dipilih tetapi tidak berjalan. */
   start: [id: string]
+  /** Item menu ⋯ (restart, shell, port, logs, edit, delete-data, remove). */
+  menu: [id: string, action: string]
 }>()
+
+const menuItems = computed<MenuItem[]>(() => {
+  const running = props.state?.status === 'running'
+  const hasData = (props.def.volumes?.length ?? 0) > 0
+  const items: MenuItem[] = [
+    { id: 'restart', label: 'Restart', disabled: !running },
+    { id: 'shell', label: 'Open shell', disabled: !running, hint: running ? undefined : 'start it first' },
+    { id: 'port', label: 'Change port…', disabled: props.def.ports.length === 0 },
+    { id: 'logs', label: 'View logs' },
+  ]
+  if (props.def.custom) items.push({ id: 'edit', label: 'Edit service…' })
+  items.push({ id: 'delete-data', label: 'Delete data…', danger: true, separator: true, disabled: !hasData })
+  if (props.def.custom) items.push({ id: 'remove', label: 'Remove service…', danger: true })
+  return items
+})
 
 // Toggle = "dipilih". Dipilih tetapi tidak berjalan (auto-start
 // dilewati, service berhenti sendiri) atau gagal → tampilkan keadaannya dan
@@ -87,7 +106,7 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
     />
     <div class="svc-icon"><ServiceLogo :id="def.id" /></div>
     <div class="svc-id">
-      <span class="svc-name">{{ def.name }}</span>
+      <span class="svc-name">{{ def.name }}<UiChip v-if="def.custom" class="svc-custom" tone="accent">custom</UiChip></span>
       <span class="svc-version">{{ imageTag(def) }}</span>
     </div>
     <span class="svc-port">{{ formatPorts(def) }}</span>
@@ -109,6 +128,9 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
       :title="`Connection details for ${def.name}`"
       @click.stop="emit('connect', def.id)"
     >Connect</UiButton>
+    <span class="svc-menu" @click.stop>
+      <UiMenu :items="menuItems" :label="`More actions for ${def.name}`" @select="emit('menu', def.id, $event)" />
+    </span>
   </div>
 </template>
 
@@ -126,7 +148,7 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
 .svc-act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
 .svc-row {
   display: grid;
-  grid-template-columns: 36px 24px 1fr 100px 68px 84px 76px;
+  grid-template-columns: 36px 24px 1fr 100px 68px 84px 76px 32px;
   align-items: center;
   gap: var(--space-3);
   padding: 7px var(--space-4);
@@ -203,7 +225,9 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
 /* Tabel sempit (mis. panel Connect terbuka di jendela kecil): port tampil di
    panel Connect, jadi kolom port disembunyikan agar nama tidak terpotong. */
 @container (max-width: 620px) {
-  .svc-row { grid-template-columns: 36px 24px minmax(0, 1fr) 68px 84px 76px; }
+  .svc-row { grid-template-columns: 36px 24px minmax(0, 1fr) 68px 84px 76px 32px; }
   .svc-port { display: none; }
 }
+.svc-custom { margin-left: var(--space-2); vertical-align: middle; }
+.svc-menu { display: flex; justify-content: center; }
 </style>

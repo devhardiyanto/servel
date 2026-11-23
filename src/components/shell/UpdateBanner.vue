@@ -59,7 +59,7 @@ const progressText = computed(() => {
     </UiBanner>
 
     <UiBanner v-else-if="u.phase.value === 'ready'" tone="ok" :title="`Kova ${u.readyVersion.value} is ready`">
-      Restart to finish, or choose Later to install it when you quit Kova. Restarting stops running projects, and services too when "Stop services when Kova quits" is on, so nothing is left holding a port. Projects marked "start on launch" start again.
+      Restart to install now, or Later to install when you quit. Running projects stop first.
       <template #actions>
         <UiButton variant="quiet" @click="u.later()">Later</UiButton>
         <UiButton variant="primary" :loading="u.installing.value" @click="u.apply()">Restart now</UiButton>

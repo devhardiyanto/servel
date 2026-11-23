@@ -41,6 +41,24 @@ export interface Project {
   groupId?: string | null
   /** Windows, folder di distro WSL: jalankan command di dalam distro. */
   wsl?: boolean
+  /** Run with: command (default), Dockerfile, atau compose. */
+  runMode?: RunMode
+  container?: ContainerSpec | null
+}
+
+export type RunMode = 'command' | 'dockerfile' | 'compose'
+
+export interface ContainerSpec {
+  /** Relatif terhadap folder project; kosong = Dockerfile. */
+  dockerfile?: string
+  /** Port app di dalam container; 0 = sama dengan port project. */
+  containerPort?: number
+  /** Docker: gabung ke network service Kova. */
+  joinServices?: boolean
+  /** Relatif terhadap folder project; kosong = compose.yaml. */
+  composeFile?: string
+  /** Service compose yang dilewati karena Kova sudah menjalankannya. */
+  skipComposeServices?: string[]
 }
 
 export interface ProjectGroup {

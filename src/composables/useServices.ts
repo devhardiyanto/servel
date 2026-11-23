@@ -263,6 +263,7 @@ export function useServices() {
 
   const coreServices = computed(() => definitions.value.filter((d) => d.category === 'core'))
   const additionalServices = computed(() => definitions.value.filter((d) => d.category === 'additional'))
+  const customServices = computed(() => definitions.value.filter((d) => d.category === 'custom'))
 
   const selectedIds = computed(() =>
     Object.values(uiState.value)
@@ -293,6 +294,21 @@ export function useServices() {
       return acc + (def?.ramEstimateMb ?? 0)
     }, 0),
   )
+
+  /** Muat ulang definisi (setelah Change port atau custom service berubah). */
+  async function reloadDefinitions(): Promise<void> {
+    const defs = await call<ServiceDef[]>('load_services')
+    if (defs) {
+      definitions.value = defs
+      initUiState(defs)
+    }
+  }
+
+  /** Stop lalu start satu service, mis. agar port baru dipakai. */
+  async function restart(id: string): Promise<void> {
+    if (uiState.value[id]?.status === 'running') await stop([id])
+    await start([id])
+  }
 
   async function load(): Promise<void> {
     if (initialized) return
@@ -507,6 +523,7 @@ export function useServices() {
     portConflicts,
     coreServices,
     additionalServices,
+    customServices,
     selectedIds,
     runningIds,
     hasStarting,
@@ -525,5 +542,7 @@ export function useServices() {
     stopAll,
     dismissPortConflicts,
     startIgnoringConflicts,
+    reloadDefinitions,
+    restart,
   }
 }

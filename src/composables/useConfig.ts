@@ -1,3 +1,4 @@
+import type { ServiceDef } from '@/types/service'
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { EnginePreference } from '@/types/prereq'
@@ -37,6 +38,12 @@ export interface ConfigState {
   stopServicesOnQuit: boolean
   /** Onboarding sudah dilewati sekali. */
   onboarded: boolean
+  /** Services › Change port: port di PC per service id. */
+  servicePorts?: Record<string, number>
+  /** Services › Add service. */
+  customServices?: ServiceDef[]
+  /** Runtimes › Add tool: tool mise tambahan (bun, rust, java…). */
+  extraTools?: string[]
 }
 
 const DEFAULT_CONFIG: ConfigState = {
@@ -125,6 +132,44 @@ export function useConfig() {
   function setAutoStartProjects(value: boolean): void {
     config.value.autoStartProjects = value
     scheduleSave()
+  }
+
+  /** Port di PC untuk satu service; `null` = kembali ke port bawaan. Disimpan langsung. */
+  async function setServicePort(id: string, port: number | null): Promise<void> {
+    const next = { ...(config.value.servicePorts ?? {}) }
+    if (port === null) delete next[id]
+    else next[id] = port
+    config.value.servicePorts = next
+    await saveImmediate()
+  }
+
+  /** Tambah atau ganti custom service (id sama = ganti). Disimpan langsung. */
+  async function saveCustomService(def: ServiceDef): Promise<void> {
+    const list = (config.value.customServices ?? []).filter((d) => d.id !== def.id)
+    config.value.customServices = [...list, def]
+    await saveImmediate()
+  }
+
+  async function addExtraTool(tool: string): Promise<void> {
+    const list = config.value.extraTools ?? []
+    if (!list.includes(tool)) config.value.extraTools = [...list, tool]
+    await saveImmediate()
+  }
+
+  async function removeExtraTool(tool: string): Promise<void> {
+    config.value.extraTools = (config.value.extraTools ?? []).filter((t) => t !== tool)
+    await saveImmediate()
+  }
+
+  async function removeCustomService(id: string): Promise<void> {
+    config.value.customServices = (config.value.customServices ?? []).filter((d) => d.id !== id)
+    for (const p of config.value.profiles) p.serviceIds = p.serviceIds.filter((x) => x !== id)
+    if (config.value.servicePorts?.[id] != null) {
+      const next = { ...config.value.servicePorts }
+      delete next[id]
+      config.value.servicePorts = next
+    }
+    await saveImmediate()
   }
 
   function setRememberSession(value: boolean): void {
@@ -335,6 +380,11 @@ export function useConfig() {
     scheduleSave,
     setAutoStart,
     setAutoStartProjects,
+    setServicePort,
+    saveCustomService,
+    addExtraTool,
+    removeExtraTool,
+    removeCustomService,
     setRememberSession,
     setMinimizeToTray,
     setStopServicesOnQuit,

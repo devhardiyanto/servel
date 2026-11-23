@@ -2,7 +2,7 @@
 // Panel detail service: status dan aksi,
 // lalu tab Connect (nilai koneksi, .env dalam tiga format), Data (volume dan
 // restore), Logs (keluaran operasi Kova untuk service ini).
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -14,13 +14,15 @@ import UiTabs from '@/components/ui/UiTabs.vue'
 import UiSegmented from '@/components/ui/UiSegmented.vue'
 import StatusDot, { type DotState } from '@/components/ui/StatusDot.vue'
 import LogTail from '@/components/LogTail.vue'
+import PortOwnerBanner from '@/components/PortOwnerBanner.vue'
+import ServicePortModal from '@/components/ServicePortModal.vue'
 import { useServices } from '@/composables/useServices'
 import { useLogs } from '@/composables/useLogs'
 import { useToast } from '@/composables/useToast'
 import { connectionInfo, envFor, type EnvFormat } from '@/utils/connect'
 import type { ServiceDef } from '@/types/service'
 
-const props = defineProps<{ def: ServiceDef }>()
+const props = defineProps<{ def: ServiceDef; focusTab?: { tab: 'connect' | 'data' | 'logs'; n: number } | null }>()
 const emit = defineEmits<{ close: [] }>()
 
 const services = useServices()
@@ -29,6 +31,10 @@ const toast = useToast()
 
 const tab = ref<'connect' | 'data' | 'logs'>('connect')
 const format = ref<EnvFormat>('laravel')
+// Menu ⋯ › View logs membuka panel ini di tab Logs.
+watch(() => props.focusTab?.n, () => {
+  if (props.focusTab) tab.value = props.focusTab.tab
+}, { immediate: true })
 
 const ui = computed(() => services.uiState.value[props.def.id])
 const status = computed(() => ui.value?.status ?? 'stopped')
@@ -45,6 +51,19 @@ const dot = computed<DotState>(() => {
 })
 const statusText = computed(() => (status.value === 'not_created' ? 'not created' : status.value))
 const conflict = computed(() => services.portConflicts.value.find((c) => c.serviceId === props.def.id) ?? null)
+const portOpen = ref(false)
+/** Port bebas berikutnya untuk tombol Change port… di banner konflik. */
+const conflictSuggestion = ref<number | null>(null)
+watch(conflict, async (c) => {
+  conflictSuggestion.value = null
+  if (!c) return
+  try {
+    const r = await invoke<{ suggestion: number | null }>('project_port_check', { port: c.port, taken: [] })
+    conflictSuggestion.value = r.suggestion ?? c.port + 1
+  } catch {
+    conflictSuggestion.value = c.port + 1
+  }
+}, { immediate: true })
 
 const info = computed(() => connectionInfo(props.def))
 const env = computed(() => envFor(props.def, format.value))
@@ -131,13 +150,21 @@ const formats = [
     <UiTabs v-model="tab" :tabs="tabs" label="Service details" />
 
     <div v-if="tab === 'connect'" class="sd-body" role="tabpanel">
-      <UiBanner v-if="conflict" tone="err" :title="`Port ${conflict.port} is already in use`">
-        Another program is listening on {{ conflict.port }}. Stop it, or start {{ def.name }} anyway if that program is a leftover.
-        <template #actions>
-          <UiButton @click="services.startIgnoringConflicts()">Start anyway</UiButton>
+      <template v-if="conflict">
+        <PortOwnerBanner
+          :key="conflict.port"
+          :port="conflict.port"
+          :subject="def.name"
+          :suggestion="conflictSuggestion"
+          suggestion-label="Change port…"
+          @use-port="portOpen = true"
+          @stopped="services.startIgnoringConflicts()"
+        />
+        <div class="sd-btns">
+          <UiButton variant="quiet" @click="services.startIgnoringConflicts()">Start anyway</UiButton>
           <UiButton variant="quiet" @click="services.dismissPortConflicts()">Close</UiButton>
-        </template>
-      </UiBanner>
+        </div>
+      </template>
       <p v-else-if="!running" class="sd-note">{{ def.name }} is not running. These values work once it starts.</p>
 
       <dl class="sd-fields">
@@ -156,6 +183,7 @@ const formats = [
       </div>
 
       <div class="sd-btns">
+        <UiButton variant="quiet" @click="portOpen = true">Change port…</UiButton>
         <UiButton variant="quiet" @click="copy(info.url, `Copied the ${def.name} URL`)">Copy URL</UiButton>
         <UiButton v-if="env" variant="accent" @click="copy(env, `Copied .env for ${def.name} (${env.split('\n').length} line${env.split('\n').length === 1 ? '' : 's'})`)">Copy .env</UiButton>
       </div>
@@ -184,6 +212,7 @@ const formats = [
       <p class="sd-note">Container output: <code class="sd-mono">kova logs {{ def.id }} -f</code></p>
     </div>
 
+    <ServicePortModal :open="portOpen" :def="def" :suggestion="conflict ? conflictSuggestion : null" @close="portOpen = false" />
     <UiModal :open="!!restoreFile" :title="`Restore into ${def.name}?`" size="sm" danger @close="restoreFile = null">
       <p class="sd-confirm">Kova runs <code class="sd-mono">{{ restoreFile?.split(/[\\/]/).pop() }}</code> against {{ def.name }}. Most dumps drop and recreate the tables they contain, so existing data in those tables is replaced. This cannot be undone.</p>
       <template #footer>

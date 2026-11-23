@@ -176,13 +176,16 @@ export function connectionInfo(def: ServiceDef): ConnectInfo {
     }
     default: {
       const port = def.ports[0]?.host ?? ''
+      const env = def.custom && def.connectEnv ? def.connectEnv.split(/\r?\n/).map((l) => l.split('{port}').join(port)).filter((l) => l.trim()).join('\n') : ''
+      const url = env.match(/=(https?:\/\/\S+)/)?.[1] ?? `${HOST}:${port}`
       return {
         fields: [
           { label: 'Host', value: HOST },
           { label: 'Port', value: port },
+          ...(def.custom ? [{ label: 'Network name', value: `${def.containerName}:${def.ports[0]?.container ?? port}` }] : []),
         ],
-        url: `${HOST}:${port}`,
-        env: '',
+        url,
+        env,
       }
     }
   }

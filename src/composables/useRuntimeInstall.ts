@@ -2,11 +2,14 @@ import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useToast } from '@/composables/useToast'
 
-export type RuntimeTool = 'php' | 'node' | 'go' | 'python'
+/** php, node, go, python, atau tool tambahan dari Add tool. */
+export type RuntimeTool = string
 
 export interface RuntimeInstallJob {
   tool: RuntimeTool
   version: string
+  /** Distro WSL; kosong = PC ini. */
+  distro?: string | null
 }
 
 export interface RuntimeInstallResult extends RuntimeInstallJob {
@@ -23,11 +26,18 @@ const lastResult = ref<RuntimeInstallResult | null>(null)
 /** `tool@version` installed during this app session, for the `new` chip. */
 const fresh = ref(new Set<string>())
 
-const LABELS: Record<RuntimeTool, string> = { php: 'PHP', node: 'Node', go: 'Go', python: 'Python' }
+const LABELS: Record<string, string> = { php: 'PHP', node: 'Node', go: 'Go', python: 'Python' }
+export function toolLabel(tool: string): string {
+  return LABELS[tool] ?? tool.charAt(0).toUpperCase() + tool.slice(1)
+}
+/** Kunci chip `new`: `tool@versi`, diawali `distro:` untuk versi di WSL. */
+export function freshKey(tool: string, version: string, distro?: string | null): string {
+  return `${distro ? `${distro}:` : ''}${tool}@${version}`
+}
 
-async function installedVersions(tool: RuntimeTool): Promise<string[]> {
+async function installedVersions(tool: RuntimeTool, distro?: string | null): Promise<string[]> {
   try {
-    const o = await invoke<{ versions: { version: string; installed: boolean }[] }>('runtime_overview', { tool, projects: [] })
+    const o = await invoke<{ versions: { version: string; installed: boolean }[] }>('runtime_overview', { tool, projects: [], distro: distro || null })
     return o.versions.filter((v) => v.installed).map((v) => v.version)
   } catch {
     return []
@@ -38,26 +48,27 @@ async function installedVersions(tool: RuntimeTool): Promise<string[]> {
  * Runs `mise install`. The toast and the `new` chip are handled here, not in
  * the page, so they still happen when the install ends while Runtimes is closed.
  */
-async function install(tool: RuntimeTool, version: string): Promise<RuntimeInstallResult | null> {
+async function install(tool: RuntimeTool, version: string, distro?: string | null): Promise<RuntimeInstallResult | null> {
   if (current.value) return null
   const toast = useToast()
-  const label = LABELS[tool]
-  current.value = { tool, version }
+  const label = toolLabel(tool)
+  const where = distro ? ` in ${distro}` : ''
+  current.value = { tool, version, distro: distro || null }
   let result: RuntimeInstallResult
   let before = new Set<string>()
   try {
-    before = new Set(await installedVersions(tool))
-    const madeGlobal = await invoke<boolean>('runtime_install_version', { tool, version })
-    result = { tool, version, ok: true, cancelled: false, madeGlobal: !!madeGlobal, error: '' }
+    before = new Set(await installedVersions(tool, distro))
+    const madeGlobal = await invoke<boolean>('runtime_install_version', { tool, version, distro: distro || null })
+    result = { tool, version, distro: distro || null, ok: true, cancelled: false, madeGlobal: !!madeGlobal, error: '' }
   } catch (err) {
     const msg = String(err)
-    result = { tool, version, ok: false, cancelled: msg.includes('cancelled'), madeGlobal: false, error: msg }
+    result = { tool, version, distro: distro || null, ok: false, cancelled: msg.includes('cancelled'), madeGlobal: false, error: msg }
   } finally {
     current.value = null
   }
   if (result.ok) {
-    toast.show(result.madeGlobal ? `Installed ${label} ${version} and set it as the global version` : `Installed ${label} ${version}`)
-    markFresh((await installedVersions(tool)).filter((v) => !before.has(v)).map((v) => `${tool}@${v}`))
+    toast.show(result.madeGlobal ? `Installed ${label} ${version}${where} and set it as the global version` : `Installed ${label} ${version}${where}`)
+    markFresh((await installedVersions(tool, distro)).filter((v) => !before.has(v)).map((v) => freshKey(tool, v, distro)))
   } else if (result.cancelled) {
     toast.show(`Install of ${label} ${version} cancelled`)
   }

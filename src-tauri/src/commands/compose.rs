@@ -139,6 +139,9 @@ mod tests {
             volumes: Some(vec!["servel_mysql_data:/var/lib/mysql".to_string()]),
             command: None,
             ram_estimate_mb: 350,
+            custom: false,
+            ready: None,
+            connect_env: None,
         }
     }
 
@@ -154,6 +157,9 @@ mod tests {
             volumes: Some(vec!["servel_redis_data:/data".to_string()]),
             command: None,
             ram_estimate_mb: 64,
+            custom: false,
+            ready: None,
+            connect_env: None,
         }
     }
 
@@ -172,6 +178,9 @@ mod tests {
             volumes: None,
             command: None,
             ram_estimate_mb: 32,
+            custom: false,
+            ready: None,
+            connect_env: None,
         }
     }
 

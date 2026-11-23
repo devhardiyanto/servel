@@ -25,6 +25,71 @@ pub struct ServiceDef {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub command: Option<String>,
     pub ram_estimate_mb: u32,
+    /// Ditambah pengguna (Services › Add service), bukan dari katalog.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub custom: bool,
+    /// Kapan custom service dianggap siap. `None` = saat container running.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ready: Option<ReadyCheck>,
+    /// Baris .env untuk Connect, `{port}` = port di PC (custom service).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connect_env: Option<String>,
+}
+
+/// Cek siap untuk custom service, dari PC (bukan di dalam container).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum ReadyCheck {
+    /// Port pertama menerima koneksi TCP.
+    Port,
+    /// `GET http://127.0.0.1:<port><path>` menjawab 2xx/3xx/401/403.
+    Http { path: String },
+}
+
+/// Id custom service: huruf kecil, angka, `-`; 1–32 karakter.
+pub fn valid_custom_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 32 && id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        && !id.starts_with('-')
+}
+
+/// Rapikan custom service dari config: container `servel_<id>`, hanya volume
+/// bernama `servel_<id>_…` (tanpa bind mount ke folder PC), port angka.
+pub fn sanitize_custom(def: &ServiceDef, builtin: &[ServiceDef]) -> Option<ServiceDef> {
+    if !valid_custom_id(&def.id) || builtin.iter().any(|b| b.id == def.id) || def.image.trim().is_empty() {
+        return None;
+    }
+    if def.image.chars().any(|c| c.is_whitespace()) {
+        return None;
+    }
+    let prefix = format!("servel_{}_", def.id.replace('-', "_"));
+    let volumes: Vec<String> = def
+        .volumes
+        .clone()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|v| v.split_once(':').is_some_and(|(n, path)| n.starts_with(&prefix) && path.starts_with('/')))
+        .collect();
+    let ports: Vec<PortMap> = def
+        .ports
+        .iter()
+        .filter(|p| p.host.parse::<u16>().is_ok_and(|n| n >= 1024) && p.container.parse::<u16>().is_ok())
+        .cloned()
+        .collect();
+    Some(ServiceDef {
+        id: def.id.clone(),
+        name: if def.name.trim().is_empty() { def.id.clone() } else { def.name.trim().to_string() },
+        category: "custom".into(),
+        image: def.image.trim().to_string(),
+        container_name: format!("servel_{}", def.id.replace('-', "_")),
+        ports,
+        environment: def.environment.clone(),
+        volumes: (!volumes.is_empty()).then_some(volumes),
+        command: def.command.clone().filter(|c| !c.trim().is_empty()),
+        ram_estimate_mb: if def.ram_estimate_mb == 0 { 200 } else { def.ram_estimate_mb },
+        custom: true,
+        ready: def.ready.clone(),
+        connect_env: def.connect_env.clone(),
+    })
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -132,6 +197,29 @@ pub fn probe_host_port(port: u16) -> bool {
 
 /// Inti load_services tanpa #[tauri::command], bisa dipanggil internal.
 pub(crate) async fn load_services_internal(app: &AppHandle) -> Result<Vec<ServiceDef>, String> {
+    let mut defs = load_builtin_services(app)?;
+    if let Some(state) = app.try_state::<std::sync::Mutex<crate::commands::config::ConfigState>>() {
+        if let Ok(cfg) = state.lock() {
+            let custom: Vec<ServiceDef> = cfg.custom_services.iter().filter_map(|c| sanitize_custom(c, &defs)).collect();
+            defs.extend(custom);
+            apply_port_overrides(&mut defs, &cfg.service_ports);
+        }
+    }
+    Ok(defs)
+}
+
+/// Services › Change port: ganti port di PC pada port pertama service.
+pub fn apply_port_overrides(defs: &mut [ServiceDef], ports: &std::collections::BTreeMap<String, u16>) {
+    for d in defs.iter_mut() {
+        if let (Some(p), Some(first)) = (ports.get(&d.id), d.ports.first_mut()) {
+            if *p >= 1024 {
+                first.host = p.to_string();
+            }
+        }
+    }
+}
+
+fn load_builtin_services(app: &AppHandle) -> Result<Vec<ServiceDef>, String> {
     let resource_path = app
         .path()
         .resource_dir()
@@ -360,5 +448,45 @@ mod tests {
                 def.container_name
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod custom_tests {
+    use super::*;
+
+    fn es() -> ServiceDef {
+        ServiceDef {
+            id: "elasticsearch".into(),
+            name: " Elasticsearch ".into(),
+            category: "core".into(),
+            image: "elasticsearch:8.15.0".into(),
+            container_name: "evil".into(),
+            ports: vec![PortMap { host: "9200".into(), container: "9200".into() }, PortMap { host: "80".into(), container: "80".into() }],
+            environment: HashMap::from([("discovery.type".into(), "single-node".into())]),
+            volumes: Some(vec!["servel_elasticsearch_data:/usr/share/elasticsearch/data".into(), "C:/Users:/host".into()]),
+            command: None,
+            ram_estimate_mb: 0,
+            custom: false,
+            ready: Some(ReadyCheck::Http { path: "/_cluster/health".into() }),
+            connect_env: Some("ELASTICSEARCH_URL=http://localhost:{port}".into()),
+        }
+    }
+
+    #[test]
+    fn custom_services_are_sanitized() {
+        let d = sanitize_custom(&es(), &[]).unwrap();
+        assert_eq!(d.container_name, "servel_elasticsearch");
+        assert_eq!(d.category, "custom");
+        assert!(d.custom);
+        assert_eq!(d.name, "Elasticsearch");
+        assert_eq!(d.ports.len(), 1, "ports under 1024 are dropped");
+        assert_eq!(d.volumes.as_ref().unwrap().len(), 1, "host bind mounts are dropped");
+        assert_eq!(d.ram_estimate_mb, 200);
+        let mut bad = es();
+        bad.id = "Bad Id".into();
+        assert!(sanitize_custom(&bad, &[]).is_none());
+        let builtin = vec![ServiceDef { id: "elasticsearch".into(), ..es() }];
+        assert!(sanitize_custom(&es(), &builtin).is_none(), "cannot shadow a built-in id");
     }
 }

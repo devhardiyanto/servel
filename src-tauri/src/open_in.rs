@@ -90,8 +90,9 @@ fn not_found_message(target: Target) -> String {
     }
 }
 
-fn spawn(a: &Attempt, dir: &Path) -> std::io::Result<()> {
+fn spawn(a: &Attempt, dir: &Path, env: &[(String, String)]) -> std::io::Result<()> {
     let mut cmd = Command::new(a.program);
+    cmd.envs(env.iter().map(|(k, v)| (k.as_str(), v.as_str())));
     cmd.args(&a.args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
     // Terminal/editor yang dibuka dari AppImage tidak boleh mewarisi library-nya.
     #[cfg(not(target_os = "windows"))]
@@ -122,20 +123,191 @@ fn current_os() -> &'static str {
     }
 }
 
+/// Escape satu nilai untuk string berkutip tunggal PowerShell.
+pub fn ps_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "''"))
+}
+
+/// Escape satu nilai untuk string berkutip tunggal sh.
+pub fn sh_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+/// Nama variabel yang sah di sh (`[A-Za-z_][A-Za-z0-9_]*`).
+fn sh_name(k: &str) -> bool {
+    let mut c = k.chars();
+    c.next().is_some_and(|f| f.is_ascii_alphabetic() || f == '_') && c.all(|x| x.is_ascii_alphanumeric() || x == '_')
+}
+
+/// Script PowerShell yang memasang ENV project lalu menghapus dirinya.
+pub fn ps_script(env: &[(String, String)], banner: &str) -> String {
+    let mut out = String::new();
+    for (k, v) in env {
+        out.push_str(&format!("[Environment]::SetEnvironmentVariable({}, {}, 'Process')\n", ps_quote(k), ps_quote(v)));
+    }
+    out.push_str(&format!("Write-Host {} -ForegroundColor Cyan\n", ps_quote(banner)));
+    out.push_str("Remove-Item -LiteralPath $PSCommandPath -ErrorAction SilentlyContinue\n");
+    out
+}
+
+/// Script sh yang memasang ENV, pindah ke folder, lalu membuka shell pengguna.
+pub fn sh_script(env: &[(String, String)], banner: &str, dir: &str) -> String {
+    let mut out = String::from("#!/bin/sh\nrm -f -- \"$0\"\n");
+    for (k, v) in env.iter().filter(|(k, _)| sh_name(k)) {
+        out.push_str(&format!("export {}={}\n", k, sh_quote(v)));
+    }
+    out.push_str(&format!("printf '%s\\n' {}\n", sh_quote(banner)));
+    out.push_str(&format!("cd -- {} || exit 1\n", sh_quote(dir)));
+    out.push_str("exec \"${SHELL:-/bin/sh}\" -i\n");
+    out
+}
+
+fn temp_script(ext: &str, content: &str) -> Result<PathBuf, String> {
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let p = std::env::temp_dir().join(format!("kova-term-{}-{}.{}", std::process::id(), nanos, ext));
+    std::fs::write(&p, content).map_err(|e| format!("could not write the terminal script: {e}"))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o700));
+    }
+    Ok(p)
+}
+
+/// Terminal here untuk project: ENV yang sama dengan Start (PORT, Environment
+/// aktif, dan versi mise di Windows/macOS/Linux). Lewat script sementara,
+/// karena Windows Terminal dan gnome-terminal tidak mewarisi environment
+/// proses yang membukanya.
+fn terminal_plan(project: &crate::commands::config::Project, mut env: Vec<(String, String)>, dir: &str) -> Result<(Vec<Attempt>, Vec<(String, String)>), String> {
+    let label = project.active_env_entry().map(|e| e.name.as_str()).unwrap_or("Default");
+    let names: Vec<&str> = env.iter().map(|(k, _)| k.as_str()).filter(|k| !matches!(*k, "PATH" | "Path")).collect();
+    let banner = format!("Kova: {} from {} > {}", if names.is_empty() { "no variables".to_string() } else { names.join(", ") }, project.name, label);
+    let os = current_os();
+    if os == "windows" {
+        if let Some(wp) = crate::wsl::parse(dir).filter(|_| project.wsl) {
+            let keys: Vec<&str> = env.iter().map(|(k, _)| k.as_str()).filter(|k| !matches!(*k, "PATH" | "Path")).collect();
+            let wslenv = crate::wsl::wslenv(std::env::var("WSLENV").ok().as_deref(), &keys);
+            env.retain(|(k, _)| !matches!(k.as_str(), "PATH" | "Path"));
+            env.push(("WSLENV".into(), wslenv));
+            let a = Attempt { new_console: true, ..attempt("wsl.exe", &["-d", &wp.distro, "--cd", &wp.path], false) };
+            return Ok((vec![a], env));
+        }
+        let script = temp_script("ps1", &ps_script(&env, &banner))?;
+        let f = script.display().to_string();
+        let args = ["-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", f.as_str()];
+        let mut wt: Vec<&str> = vec!["-d", ".", "powershell"];
+        wt.extend_from_slice(&args);
+        return Ok((
+            vec![attempt("wt", &wt, true), Attempt { new_console: true, ..attempt("powershell", &args, true) }],
+            Vec::new(),
+        ));
+    }
+    let script = temp_script(if os == "macos" { "command" } else { "sh" }, &sh_script(&env, &banner, dir))?;
+    let f = script.display().to_string();
+    let f = f.as_str();
+    Ok((
+        if os == "macos" {
+            vec![attempt("open", &["-a", "Terminal", f], false)]
+        } else {
+            vec![
+                attempt("x-terminal-emulator", &["-e", "sh", f], true),
+                attempt("gnome-terminal", &["--", "sh", f], true),
+                attempt("konsole", &["-e", "sh", f], true),
+                attempt("xfce4-terminal", &["-x", "sh", f], true),
+                attempt("xterm", &["-e", "sh", f], true),
+            ]
+        },
+        Vec::new(),
+    ))
+}
+
+/// Terminal baru yang menjalankan `program args…` (mis. `docker exec -it …`).
+/// Argumen tidak pernah digabung ke string shell, kecuali di macOS yang butuh
+/// file `.command`; di sana setiap argumen dikutip dengan `sh_quote`.
+pub fn open_terminal_running(program: &'static str, args: &[String], title: &str) -> Result<(), String> {
+    let os = current_os();
+    let a: Vec<&str> = args.iter().map(String::as_str).collect();
+    let attempts: Vec<Attempt> = match os {
+        "windows" => {
+            let mut wt: Vec<&str> = vec!["--title", title, program];
+            wt.extend_from_slice(&a);
+            vec![attempt("wt", &wt, false), Attempt { new_console: true, ..attempt(program, &a, false) }]
+        }
+        "macos" => {
+            let line = std::iter::once(program.to_string()).chain(args.iter().map(|x| sh_quote(x))).collect::<Vec<_>>().join(" ");
+            let script = temp_script("command", &format!("#!/bin/sh\nrm -f -- \"$0\"\nexec {}\n", line))?;
+            let f = script.display().to_string();
+            vec![attempt("open", &["-a", "Terminal", &f], false)]
+        }
+        _ => {
+            let mut e: Vec<&str> = vec!["-e", program];
+            e.extend_from_slice(&a);
+            let mut g: Vec<&str> = vec!["--", program];
+            g.extend_from_slice(&a);
+            let mut x: Vec<&str> = vec!["-x", program];
+            x.extend_from_slice(&a);
+            vec![
+                attempt("x-terminal-emulator", &e, false),
+                attempt("gnome-terminal", &g, false),
+                attempt("konsole", &e, false),
+                attempt("xfce4-terminal", &x, false),
+                attempt("xterm", &e, false),
+            ]
+        }
+    };
+    let dir = std::env::temp_dir();
+    for at in &attempts {
+        match spawn(at, &dir, &[]) {
+            Ok(()) => return Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(format!("Could not start {}: {e}", at.program)),
+        }
+    }
+    Err(not_found_message(Target::Terminal))
+}
+
 #[tauri::command]
-pub async fn project_open_in(target: String, path: String) -> Result<(), String> {
+pub async fn project_open_in(
+    app: tauri::AppHandle,
+    target: String,
+    path: String,
+    project_id: Option<String>,
+) -> Result<(), String> {
     let target = parse_target(&target)?;
     let dir = PathBuf::from(&path);
     if !dir.is_dir() {
         return Err(format!("Folder not found: {path}"));
     }
+    let project = project_id.as_deref().and_then(|id| {
+        use tauri::Manager;
+        let state = app.try_state::<std::sync::Mutex<crate::commands::config::ConfigState>>()?;
+        let cfg = state.lock().ok()?;
+        cfg.projects.iter().find(|p| p.id == id).cloned()
+    });
+    let mut env: Vec<(String, String)> = Vec::new();
     let wsl = if cfg!(windows) { crate::wsl::parse(&path) } else { None };
-    let attempts = wsl
-        .as_ref()
-        .and_then(|wp| plan_wsl(target, wp))
-        .unwrap_or_else(|| plan(target, current_os(), &path));
+    let attempts = match (&project, target) {
+        (Some(p), Target::Terminal) => {
+            let mut vars = crate::sites::process::terminal_env(p);
+            if !(p.wsl && wsl.is_some()) && crate::mise::version().await.is_some() {
+                if let Ok(m) = crate::mise::env_for(&dir).await {
+                    let mut m: Vec<(String, String)> = m.into_iter().collect();
+                    m.sort();
+                    m.extend(vars);
+                    vars = m;
+                }
+            }
+            let (a, e) = terminal_plan(p, vars, &path)?;
+            env = e;
+            a
+        }
+        _ => wsl
+            .as_ref()
+            .and_then(|wp| plan_wsl(target, wp))
+            .unwrap_or_else(|| plan(target, current_os(), &path)),
+    };
     for a in &attempts {
-        match spawn(a, &dir) {
+        match spawn(a, &dir, &env) {
             Ok(()) => return Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
             Err(e) => return Err(format!("Could not start {}: {e}", a.program)),
@@ -169,6 +341,18 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn terminal_scripts_quote_values() {
+        let env = vec![("APP_ENV".to_string(), "it's local".to_string()), ("bad name".to_string(), "x".to_string())];
+        let ps = ps_script(&env, "Kova: APP_ENV");
+        assert!(ps.contains("SetEnvironmentVariable('APP_ENV', 'it''s local', 'Process')"));
+        assert!(ps.contains("Remove-Item -LiteralPath $PSCommandPath"));
+        let sh = sh_script(&env, "Kova: APP_ENV", "/home/dev/a b");
+        assert!(sh.contains("export APP_ENV='it'\\''s local'"));
+        assert!(!sh.contains("bad name"));
+        assert!(sh.contains("cd -- '/home/dev/a b'"));
     }
 
     #[test]

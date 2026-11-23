@@ -61,6 +61,20 @@ fn wsl_not_found_hint(code: Option<i32>, command: &str, distro: &str) -> Option<
     ))
 }
 
+/// ENV untuk Terminal here: sama dengan Start, tanpa variabel tampilan log.
+pub fn terminal_env(site: &Project) -> Vec<(String, String)> {
+    let mut out = vec![
+        ("PORT".to_string(), site.port.to_string()),
+        ("SERVER_PORT".to_string(), site.port.to_string()),
+        ("SERVER_HOST".to_string(), "127.0.0.1".to_string()),
+    ];
+    for (k, v) in site.effective_env() {
+        out.retain(|(x, _)| *x != k);
+        out.push((k, v));
+    }
+    out
+}
+
 /// Petunjuk untuk baris output yang dikenali. WSL menulis
 /// RPC_S_SERVER_UNAVAILABLE bila service-nya tidak bisa dihubungi.
 fn output_hint(line: &str) -> Option<&'static str> {
@@ -70,6 +84,43 @@ fn output_hint(line: &str) -> Option<&'static str> {
         );
     }
     None
+}
+
+/// Port yang dicetak dev server: URL lokal (`http://localhost:3000/`,
+/// `http://127.0.0.1:8000`, `http://0.0.0.0:5173`, `http://[::1]:4000`) atau `listening on :8080` /
+/// `listening on port 8080`. Port < 1024 diabaikan.
+pub fn printed_port(line: &str) -> Option<u16> {
+    let lower = line.to_ascii_lowercase();
+    let digits = |s: &str| -> Option<u16> {
+        let d: String = s.chars().take_while(|c| c.is_ascii_digit()).collect();
+        d.parse::<u16>().ok().filter(|p| *p >= 1024)
+    };
+    let mut found = None;
+    // Hanya URL http(s): baris koneksi database (`localhost:5432`) bukan port app.
+    for scheme in ["http://", "https://"] {
+        let mut rest = lower.as_str();
+        while let Some(i) = rest.find(scheme) {
+            rest = &rest[i + scheme.len()..];
+            for host in ["localhost:", "127.0.0.1:", "0.0.0.0:", "[::1]:", "[::]:"] {
+                if let Some(after) = rest.strip_prefix(host) {
+                    if let Some(p) = digits(after) {
+                        found = Some(p);
+                    }
+                }
+            }
+        }
+    }
+    if found.is_none() {
+        for key in ["listening on port ", "listening on :", "listening at :", "running on port ", "started on port "] {
+            if let Some(i) = lower.find(key) {
+                found = digits(&lower[i + key.len()..]);
+                if found.is_some() {
+                    break;
+                }
+            }
+        }
+    }
+    found
 }
 
 /// Folder UNC (`\\wsl.localhost\…`, `\\server\share`). `cmd` tidak bisa
@@ -124,6 +175,9 @@ pub struct SiteRuntime {
     /// Environment yang dipakai saat proses ini dimulai. `None` =
     /// Default. Dipakai UI untuk "Restart to use …".
     pub env_name: Option<String>,
+    /// Port terakhir yang dicetak app di output (`http://localhost:3000`,
+    /// `listening on :8080`). UI membandingkannya dengan port project.
+    pub printed_port: Option<u16>,
 }
 
 struct Entry {
@@ -138,6 +192,7 @@ struct Entry {
     env_name: Option<String>,
     /// Project WSL: (distro, PGID) proses di dalam distro, untuk Stop.
     wsl_group: Option<(String, u32)>,
+    printed_port: Option<u16>,
 }
 
 #[derive(Default)]
@@ -170,6 +225,7 @@ impl SiteProcs {
                 exit_code: e.exit_code,
                 last_line: e.last_line.clone(),
                 env_name: e.env_name.clone(),
+                printed_port: e.printed_port,
             })
             .collect();
         out.sort_by(|a, b| a.id.cmp(&b.id));
@@ -376,7 +432,7 @@ mod job {
 
 /// Waktu mulai proses menurut OS, sebagai teks pembanding. `None` bila proses
 /// tidak ada. Unix: `ps -o lstart=`; Windows: tidak dipakai (job object).
-async fn process_started(pid: u32) -> Option<String> {
+pub(crate) async fn process_started(pid: u32) -> Option<String> {
     #[cfg(not(target_os = "windows"))]
     {
         let out = silent_command("ps")
@@ -461,7 +517,7 @@ pub fn validate(site: &Project) -> Result<(), String> {
     if !Path::new(&site.path).is_dir() {
         return Err(format!("folder not found: {}", site.path));
     }
-    if site.command.trim().is_empty() {
+    if site.command.trim().is_empty() && site.run_mode.is_command() {
         return Err("the command is empty".to_string());
     }
     if site.port < 1024 {
@@ -506,27 +562,45 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     }
 
     let source = site.name.clone();
-    let line = render_command(site.command.trim(), site.port);
+    // Run with: Dockerfile / Compose → script engine (lihat `container.rs`).
+    let cplan = if site.run_mode.is_command() {
+        None
+    } else {
+        let mut names: Vec<String> = vec!["PORT".into()];
+        names.extend(site.effective_env().into_keys());
+        Some(super::container::plan(site, crate::runtime::ensure_resolved().await, &names)?)
+    };
+    let line = match &cplan {
+        Some(c) => c.summary.clone(),
+        None => render_command(site.command.trim(), site.port),
+    };
     // "Run inside WSL": command dijalankan di distro, bukan oleh cmd Windows.
-    let wsl_target = if cfg!(target_os = "windows") && site.wsl {
+    let wsl_target = if cfg!(target_os = "windows") && site.wsl && cplan.is_none() {
         Some(crate::wsl::parse(&site.path).ok_or_else(|| {
             "Run inside WSL needs a folder in a WSL distro (\\\\wsl.localhost\\<distro>\\…)".to_string()
         })?)
     } else {
         None
     };
-    let unc = cfg!(target_os = "windows") && wsl_target.is_none() && is_unc(&site.path);
-    let mut cmd = match &wsl_target {
-        Some(wp) => {
+    let unc = cfg!(target_os = "windows") && wsl_target.is_none() && cplan.is_none() && is_unc(&site.path);
+    let mut cmd = match (&cplan, &wsl_target) {
+        (Some(c), _) => {
+            let mut x = silent_command(&c.program);
+            x.args(&c.args);
+            #[cfg(unix)]
+            x.process_group(0);
+            x
+        }
+        (None, Some(wp)) => {
             let mut c = silent_command("wsl.exe");
             c.args(crate::wsl::start_args(wp, &line));
             c
         }
-        None => shell_command(&if unc { unc_wrap(&site.path, &line) } else { line.clone() }),
+        (None, None) => shell_command(&if unc { unc_wrap(&site.path, &line) } else { line.clone() }),
     };
     // Folder UNC dimasuki lewat `pushd` (atau `--cd` di WSL); folder kerja
     // proses Windows-nya sendiri harus lokal.
-    cmd.current_dir(if unc || wsl_target.is_some() {
+    cmd.current_dir(if unc || wsl_target.is_some() || (cplan.is_some() && is_unc(&site.path)) {
         std::env::temp_dir()
     } else {
         std::path::PathBuf::from(&site.path)
@@ -547,7 +621,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
 
     // Versi PHP/Node/Go mengikuti mise.toml project bila mise terpasang.
     // Di WSL, mise milik distro yang dipakai (lihat `wsl::start_script`).
-    if wsl_target.is_none() && crate::mise::version().await.is_some() {
+    if wsl_target.is_none() && cplan.is_none() && crate::mise::version().await.is_some() {
         match crate::mise::env_for(Path::new(&site.path)).await {
             Ok(env) => {
                 cmd.envs(env);
@@ -580,9 +654,10 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
         cmd.env("WSLENV", crate::wsl::wslenv(existing.as_deref(), &names));
     }
 
-    let place = match &wsl_target {
-        Some(wp) => format!("{}:{} in WSL", wp.distro, wp.path),
-        None => site.path.clone(),
+    let place = match (&cplan, &wsl_target) {
+        (Some(_), _) => format!("{} · container", site.path),
+        (None, Some(wp)) => format!("{}:{} in WSL", wp.distro, wp.path),
+        (None, None) => site.path.clone(),
     };
     emit_log(app, &source, &format!("$ {}  (in {})", line, place), None);
     let mut child = cmd.spawn().map_err(|e| format!("could not run the command: {}", e))?;
@@ -616,6 +691,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
             generation,
             env_name: site.active_env_entry().map(|e| e.name.clone()),
             wsl_group: None,
+            printed_port: None,
         },
     );
     emit_status(app);
@@ -654,10 +730,15 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     let wait_cmd = line.clone();
     let wait_drive = drive.clone();
     let wait_distro = wsl_target.as_ref().map(|w| w.distro.clone());
+    let wait_cleanup = cplan.as_ref().map(|c| c.cleanup.clone());
     tauri::async_runtime::spawn(async move {
         let code = child.wait().await.ok().and_then(|s| s.code());
         if unc {
             release_drive(&wait_drive).await;
+        }
+        // Mode container: hapus container / compose down supaya nama dan port bebas.
+        if let Some(c) = &wait_cleanup {
+            super::container::cleanup(c).await;
         }
         let procs = wait_app.state::<SiteProcs>();
         record_remove(&procs, &wait_id);
@@ -807,6 +888,9 @@ async fn pump<R: Runtime, B: tokio::io::AsyncBufRead + Unpin>(
         if let Some(e) = map.get_mut(&id) {
             if e.generation == generation {
                 e.last_line = Some(hint.unwrap_or(line).to_string());
+                if let Some(port) = printed_port(line) {
+                    e.printed_port = Some(port);
+                }
             }
         }
     }
@@ -937,6 +1021,20 @@ pub fn running_pids<R: Runtime>(app: &AppHandle<R>) -> Vec<u32> {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn finds_the_printed_port() {
+        use super::printed_port;
+        assert_eq!(printed_port("  ➜  Local:   http://localhost:3000/"), Some(3000));
+        assert_eq!(printed_port("INFO  Server running on [http://127.0.0.1:8001]."), Some(8001));
+        assert_eq!(printed_port("listening on :8080"), Some(8080));
+        assert_eq!(printed_port("Listening on port 4000"), Some(4000));
+        assert_eq!(printed_port("Network: http://0.0.0.0:5173/"), Some(5173));
+        assert_eq!(printed_port("connected to postgres at localhost:5432 then http://localhost:3001"), Some(3001));
+        assert_eq!(printed_port("connected to localhost:5432"), None);
+        assert_eq!(printed_port("GET /api 200 in 12ms"), None);
+        assert_eq!(printed_port("http://localhost:80/"), None);
+    }
+
+    #[test]
     fn unc_folder_runs_through_pushd() {
         use super::{is_unc, mapped_drive, output_hint, unc_wrap};
         assert!(is_unc(r"\\wsl.localhost\Ubuntu-24.04\home\dev\app"));
@@ -992,6 +1090,8 @@ mod tests {
             start_services: false,
             group_id: None,
             wsl: false,
+            run_mode: Default::default(),
+            container: None,
         }
     }
 

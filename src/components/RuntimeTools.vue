@@ -7,6 +7,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import UiSegmented from '@/components/ui/UiSegmented.vue'
 import UiButton from '@/components/ui/UiButton.vue'
+import UiIcon from '@/components/ui/UiIcon.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiChip from '@/components/ui/UiChip.vue'
 import UiInput from '@/components/ui/UiInput.vue'
@@ -19,44 +20,102 @@ import { useConfig } from '@/composables/useConfig'
 import { useVersionContext } from '@/composables/useVersionContext'
 import { useLogs } from '@/composables/useLogs'
 import { useToast } from '@/composables/useToast'
-import { useRuntimeInstall, type RuntimeTool } from '@/composables/useRuntimeInstall'
+import { useRuntimeInstall, toolLabel, freshKey, type RuntimeTool } from '@/composables/useRuntimeInstall'
+import AddToolModal from '@/components/AddToolModal.vue'
+import { wslDistro } from '@/utils/wsl'
 import { frameworkTool } from '@/utils/framework'
 
 type Tool = RuntimeTool
 interface VersionRow { version: string; installed: boolean; global: boolean; usedBy: string[] }
 interface Overview { tool: string; global: string | null; versions: VersionRow[] }
 
-const TOOLS: { value: Tool; label: string; example: string }[] = [
+const BUILTIN: { value: Tool; label: string; example: string }[] = [
   { value: 'php', label: 'PHP', example: '8.4' },
   { value: 'node', label: 'Node', example: '22' },
   { value: 'go', label: 'Go', example: '1.23' },
   { value: 'python', label: 'Python', example: '3.12' },
 ]
 
-const { config, setActiveProject } = useConfig()
+const { config, setActiveProject, removeExtraTool } = useConfig()
+/** Tab: tool bawaan + tool dari Add tool (Flow L5–L6). */
+const TOOLS = computed(() => [
+  ...BUILTIN,
+  ...(config.value.extraTools ?? []).filter((t) => !BUILTIN.some((b) => b.value === t)).map((t) => ({ value: t, label: toolLabel(t), example: 'latest' })),
+])
+const isExtra = computed(() => !BUILTIN.some((b) => b.value === tool.value))
+const addToolOpen = ref(false)
+
+// Lokasi (Flow L1–L4): '' = PC ini, selain itu nama distro WSL.
+const distros = ref<string[]>([])
+const loc = ref('')
+const distroArg = computed(() => loc.value || null)
+/** Versi mise di distro terpilih; undefined = belum dicek, null = tidak ada. */
+const distroMise = ref<string | null | undefined>(undefined)
+const installingMise = ref(false)
+const locOptions = computed(() => [{ value: '', label: 'Windows' }, ...distros.value.map((d) => ({ value: d, label: `WSL · ${d}` }))])
+async function checkDistroMise(): Promise<void> {
+  distroMise.value = undefined
+  if (!loc.value) return
+  try {
+    distroMise.value = await invoke<string | null>('wsl_mise_version', { distro: loc.value })
+  } catch {
+    distroMise.value = null
+  }
+}
+async function installMiseInDistro(): Promise<void> {
+  installingMise.value = true
+  actionError.value = ''
+  try {
+    await invoke('wsl_mise_install', { distro: loc.value })
+    toast.show(`mise is installed in ${loc.value}`)
+    await checkDistroMise()
+    await load()
+  } catch (err) {
+    actionError.value = String(err)
+  } finally {
+    installingMise.value = false
+  }
+}
+watch(loc, async () => {
+  await checkDistroMise()
+  if (!loc.value || distroMise.value) void load()
+})
+async function removeToolTab(): Promise<void> {
+  const t = tool.value
+  tool.value = 'php'
+  await removeExtraTool(t)
+  toast.show(`Removed the ${toolLabel(t)} tab. Installed versions stay until you uninstall them.`)
+}
 const versionCtx = useVersionContext()
 const { lines } = useLogs()
 const toast = useToast()
 
 const tool = ref<Tool>('php')
-const meta = computed(() => TOOLS.find((t) => t.value === tool.value)!)
-const data = ref<Partial<Record<Tool, Overview>>>({})
+const meta = computed(() => TOOLS.value.find((t) => t.value === tool.value) ?? { value: tool.value, label: toolLabel(tool.value), example: 'latest' })
+/** Cache per `lokasi|tool`. */
+const data = ref<Partial<Record<string, Overview>>>({})
+const key = (t: string = tool.value): string => `${loc.value}|${t}`
 const loading = ref(false)
 const loadError = ref('')
 const busy = ref(false)
 const actionError = ref('')
 
-const projectsWithFolder = computed(() => config.value.projects.filter((p) => p.path))
+const projectsWithFolder = computed(() =>
+  config.value.projects.filter((p) => p.path && (loc.value ? wslDistro(p.path) === loc.value : true)),
+)
 
 async function load(t: Tool = tool.value): Promise<void> {
-  if (!data.value[t]) loading.value = true
+  if (loc.value && !distroMise.value) return
+  const k = key(t)
+  if (!data.value[k]) loading.value = true
   loadError.value = ''
   try {
     data.value = {
       ...data.value,
-      [t]: await invoke<Overview>('runtime_overview', {
+      [k]: await invoke<Overview>('runtime_overview', {
         tool: t,
         projects: projectsWithFolder.value.map((p) => ({ name: p.name, path: p.path })),
+        distro: distroArg.value,
       }),
     }
   } catch (err) {
@@ -73,21 +132,22 @@ onMounted(async () => {
   // project lewat "Use in project". Tray mengikuti konteks ini, jadi
   // kembalikan ke global supaya tray tidak menulis ke mise.toml project lama.
   if (config.value.activeProjectId) await setActiveProject(null)
+  distros.value = await invoke<string[]>('wsl_distros').catch(() => [])
   await load()
   // Versi global diganti dari popup tray: data tab itu sudah basi.
   unlistenGlobal = await listen<{ tool: Tool }>('runtime-global-changed', (e) => {
-    const { [e.payload.tool]: _stale, ...rest } = data.value
+    const { [`|${e.payload.tool}`]: _stale, ...rest } = data.value
     data.value = rest
-    if (e.payload.tool === tool.value) void load()
+    if (e.payload.tool === tool.value && !loc.value) void load()
     void versionCtx.refresh()
   })
 })
 let unlistenGlobal: UnlistenFn | null = null
 onUnmounted(() => unlistenGlobal?.())
 
-const rows = computed(() => data.value[tool.value]?.versions ?? [])
+const rows = computed(() => data.value[key()]?.versions ?? [])
 const rtInstall = useRuntimeInstall()
-const isFresh = (version: string): boolean => rtInstall.fresh.value.has(`${tool.value}@${version}`)
+const isFresh = (version: string): boolean => rtInstall.fresh.value.has(freshKey(tool.value, version, distroArg.value))
 
 // --- Install -----------------------------------------------------------------
 // The job lives in useRuntimeInstall, so it survives leaving this page.
@@ -102,7 +162,7 @@ const installLine = computed(() => {
 async function install(version = newVersion.value.trim()): Promise<void> {
   if (!version || installing.value) return
   actionError.value = ''
-  const r = await rtInstall.install(tool.value, version)
+  const r = await rtInstall.install(tool.value, version, distroArg.value)
   if (r?.ok && newVersion.value.trim() === version) newVersion.value = ''
 }
 
@@ -111,9 +171,9 @@ async function install(version = newVersion.value.trim()): Promise<void> {
 watch(rtInstall.lastResult, (r) => {
   if (!r) return
   if (!r.ok && !r.cancelled) actionError.value = r.error
-  const { [r.tool]: _stale, ...rest } = data.value
+  const { [`${r.distro ?? ''}|${r.tool}`]: _stale, ...rest } = data.value
   data.value = rest
-  if (r.tool === tool.value) void load()
+  if (r.tool === tool.value && (r.distro ?? '') === loc.value) void load()
   if (r.madeGlobal) void versionCtx.refresh()
   if (r.ok && r.tool === 'php') {
     const v = [...rtInstall.fresh.value].filter((k) => k.startsWith('php@')).pop()?.slice(4)
@@ -177,7 +237,7 @@ function onMenu(r: VersionRow, id: string): void {
   if (id === 'install') void install(r.version)
   else if (id === 'global') {
     if (tool.value === 'php') extFocus.value = r.version
-    void run(() => invoke('runtime_set_global', { tool: tool.value, version: r.version }), `${meta.value.label} ${r.version} is now the global version`)
+    void run(() => invoke('runtime_set_global', { tool: tool.value, version: r.version, distro: distroArg.value }), `${meta.value.label} ${r.version} is now the global version${loc.value ? ` in ${loc.value}` : ''}`)
   } else if (id === 'use') usingRow.value = r
   else if (id === 'remove') removingRow.value = r
 }
@@ -193,7 +253,7 @@ async function useIn(projectId = usePick.value): Promise<void> {
   usingRow.value = null
   if (tool.value === 'php') extFocus.value = r.version
   await run(
-    () => invoke('runtime_use_in', { tool: tool.value, version: r.version, path: p.path }),
+    () => invoke('runtime_use_in', { tool: tool.value, version: r.version, path: p.path, distro: distroArg.value }),
     `${p.name} now uses ${meta.value.label} ${r.version}. Restart it to apply.`,
   )
 }
@@ -202,10 +262,10 @@ async function confirmRemove(): Promise<void> {
   const r = removingRow.value
   if (!r) return
   removingRow.value = null
-  await run(() => invoke('runtime_uninstall', { tool: tool.value, version: r.version }), `Removed ${meta.value.label} ${r.version}`)
+  await run(() => invoke('runtime_uninstall', { tool: tool.value, version: r.version, distro: distroArg.value }), `Removed ${meta.value.label} ${r.version}`)
 }
 
-const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label })))
+const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.label })))
 </script>
 
 <template>
@@ -214,18 +274,32 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
     <div class="rtt-head">
       <h1 class="rtt-title">Runtimes</h1>
       <UiSegmented :model-value="tool" :options="tabs" label="Tool" @update:model-value="tool = $event as Tool" />
-      <span class="rtt-via">via mise {{ versionCtx.ctx.value?.miseVersion ?? '' }}</span>
+      <UiButton variant="quiet" @click="addToolOpen = true"><UiIcon name="plus" />Add tool</UiButton>
+      <UiButton v-if="isExtra" variant="quiet" @click="removeToolTab">Remove tab</UiButton>
+      <span class="rtt-sp"></span>
+      <UiSegmented v-if="distros.length" v-model="loc" :options="locOptions" label="Where" />
+      <span class="rtt-via">via mise {{ loc ? (distroMise ?? '') : (versionCtx.ctx.value?.miseVersion ?? '') }}</span>
     </div>
 
     <!-- Versi di kiri, PHP extensions sebagai panel di kanan. -->
-    <div class="rtt-cols" :class="{ 'rtt-cols--split': tool === 'php' }">
+    <div class="rtt-cols" :class="{ 'rtt-cols--split': tool === 'php' && !loc }">
     <div class="rtt-main">
     <UiBanner v-if="versionCtx.untrustedPath.value" tone="warn" title="mise.toml is not trusted yet">
       <code class="rtt-mono">{{ versionCtx.untrustedPath.value }}</code> — mise ignores this file until you trust it.
       <template #actions><UiButton @click="versionCtx.trust(versionCtx.untrustedPath.value!)">Trust</UiButton></template>
     </UiBanner>
 
-    <div v-if="loading" class="rtt-loading" aria-busy="true">
+    <EmptyState v-if="loc && distroMise === null" :title="`mise is not installed in ${loc}`" icon="lines">
+      Kova installs and switches versions in the distro with mise, like on Windows. It goes into your home folder there (~/.local/bin); nothing else changes.
+      <code class="rtt-mono">curl https://mise.run | sh</code>
+      <template #actions>
+        <UiButton variant="accent" :loading="installingMise" @click="installMiseInDistro">Install mise in {{ loc }}</UiButton>
+      </template>
+    </EmptyState>
+    <div v-else-if="loc && distroMise === undefined" class="rtt-loading" aria-busy="true">
+      <span class="rtt-dim">Checking {{ loc }}…</span>
+    </div>
+    <div v-else-if="loading" class="rtt-loading" aria-busy="true">
       <span class="rtt-dim">Reading mise ls…</span>
       <SkeletonBox v-for="n in 3" :key="n" width="100%" height="36px" />
     </div>
@@ -259,13 +333,13 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
       </table>
     </template>
 
-    <UiBanner v-if="installing" tone="info" :title="`Installing ${TOOLS.find((t) => t.value === installing!.tool)?.label} ${installing.version}`">
+    <UiBanner v-if="installing" tone="info" :title="`Installing ${toolLabel(installing.tool)} ${installing.version}${installing.distro ? ` in ${installing.distro}` : ''}`">
       <code class="rtt-mono">{{ installLine || 'starting mise…' }}</code>
       <template #actions><UiButton @click="cancelInstall">Cancel</UiButton></template>
     </UiBanner>
     <UiBanner v-if="actionError" tone="err" title="That did not work">{{ actionError }}</UiBanner>
 
-    <div class="rtt-install">
+    <div v-if="!loc || distroMise" class="rtt-install">
       <span class="rtt-label" aria-hidden="true">Install version</span>
       <UiInput
         v-model="newVersion"
@@ -281,11 +355,12 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
     </div>
     </div>
 
-    <aside v-if="tool === 'php'" class="rtt-side" aria-label="PHP extensions">
+    <aside v-if="tool === 'php' && !loc" class="rtt-side" aria-label="PHP extensions">
       <PhpExtensionsPanel class="rtt-ext" :focus-version="extFocus" />
     </aside>
     </div>
 
+    <AddToolModal :open="addToolOpen" :distros="distros" @close="addToolOpen = false" @added="(t) => (tool = t)" />
     <UiModal :open="!!usingRow" :title="usingRow ? `Use ${meta.label} ${usingRow.version} in a project` : ''" @close="usingRow = null">
       <p class="rtt-text">Kova writes <code class="rtt-mono">{{ tool }} = "{{ usingRow?.version }}"</code> to the project's mise.toml.</p>
       <div class="rtt-pick" role="radiogroup" :aria-label="`Project for ${meta.label} ${usingRow?.version}`">
@@ -361,4 +436,5 @@ const tabs = computed(() => TOOLS.map((t) => ({ value: t.value, label: t.label }
 .rtt-link { background: none; border: 0; padding: 0; margin-left: var(--space-1); color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
 .rtt-pick__name { font-weight: 600; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.rtt-sp { flex: 1; }
 </style>
