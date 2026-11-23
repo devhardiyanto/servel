@@ -670,7 +670,7 @@ Canvas B8–B12 dan "Tray popup · v3.15".
 - [x] Switch *Run inside WSL* per project (default menyala untuk folder WSL baru); start lewat `wsl.exe -d <distro> --cd`, ENV lewat `WSLENV`, Stop TERM/KILL grup proses di distro.
 - [x] Overview: *Runs in* dan versi tool dari distro; Terminal here dan VS Code Remote WSL.
 - [ ] Uji di Windows sungguhan (TC-W7–W10), termasuk localhost forwarding untuk server yang listen di 127.0.0.1.
-- [ ] Belum: Runtimes (install versi) dan PHP extensions untuk distro; deteksi versi di Add project memakai mise Windows.
+- [ ] Belum: Runtimes (install versi) dan PHP extensions untuk distro.
 
 ## Status per 23 November 2026
 

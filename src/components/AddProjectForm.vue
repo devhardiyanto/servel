@@ -68,7 +68,8 @@ async function run(): Promise<void> {
     form.value = { ...form.value, name: s.name, port: String(s.port), command: s.detection.command }
     portState.value = { free: true, reason: '', suggestion: null }
     try {
-      tools.value = await invoke<ToolCurrent[]>('mise_project_tools', { path: props.path })
+      // Folder WSL: versi dari distro (yang dipakai bila Run inside WSL menyala).
+      tools.value = await invoke<ToolCurrent[]>(distro.value ? 'wsl_project_tools' : 'mise_project_tools', { path: props.path })
     } catch {
       tools.value = []
     }
