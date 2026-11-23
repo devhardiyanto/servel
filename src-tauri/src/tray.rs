@@ -330,7 +330,7 @@ fn set_global_version(app: &AppHandle, tool: &'static str, version: &str) {
     let app = app.clone();
     let version = version.to_string();
     tauri::async_runtime::spawn(async move {
-        match crate::mise::runtime_set_global(app.clone(), tool.to_string(), version.clone()).await {
+        match crate::mise::runtime_set_global(app.clone(), tool.to_string(), version.clone(), None).await {
             Ok(()) => {
                 let _ = app.emit("runtime-global-changed", serde_json::json!({ "tool": tool, "version": version }));
                 refresh_version_submenus(&app).await;

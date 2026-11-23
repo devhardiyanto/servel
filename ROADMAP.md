@@ -670,7 +670,7 @@ Canvas B8–B12 dan "Tray popup · v3.15".
 - [x] Switch *Run inside WSL* per project (default menyala untuk folder WSL baru); start lewat `wsl.exe -d <distro> --cd`, ENV lewat `WSLENV`, Stop TERM/KILL grup proses di distro.
 - [x] Overview: *Runs in* dan versi tool dari distro; Terminal here dan VS Code Remote WSL.
 - [ ] Uji di Windows sungguhan (TC-W7–W10), termasuk localhost forwarding untuk server yang listen di 127.0.0.1.
-- [ ] Belum: Runtimes (install versi) dan PHP extensions untuk distro.
+- [x] Runtimes untuk distro (v3.21.0). PHP extensions untuk distro: belum.
 
 ### X — v3.18.0: port dan Terminal here (canvas Flow I)
 
@@ -688,9 +688,14 @@ Canvas B8–B12 dan "Tray popup · v3.15".
 
 - [x] Run with: Dockerfile (build + run, `-e NAMA`, network service di Docker) dan Compose (Docker saja, lewati service yang sama dengan Kova). Stop membersihkan container.
 
+### AA — v3.21.0: Runtimes di distro WSL dan Add tool (canvas Flow L)
+
+- [x] Runtimes › Windows | WSL · distro: daftar/install/global/use in/remove lewat mise di distro; Install mise di distro.
+- [x] Add tool: tab untuk tool mise lain, versi terbaru dipasang di Windows atau distro.
+
 ## Status per 23 November 2026
 
-Versi terbaru: **v3.20.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.21.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 

@@ -245,6 +245,20 @@ pub fn plan_use(
 
 /// Versi yang boleh diteruskan ke mise: 1–3 segmen angka (`24`, `8.3`, `22.23.3`).
 /// Menolak apa pun yang bisa disalahartikan sebagai flag atau spec lain.
+/// Versi untuk halaman Runtimes: `latest`, angka (`8.4.14`), atau untuk tool
+/// tambahan bentuk lain yang dipakai mise (`temurin-21`, `1.2.4-beta`).
+pub fn validate_tool_version(tool: &str, version: &str) -> Result<(), String> {
+    if version == "latest" || validate_version(version).is_ok() {
+        return Ok(());
+    }
+    let extra = !ALL_TOOLS.contains(&tool);
+    let shape = !version.is_empty()
+        && version.len() <= 64
+        && version.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && version.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | '+'));
+    if extra && shape { Ok(()) } else { Err(format!("version '{}' is not valid", version)) }
+}
+
 pub fn validate_version(version: &str) -> Result<(), String> {
     let parts: Vec<&str> = version.split('.').collect();
     let ok = !version.is_empty()
@@ -271,6 +285,56 @@ fn home_dir() -> PathBuf {
         .or_else(|| std::env::var_os("HOME"))
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir)
+}
+
+/// Tempat mise dijalankan: PC ini, atau distro WSL (Runtimes › WSL · distro).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Host {
+    Local,
+    Wsl(String),
+}
+
+/// `distro` dari frontend → Host. Nama distro dibatasi ke karakter WSL.
+pub fn host_of(distro: &Option<String>) -> Result<Host, String> {
+    match distro.as_deref().map(str::trim).filter(|d| !d.is_empty()) {
+        None => Ok(Host::Local),
+        Some(d) if d.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')) => Ok(Host::Wsl(d.to_string())),
+        Some(d) => Err(format!("'{d}' is not a WSL distro name")),
+    }
+}
+
+/// Argumen `wsl.exe` untuk `mise <args>` di distro. Argumen diteruskan lewat
+/// `"$@"`, bukan disusun ke string shell. `linux_cwd` = folder kerja di distro.
+pub fn wsl_mise_args(distro: &str, linux_cwd: Option<&str>, args: &[String]) -> Vec<String> {
+    let mut a = vec!["-d".to_string(), distro.to_string()];
+    if let Some(c) = linux_cwd {
+        a.push("--cd".into());
+        a.push(c.to_string());
+    } else {
+        a.push("--cd".into());
+        a.push("~".into());
+    }
+    a.extend(["--exec", "bash", "-lc", "exec mise \"$@\"", "mise"].map(String::from));
+    a.extend(args.iter().cloned());
+    a
+}
+
+fn command_on(host: &Host, args: &[String], cwd: &Path) -> tokio::process::Command {
+    match host {
+        Host::Local => command(args, cwd),
+        Host::Wsl(d) => {
+            let linux = crate::wsl::parse(&cwd.display().to_string()).map(|w| w.path);
+            let mut cmd = silent_command("wsl.exe");
+            cmd.args(wsl_mise_args(d, linux.as_deref(), args))
+                .env("NO_COLOR", "1")
+                .env("MISE_YES", "1")
+                .env("WSLENV", crate::wsl::wslenv(std::env::var("WSLENV").ok().as_deref(), &["NO_COLOR", "MISE_YES"]))
+                .env("WSL_UTF8", "1")
+                .stdin(Stdio::null())
+                .kill_on_drop(true);
+            cmd
+        }
+    }
 }
 
 fn command(args: &[String], cwd: &Path) -> tokio::process::Command {
@@ -338,7 +402,11 @@ fn uninstall_in_use(err: &str) -> bool {
 }
 
 async fn capture(args: &[String], cwd: &Path) -> Result<String, String> {
-    let fut = command(args, cwd).stdout(Stdio::piped()).stderr(Stdio::piped()).output();
+    capture_on(&Host::Local, args, cwd).await
+}
+
+async fn capture_on(host: &Host, args: &[String], cwd: &Path) -> Result<String, String> {
+    let fut = command_on(host, args, cwd).stdout(Stdio::piped()).stderr(Stdio::piped()).output();
     let out = tokio::time::timeout(std::time::Duration::from_secs(30), fut)
         .await
         .map_err(|_| format!("mise {} timeout", args.join(" ")))?
@@ -399,12 +467,20 @@ static INSTALL_CANCELLED: AtomicBool = AtomicBool::new(false);
 
 /// Jalankan mise sambil men-stream output ke panel log (source `MISE`).
 async fn run_logged(app: &AppHandle, args: &[String], cwd: &Path) -> Result<(), String> {
+    run_logged_on(app, &Host::Local, args, cwd).await
+}
+
+async fn run_logged_on(app: &AppHandle, host: &Host, args: &[String], cwd: &Path) -> Result<(), String> {
     let emit = |line: &str, stream: &str| {
         let _ = app.emit("cmd-output", serde_json::json!({ "line": line, "stream": stream, "source": "MISE" }));
     };
-    emit(&format!("mise {}", args.join(" ")), "stdout");
+    let where_ = match host {
+        Host::Local => String::new(),
+        Host::Wsl(d) => format!("  (in {})", d),
+    };
+    emit(&format!("mise {}{}", args.join(" "), where_), "stdout");
 
-    let mut child = command(args, cwd)
+    let mut child = command_on(host, args, cwd)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -651,8 +727,17 @@ pub async fn runtime_use(app: AppHandle, tool: String, version: String, scope: S
 /// Tool yang punya tab di Runtimes.
 pub const ALL_TOOLS: &[&str] = &["php", "node", "go", "python"];
 
+/// Tool bawaan atau tool mise yang ditambah lewat Add tool (`bun`,
+/// `rust`, `java`, `aqua:cli/cli`…). Tanpa spasi atau `@`, tidak diawali `-`.
+pub fn valid_tool_name(tool: &str) -> bool {
+    !tool.is_empty()
+        && tool.len() <= 64
+        && !tool.starts_with('-')
+        && tool.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '-' | '_' | '.' | ':' | '/'))
+}
+
 fn check_any_tool(tool: &str) -> Result<(), String> {
-    if ALL_TOOLS.contains(&tool) {
+    if ALL_TOOLS.contains(&tool) || valid_tool_name(tool) {
         Ok(())
     } else {
         Err(format!("'{tool}' is not a supported runtime"))
@@ -715,21 +800,31 @@ pub fn build_rows(installed: &[InstalledVersion], global: Option<&str>, uses: &[
 }
 
 #[tauri::command]
-pub async fn runtime_overview(tool: String, projects: Vec<ProjectRef>) -> Result<ToolOverview, String> {
+pub async fn runtime_overview(tool: String, projects: Vec<ProjectRef>, distro: Option<String>) -> Result<ToolOverview, String> {
     check_any_tool(&tool)?;
+    let host = host_of(&distro)?;
     let home = home_dir();
     let installed =
-        parse_installed(&capture(&["ls".into(), "--installed".into(), "--json".into(), tool.clone()], &home).await?);
-    let roots = global_config_roots(&env_lookup);
-    let global = global_version(&tool, &home, &roots).await?;
+        parse_installed(&capture_on(&host, &["ls".into(), "--installed".into(), "--json".into(), tool.clone()], &home).await?);
+    let roots = match &host {
+        Host::Local => global_config_roots(&env_lookup),
+        Host::Wsl(d) => wsl_global_roots(d).await,
+    };
+    let global = global_version_on(&host, &tool, &home, &roots).await?;
     let mut uses = Vec::new();
     for p in &projects {
         let dir = PathBuf::from(&p.path);
         if !dir.is_dir() {
             continue;
         }
+        // Di WSL hanya project di distro yang sama.
+        if let Host::Wsl(d) = &host {
+            if crate::wsl::parse(&p.path).is_none_or(|w| &w.distro != d) {
+                continue;
+            }
+        }
         // Project yang mise.toml-nya belum dipercaya membuat mise gagal; lewati saja.
-        let Ok(out) = capture(&["ls".into(), "--current".into(), "--json".into()], &dir).await else { continue };
+        let Ok(out) = capture_on(&host, &["ls".into(), "--current".into(), "--json".into()], &dir).await else { continue };
         if let Some(t) = parse_current(&out, &roots).into_iter().find(|t| t.tool == tool && t.scope == SourceScope::Project) {
             uses.push((p.name.clone(), t.version));
         }
@@ -740,18 +835,22 @@ pub async fn runtime_overview(tool: String, projects: Vec<ProjectRef>) -> Result
 /// Pasang versi untuk tool apa pun di Runtimes. Bisa dibatalkan dengan
 /// `runtime_install_cancel`.
 #[tauri::command]
-pub async fn runtime_install_version(app: AppHandle, tool: String, version: String) -> Result<bool, String> {
+pub async fn runtime_install_version(app: AppHandle, tool: String, version: String, distro: Option<String>) -> Result<bool, String> {
     check_any_tool(&tool)?;
-    validate_version(&version)?;
+    validate_tool_version(&tool, &version)?;
+    let host = host_of(&distro)?;
     let home = home_dir();
-    run_logged(&app, &["install".into(), format!("{}@{}", tool, version)], &home).await?;
+    run_logged_on(&app, &host, &["install".into(), format!("{}@{}", tool, version)], &home).await?;
     // The first version of a tool becomes the global one, so `php` works in a
     // terminal right away. A failure here does not undo the install.
-    let roots = global_config_roots(&env_lookup);
-    if !matches!(global_version(&tool, &home, &roots).await, Ok(None)) {
+    let roots = match &host {
+        Host::Local => global_config_roots(&env_lookup),
+        Host::Wsl(d) => wsl_global_roots(d).await,
+    };
+    if !matches!(global_version_on(&host, &tool, &home, &roots).await, Ok(None)) {
         return Ok(false);
     }
-    if run_logged(&app, &["use".into(), "-g".into(), format!("{}@{}", tool, version)], &home).await.is_err() {
+    if run_logged_on(&app, &host, &["use".into(), "-g".into(), format!("{}@{}", tool, version)], &home).await.is_err() {
         return Ok(false);
     }
     let _ = app.emit("runtime-global-changed", serde_json::json!({ "tool": tool, "version": version }));
@@ -759,8 +858,8 @@ pub async fn runtime_install_version(app: AppHandle, tool: String, version: Stri
 }
 
 /// Version set in the global mise config for `tool`, if any.
-async fn global_version(tool: &str, home: &Path, roots: &[String]) -> Result<Option<String>, String> {
-    let out = capture(&["ls".into(), "--current".into(), "--json".into()], home).await?;
+async fn global_version_on(host: &Host, tool: &str, home: &Path, roots: &[String]) -> Result<Option<String>, String> {
+    let out = capture_on(host, &["ls".into(), "--current".into(), "--json".into()], home).await?;
     Ok(parse_current(&out, roots).into_iter().find(|t| t.tool == tool && t.scope == SourceScope::Global).map(|t| t.version))
 }
 
@@ -775,31 +874,34 @@ pub async fn runtime_install_cancel() -> Result<(), String> {
 
 /// `mise use -g tool@version`.
 #[tauri::command]
-pub async fn runtime_set_global(app: AppHandle, tool: String, version: String) -> Result<(), String> {
+pub async fn runtime_set_global(app: AppHandle, tool: String, version: String, distro: Option<String>) -> Result<(), String> {
     check_any_tool(&tool)?;
-    validate_version(&version)?;
-    run_logged(&app, &["use".into(), "-g".into(), format!("{}@{}", tool, version)], &home_dir()).await
+    validate_tool_version(&tool, &version)?;
+    let host = host_of(&distro)?;
+    run_logged_on(&app, &host, &["use".into(), "-g".into(), format!("{}@{}", tool, version)], &home_dir()).await
 }
 
 /// `mise use tool@version` di folder project: menulis `mise.toml` project itu.
 #[tauri::command]
-pub async fn runtime_use_in(app: AppHandle, tool: String, version: String, path: String) -> Result<(), String> {
+pub async fn runtime_use_in(app: AppHandle, tool: String, version: String, path: String, distro: Option<String>) -> Result<(), String> {
     check_any_tool(&tool)?;
-    validate_version(&version)?;
+    validate_tool_version(&tool, &version)?;
+    let host = host_of(&distro)?;
     let dir = PathBuf::from(&path);
     if !dir.is_dir() {
         return Err(format!("Folder not found: {path}"));
     }
-    run_logged(&app, &["use".into(), format!("{}@{}", tool, version)], &dir).await
+    run_logged_on(&app, &host, &["use".into(), format!("{}@{}", tool, version)], &dir).await
 }
 
 /// `mise uninstall tool@version`. Frontend hanya menawarkannya untuk versi
 /// yang bukan global dan tidak dipakai project.
 #[tauri::command]
-pub async fn runtime_uninstall(app: AppHandle, tool: String, version: String) -> Result<(), String> {
+pub async fn runtime_uninstall(app: AppHandle, tool: String, version: String, distro: Option<String>) -> Result<(), String> {
     check_any_tool(&tool)?;
-    validate_version(&version)?;
-    run_logged(&app, &["uninstall".into(), format!("{}@{}", tool, version)], &home_dir())
+    validate_tool_version(&tool, &version)?;
+    let host = host_of(&distro)?;
+    run_logged_on(&app, &host, &["uninstall".into(), format!("{}@{}", tool, version)], &home_dir())
         .await
         .map_err(|e| {
             if uninstall_in_use(&e) {
@@ -1044,6 +1146,84 @@ pub async fn mise_repair(app: AppHandle, action: String) -> Result<(), String> {
     // `doctor` exit non-zero bila menemukan masalah — laporannya tetap di log.
     let r = run_logged(&app, &args, &home_dir()).await;
     if action == "doctor" { Ok(()) } else { r }
+}
+
+// ---------------------------------------------------------------------------
+// Runtimes di distro WSL
+// ---------------------------------------------------------------------------
+
+/// `~/.config/mise` dan `~/.tool-versions` milik pengguna di distro.
+async fn wsl_global_roots(distro: &str) -> Vec<String> {
+    let out = silent_command("wsl.exe")
+        .args(["-d", distro, "--exec", "sh", "-c", "printf %s \"$HOME\""])
+        .env("WSL_UTF8", "1")
+        .output()
+        .await;
+    let home = out.ok().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).unwrap_or_default();
+    if home.is_empty() {
+        return Vec::new();
+    }
+    vec![format!("{}/.config/mise", home), format!("{}/.tool-versions", home)]
+}
+
+/// Nama distro dari `wsl.exe -l -q` (UTF-16 tanpa WSL_UTF8; dibersihkan dari NUL).
+pub fn parse_distros(out: &[u8]) -> Vec<String> {
+    let text: String = if out.len() >= 2 && out[1] == 0 {
+        let u16s: Vec<u16> = out.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]])).collect();
+        String::from_utf16_lossy(&u16s)
+    } else {
+        String::from_utf8_lossy(out).into_owned()
+    };
+    text.lines()
+        .map(|l| l.trim_matches(|c: char| c.is_whitespace() || c == '\u{feff}' || c == '\0').to_string())
+        .filter(|l| !l.is_empty() && !l.starts_with("docker-desktop") && l.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')))
+        .collect()
+}
+
+/// Distro WSL yang terpasang (Windows saja; di OS lain kosong).
+#[tauri::command]
+pub async fn wsl_distros() -> Vec<String> {
+    if !cfg!(windows) {
+        return Vec::new();
+    }
+    match silent_command("wsl.exe").args(["-l", "-q"]).output().await {
+        Ok(o) if o.status.success() => parse_distros(&o.stdout),
+        _ => Vec::new(),
+    }
+}
+
+/// Versi mise di distro, `None` bila belum terpasang.
+#[tauri::command]
+pub async fn wsl_mise_version(distro: String) -> Result<Option<String>, String> {
+    let host = host_of(&Some(distro))?;
+    Ok(capture_on(&host, &["--version".into()], &home_dir()).await.ok().and_then(|o| parse_version(&o)))
+}
+
+/// Pasang mise di distro dengan installer resminya (`curl https://mise.run | sh`),
+/// ke `~/.local/bin` pengguna di distro. Output ke panel log.
+#[tauri::command]
+pub async fn wsl_mise_install(app: AppHandle, distro: String) -> Result<(), String> {
+    let Host::Wsl(d) = host_of(&Some(distro))? else { return Err("no distro".into()) };
+    let emit = |line: &str, stream: &str| {
+        let _ = app.emit("cmd-output", serde_json::json!({ "line": line, "stream": stream, "source": "MISE" }));
+    };
+    emit(&format!("curl https://mise.run | sh  (in {})", d), "stdout");
+    let out = silent_command("wsl.exe")
+        .args(["-d", &d, "--cd", "~", "--exec", "bash", "-lc", "curl -fsSL https://mise.run | sh"])
+        .env("WSL_UTF8", "1")
+        .output()
+        .await
+        .map_err(|e| format!("could not run wsl.exe: {}", e))?;
+    for l in String::from_utf8_lossy(&out.stdout).lines().chain(String::from_utf8_lossy(&out.stderr).lines()) {
+        if let Some(l) = clean_log_line(l) {
+            emit(&l, "stdout");
+        }
+    }
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(format!("installing mise in {} failed (is curl installed there?)", d))
+    }
 }
 
 #[cfg(test)]
@@ -1338,5 +1518,34 @@ mod tests {
         );
         assert_eq!(clean_log_line("\u{1b}[2K\r  "), None);
         assert_eq!(clean_log_line("mise use -g php@8.3.35").as_deref(), Some("mise use -g php@8.3.35"));
+    }
+}
+
+#[cfg(test)]
+mod wsl_host_tests {
+    use super::*;
+
+    #[test]
+    fn wsl_args_pass_mise_arguments_as_argv() {
+        let a = wsl_mise_args("Ubuntu-24.04", Some("/home/dev/a b"), &["install".into(), "go@1.23 ; rm".into()]);
+        assert_eq!(&a[..4], ["-d", "Ubuntu-24.04", "--cd", "/home/dev/a b"]);
+        assert_eq!(&a[4..9], ["--exec", "bash", "-lc", "exec mise \"$@\"", "mise"]);
+        assert_eq!(a.last().unwrap(), "go@1.23 ; rm", "one argument, not shell text");
+        assert_eq!(wsl_mise_args("U", None, &[])[3], "~");
+        assert_eq!(host_of(&None).unwrap(), Host::Local);
+        assert!(host_of(&Some("bad name".into())).is_err());
+        assert!(valid_tool_name("bun") && valid_tool_name("aqua:cli/cli") && !valid_tool_name("-x") && !valid_tool_name("go@1"));
+        assert!(validate_tool_version("php", "latest").is_ok());
+        assert!(validate_tool_version("php", "temurin-21").is_err());
+        assert!(validate_tool_version("java", "temurin-21").is_ok());
+        assert!(validate_tool_version("java", "-rf").is_err());
+    }
+
+    #[test]
+    fn distro_list_from_utf16() {
+        let s = "Ubuntu-24.04\r\ndocker-desktop\r\nDebian\r\n";
+        let bytes: Vec<u8> = s.encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
+        assert_eq!(parse_distros(&bytes), vec!["Ubuntu-24.04", "Debian"]);
+        assert_eq!(parse_distros(b"Ubuntu\n"), vec!["Ubuntu"]);
     }
 }

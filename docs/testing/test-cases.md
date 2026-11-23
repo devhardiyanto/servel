@@ -25,6 +25,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | I · Port & Terminal | 6 | 0 | 0 | v3.18.0 |
 | J · Custom service & menu | 6 | 0 | 0 | v3.19.0 |
 | K · Container mode | 5 | 0 | 0 | v3.20.0 |
+| L2 · Runtimes WSL & Add tool | 5 | 0 | 0 | v3.21.0 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
@@ -178,6 +179,16 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-K3 | Stop, lalu Start lagi; ulangi 3 kali. Cek `docker ps -a` / `wslc list`. | Tidak ada container `kova-<nama>` yang tertinggal setelah Stop; Start berikutnya langsung jalan. | ⬜ | ⬜ | | v3.20.0 |
 | TC-K4 | Buat error kompilasi di kode, Start. | Status exited; banner dengan baris error terakhir; View log menampilkan output build. Perbaiki, Restart → jalan. | ⬜ | ⬜ | | v3.20.0 |
 | TC-K5 | Engine Docker: Run with: Compose pada folder dengan `compose.yaml` (api + redis), nyalakan *Use Kova's redis*. Start, lalu Stop. Ganti engine ke WSL containers dan buka Run with: Compose. | `compose up --build --scale redis=0`; api menjangkau Kova redis sebagai `servel_redis`; Stop = compose down. Di WSL containers muncul peringatan "Compose needs the Docker engine". | ⬜ | ⬜ | | v3.20.0 |
+
+## L2 · Runtimes WSL & Add tool (canvas Flow L1–L6)
+
+| ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
+|---|---|---|---|---|---|---|
+| TC-RW1 | Windows dengan distro Ubuntu-24.04 tanpa mise: Runtimes › Go › WSL · Ubuntu-24.04. | Empty state "mise is not installed in Ubuntu-24.04"; Install mise memasang mise (log di Logs › MISE); halaman lalu menampilkan versi Go di distro. | ⬜ | ➖ | | v3.21.0 |
+| TC-RW2 | Di WSL · Ubuntu-24.04, Install Go 1.23; Set as global; Use in project (project WSL). | Versi terpasang di distro (`go version` di terminal Ubuntu); global di `~/.config/mise`; `mise.toml` project di distro berisi go. | ⬜ | ➖ | | v3.21.0 |
+| TC-RW3 | Add tool › Bun › Install on Windows. Ulangi dengan Install on WSL. | Tab Bun muncul dan aktif; Bun latest terpasang dan jadi global; `bun --version` jalan di terminal baru. | ⬜ | ⬜ | | v3.21.0 |
+| TC-RW4 | Add tool: ketik `java`, pilih; install versi `temurin-21`. | Diterima (bukan "version is not valid"); terpasang. | ⬜ | ⬜ | | v3.21.0 |
+| TC-RW5 | Tab Bun › Remove tab; restart Kova. | Tab hilang dan tetap hilang; versi Bun yang terpasang masih ada di `mise ls`. | ⬜ | ⬜ | | v3.21.0 |
 
 ## S · Scripts & dev server (regresi v3.10.2, persiapan v3.11.0)
 

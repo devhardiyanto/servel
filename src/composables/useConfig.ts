@@ -42,6 +42,8 @@ export interface ConfigState {
   servicePorts?: Record<string, number>
   /** Services › Add service. */
   customServices?: ServiceDef[]
+  /** Runtimes › Add tool: tool mise tambahan (bun, rust, java…). */
+  extraTools?: string[]
 }
 
 const DEFAULT_CONFIG: ConfigState = {
@@ -145,6 +147,17 @@ export function useConfig() {
   async function saveCustomService(def: ServiceDef): Promise<void> {
     const list = (config.value.customServices ?? []).filter((d) => d.id !== def.id)
     config.value.customServices = [...list, def]
+    await saveImmediate()
+  }
+
+  async function addExtraTool(tool: string): Promise<void> {
+    const list = config.value.extraTools ?? []
+    if (!list.includes(tool)) config.value.extraTools = [...list, tool]
+    await saveImmediate()
+  }
+
+  async function removeExtraTool(tool: string): Promise<void> {
+    config.value.extraTools = (config.value.extraTools ?? []).filter((t) => t !== tool)
     await saveImmediate()
   }
 
@@ -369,6 +382,8 @@ export function useConfig() {
     setAutoStartProjects,
     setServicePort,
     saveCustomService,
+    addExtraTool,
+    removeExtraTool,
     removeCustomService,
     setRememberSession,
     setMinimizeToTray,
