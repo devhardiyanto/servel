@@ -89,7 +89,7 @@ Download the installer for your OS from the [Releases page](https://github.com/d
 
 **Upgrading from Servel 2.x:** use **Check for updates** in Servel, or run the Kova installer. The installer removes the old Servel app for you. Projects, profiles, settings and database volumes are kept: the data folder (`com.devhardiyanto.servel`) and the `servel_*` containers keep their names on purpose. In the terminal, `servel` still works until v4.0 and prints a one-line reminder to use `kova`.
 
-**Updating:** when a new version is out, a banner appears at the top of every screen. **Update** downloads it in the background (it is checked against the update signing key) while projects and services keep running; when it is ready, choose **Restart now**, or **Later** to install it when you quit Kova. **Settings → About → Check for updates** checks again on demand. Versions before 2.1 update by installing the new release manually once.
+**Updating:** when a new version is out, a banner appears at the top of every screen. **Update** downloads it in the background (it is checked against the update signing key) while projects and services keep running; when it is ready, choose **Restart now** (it stops running projects, and services too when **Stop services when Kova quits** is on, before installing), or **Later** to install it when you quit Kova. **Settings → About → Check for updates** checks again on demand. Versions before 2.1 update by installing the new release manually once.
 
 If you changed `.wslconfig`, restart WSL once so it takes effect:
 
