@@ -11,6 +11,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import CommandSuggestions from '@/components/CommandSuggestions.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
+import { wslDistro } from '@/utils/wsl'
 import FrameworkChip from '@/components/FrameworkChip.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useVersionContext } from '@/composables/useVersionContext'
@@ -26,7 +27,8 @@ const { editingId, removingId } = actions
 const editing = computed(() => config.value.projects.find((p) => p.id === editingId.value) ?? null)
 const removing = computed(() => config.value.projects.find((p) => p.id === removingId.value) ?? null)
 
-const form = ref({ name: '', path: '', command: '', port: '', profileId: '', startServices: false, autoStart: false })
+const form = ref({ name: '', path: '', command: '', port: '', profileId: '', startServices: false, autoStart: false, wsl: false })
+const formDistro = computed(() => wslDistro(form.value.path))
 const formError = ref('')
 const portState = ref<{ free: boolean; reason: string; suggestion: number | null } | null>(null)
 const saving = ref(false)
@@ -46,6 +48,7 @@ watch(editing, (p) => {
     profileId: p.profileId ?? '',
     startServices: p.startServices ?? false,
     autoStart: p.autoStart ?? false,
+    wsl: p.wsl ?? false,
   }
 })
 
@@ -125,6 +128,7 @@ async function save(): Promise<void> {
       profileId: form.value.profileId || null,
       startServices: form.value.profileId ? form.value.startServices : false,
       autoStart: form.value.autoStart,
+      wsl: formDistro.value ? form.value.wsl : false,
     })
     if (pathChanged) await versionCtx.refresh()
     editingId.value = null
@@ -205,6 +209,15 @@ async function confirmRemove(): Promise<void> {
         <UiToggle size="sm" :on="form.autoStart" label="Start when Kova opens" @click="form.autoStart = !form.autoStart" />
         Start when Kova opens
       </label>
+      <template v-if="formDistro">
+        <label class="pdl-toggle">
+          <UiToggle size="sm" :on="form.wsl" :label="`Run inside WSL (${formDistro})`" @click="form.wsl = !form.wsl" />
+          Run inside WSL ({{ formDistro }})
+        </label>
+        <p class="pdl-hint">{{ form.wsl
+          ? `The command runs in ${formDistro} with its own tools (Go, PHP, Node, mise there). Environment variables and PORT are passed in. Turn off to run Windows programs such as wslc.`
+          : `The command runs with Windows programs on the \\\\wsl.localhost folder. Turn on to use the tools inside ${formDistro}.` }}</p>
+      </template>
       <p class="pdl-hint">Environment variables are on the project's Environment tab. Changes apply the next time the project starts.</p>
       <UiBanner v-if="formError" tone="err" title="Check the form">{{ formError }}</UiBanner>
     </template>

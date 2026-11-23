@@ -64,6 +64,24 @@ pub fn plan(target: Target, os: &str, dir: &str) -> Vec<Attempt> {
     }
 }
 
+/// Windows, folder di distro WSL: terminal dan VS Code dibuka di dalam distro.
+/// Distro sudah divalidasi `wsl::parse`; path Linux adalah satu argumen utuh
+/// untuk program yang bukan shell. File manager tetap memakai path UNC.
+pub fn plan_wsl(target: Target, wp: &crate::wsl::WslPath) -> Option<Vec<Attempt>> {
+    let d = wp.distro.as_str();
+    let p = wp.path.as_str();
+    match target {
+        Target::Folder => None,
+        Target::Terminal => Some(vec![Attempt {
+            new_console: true,
+            ..attempt("wsl.exe", &["-d", d, "--cd", p], false)
+        }]),
+        // code.cmd langsung (bukan lewat `cmd /C`): Rust meng-escape argumen
+        // untuk file batch, jadi `&` di path tidak dijalankan.
+        Target::VsCode => Some(vec![attempt("code.cmd", &["--remote", &format!("wsl+{}", d), p], false)]),
+    }
+}
+
 fn not_found_message(target: Target) -> String {
     match target {
         Target::VsCode => "VS Code's `code` command was not found. In VS Code, run \"Shell Command: Install 'code' command in PATH\" (macOS/Linux) or reinstall with \"Add to PATH\" (Windows).".into(),
@@ -111,7 +129,11 @@ pub async fn project_open_in(target: String, path: String) -> Result<(), String>
     if !dir.is_dir() {
         return Err(format!("Folder not found: {path}"));
     }
-    let attempts = plan(target, current_os(), &path);
+    let wsl = if cfg!(windows) { crate::wsl::parse(&path) } else { None };
+    let attempts = wsl
+        .as_ref()
+        .and_then(|wp| plan_wsl(target, wp))
+        .unwrap_or_else(|| plan(target, current_os(), &path));
     for a in &attempts {
         match spawn(a, &dir) {
             Ok(()) => return Ok(()),
@@ -147,6 +169,18 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn wsl_folders_open_inside_the_distro() {
+        let wp = crate::wsl::parse(r"\\wsl.localhost\Ubuntu\home\dev\a&b").unwrap();
+        let t = plan_wsl(Target::Terminal, &wp).unwrap();
+        assert_eq!(t[0].args, ["-d", "Ubuntu", "--cd", "/home/dev/a&b"]);
+        assert!(t[0].new_console);
+        let v = plan_wsl(Target::VsCode, &wp).unwrap();
+        assert_eq!(v[0].program, "code.cmd");
+        assert_eq!(v[0].args, ["--remote", "wsl+Ubuntu", "/home/dev/a&b"]);
+        assert!(plan_wsl(Target::Folder, &wp).is_none());
     }
 
     #[test]

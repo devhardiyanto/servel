@@ -17,6 +17,7 @@ import { useProjectRuntime, type ProjectSuggestion } from '@/composables/useProj
 import { useProjectActions } from '@/composables/useProjectActions'
 import { useVersionContext } from '@/composables/useVersionContext'
 import type { Project, ToolCurrent } from '@/types/mise'
+import { wslDistro } from '@/utils/wsl'
 
 const props = withDefaults(defineProps<{ path: string; compact?: boolean }>(), { compact: false })
 
@@ -30,6 +31,9 @@ const detectError = ref('')
 const suggestion = ref<ProjectSuggestion | null>(null)
 const tools = ref<ToolCurrent[]>([])
 const form = ref({ name: '', port: '', command: '', profileId: '', startServices: false, autoStart: false })
+/** Folder di distro WSL: default jalan di dalam distro. */
+const distro = computed(() => wslDistro(props.path))
+const runInWsl = ref(true)
 const portState = ref<{ free: boolean; reason: string; suggestion: number | null } | null>(null)
 const formError = ref('')
 const saving = ref(false)
@@ -64,7 +68,8 @@ async function run(): Promise<void> {
     form.value = { ...form.value, name: s.name, port: String(s.port), command: s.detection.command }
     portState.value = { free: true, reason: '', suggestion: null }
     try {
-      tools.value = await invoke<ToolCurrent[]>('mise_project_tools', { path: props.path })
+      // Folder WSL: versi dari distro (yang dipakai bila Run inside WSL menyala).
+      tools.value = await invoke<ToolCurrent[]>(distro.value ? 'wsl_project_tools' : 'mise_project_tools', { path: props.path })
     } catch {
       tools.value = []
     }
@@ -129,6 +134,7 @@ async function save(start = false): Promise<Project | null> {
       profileId: form.value.profileId || null,
       startServices: form.value.profileId ? form.value.startServices : false,
       autoStart: form.value.autoStart,
+      wsl: !!distro.value && runInWsl.value,
     })
     await versionCtx.refresh()
     if (project && start && project.command?.trim()) await actions.start(project)
@@ -203,6 +209,10 @@ defineExpose({ save, ready, saving, canStart: computed(() => !!form.value.comman
           <label class="apf-toggle">
             <UiToggle size="sm" :on="form.autoStart" label="Start when Kova opens" @click="form.autoStart = !form.autoStart" />
             Start when Kova opens
+          </label>
+          <label v-if="distro" class="apf-toggle">
+            <UiToggle size="sm" :on="runInWsl" :label="`Run inside WSL (${distro})`" @click="runInWsl = !runInWsl" />
+            Run inside WSL ({{ distro }})
           </label>
         </div>
       </template>

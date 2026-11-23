@@ -48,6 +48,19 @@ fn not_found_hint(code: Option<i32>, command: &str) -> Option<String> {
     Some(format!("{} was not found.{}", program, how))
 }
 
+/// Program tidak ditemukan di distro (bash keluar 127): tool Windows dan
+/// Runtimes di Kova tidak berlaku di sana.
+fn wsl_not_found_hint(code: Option<i32>, command: &str, distro: &str) -> Option<String> {
+    if code != Some(127) {
+        return None;
+    }
+    let program = command.split_whitespace().next()?.trim_matches('"');
+    Some(format!(
+        "{} was not found in {}. Install it inside the distro (or with mise there), or turn off Run inside WSL in Project settings to use the Windows tools.",
+        program, distro
+    ))
+}
+
 /// Petunjuk untuk baris output yang dikenali. WSL menulis
 /// RPC_S_SERVER_UNAVAILABLE bila service-nya tidak bisa dihubungi.
 fn output_hint(line: &str) -> Option<&'static str> {
@@ -123,6 +136,8 @@ struct Entry {
     /// Membedakan start lama dan baru untuk site yang sama.
     generation: u64,
     env_name: Option<String>,
+    /// Project WSL: (distro, PGID) proses di dalam distro, untuk Stop.
+    wsl_group: Option<(String, u32)>,
 }
 
 #[derive(Default)]
@@ -492,10 +507,30 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
 
     let source = site.name.clone();
     let line = render_command(site.command.trim(), site.port);
-    let unc = cfg!(target_os = "windows") && is_unc(&site.path);
-    let mut cmd = shell_command(&if unc { unc_wrap(&site.path, &line) } else { line.clone() });
-    // Folder UNC dimasuki lewat `pushd`; folder kerja `cmd` sendiri harus lokal.
-    cmd.current_dir(if unc { std::env::temp_dir() } else { std::path::PathBuf::from(&site.path) })
+    // "Run inside WSL": command dijalankan di distro, bukan oleh cmd Windows.
+    let wsl_target = if cfg!(target_os = "windows") && site.wsl {
+        Some(crate::wsl::parse(&site.path).ok_or_else(|| {
+            "Run inside WSL needs a folder in a WSL distro (\\\\wsl.localhost\\<distro>\\…)".to_string()
+        })?)
+    } else {
+        None
+    };
+    let unc = cfg!(target_os = "windows") && wsl_target.is_none() && is_unc(&site.path);
+    let mut cmd = match &wsl_target {
+        Some(wp) => {
+            let mut c = silent_command("wsl.exe");
+            c.args(crate::wsl::start_args(wp, &line));
+            c
+        }
+        None => shell_command(&if unc { unc_wrap(&site.path, &line) } else { line.clone() }),
+    };
+    // Folder UNC dimasuki lewat `pushd` (atau `--cd` di WSL); folder kerja
+    // proses Windows-nya sendiri harus lokal.
+    cmd.current_dir(if unc || wsl_target.is_some() {
+        std::env::temp_dir()
+    } else {
+        std::path::PathBuf::from(&site.path)
+    })
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -511,7 +546,8 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
         .env("FORCE_COLOR", "0");
 
     // Versi PHP/Node/Go mengikuti mise.toml project bila mise terpasang.
-    if crate::mise::version().await.is_some() {
+    // Di WSL, mise milik distro yang dipakai (lihat `wsl::start_script`).
+    if wsl_target.is_none() && crate::mise::version().await.is_some() {
         match crate::mise::env_for(Path::new(&site.path)).await {
             Ok(env) => {
                 cmd.envs(env);
@@ -536,7 +572,19 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
         emit_log(app, &source, &format!("env ({}): none", env_label), None);
     }
 
-    emit_log(app, &source, &format!("$ {}  (in {})", line, site.path), None);
+    // WSL hanya meneruskan variabel yang namanya ada di WSLENV.
+    if wsl_target.is_some() {
+        let mut names: Vec<&str> = vec!["PORT", "SERVER_PORT", "SERVER_HOST", "BROWSER", "NO_COLOR", "FORCE_COLOR"];
+        names.extend(env.keys().map(String::as_str));
+        let existing = std::env::var("WSLENV").ok();
+        cmd.env("WSLENV", crate::wsl::wslenv(existing.as_deref(), &names));
+    }
+
+    let place = match &wsl_target {
+        Some(wp) => format!("{}:{} in WSL", wp.distro, wp.path),
+        None => site.path.clone(),
+    };
+    emit_log(app, &source, &format!("$ {}  (in {})", line, place), None);
     let mut child = cmd.spawn().map_err(|e| format!("could not run the command: {}", e))?;
     let pid = child.id();
 
@@ -567,6 +615,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
             stopping: false,
             generation,
             env_name: site.active_env_entry().map(|e| e.name.clone()),
+            wsl_group: None,
         },
     );
     emit_status(app);
@@ -577,7 +626,16 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     // Output → panel log. stderr diperlakukan sebagai output biasa: `php -S`
     // dan banyak dev server menulis log normalnya ke stderr.
     for (reader_app, id, src, stream, capture) in [
-        (app.clone(), site.id.clone(), source.clone(), child.stdout.take().map(Pipe::Out), unc.then(|| drive.clone())),
+        (
+            app.clone(),
+            site.id.clone(),
+            source.clone(),
+            child.stdout.take().map(Pipe::Out),
+            match &wsl_target {
+                Some(wp) => Some(Capture::Pgid(wp.distro.clone())),
+                None => unc.then(|| Capture::Drive(drive.clone())),
+            },
+        ),
         (app.clone(), site.id.clone(), source.clone(), child.stderr.take().map(Pipe::Err), None),
     ] {
         let Some(stream) = stream else { continue };
@@ -595,6 +653,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     let wait_src = source.clone();
     let wait_cmd = line.clone();
     let wait_drive = drive.clone();
+    let wait_distro = wsl_target.as_ref().map(|w| w.distro.clone());
     tauri::async_runtime::spawn(async move {
         let code = child.wait().await.ok().and_then(|s| s.code());
         if unc {
@@ -626,7 +685,11 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
                 None => "the process ended".to_string(),
             };
             emit_log(&wait_app, &wait_src, &msg, Some("error"));
-            if let Some(hint) = not_found_hint(code, &wait_cmd) {
+            let hint = match &wait_distro {
+                Some(d) => wsl_not_found_hint(code, &wait_cmd, d),
+                None => not_found_hint(code, &wait_cmd),
+            };
+            if let Some(hint) = hint {
                 emit_log(&wait_app, &wait_src, &hint, Some("error"));
                 let mut map = procs.entries.lock().unwrap();
                 if let Some(e) = map.get_mut(&wait_id).filter(|e| e.generation == generation) {
@@ -685,6 +748,14 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     Ok(())
 }
 
+/// Baris pertama stdout yang dibaca Kova sendiri, tidak ditampilkan.
+enum Capture {
+    /// `cd` setelah `pushd`: drive sementara folder UNC.
+    Drive(std::sync::Arc<Mutex<Option<String>>>),
+    /// Penanda PGID dari `wsl::start_script`, untuk Stop di dalam distro.
+    Pgid(String),
+}
+
 enum Pipe {
     Out(tokio::process::ChildStdout),
     Err(tokio::process::ChildStderr),
@@ -696,7 +767,7 @@ async fn pump<R: Runtime, B: tokio::io::AsyncBufRead + Unpin>(
     source: String,
     generation: u64,
     reader: B,
-    mut capture: Option<std::sync::Arc<Mutex<Option<String>>>>,
+    mut capture: Option<Capture>,
 ) {
     let mut lines = reader.lines();
     let mut hinted = false;
@@ -707,11 +778,23 @@ async fn pump<R: Runtime, B: tokio::io::AsyncBufRead + Unpin>(
             continue;
         }
         // Baris pertama dari `cd` (folder UNC): simpan drive-nya, jangan tampilkan.
-        if let Some(slot) = capture.take() {
-            if let Some(d) = mapped_drive(line) {
-                *slot.lock().unwrap() = Some(d);
-                continue;
+        match capture.take() {
+            Some(Capture::Drive(slot)) => {
+                if let Some(d) = mapped_drive(line) {
+                    *slot.lock().unwrap() = Some(d);
+                    continue;
+                }
             }
+            Some(Capture::Pgid(distro)) => {
+                if let Some(pgid) = crate::wsl::parse_pgid(line) {
+                    let procs = app.state::<SiteProcs>();
+                    if let Some(e) = procs.entries.lock().unwrap().get_mut(&id).filter(|e| e.generation == generation) {
+                        e.wsl_group = Some((distro, pgid));
+                    }
+                    continue;
+                }
+            }
+            None => {}
         }
         emit_log(&app, &source, line, line_level(line));
         let hint = if hinted { None } else { output_hint(line) };
@@ -745,20 +828,39 @@ async fn release_drive(slot: &std::sync::Arc<Mutex<Option<String>>>) {
 
 pub async fn stop<R: Runtime>(app: &AppHandle<R>, id: &str) -> Result<(), String> {
     let procs = app.state::<SiteProcs>();
-    let pid = {
+    let target = {
         let mut map = procs.entries.lock().unwrap();
         match map.get_mut(id) {
             Some(e) if e.pid.is_some() => {
                 e.stopping = true;
-                e.pid
+                e.pid.map(|p| (p, e.wsl_group.clone()))
             }
             _ => None,
         }
     };
-    if let Some(pid) = pid {
-        kill_tree(pid).await;
+    if let Some((pid, group)) = target {
+        stop_one(app, id, pid, group).await;
     }
     Ok(())
+}
+
+/// Hentikan satu dev server. Di WSL, grup proses di distro diberi TERM dulu
+/// (dev server sempat menutup port), lalu KILL bila belum selesai dalam 5 dtk.
+/// `wsl.exe` di Windows dimatikan terakhir.
+async fn stop_one<R: Runtime>(app: &AppHandle<R>, id: &str, pid: u32, group: Option<(String, u32)>) {
+    if let Some((distro, pgid)) = &group {
+        crate::wsl::kill_group(distro, *pgid, "TERM").await;
+        let procs = app.state::<SiteProcs>();
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        while procs.entries.lock().unwrap().get(id).is_some_and(|e| e.pid == Some(pid)) {
+            if tokio::time::Instant::now() >= deadline {
+                crate::wsl::kill_group(distro, *pgid, "KILL").await;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
+    kill_tree(pid).await;
 }
 
 /// Stop lalu start lagi. Menunggu proses lama benar-benar selesai dan port
@@ -783,17 +885,25 @@ pub async fn restart<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(
 /// Hentikan semua dev server (dipanggil saat Kova keluar).
 pub async fn stop_all<R: Runtime>(app: &AppHandle<R>) {
     let procs = app.state::<SiteProcs>();
-    let pids: Vec<u32> = {
+    let targets: Vec<(String, u32, Option<(String, u32)>)> = {
         let mut map = procs.entries.lock().unwrap();
-        map.values_mut()
-            .filter_map(|e| {
+        map.iter_mut()
+            .filter_map(|(id, e)| {
                 e.stopping = true;
-                e.pid
+                e.pid.map(|p| (id.clone(), p, e.wsl_group.clone()))
             })
             .collect()
     };
-    for pid in pids {
-        kill_tree(pid).await;
+    // Semua sekaligus: tiap project WSL bisa menunggu sampai 5 dtk.
+    let handles: Vec<_> = targets
+        .into_iter()
+        .map(|(id, pid, group)| {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move { stop_one(&app, &id, pid, group).await })
+        })
+        .collect();
+    for h in handles {
+        let _ = h.await;
     }
     // Tunggu proses benar-benar selesai (maks 10 dtk), supaya port dan drive
     // sementara sudah lepas sebelum Kova keluar atau installer berjalan.
@@ -881,6 +991,7 @@ mod tests {
             active_env: None,
             start_services: false,
             group_id: None,
+            wsl: false,
         }
     }
 

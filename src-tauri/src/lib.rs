@@ -12,6 +12,7 @@ mod updater;
 mod tray;
 mod tray_popup;
 mod shutdown;
+mod wsl;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -145,6 +146,8 @@ pub fn run() {
             commands::config::config_write,
             mise::mise_context,
             mise::mise_project_tools,
+            wsl::wsl_project_tools,
+            wsl::wsl_path_info,
             mise::mise_install_winget,
             mise::runtime_versions,
             mise::runtime_install,

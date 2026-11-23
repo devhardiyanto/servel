@@ -15,6 +15,7 @@ import { isActive, useProjectRuntime } from '@/composables/useProjectRuntime'
 import { canRun, useProjectActions } from '@/composables/useProjectActions'
 import { useToast } from '@/composables/useToast'
 import { groupIdOf } from '@/utils/projectGroups'
+import { wslDistro, wslLinuxPath } from '@/utils/wsl'
 import type { Project, ProjectGroup } from '@/types/mise'
 
 const props = defineProps<{ selectedId?: string | null; query?: string; detailsOpen?: boolean }>()
@@ -350,7 +351,8 @@ defineExpose({ startNewGroup })
               <StatusDot class="pl-dot" :state="stateOf(p.id)" />
               <span class="pl-main">
                 <span class="pl-name" :title="p.name">{{ p.name }}</span>
-                <span class="pl-path">{{ p.path || 'Folder not chosen yet' }}</span>
+                <span v-if="p.wsl && wslDistro(p.path)" class="pl-path" :title="p.path"><span class="pl-wsl">WSL · {{ wslDistro(p.path) }}</span>{{ wslLinuxPath(p.path) }}</span>
+                <span v-else class="pl-path">{{ p.path || 'Folder not chosen yet' }}</span>
               </span>
               <FrameworkChip v-if="p.kind" :kind="p.kind" />
               <span v-else></span>
@@ -496,6 +498,7 @@ defineExpose({ startNewGroup })
   .pl-port { display: none; }
 }
 .pl-path { font: 400 var(--text-xs) var(--font-mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-wsl { font-family: var(--font-sans); color: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 0 5px; margin-right: 6px; }
 .pl-port { font: 400 var(--text-xs) var(--font-mono); color: var(--muted); text-align: right; }
 .pl-state { justify-self: end; }
 @media (prefers-reduced-motion: reduce) { .pl-caret svg, .pl-grip { transition: none; } }

@@ -74,6 +74,10 @@ pub struct Project {
     /// Ungrouped. Urutan project = urutan di `projects`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub group_id: Option<String>,
+    /// Windows, folder `\\wsl.localhost\<distro>\…`: jalankan command di
+    /// dalam distro itu (lihat `wsl.rs`), bukan dengan tool Windows.
+    #[serde(default)]
+    pub wsl: bool,
 }
 
 /// Satu environment project selain Default.
@@ -262,6 +266,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
                 active_env: None,
                 start_services: false,
                 group_id: None,
+                wsl: false,
             });
         }
     }
@@ -288,6 +293,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
             active_env: None,
             start_services: false,
             group_id: None,
+            wsl: false,
         });
     }
 
@@ -720,6 +726,7 @@ mod tests {
                 active_env: None,
                 start_services: true,
                 group_id: None,
+                wsl: false,
             }],
             groups: Vec::new(),
             active_project_id: Some("p1".into()),
