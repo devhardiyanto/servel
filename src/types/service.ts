@@ -6,7 +6,7 @@ export interface PortMap {
 export interface ServiceDef {
   id: string
   name: string
-  category: 'core' | 'additional'
+  category: 'core' | 'additional' | 'custom'
   image: string
   containerName: string
   ports: PortMap[]
@@ -14,7 +14,15 @@ export interface ServiceDef {
   volumes?: string[]
   command?: string
   ramEstimateMb: number
+  /** Ditambah pengguna (Services › Add service). */
+  custom?: boolean
+  /** Kapan custom service dianggap siap. */
+  ready?: ReadyCheck | null
+  /** Baris .env untuk Connect; `{port}` = port di PC. */
+  connectEnv?: string | null
 }
+
+export type ReadyCheck = { kind: 'port' } | { kind: 'http'; path: string }
 
 export interface ServiceStatus {
   id: string

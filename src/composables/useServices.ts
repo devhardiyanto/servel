@@ -263,6 +263,7 @@ export function useServices() {
 
   const coreServices = computed(() => definitions.value.filter((d) => d.category === 'core'))
   const additionalServices = computed(() => definitions.value.filter((d) => d.category === 'additional'))
+  const customServices = computed(() => definitions.value.filter((d) => d.category === 'custom'))
 
   const selectedIds = computed(() =>
     Object.values(uiState.value)
@@ -522,6 +523,7 @@ export function useServices() {
     portConflicts,
     coreServices,
     additionalServices,
+    customServices,
     selectedIds,
     runningIds,
     hasStarting,

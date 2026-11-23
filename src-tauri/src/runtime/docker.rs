@@ -135,6 +135,34 @@ pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> R
     }
 }
 
+/// Hapus container. Tidak ada = berhasil.
+pub async fn remove_container(name: &str) -> Result<(), String> {
+    let out = silent_command("docker").args(["rm", "-f", name]).output().await.map_err(|e| e.to_string())?;
+    let err = String::from_utf8_lossy(&out.stderr).to_lowercase();
+    if out.status.success() || err.contains("no such container") {
+        Ok(())
+    } else {
+        Err(format!("docker rm failed: {}", err.trim()))
+    }
+}
+
+/// Hapus volume. Tidak ada = berhasil.
+pub async fn remove_volume(name: &str) -> Result<(), String> {
+    let out = silent_command("docker").args(["volume", "rm", "-f", name]).output().await.map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok(())
+    } else {
+        Err(format!("docker volume rm failed: {}", String::from_utf8_lossy(&out.stderr).trim()))
+    }
+}
+
+/// `docker exec <name> sh -c <cmd>` dengan stdout dialirkan (untuk backup).
+pub fn exec_command(name: &str, cmd: &str) -> tokio::process::Command {
+    let mut c = silent_command("docker");
+    c.args(["exec", name, "sh", "-c", cmd]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    c
+}
+
 /// `docker exec <name> sh -c <cmd>` dengan output di-stream ke panel log.
 pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str) -> Result<(), String> {
     let mut c = silent_command("docker");

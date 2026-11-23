@@ -237,6 +237,43 @@ pub async fn probe(service_id: &str, container_name: &str) -> readiness::ProbeOu
     readiness::classify_exit(code)
 }
 
+/// Readiness custom service dari PC: port TCP, atau HTTP GET dengan status
+/// 2xx/3xx/401/403 (server menjawab, autentikasi bukan urusan readiness).
+pub async fn probe_custom(check: &crate::commands::services::ReadyCheck, host_port: u16) -> readiness::ProbeOutcome {
+    use crate::commands::services::ReadyCheck;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let addr = ("127.0.0.1", host_port);
+    let connect = tokio::time::timeout(std::time::Duration::from_secs(3), tokio::net::TcpStream::connect(addr)).await;
+    let Ok(Ok(mut stream)) = connect else {
+        return readiness::ProbeOutcome::NotReady;
+    };
+    match check {
+        ReadyCheck::Port => readiness::ProbeOutcome::Ready,
+        ReadyCheck::Http { path } => {
+            let path = if path.starts_with('/') { path.clone() } else { format!("/{}", path) };
+            let path: String = path.chars().filter(|c| !c.is_control() && *c != ' ').collect();
+            let req = format!("GET {} HTTP/1.0\r\nHost: localhost:{}\r\nConnection: close\r\n\r\n", path, host_port);
+            if stream.write_all(req.as_bytes()).await.is_err() {
+                return readiness::ProbeOutcome::NotReady;
+            }
+            let mut buf = [0u8; 64];
+            let n = tokio::time::timeout(std::time::Duration::from_secs(5), stream.read(&mut buf)).await;
+            let Ok(Ok(n)) = n else { return readiness::ProbeOutcome::NotReady };
+            if http_ok(&String::from_utf8_lossy(&buf[..n])) {
+                readiness::ProbeOutcome::Ready
+            } else {
+                readiness::ProbeOutcome::NotReady
+            }
+        }
+    }
+}
+
+/// Baris status HTTP yang menandakan server sudah menjawab.
+pub fn http_ok(head: &str) -> bool {
+    let code: u16 = head.split_whitespace().nth(1).and_then(|c| c.parse().ok()).unwrap_or(0);
+    (200..400).contains(&code) || code == 401 || code == 403
+}
+
 pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
     match ensure_resolved().await {
         RuntimeKind::Docker => docker::stats().await,
@@ -335,5 +372,16 @@ mod tests {
         assert_eq!(RuntimePreference::parse("auto"), RuntimePreference::Auto);
         assert_eq!(RuntimePreference::parse(""), RuntimePreference::Auto);
         assert_eq!(RuntimePreference::parse("podman"), RuntimePreference::Auto);
+    }
+}
+
+#[cfg(test)]
+mod probe_tests {
+    #[test]
+    fn http_status_lines() {
+        assert!(super::http_ok("HTTP/1.1 200 OK\r\n"));
+        assert!(super::http_ok("HTTP/1.0 401 Unauthorized"));
+        assert!(!super::http_ok("HTTP/1.1 503 Service Unavailable"));
+        assert!(!super::http_ok("garbage"));
     }
 }

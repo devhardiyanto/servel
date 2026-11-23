@@ -23,6 +23,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | G · Logs | 6 | 0 | 0 | v3.11.0, v3.16.0 |
 | H · Environments | 9 | 0 | 0 | v3.10.x, v3.16.1 |
 | I · Port & Terminal | 6 | 0 | 0 | v3.18.0 |
+| J · Custom service & menu | 6 | 0 | 0 | v3.19.0 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
@@ -155,6 +156,17 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-I4 | Jalankan MySQL lokal (atau program lain) di 3306, Start service MySQL. | Banner menyebut program + PID; Change port… membuka dialog dengan port bebas; Change port and start → MySQL jalan di port baru, Connect dan Copy .env memakai port baru. | ⬜ | ⬜ | | v3.18.0 |
 | TC-I5 | Dari TC-I4 buka Change port… lagi, klik Use the default port. | MySQL kembali ke 3306 (container dibuat ulang, data tetap). | ⬜ | ⬜ | | v3.18.0 |
 | TC-I6 | Project dengan variabel di tab Environment: Terminal here (panel dan menu ⋯). Cek `echo $env:APP_ENV` / `echo $APP_ENV`, `php -v`. Ulangi untuk project Run inside WSL. | Baris pertama "Kova: … from <project> > Default"; nilai sama dengan tab Environment; versi PHP/Node sesuai project; script sementara sudah terhapus. WSL: terminal di distro dengan variabel yang sama. | ⬜ | ⬜ | | v3.18.0 |
+
+## J · Custom service & menu ⋯ (canvas Flow J1–J8)
+
+| ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
+|---|---|---|---|---|---|---|
+| TC-J1 | Services › Add service: Elasticsearch, `elasticsearch:8.15.0`, port 9200/9200, ENV `discovery.type=single-node` + `xpack.security.enabled=false`, data `/usr/share/elasticsearch/data`, Ready when HTTP `/_cluster/health`, Connect `ELASTICSEARCH_URL=http://localhost:{port}`. Add and start. | Grup *custom* berisi Elasticsearch (chip custom); status starting → running setelah HTTP menjawab; Connect menampilkan URL dan nama network; `curl localhost:9200` menjawab. | ⬜ | ⬜ | | v3.19.0 |
+| TC-J2 | Tambahkan Elasticsearch ke profil, Stop all, Start profil; restart Kova. | Ikut start bersama profil; definisinya tetap ada setelah restart Kova; data index tetap ada. | ⬜ | ⬜ | | v3.19.0 |
+| TC-J3 | Menu ⋯ MySQL › Open shell. Juga pada Elasticsearch. | Terminal baru di dalam container (prompt bash/sh); `mysql -uroot` jalan. | ⬜ | ⬜ | | v3.19.0 |
+| TC-J4 | Menu ⋯ MySQL › Delete data… dengan backup dicentang. | Fokus awal Cancel; setelah Delete data: file `kova-mysql-<waktu>.sql` di Downloads, MySQL start lagi kosong (database lama hilang); toast menyebut lokasi backup. | ⬜ | ⬜ | | v3.19.0 |
+| TC-J5 | Menu ⋯ Elasticsearch › Edit service… ganti port di PC ke 9201, Save and restart. Lalu Remove service… tanpa dan dengan Also delete its data. | Port baru dipakai; Remove menghapus container dan definisi; dengan centang, volume `servel_elasticsearch_data` ikut terhapus. | ⬜ | ⬜ | | v3.19.0 |
+| TC-J6 | Menu ⋯ › Restart dan View logs pada service yang berjalan. | Restart = stop lalu start; View logs membuka panel service di tab Logs. | ⬜ | ⬜ | | v3.19.0 |
 
 ## S · Scripts & dev server (regresi v3.10.2, persiapan v3.11.0)
 

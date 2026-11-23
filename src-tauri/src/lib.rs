@@ -151,6 +151,9 @@ pub fn run() {
             wsl::wsl_path_info,
             port_owner::port_owner,
             port_owner::port_owner_stop,
+            commands::service_actions::service_shell,
+            commands::service_actions::service_delete_data,
+            commands::service_actions::service_remove,
             mise::mise_install_winget,
             mise::runtime_versions,
             mise::runtime_install,
@@ -314,7 +317,20 @@ pub fn run() {
                                         "readiness check has not passed after 120 s; treated as ready (check the credentials and the service's logs)",
                                     ),
                                     Decision::Probe => {
-                                        let outcome = runtime::probe(&s.id, &s.container_name).await;
+                                        // Custom service: cek dari PC sesuai definisinya.
+                                        let custom = app_handle
+                                            .try_state::<std::sync::Mutex<commands::config::ConfigState>>()
+                                            .and_then(|st| st.lock().ok().map(|c| (c.custom_services.clone(), c.service_ports.clone())))
+                                            .and_then(|(list, ports)| {
+                                                let d = list.into_iter().find(|d| d.id == s.id)?;
+                                                let port = ports.get(&d.id).copied().or_else(|| d.ports.first()?.host.parse().ok())?;
+                                                Some((d.ready, port))
+                                            });
+                                        let outcome = match custom {
+                                            Some((Some(check), port)) => runtime::probe_custom(&check, port).await,
+                                            Some((None, _)) => runtime::readiness::ProbeOutcome::Ready,
+                                            None => runtime::probe(&s.id, &s.container_name).await,
+                                        };
                                         readiness.record(&s.id, outcome);
                                     }
                                 }

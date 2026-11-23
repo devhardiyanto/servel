@@ -670,6 +670,34 @@ pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> R
 }
 
 /// `exec <name> sh -c <cmd>` dengan output di-stream ke panel log.
+/// Hapus container (Delete data / Remove service). Tidak ada = berhasil.
+pub async fn remove_container(name: &str) -> Result<(), String> {
+    match capture_ok(&owned(&["remove", "-f", name]), STOP_TIMEOUT).await {
+        Ok(_) => Ok(()),
+        Err(e) if e.to_lowercase().contains("not found") || e.to_lowercase().contains("no such") => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
+/// Hapus volume. Nama subperintah WSLC dicoba `remove` lalu `rm`.
+pub async fn remove_volume(name: &str) -> Result<(), String> {
+    if capture_ok(&owned(&["volume", "remove", name]), QUERY_TIMEOUT).await.is_ok() {
+        return Ok(());
+    }
+    match capture_ok(&owned(&["volume", "rm", name]), QUERY_TIMEOUT).await {
+        Ok(_) => Ok(()),
+        Err(e) if e.to_lowercase().contains("not found") || e.to_lowercase().contains("no such") => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
+/// `wslc exec <name> sh -c <cmd>` dengan stdout dialirkan (untuk backup).
+pub fn exec_command(name: &str, cmd: &str) -> tokio::process::Command {
+    let mut c = command(&owned(&["exec", name, "sh", "-c", cmd]));
+    c.stdout(Stdio::piped()).stderr(Stdio::piped());
+    c
+}
+
 pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str, source: &str) -> Result<(), String> {
     run_streamed(app, &owned(&["exec", name, "sh", "-c", cmd]), source, RUN_TIMEOUT).await
 }
@@ -943,6 +971,9 @@ mod tests {
             volumes: Some(vec!["servel_mysql_data:/var/lib/mysql".to_string()]),
             command: None,
             ram_estimate_mb: 80,
+            custom: false,
+            ready: None,
+            connect_env: None,
         }
     }
 

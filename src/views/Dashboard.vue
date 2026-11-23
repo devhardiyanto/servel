@@ -16,6 +16,12 @@ import { usePanelWidth } from '@/composables/usePanelWidth'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
+import UiModal from '@/components/ui/UiModal.vue'
+import AddServiceModal from '@/components/AddServiceModal.vue'
+import ServicePortModal from '@/components/ServicePortModal.vue'
+import { invoke } from '@tauri-apps/api/core'
+import { useToast } from '@/composables/useToast'
+import type { ServiceDef } from '@/types/service'
 
 const SKELETON_ROW_COUNT = 9
 
@@ -69,6 +75,7 @@ const {
   uiState,
   coreServices,
   additionalServices,
+  customServices,
   runningCount,
   selectedCount,
   selectedIds,
@@ -113,6 +120,82 @@ const startLabel = computed(() =>
 // Start / Retry dari baris service yang dipilih tetapi tidak berjalan.
 function startOne(id: string): void {
   void start([id])
+}
+
+// --- Menu ⋯ per service dan custom service (Flow J) -------------------------
+const toast = useToast()
+const services = useServices()
+const addOpen = ref(false)
+const editDef = ref<ServiceDef | null>(null)
+const portDef = ref<ServiceDef | null>(null)
+const deleteDef = ref<ServiceDef | null>(null)
+const removeDef = ref<ServiceDef | null>(null)
+const backupFirst = ref(true)
+const removeData = ref(false)
+const working = ref(false)
+const detailTab = ref<{ id: string; tab: 'connect' | 'data' | 'logs'; n: number } | null>(null)
+const canBackup = (d: ServiceDef | null) => d?.id === 'mysql' || d?.id === 'postgres'
+
+async function onServiceMenu(id: string, action: string): Promise<void> {
+  const def = definitions.value.find((d) => d.id === id)
+  if (!def) return
+  try {
+    if (action === 'restart') await services.restart(id)
+    else if (action === 'shell') await invoke('service_shell', { id })
+    else if (action === 'port') portDef.value = def
+    else if (action === 'logs') {
+      connectId.value = id
+      detailTab.value = { id, tab: 'logs', n: Date.now() }
+    } else if (action === 'edit') {
+      editDef.value = def
+      addOpen.value = true
+    } else if (action === 'delete-data') {
+      backupFirst.value = canBackup(def)
+      deleteDef.value = def
+    } else if (action === 'remove') {
+      removeData.value = false
+      removeDef.value = def
+    }
+  } catch (err) {
+    toast.show(String(err), { tone: 'info' })
+  }
+}
+
+async function confirmDeleteData(): Promise<void> {
+  const def = deleteDef.value
+  if (!def) return
+  working.value = true
+  try {
+    const saved = await invoke<string | null>('service_delete_data', { id: def.id, backupFirst: backupFirst.value && canBackup(def) })
+    deleteDef.value = null
+    toast.show(saved ? `${def.name} data deleted. Backup: ${saved}` : `${def.name} data deleted. It starts empty.`, { timed: true })
+  } catch (err) {
+    toast.show(`Could not delete ${def.name} data: ${String(err)}`, { tone: 'info' })
+  } finally {
+    working.value = false
+  }
+}
+
+async function confirmRemove(): Promise<void> {
+  const def = removeDef.value
+  if (!def) return
+  working.value = true
+  try {
+    await invoke('service_remove', { id: def.id, deleteData: removeData.value })
+    if (connectId.value === def.id) connectId.value = null
+    await useConfig().removeCustomService(def.id)
+    await services.reloadDefinitions()
+    removeDef.value = null
+    toast.show(`Removed ${def.name}${removeData.value ? ' and its data' : ''}`)
+  } catch (err) {
+    toast.show(`Could not remove ${def.name}: ${String(err)}`, { tone: 'info' })
+  } finally {
+    working.value = false
+  }
+}
+
+function onCustomSaved(id: string): void {
+  connectId.value = id
 }
 
 // Banner error service: Retry menyalakan lagi service yang gagal.
@@ -176,6 +259,7 @@ function focusFirstSwitch(): void {
           />
         </div>
         <div class="sw-actions">
+          <UiButton size="md" @click="editDef = null; addOpen = true"><UiIcon name="plus" />Add service</UiButton>
           <UiButton
             size="md"
             :disabled="hasStopping || runningCount === 0"
@@ -263,6 +347,7 @@ function focusFirstSwitch(): void {
               @toggle="toggle"
               @connect="toggleConnect"
               @start="startOne"
+              @menu="onServiceMenu"
             />
           </template>
         </template>
@@ -277,6 +362,22 @@ function focusFirstSwitch(): void {
               @toggle="toggle"
               @connect="toggleConnect"
               @start="startOne"
+              @menu="onServiceMenu"
+            />
+          </template>
+        </template>
+        <template v-if="customServices.length > 0">
+          <div class="svc-group-label">custom</div>
+          <template v-for="def in customServices" :key="def.id">
+            <ServiceRow
+              :def="def"
+              :state="uiState[def.id]"
+              :connect-open="connectId === def.id"
+              :unknown="engineStatus === 'down' || engineStatus === 'missing'"
+              @toggle="toggle"
+              @connect="toggleConnect"
+              @start="startOne"
+              @menu="onServiceMenu"
             />
           </template>
         </template>
@@ -332,12 +433,36 @@ function focusFirstSwitch(): void {
       :aria-label="`${connectDef.name} details`"
       :style="{ width: `${svcPanel.width.value}px` }"
     >
-      <ServiceDetail :key="connectDef.id" :def="connectDef" @close="connectId = null" />
+      <ServiceDetail :key="connectDef.id" :def="connectDef" :focus-tab="detailTab?.id === connectDef.id ? detailTab : null" @close="connectId = null" />
     </aside>
+
+    <AddServiceModal :open="addOpen" :edit="editDef" @close="addOpen = false; editDef = null" @saved="onCustomSaved" />
+    <ServicePortModal v-if="portDef" :open="!!portDef" :def="portDef" @close="portDef = null" />
+    <UiModal :open="!!deleteDef" :title="`Delete ${deleteDef?.name ?? ''} data?`" size="sm" danger @close="deleteDef = null">
+      <p class="sw-confirm">{{ deleteDef?.name }} stops, its volume{{ (deleteDef?.volumes?.length ?? 0) > 1 ? 's are' : ' is' }} deleted, and it starts again empty. Everything stored in it is gone. This cannot be undone.</p>
+      <ul class="sw-confirm sw-mono"><li v-for="v in deleteDef?.volumes ?? []" :key="v">{{ v.split(':')[0] }}</li></ul>
+      <label v-if="canBackup(deleteDef)" class="sw-check"><input v-model="backupFirst" type="checkbox"> Save a .sql backup to Downloads first</label>
+      <template #footer>
+        <UiButton size="md" data-autofocus @click="deleteDef = null">Cancel</UiButton>
+        <UiButton variant="danger" size="md" :loading="working" @click="confirmDeleteData">Delete data</UiButton>
+      </template>
+    </UiModal>
+    <UiModal :open="!!removeDef" :title="`Remove ${removeDef?.name ?? ''}?`" size="sm" danger @close="removeDef = null">
+      <p class="sw-confirm">Kova stops {{ removeDef?.name }} and removes its container and its definition. Profiles stop listing it.</p>
+      <label v-if="(removeDef?.volumes?.length ?? 0) > 0" class="sw-check"><input v-model="removeData" type="checkbox"> Also delete its data ({{ removeDef?.volumes?.map((v) => v.split(':')[0]).join(', ') }})</label>
+      <template #footer>
+        <UiButton size="md" data-autofocus @click="removeDef = null">Cancel</UiButton>
+        <UiButton variant="danger" size="md" :loading="working" @click="confirmRemove">Remove service</UiButton>
+      </template>
+    </UiModal>
   </div>
 </template>
 
 <style scoped>
+.sw-confirm { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.sw-mono { font-family: var(--font-mono); font-size: var(--text-xs); padding-left: var(--space-4); }
+.sw-check { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); }
+
 .view-dashboard {
   display: flex;
   flex-direction: row;
@@ -533,7 +658,7 @@ function focusFirstSwitch(): void {
 /* Grid sama dengan .svc-row supaya isi asli tidak bergeser saat muncul. */
 .svc-row-skeleton {
   display: grid;
-  grid-template-columns: 36px 24px 1fr 100px 68px 80px 76px;
+  grid-template-columns: 36px 24px 1fr 100px 68px 80px 76px 32px;
   align-items: center;
   gap: var(--space-3);
   padding: 5px var(--space-4);

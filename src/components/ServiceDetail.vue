@@ -22,7 +22,7 @@ import { useToast } from '@/composables/useToast'
 import { connectionInfo, envFor, type EnvFormat } from '@/utils/connect'
 import type { ServiceDef } from '@/types/service'
 
-const props = defineProps<{ def: ServiceDef }>()
+const props = defineProps<{ def: ServiceDef; focusTab?: { tab: 'connect' | 'data' | 'logs'; n: number } | null }>()
 const emit = defineEmits<{ close: [] }>()
 
 const services = useServices()
@@ -31,6 +31,10 @@ const toast = useToast()
 
 const tab = ref<'connect' | 'data' | 'logs'>('connect')
 const format = ref<EnvFormat>('laravel')
+// Menu ⋯ › View logs membuka panel ini di tab Logs.
+watch(() => props.focusTab?.n, () => {
+  if (props.focusTab) tab.value = props.focusTab.tab
+}, { immediate: true })
 
 const ui = computed(() => services.uiState.value[props.def.id])
 const status = computed(() => ui.value?.status ?? 'stopped')

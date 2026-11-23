@@ -1,3 +1,4 @@
+import type { ServiceDef } from '@/types/service'
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { EnginePreference } from '@/types/prereq'
@@ -39,6 +40,8 @@ export interface ConfigState {
   onboarded: boolean
   /** Services › Change port: port di PC per service id. */
   servicePorts?: Record<string, number>
+  /** Services › Add service. */
+  customServices?: ServiceDef[]
 }
 
 const DEFAULT_CONFIG: ConfigState = {
@@ -135,6 +138,24 @@ export function useConfig() {
     if (port === null) delete next[id]
     else next[id] = port
     config.value.servicePorts = next
+    await saveImmediate()
+  }
+
+  /** Tambah atau ganti custom service (id sama = ganti). Disimpan langsung. */
+  async function saveCustomService(def: ServiceDef): Promise<void> {
+    const list = (config.value.customServices ?? []).filter((d) => d.id !== def.id)
+    config.value.customServices = [...list, def]
+    await saveImmediate()
+  }
+
+  async function removeCustomService(id: string): Promise<void> {
+    config.value.customServices = (config.value.customServices ?? []).filter((d) => d.id !== id)
+    for (const p of config.value.profiles) p.serviceIds = p.serviceIds.filter((x) => x !== id)
+    if (config.value.servicePorts?.[id] != null) {
+      const next = { ...config.value.servicePorts }
+      delete next[id]
+      config.value.servicePorts = next
+    }
     await saveImmediate()
   }
 
@@ -347,6 +368,8 @@ export function useConfig() {
     setAutoStart,
     setAutoStartProjects,
     setServicePort,
+    saveCustomService,
+    removeCustomService,
     setRememberSession,
     setMinimizeToTray,
     setStopServicesOnQuit,

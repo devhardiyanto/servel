@@ -221,6 +221,51 @@ fn terminal_plan(project: &crate::commands::config::Project, mut env: Vec<(Strin
     ))
 }
 
+/// Terminal baru yang menjalankan `program args…` (mis. `docker exec -it …`).
+/// Argumen tidak pernah digabung ke string shell, kecuali di macOS yang butuh
+/// file `.command`; di sana setiap argumen dikutip dengan `sh_quote`.
+pub fn open_terminal_running(program: &'static str, args: &[String], title: &str) -> Result<(), String> {
+    let os = current_os();
+    let a: Vec<&str> = args.iter().map(String::as_str).collect();
+    let attempts: Vec<Attempt> = match os {
+        "windows" => {
+            let mut wt: Vec<&str> = vec!["--title", title, program];
+            wt.extend_from_slice(&a);
+            vec![attempt("wt", &wt, false), Attempt { new_console: true, ..attempt(program, &a, false) }]
+        }
+        "macos" => {
+            let line = std::iter::once(program.to_string()).chain(args.iter().map(|x| sh_quote(x))).collect::<Vec<_>>().join(" ");
+            let script = temp_script("command", &format!("#!/bin/sh\nrm -f -- \"$0\"\nexec {}\n", line))?;
+            let f = script.display().to_string();
+            vec![attempt("open", &["-a", "Terminal", &f], false)]
+        }
+        _ => {
+            let mut e: Vec<&str> = vec!["-e", program];
+            e.extend_from_slice(&a);
+            let mut g: Vec<&str> = vec!["--", program];
+            g.extend_from_slice(&a);
+            let mut x: Vec<&str> = vec!["-x", program];
+            x.extend_from_slice(&a);
+            vec![
+                attempt("x-terminal-emulator", &e, false),
+                attempt("gnome-terminal", &g, false),
+                attempt("konsole", &e, false),
+                attempt("xfce4-terminal", &x, false),
+                attempt("xterm", &e, false),
+            ]
+        }
+    };
+    let dir = std::env::temp_dir();
+    for at in &attempts {
+        match spawn(at, &dir, &[]) {
+            Ok(()) => return Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(format!("Could not start {}: {e}", at.program)),
+        }
+    }
+    Err(not_found_message(Target::Terminal))
+}
+
 #[tauri::command]
 pub async fn project_open_in(
     app: tauri::AppHandle,
