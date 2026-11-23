@@ -21,7 +21,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | E · Runtimes | 12 | 0 | 0 | v3.13.0, v3.15.4, v3.16.0 |
 | F · Update | 6 | 0 | 0 | v3.13.0 |
 | G · Logs | 6 | 0 | 0 | v3.11.0, v3.16.0 |
-| H · Environments | 6 | 0 | 0 | v3.10.x |
+| H · Environments | 9 | 0 | 0 | v3.10.x, v3.16.1 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
@@ -139,6 +139,9 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-H4 | Edit as .env, tempel beberapa baris termasuk `PORT=…` dan `export X=1`; Save. Lalu tempel blok `.env` langsung di kolom Name. | Ringkasan "N added · N replaced · N skipped"; `PORT` dilewati; Edit as rows kembali ke daftar. | ⬜ | ⬜ | | |
 | TC-H5 | Saat project berjalan dengan Default, pilih `tenant-acme`. | Banner "Running with Default · Restart <project> to use tenant-acme. Nothing changes until then." dengan tombol Restart; proses tetap memakai Default sampai Restart. | ⬜ | ⬜ | | |
 | TC-H6 | Klik Restart. | Kartu project, header detail, dan popup tray menampilkan `tenant-acme`; log mencatat `env (tenant-acme): …`. | ⬜ | ⬜ | | |
+| TC-H7 | Isi `APP_ENV=local` di Default, sementara `.env` project berisi `APP_ENV=production` dan `DB_HOST=…`. Start project (Laravel), cek `env('APP_ENV')` dan `env('DB_HOST')`. | `APP_ENV` = `local` (dari Kova); `DB_HOST` tetap dari `.env`. Teks tab menjelaskan aturan ini. | ⬜ | ⬜ | | v3.16.1 |
+| TC-H8 | Default dengan lebih dari 10 variabel; ketik sebagian nama atau nilai di Search. Lalu Add variable saat Search terisi. | Search hanya muncul di atas 10 baris; daftar tersaring; "No variable matches" bila kosong; baris baru tetap tampil. | ⬜ | ⬜ | | v3.16.1 |
+| TC-H9 | Di environment bernama, override dua nilai Default dan tambah satu variabel baru; Save, pindah ke Default lalu kembali. | Dua override di paling atas dengan border aksen, lalu variabel baru, lalu baris Default lain. Baris tidak berpindah saat mengetik. | ⬜ | ⬜ | | v3.16.1 |
 
 ## S · Scripts & dev server (regresi v3.10.2, persiapan v3.11.0)
 

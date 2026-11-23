@@ -655,9 +655,13 @@ Canvas B8–B12 dan "Tray popup · v3.15".
 - [x] Toast "… is running on localhost:PORT [with <env>]" dengan Open (A9, C6, H6); badge Logs menghitung error yang belum dilihat dan bukan dari project yang sudah pulih (C6).
 - [x] Add project di palet (B1); tip Connect di tab Environment (C4); "Starting N services…" (D3); "Default + N changes" (H6); Show all services di profil kosong; error config dengan path dan Open folder; switch "Start projects marked start on launch" dengan daftarnya; konfirmasi ganti engine dan restore `.sql`; baris Command line di Windows.
 
-## Status per 22 November 2026
+### U — v3.16.1: tab Environment lebih jelas
 
-Versi terbaru: **v3.16.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+- [x] Search bila lebih dari 10 variabel; override di environment bernama tampil paling atas; teks menyatakan bahwa nilai Kova menang atas `.env` project.
+
+## Status per 23 November 2026
+
+Versi terbaru: **v3.16.1**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 
