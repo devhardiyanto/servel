@@ -478,7 +478,6 @@ const tabs = computed(() => [
 
     <UiTabs v-model="tab" :tabs="tabs" label="Project details" id-base="pd" />
 
-    <!-- Overview -->
     <div v-if="tab === 'overview'" class="pd-body" v-bind="tabPanelAttrs('pd', tab)">
       <PortOwnerBanner
         v-if="busyPort"
@@ -581,7 +580,6 @@ const tabs = computed(() => [
 
     </div>
 
-    <!-- Environment -->
     <div v-else-if="tab === 'env'" class="pd-body" v-bind="tabPanelAttrs('pd', tab)">
       <div class="pd-envbar">
         <UiInput
@@ -699,7 +697,6 @@ const tabs = computed(() => [
       </div>
     </div>
 
-    <!-- Logs -->
     <div v-else class="pd-body" v-bind="tabPanelAttrs('pd', tab)">
       <LogTail v-if="last500.length" :lines="last500" max-height="calc(100vh - 300px)" />
       <p v-else class="pd-dim">No output yet in this session.</p>

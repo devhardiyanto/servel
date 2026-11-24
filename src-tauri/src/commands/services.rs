@@ -44,6 +44,8 @@ pub enum ReadyCheck {
     Port,
     /// `GET http://127.0.0.1:<port><path>` menjawab 2xx/3xx/401/403.
     Http { path: String },
+    /// Baris log container (200 baris terakhir) memuat `text`.
+    Log { text: String },
 }
 
 /// Id custom service: huruf kecil, angka, `-`; 1–32 karakter.

@@ -381,12 +381,40 @@ async function installCli(): Promise<void> {
   }
 }
 
+// Windows: CLI dipasang installer; Reinstall menambah lagi folder-nya ke PATH user.
+interface WinCliStatus { binDir: string; filesPresent: boolean; onPath: boolean }
+const winCli = ref<WinCliStatus | null>(null)
+const winCliBusy = ref(false)
+const winCliError = ref('')
+const winCliDesc = computed(() => {
+  const c = winCli.value
+  if (!c) return 'Checking…'
+  if (!c.filesPresent) return `The kova files are missing from ${c.binDir}. Run the Kova installer again.`
+  if (!c.onPath) return `Not on your PATH. Add ${c.binDir} so new terminals find kova.`
+  return `On your PATH from ${c.binDir}. Open a new terminal after a reinstall.`
+})
+async function reinstallWinCli(): Promise<void> {
+  winCliBusy.value = true
+  winCliError.value = ''
+  try {
+    winCli.value = await invoke<WinCliStatus>('cli_windows_reinstall')
+    useToast().show('Added kova to your PATH. Open a new terminal to use it.')
+  } catch (err) {
+    winCliError.value = String(err)
+  } finally {
+    winCliBusy.value = false
+  }
+}
+
 onMounted(async () => {
   invoke<CliStatus>('cli_status').then((v) => (cli.value = v)).catch(() => {})
   invoke<boolean>('autostart_get').then((v) => (autostartOn.value = v)).catch(() => {})
   if (!loaded.value) await load()
   try {
     platform.value = await invoke<string>('get_platform')
+    if (platform.value === 'windows') {
+      invoke<WinCliStatus>('cli_windows_status').then((v) => (winCli.value = v)).catch(() => {})
+    }
   } catch {
     /* default windows */
   }
@@ -559,14 +587,6 @@ onMounted(async () => {
             </SettingRow>
 
             <SettingRow
-              v-if="platform === 'windows'"
-              label="Terminal command"
-              desc="Added to your PATH by the installer. Commands: kova up, down, status, logs, shell, restore. The old servel command still works until v4.0."
-            >
-              <span class="setting-value-mono">kova help</span>
-            </SettingRow>
-
-            <SettingRow
               v-if="engineInfo?.engine !== 'wslc'"
               label="Docker Compose file path"
               desc="Path to generated compose file"
@@ -595,7 +615,16 @@ onMounted(async () => {
 
           <div v-if="platform === 'windows'" class="section-block">
             <h2 class="section-title">Command line</h2>
-            <SettingRow label="kova command" desc="The installer adds kova to your user PATH (%LOCALAPPDATA%\Kova\cli\bin). Open a new terminal to use it; if it is not found, run the Kova installer again." />
+            <SettingRow label="kova command" :desc="winCliDesc">
+              <UiButton :loading="winCliBusy" :disabled="winCliBusy || !winCli" @click="reinstallWinCli">
+                {{ winCli && !winCli.onPath ? 'Add to PATH' : 'Reinstall' }}
+              </UiButton>
+            </SettingRow>
+            <p class="settings-note settings-note--inline">
+              Commands: <code>kova up</code>, <code>down</code>, <code>status</code>, <code>logs</code>, <code>shell</code>, <code>restore</code>.
+              <code>kova help</code> in a new terminal lists them all.
+            </p>
+            <p v-if="winCliError" class="settings-error">{{ winCliError }}</p>
           </div>
 
           <div v-else-if="cli?.supported" class="section-block">
@@ -995,7 +1024,6 @@ onMounted(async () => {
   color: color-mix(in srgb, var(--red) 80%, transparent);
 }
 
-/* Status pill */
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -1037,7 +1065,6 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-/* About section */
 .about-block {
   display: flex;
   flex-direction: column;
@@ -1105,7 +1132,6 @@ onMounted(async () => {
   color: var(--muted);
 }
 
-/* Placeholder */
 .placeholder-text {
   font-family: var(--font-sans);
   font-size: var(--text-xs);
@@ -1210,6 +1236,7 @@ onMounted(async () => {
   color: var(--text);
   user-select: text;
 }
+.settings-note--inline code { display: inline; margin: 0; }
 .settings-error {
   margin: 0 0 var(--space-2);
   font-size: var(--text-xs);

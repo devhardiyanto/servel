@@ -617,10 +617,10 @@ function focusFirstSwitch(): void {
   color: var(--faint);
 }
 
-/* Grid sama dengan .svc-row supaya isi asli tidak bergeser saat muncul. */
+/* Kolom sama dengan .svc-row (ServiceRow.vue) supaya isi asli tidak bergeser saat muncul. */
 .svc-row-skeleton {
   display: grid;
-  grid-template-columns: 36px 24px 1fr 100px 68px 80px 76px 32px;
+  grid-template-columns: 36px 24px 1fr 100px 68px 84px 76px 32px;
   align-items: center;
   gap: var(--space-3);
   padding: 5px var(--space-4);

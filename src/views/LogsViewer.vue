@@ -320,7 +320,6 @@ function triggerDownload(text: string, filename: string): void {
 
 <template>
   <div class="view view-logs-viewer">
-    <!-- Sub-header bar -->
     <header class="lv-header">
       <div class="lv-header__left">
         <h1 class="lv-title">Logs</h1>
@@ -366,7 +365,6 @@ function triggerDownload(text: string, filename: string): void {
       </div>
     </header>
 
-    <!-- Filter per project -->
     <div v-if="activeTab === 'projects' && projectChips.length > 1" class="lv-chips">
       <button
         class="lv-chip"
@@ -423,7 +421,6 @@ function triggerDownload(text: string, filename: string): void {
       </template>
     </UiBanner>
 
-    <!-- Log area -->
     <div ref="logAreaRef" class="lv-area" v-bind="tabPanelAttrs('lv', activeTab)" tabindex="0" @click="focusContainer">
       <button v-if="hiddenCount > 0" type="button" class="lv-older" @click.stop="showOlder">
         Show {{ Math.min(hiddenCount, RENDER_STEP).toLocaleString() }} older lines
@@ -468,7 +465,6 @@ function triggerDownload(text: string, filename: string): void {
       </EmptyState>
     </div>
 
-    <!-- Bottom status bar -->
     <footer class="lv-footer">
       <span class="lv-footer__stats">
         {{ filteredLines.length }}<template v-if="filterWords.length > 0 || problemsOnly"> of {{ tabLines.length }}</template> lines
@@ -493,7 +489,6 @@ function triggerDownload(text: string, filename: string): void {
   overflow: hidden;
 }
 
-/* Sub-header */
 .lv-header {
   /* Judul, lalu tab sumber, lalu baris filter. */
   display: flex;
@@ -586,7 +581,6 @@ function triggerDownload(text: string, filename: string): void {
   flex: 1 1 100%;
 }
 
-/* Log area */
 .lv-area {
   flex: 1;
   display: flex;
@@ -668,7 +662,6 @@ function triggerDownload(text: string, filename: string): void {
   user-select: text;
 }
 
-/* Footer */
 .lv-follow {
   display: inline-flex;
   align-items: center;

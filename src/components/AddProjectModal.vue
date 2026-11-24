@@ -2,24 +2,30 @@
 // Add project: pilih folder dengan dialog OS, lalu modal
 // menampilkan hasil deteksi, cek port, dan Save / Save & start. Project baru
 // tersimpan hanya setelah Save; Cancel tidak meninggalkan apa pun.
-import { ref, watch } from 'vue'
+// Folder yang sudah menjadi project dikenali saat dipilih (canvas B13).
+import { computed, ref, watch } from 'vue'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import UiModal from '@/components/ui/UiModal.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import AddProjectForm from '@/components/AddProjectForm.vue'
 import { useProjectActions } from '@/composables/useProjectActions'
 import { useToast } from '@/composables/useToast'
+import { useConfig } from '@/composables/useConfig'
 
 const emit = defineEmits<{ added: [id: string] }>()
-const { adding } = useProjectActions()
+const { adding, selectRequest } = useProjectActions()
+const { config } = useConfig()
 const toast = useToast()
 
 const path = ref('')
 const form = ref<InstanceType<typeof AddProjectForm> | null>(null)
 const pickError = ref('')
 
-watch(adding, async (on) => {
-  if (!on) return
+const norm = (p: string): string => p.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase()
+/** Project yang sudah memakai folder terpilih. */
+const existing = computed(() => (path.value ? config.value.projects.find((p) => p.path && norm(p.path) === norm(path.value)) ?? null : null))
+
+async function pick(): Promise<void> {
   pickError.value = ''
   path.value = ''
   try {
@@ -29,9 +35,19 @@ watch(adding, async (on) => {
   } catch (err) {
     pickError.value = String(err)
     adding.value = false
-    toast.show(`Could not open the folder picker: ${pickError.value}`)
+    toast.error(`Could not open the folder picker: ${pickError.value}`)
   }
+}
+
+watch(adding, (on) => {
+  if (on) void pick()
 })
+
+function showExisting(): void {
+  const id = existing.value?.id
+  close()
+  if (id) selectRequest.value = id
+}
 
 function close(): void {
   adding.value = false
@@ -48,7 +64,18 @@ async function save(start: boolean): Promise<void> {
 </script>
 
 <template>
-  <UiModal :open="adding && !!path" title="Add project" @close="close">
+  <UiModal v-if="existing" :open="adding && !!path" :title="`${existing.name} already uses this folder`" size="sm" @close="close">
+    <p>
+      <code class="apm-path">{{ path }}</code> is already the project {{ existing.name }}.
+      A folder can belong to one project only.
+    </p>
+    <template #footer>
+      <UiButton variant="quiet" size="md" @click="close">Cancel</UiButton>
+      <UiButton size="md" @click="pick">Choose another folder</UiButton>
+      <UiButton variant="primary" size="md" data-autofocus @click="showExisting">Show {{ existing.name }}</UiButton>
+    </template>
+  </UiModal>
+  <UiModal v-else :open="adding && !!path" title="Add project" @close="close">
     <AddProjectForm v-if="path" ref="form" :key="path" :path="path" />
     <template #footer>
       <UiButton variant="quiet" size="md" @click="close">Cancel</UiButton>
@@ -62,3 +89,7 @@ async function save(start: boolean): Promise<void> {
     </template>
   </UiModal>
 </template>
+
+<style scoped>
+.apm-path { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text); overflow-wrap: anywhere; }
+</style>

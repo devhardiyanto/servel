@@ -35,7 +35,15 @@ const form = ref({ name: '', path: '', command: '', port: '', profileId: '', sta
 // Run with (Flow K): Command, Dockerfile, atau Compose.
 const runMode = ref<RunMode>('command')
 const cform = ref({ dockerfile: '', containerPort: '', joinServices: true, composeFile: '', skip: [] as string[] })
-const cinfo = ref<{ dockerfile: boolean; composeFile: string | null; composeServices: string[] } | null>(null)
+const cinfo = ref<{ dockerfile: boolean; composeFile: string | null; composeServices: string[]; exposePort: number | null } | null>(null)
+/** File container yang ada di folder (canvas K1: "Found in the folder"). */
+const foundFiles = computed(() => [cinfo.value?.dockerfile ? 'Dockerfile' : '', cinfo.value?.composeFile ?? ''].filter(Boolean))
+// Pindah ke Dockerfile dengan port kosong: isi dari EXPOSE.
+watch([runMode, cinfo], () => {
+  if (runMode.value === 'dockerfile' && !cform.value.containerPort && cinfo.value?.exposePort) {
+    cform.value.containerPort = String(cinfo.value.exposePort)
+  }
+})
 const { engine } = useEngineStatus()
 const svc = useServices()
 const runModes = [
@@ -215,6 +223,7 @@ async function confirmRemove(): Promise<void> {
       <div class="pdl-run">
         <span class="pdl-label">Run with</span>
         <UiSegmented v-model="runMode" :options="runModes" label="Run with" />
+        <p v-if="foundFiles.length" class="pdl-found">Found in the folder: <code v-for="f in foundFiles" :key="f">{{ f }}</code></p>
         <p class="pdl-hint">{{ runMode === 'command'
           ? 'Kova runs the command in the project folder.'
           : runMode === 'dockerfile'
@@ -224,7 +233,13 @@ async function confirmRemove(): Promise<void> {
       <template v-if="runMode === 'dockerfile'">
         <div class="pdl-grid2">
           <UiInput v-model="cform.dockerfile" label="Dockerfile" mono placeholder="Dockerfile" :help="cinfo?.dockerfile || cform.dockerfile ? '' : 'No Dockerfile found in the folder'" />
-          <UiInput v-model="cform.containerPort" label="Port in the container" mono :placeholder="form.port || '8080'" help="Empty = same as Port below" />
+          <UiInput
+            v-model="cform.containerPort"
+            label="Port in the container"
+            mono
+            :placeholder="cinfo?.exposePort ? String(cinfo.exposePort) : form.port || '8080'"
+            :help="cinfo?.exposePort && cform.containerPort === String(cinfo.exposePort) ? 'From EXPOSE in the Dockerfile' : 'Empty = same as Port below'"
+          />
         </div>
       </template>
       <template v-if="runMode === 'compose'">
@@ -330,4 +345,6 @@ async function confirmRemove(): Promise<void> {
 .pdl-label { font-size: var(--text-xs); font-weight: 500; color: var(--muted); }
 .pdl-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 .pdl-overlap { display: flex; flex-direction: column; gap: var(--space-2); }
+.pdl-found { margin: 0; font-size: var(--text-xs); color: var(--muted); }
+.pdl-found code { font-family: var(--font-mono); color: var(--text); margin-left: var(--space-2); }
 </style>

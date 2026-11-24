@@ -173,6 +173,8 @@ pub fn run() {
             autostart::autostart_set,
             cli_install::cli_status,
             cli_install::cli_install,
+            cli_install::cli_windows_status,
+            cli_install::cli_windows_reinstall,
             mise::mise_trust,
             mise::mise_repair,
             app_ready,
@@ -327,11 +329,12 @@ pub fn run() {
                                             .and_then(|st| st.lock().ok().map(|c| (c.custom_services.clone(), c.service_ports.clone())))
                                             .and_then(|(list, ports)| {
                                                 let d = list.into_iter().find(|d| d.id == s.id)?;
-                                                let port = ports.get(&d.id).copied().or_else(|| d.ports.first()?.host.parse().ok())?;
+                                                // Tanpa port (0): cek Log line tetap jalan; Port/HTTP dianggap siap.
+                                                let port = ports.get(&d.id).copied().or_else(|| d.ports.first()?.host.parse().ok()).unwrap_or(0);
                                                 Some((d.ready, port))
                                             });
                                         let outcome = match custom {
-                                            Some((Some(check), port)) => runtime::probe_custom(&check, port).await,
+                                            Some((Some(check), port)) => runtime::probe_custom(&check, port, &s.container_name).await,
                                             Some((None, _)) => runtime::readiness::ProbeOutcome::Ready,
                                             None => runtime::probe(&s.id, &s.container_name).await,
                                         };

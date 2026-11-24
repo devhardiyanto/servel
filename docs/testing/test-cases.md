@@ -15,22 +15,22 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | Bagian | Jumlah | W ✅ | L ✅ | Milestone yang menutup |
 |---|---|---|---|---|
 | A · Onboarding | 9 | 0 | 0 | v3.10.x, v3.12.0 |
-| B · Add project | 10 | 0 | 0 | v3.10.x, v3.15.0 |
+| B · Add project | 12 | 0 | 0 | v3.10.x, v3.15.0, v3.24.0 |
 | C · Project gagal | 10 | 0 | 0 | v3.10.x, v3.21.1–v3.21.3 |
 | D · Services | 8 | 0 | 0 | v3.12.0, v3.14.0, v3.15.3 |
-| E · Runtimes | 12 | 0 | 0 | v3.13.0, v3.15.4, v3.16.0 |
+| E · Runtimes | 13 | 0 | 0 | v3.13.0, v3.15.4, v3.16.0, v3.24.0 |
 | F · Update | 7 | 0 | 0 | v3.13.0, v3.16.2 |
 | G · Logs | 8 | 0 | 0 | v3.11.0, v3.16.0, v3.22.0 |
 | H · Environments | 10 | 0 | 0 | v3.10.x, v3.16.1, v3.22.0 |
 | I · Port & Terminal | 6 | 0 | 0 | v3.18.0 |
-| J · Custom service & menu | 6 | 0 | 0 | v3.19.0 |
+| J · Custom service & menu | 7 | 0 | 0 | v3.19.0, v3.24.0 |
 | K · Container mode | 5 | 0 | 0 | v3.20.0 |
 | L2 · Runtimes WSL & Add tool | 5 | 0 | 0 | v3.21.0 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
 | U · Tampilan & aksesibilitas | 16 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0, v3.22.0, v3.23.0 |
-| W · Khusus Windows | 11 | 0 | ➖ | v3.10.x, v3.16.2, v3.17.0, v3.21.2 |
+| W · Khusus Windows | 12 | 0 | ➖ | v3.10.x, v3.16.2, v3.17.0, v3.21.2, v3.24.0 |
 | L · Khusus Linux | 11 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3 |
 
 ---
@@ -65,6 +65,8 @@ Persiapan: lihat README → *Cara menyiapkan ulang*.
 | TC-B8 | Add project untuk folder backend Node: `shop-api` (Hono), `acme-api` (Express), `billing-worker` (Fastify), `acme-admin` (NestJS), `docs-api` (AdonisJS, ada `ace`), masing-masing dengan script `dev`. | Terdeteksi Hono / Express / Fastify / NestJS / AdonisJS dengan logo 28 px; perintah `npm run dev` (pnpm/yarn/bun mengikuti lockfile); alasan mis. "hono in package.json dependencies · src/index.ts · Node … from mise.toml". | ⬜ | ⬜ | | v3.15.0 |
 | TC-B9 | Add project `acme-web` yang `package.json`-nya memuat `react` + `vite` + `express` dan script `dev`. Ulangi dengan React tanpa backend (Vite, lalu `react-scripts`), dan dengan folder Go (`go.mod`). | Campuran React + Express → **Express** (backend menang), `npm run dev`. React + Vite → "Vite · React" dengan logo React, `--port {port} --strictPort`. `react-scripts` → "React", `npm run start`. Go → "Go", `go run .` (atau `air`). | ⬜ | ⬜ | | v3.15.0 |
 | TC-B10 | Lihat chip jenis di kartu, panel detail (Type), dan Project settings → Detect pada project lama. | Chip berlogo dengan garis/latar warna merek dan teks normal; Express/Fastify/Next.js terlihat jelas (logo warna teks). Jenis tanpa logo = chip abu-abu. Detect memperbarui jenis setelah Save. Tidak ada permintaan jaringan untuk ikon. | ⬜ | ⬜ | | v3.15.0 |
+| TC-B11 | Add project, pilih folder yang sudah menjadi project (juga dengan garis miring di akhir atau huruf besar-kecil berbeda). | Dialog *<project> already uses this folder*; Show <project> menutup dialog dan memilih project itu; Choose another folder membuka pemilih folder lagi; tidak ada project ganda. | ⬜ | ⬜ | | v3.24.0 (canvas B13) |
+| TC-B12 | Add project untuk folder dengan `Dockerfile` (`EXPOSE 9000`) dan `compose.yaml`. | *Run with* (Command / Dockerfile / Compose) dan *Found in the folder: Dockerfile compose.yaml*. Dockerfile: *Port in the container* = 9000 dengan keterangan *From EXPOSE in the Dockerfile*; Save & start menjalankan container. Folder tanpa keduanya tidak menampilkan Run with. | ⬜ | ⬜ | | v3.24.0 (canvas K1) |
 
 ## C · Project gagal → perbaiki (canvas C1–C6)
 
@@ -112,6 +114,7 @@ Persiapan: project yang gagal karena env, mis. Laravel tanpa `DB_*` padahal butu
 | TC-E10 | (a) Tool tanpa versi global (`mise ls --current` tidak menampilkannya), Install satu versi. (b) Tool yang sudah punya versi global, Install versi lain. | (a) Versi baru bertanda Global; toast "… and set it as the global version"; `php -v` (atau tool itu) di terminal baru langsung jalan; tray ikut menampilkan versi itu. (b) Versi global lama tidak berubah; toast hanya "Installed …". | ⬜ | ⬜ | | v3.15.4 |
 | TC-E11 | Runtimes → PHP → ⋯ pada satu versi → Use in project…, dengan project Laravel, project Vite, dan project tanpa jenis. | Hanya project PHP (atau yang mise.toml-nya sudah menyebut PHP) yang tampil sebagai radio; **Show all projects** menampilkan semuanya; tombol **Use PHP x** menulis mise.toml; panel extension pindah ke versi itu. | ⬜ | ⬜ | | v3.16.0 |
 | TC-E12 | Nyalakan dua extension berurutan dengan cepat. | Baris pertama menampilkan *checking…* dan terkunci; toggle kedua tetap bisa diklik; keduanya selesai dengan hasil benar. | ⬜ | ⬜ | | v3.16.0 |
+| TC-E13 | Project dengan `mise.toml` yang meminta versi PHP/Node belum terpasang; buka Runtimes. | Baris versi itu bertanda *not installed* dengan tombol Install langsung (bukan menu ⋯); Install menampilkan banner progres. Saat memuat tertulis *Loading installed … versions…*. | ⬜ | ⬜ | | v3.24.0 |
 
 ## F · Update aplikasi (canvas F1–F5)
 
@@ -176,6 +179,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-J4 | Menu ⋯ MySQL › Delete data… dengan backup dicentang. | Fokus awal Cancel; setelah Delete data: file `kova-mysql-<waktu>.sql` di Downloads, MySQL start lagi kosong (database lama hilang); toast menyebut lokasi backup. | ⬜ | ⬜ | | v3.19.0 |
 | TC-J5 | Menu ⋯ Elasticsearch › Edit service… ganti port di PC ke 9201, Save and restart. Lalu Remove service… tanpa dan dengan Also delete its data. | Port baru dipakai; Remove menghapus container dan definisi; dengan centang, volume `servel_elasticsearch_data` ikut terhapus. | ⬜ | ⬜ | | v3.19.0 |
 | TC-J6 | Menu ⋯ › Restart dan View logs pada service yang berjalan. | Restart = stop lalu start; View logs membuka panel service di tab Logs. | ⬜ | ⬜ | | v3.19.0 |
+| TC-J7 | Add service dengan image yang lama siap (mis. `postgres:17` sebagai custom), Ready when: **Log line** = `ready to accept connections`; Add and start. Coba juga teks yang tidak pernah muncul. | Status *starting* sampai teks muncul di log container, lalu running. Teks yang tidak muncul: setelah 120 detik baris log "readiness check has not passed…" dan service dianggap siap. Field kosong ditolak. | ⬜ | ⬜ | | v3.24.0 |
 
 ## K · Project container mode (canvas Flow K1–K7)
 
@@ -276,6 +280,7 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-W9 | Stop project WSL yang sedang jalan, lalu Start lagi; ulangi 3 kali. Cek `ps -ef` di distro. | Tidak ada proses yang tertinggal; port bebas; Start berikutnya langsung berhasil. | ⬜ | ➖ | | v3.17.0 |
 | TC-W10 | Project WSL: Terminal here, Open in VS Code. Project lama dengan command `wslc …`: switch mati, Start. | Terminal terbuka di distro pada folder project; VS Code membuka Remote WSL; project `wslc` tetap jalan dengan program Windows. | ⬜ | ➖ | | v3.17.0 |
 | TC-W11 | Project WSL dengan variabel di tab Environment: Terminal here, lalu `echo $PORT` dan satu variabel project. Ulangi untuk service: menu ⋯ → Open shell tanpa Windows Terminal. | Jendela tetap terbuka di folder project dan bisa diketik; `PORT` dan variabel project terbaca; jendela shell service juga tetap terbuka. | ⬜ | ➖ | | v3.21.2 |
+| TC-W12 | Hapus `…\Kova\cli\bin` dari PATH user (Environment Variables), buka Settings › General › Command line. Klik Add to PATH, buka terminal baru, `kova help`. | Baris kova command menulis *Not on your PATH* dan tombol *Add to PATH*; setelah diklik toast muncul, deskripsi menjadi *On your PATH…*, `kova help` jalan di terminal baru. Hanya ada satu penjelasan perintah kova di Settings, tanpa menyebut servel. | ⬜ | ➖ | | v3.24.0 |
 
 ## L · Khusus Linux (Docker Engine, tanpa Docker Desktop)
 

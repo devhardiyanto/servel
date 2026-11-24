@@ -300,7 +300,7 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
       <span class="rtt-dim">Checking {{ loc }}…</span>
     </div>
     <div v-else-if="loading" class="rtt-loading" aria-busy="true">
-      <span class="rtt-dim">Reading mise ls…</span>
+      <span class="rtt-dim">Loading installed {{ meta.label }} versions…</span>
       <SkeletonBox v-for="n in 3" :key="n" width="100%" height="36px" />
     </div>
     <UiBanner v-else-if="loadError" tone="err" :title="`Could not read ${meta.label} versions`">
@@ -326,7 +326,15 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
             </td>
             <td class="rtt-used">{{ r.usedBy.length ? r.usedBy.join(', ') : 'Not used' }}</td>
             <td class="rtt-act">
-              <UiMenu :items="menuItems(r)" :label="`${meta.label} ${r.version} actions`" @select="onMenu(r, $event)" />
+              <!-- Versi yang diminta project tetapi belum terpasang: aksi utamanya langsung terlihat. -->
+              <UiButton
+                v-if="!r.installed"
+                size="sm"
+                :disabled="!!installing || busy"
+                :aria-label="`Install ${meta.label} ${r.version}`"
+                @click="install(r.version)"
+              >Install</UiButton>
+              <UiMenu v-else :items="menuItems(r)" :label="`${meta.label} ${r.version} actions`" @select="onMenu(r, $event)" />
             </td>
           </tr>
         </tbody>
@@ -405,7 +413,7 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
 .rtt-table td:first-child, .rtt-table th:first-child { padding-left: 0; }
 .rtt-ver { font-size: var(--text-md) !important; font-weight: 600; }
 .rtt-used { color: var(--muted); }
-.rtt-act { text-align: right; width: 40px; }
+.rtt-act { text-align: right; width: 72px; }
 .rtt-mono { font-family: var(--font-mono); font-size: var(--text-xs); }
 .rtt-dim { color: var(--faint); font-size: var(--text-xs); }
 .rtt-install { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }

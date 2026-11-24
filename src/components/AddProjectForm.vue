@@ -9,6 +9,7 @@ import UiBanner from '@/components/ui/UiBanner.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import CommandSuggestions from '@/components/CommandSuggestions.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
+import UiSegmented from '@/components/ui/UiSegmented.vue'
 import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 import FrameworkLogo from '@/components/ui/FrameworkLogo.vue'
 import { frameworkColor, frameworkIcon } from '@/utils/framework'
@@ -16,7 +17,7 @@ import { useConfig } from '@/composables/useConfig'
 import { useProjectRuntime, type ProjectSuggestion } from '@/composables/useProjectRuntime'
 import { useProjectActions } from '@/composables/useProjectActions'
 import { useVersionContext } from '@/composables/useVersionContext'
-import type { Project, ToolCurrent } from '@/types/mise'
+import type { Project, RunMode, ToolCurrent } from '@/types/mise'
 import { wslDistro } from '@/utils/wsl'
 
 const props = withDefaults(defineProps<{ path: string; compact?: boolean }>(), { compact: false })
@@ -37,6 +38,17 @@ const runInWsl = ref(true)
 const portState = ref<{ free: boolean; reason: string; suggestion: number | null } | null>(null)
 const formError = ref('')
 const saving = ref(false)
+
+// Run with (canvas K1): ditawarkan hanya bila folder punya Dockerfile atau compose.
+const cinfo = ref<{ dockerfile: boolean; composeFile: string | null; composeServices: string[]; exposePort: number | null } | null>(null)
+const runMode = ref<RunMode>('command')
+const containerPort = ref('')
+const runModes = computed(() => [
+  { value: 'command', label: 'Command' },
+  ...(cinfo.value?.dockerfile ? [{ value: 'dockerfile', label: 'Dockerfile' }] : []),
+  ...(cinfo.value?.composeFile ? [{ value: 'compose', label: 'Compose' }] : []),
+])
+const foundFiles = computed(() => [cinfo.value?.dockerfile ? 'Dockerfile' : '', cinfo.value?.composeFile ?? ''].filter(Boolean))
 
 const known = computed(() => !!suggestion.value && suggestion.value.detection.kind !== 'unknown')
 const logo = computed(() => frameworkIcon(suggestion.value?.detection.label))
@@ -67,6 +79,13 @@ async function run(): Promise<void> {
     suggestion.value = s
     form.value = { ...form.value, name: s.name, port: String(s.port), command: s.detection.command }
     portState.value = { free: true, reason: '', suggestion: null }
+    runMode.value = 'command'
+    try {
+      cinfo.value = await invoke('project_container_info', { path: props.path })
+      containerPort.value = cinfo.value?.exposePort ? String(cinfo.value.exposePort) : ''
+    } catch {
+      cinfo.value = null
+    }
     try {
       // Folder WSL: versi dari distro (yang dipakai bila Run inside WSL menyala).
       tools.value = await invoke<ToolCurrent[]>(distro.value ? 'wsl_project_tools' : 'mise_project_tools', { path: props.path })
@@ -135,9 +154,14 @@ async function save(start = false): Promise<Project | null> {
       startServices: form.value.profileId ? form.value.startServices : false,
       autoStart: form.value.autoStart,
       wsl: !!distro.value && runInWsl.value,
+      runMode: runMode.value,
+      container:
+        runMode.value === 'command'
+          ? null
+          : { dockerfile: '', containerPort: Number(containerPort.value) || 0, joinServices: true, composeFile: cinfo.value?.composeFile ?? '' },
     })
     await versionCtx.refresh()
-    if (project && start && project.command?.trim()) await actions.start(project)
+    if (project && start && (project.command?.trim() || runMode.value !== 'command')) await actions.start(project)
     return project
   } catch (err) {
     formError.value = String(err)
@@ -148,7 +172,7 @@ async function save(start = false): Promise<Project | null> {
 }
 
 const ready = computed(() => !detecting.value && !detectError.value)
-defineExpose({ save, ready, saving, canStart: computed(() => !!form.value.command.trim()) })
+defineExpose({ save, ready, saving, canStart: computed(() => runMode.value !== 'command' || !!form.value.command.trim()) })
 </script>
 
 <template>
@@ -177,6 +201,12 @@ defineExpose({ save, ready, saving, canStart: computed(() => !!form.value.comman
         No package.json, composer.json, go.mod, artisan or Python project file found. Enter the command yourself.
       </UiBanner>
 
+      <div v-if="foundFiles.length" class="apf-run">
+        <span class="apf-run__label">Run with</span>
+        <UiSegmented v-model="runMode" :options="runModes" label="Run with" />
+        <span class="apf-run__found">Found in the folder: <code v-for="f in foundFiles" :key="f">{{ f }}</code></span>
+      </div>
+
       <div class="apf-row">
         <UiInput v-model="form.name" label="Name" />
         <UiInput v-model="form.port" label="Port" mono width="120px" :help="portHelp" :error="portState && !portState.free ? portState.reason : ''" />
@@ -184,14 +214,26 @@ defineExpose({ save, ready, saving, canStart: computed(() => !!form.value.comman
       <div v-if="portState && !portState.free && portState.suggestion" class="apf-use">
         <UiButton @click="form.port = String(portState.suggestion)">Use {{ portState.suggestion }}</UiButton>
       </div>
+      <template v-if="runMode === 'command'">
+        <UiInput
+          v-model="form.command"
+          label="Command"
+          mono
+          placeholder="e.g. npm run dev -- --port {port}"
+          help="{port} is replaced by the port above."
+        />
+        <CommandSuggestions v-model="form.command" :path="props.path" />
+      </template>
       <UiInput
-        v-model="form.command"
-        label="Command"
+        v-else-if="runMode === 'dockerfile'"
+        v-model="containerPort"
+        label="Port in the container"
         mono
-        placeholder="e.g. npm run dev -- --port {port}"
-        help="{port} is replaced by the port above."
+        width="260px"
+        :placeholder="form.port"
+        :help="cinfo?.exposePort && containerPort === String(cinfo.exposePort) ? 'From EXPOSE in the Dockerfile' : 'Empty = same as Port above'"
       />
-      <CommandSuggestions v-model="form.command" :path="props.path" />
+      <p v-else class="apf-run__hint">Kova runs docker compose up for this folder. Stop runs compose down. More options are in Project settings.</p>
 
       <template v-if="!compact">
         <UiInput v-model="form.profileId" label="Service profile" as="select" :options="profileOptions" />
@@ -266,6 +308,10 @@ defineExpose({ save, ready, saving, canStart: computed(() => !!form.value.comman
 .apf-row { display: flex; gap: var(--space-3); align-items: flex-start; }
 .apf-row > :first-child { flex: 1; }
 .apf-use { margin-top: calc(-1 * var(--space-2)); }
+.apf-run { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); }
+.apf-run__label { font-size: var(--text-xs); font-weight: 500; color: var(--muted); width: 100%; }
+.apf-run__found, .apf-run__hint { font-size: var(--text-xs); color: var(--muted); margin: 0; }
+.apf-run__found code { font-family: var(--font-mono); color: var(--text); margin-left: var(--space-2); }
 .apf-toggles { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .apf-toggle { display: inline-flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--text); }
 .apf-toggle--off { color: var(--faint); }
