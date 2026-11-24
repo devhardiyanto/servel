@@ -675,15 +675,15 @@ const tabs = computed(() => [
 
     <!-- Selalu di bawah panel, untuk semua tab. -->
     <div class="pd-open">
-      <UiButton :disabled="!p.path" @click="openIn('folder')"><UiIcon name="folder" />Open folder</UiButton>
-      <UiButton :disabled="!p.path" @click="openIn('terminal')"><UiIcon name="terminal" />Terminal here</UiButton>
-      <UiButton :disabled="!p.path" @click="openIn('vscode')"><UiIcon name="code" />Open in VS Code</UiButton>
+      <UiButton :disabled="!p.path" title="Open folder" @click="openIn('folder')"><UiIcon name="folder" /><span class="pd-open-label">Open folder</span></UiButton>
+      <UiButton :disabled="!p.path" title="Terminal here" @click="openIn('terminal')"><UiIcon name="terminal" /><span class="pd-open-label">Terminal here</span></UiButton>
+      <UiButton :disabled="!p.path" title="Open in VS Code" @click="openIn('vscode')"><UiIcon name="code" /><span class="pd-open-label">Open in VS Code</span></UiButton>
     </div>
   </div>
 </template>
 
 <style scoped>
-.pd { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; min-height: 100%; }
+.pd { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; min-height: 100%; container: pd / inline-size; }
 .pd-head { display: flex; flex-direction: column; gap: var(--space-3); }
 .pd-title { display: flex; flex-direction: column; gap: var(--space-1); }
 .pd-name { margin: 0; font-size: var(--text-lg); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
@@ -708,7 +708,6 @@ const tabs = computed(() => [
   margin: auto -16px -16px;
   padding: 12px 16px;
   display: flex;
-  flex-wrap: wrap;
   gap: var(--space-2);
   border-top: 1px solid var(--border);
   background: var(--surface);
@@ -771,4 +770,11 @@ const tabs = computed(() => [
   border-bottom: 1px solid var(--border);
 }
 .pd-envsearch { flex: 1; min-width: 0; }
+/* Panel sempit: pencarian variabel di baris sendiri; tiga tombol bawah tetap satu baris, tinggal ikon (nama tetap terbaca
+   pembaca layar dan muncul sebagai tooltip). */
+@container pd (max-width: 400px) {
+  .pd-envtools { flex-wrap: wrap; }
+  .pd-envsearch { flex-basis: 100%; }
+  .pd-open-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+}
 </style>

@@ -706,6 +706,7 @@ Kasus: project Go dengan *Run inside WSL* mencetak "Server started" lalu langsun
 
 - [x] Klik dua kali pemisah menutup panel detail; tab Environment: penjelasan di balik **?**, Save sebaris dengan pencarian dan menempel di atas.
 - [x] Dari review UI: klik baris service membuka detail (bukan menyalakan service), Reset Kova menjelaskan apa yang dihapus, Export log menyimpan `kova-logs.txt`, banner port terpakai menawarkan Change port, teks dan aksesibilitas kecil.
+- [x] v3.21.4: tombol bawah panel detail dan toolbar Environment tetap rapi di panel sempit.
 - [ ] Perubahan Environment yang belum disimpan hilang tanpa peringatan saat pindah project atau layar.
 - [ ] Jendela 900–1000 px: panel detail Projects turun ke bawah daftar; Services dengan panel terbuka terlalu sempit.
 - [ ] Toast error yang hilang sendiri (perlu tone error tanpa timer); tab sumber di Logs masih tetap (belum mengikuti service dan custom service); Clear log tanpa undo.
@@ -713,7 +714,7 @@ Kasus: project Go dengan *Run inside WSL* mencetak "Server started" lalu langsun
 
 ## Status per 24 November 2026
 
-Versi terbaru: **v3.21.3**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.21.4**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 
