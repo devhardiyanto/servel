@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Panel detail project: kepala dengan status dan aksi, lalu tab Overview,
 // Environment, Logs.
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import PortOwnerBanner from '@/components/PortOwnerBanner.vue'
@@ -206,13 +206,42 @@ const visibleRows = computed(() => {
   return all.filter(({ r }) => r.k.trim() === '' || r.k.toLowerCase().includes(q) || r.v.toLowerCase().includes(q))
 })
 
+/**
+ * Di environment bernama, baris dibagi dua kelompok: yang diatur environment
+ * ini (override + variabel sendiri) lalu baris Default yang tidak diubah.
+ * Batasnya dihitung saat baris dibangun, supaya baris tidak pindah kelompok
+ * saat diketik.
+ */
+const defaultStart = ref(0)
+function setRows(next: Row[]): void {
+  rows.value = next
+  const at = next.findIndex((r) => r.inh && r.v === '')
+  defaultStart.value = at === -1 ? next.length : at
+}
+const showGroups = computed(() => !!activeName.value && !textMode.value && !(showEnvSearch.value && envSearch.value.trim()))
+async function addRow(): Promise<void> {
+  let at = rows.value.length
+  if (activeName.value) {
+    at = defaultStart.value
+    rows.value.splice(at, 0, { k: '', v: '' })
+    defaultStart.value++
+  } else {
+    rows.value.push({ k: '', v: '' })
+  }
+  // Baris baru bisa berada jauh di atas tombol: bawa fokus ke sana.
+  await nextTick()
+  const el = document.querySelector<HTMLInputElement>(`#pd-panel [aria-label="Name of variable ${at + 1}"]`)
+  el?.focus()
+  el?.scrollIntoView({ block: 'center' })
+}
+
 /** Baris yang benar-benar disimpan: di environment lain, baris Default kosong = tidak di-override. */
 function effectiveRows(src: Row[]): Row[] {
   return src.filter((r) => !(r.inh && r.v === '') && (r.k.trim() !== '' || r.v !== ''))
 }
 
 function resetRows(): void {
-  rows.value = buildRows(activeName.value, savedMap(activeName.value))
+  setRows(buildRows(activeName.value, savedMap(activeName.value)))
   if (textMode.value) envText.value = serializeDotenv(effectiveRows(rows.value))
   envError.value = ''
 }
@@ -247,7 +276,7 @@ function toText(): void {
 }
 function toRows(): void {
   pasteNote.value = null
-  rows.value = rowsFromText()
+  setRows(rowsFromText())
   textMode.value = false
 }
 
@@ -263,14 +292,17 @@ function onPaste(e: ClipboardEvent, i: number, field: 'k' | 'v'): void {
   if (r.entries.length === 0 && r.skipped.length === 0) return
   e.preventDefault()
   const m = mergeRows(rows.value, r.entries, i)
-  rows.value = m.rows.length ? (m.rows as Row[]) : [{ k: '', v: '' }]
+  setRows(m.rows.length ? (m.rows as Row[]) : [{ k: '', v: '' }])
   noteFor(summarize(m.added, m.replaced, r.skipped.length), r.skipped)
 }
 
 function removeRow(i: number): void {
   const r = rows.value[i]
   if (r.inh) r.v = '' // kembali ke nilai Default
-  else rows.value.splice(i, 1)
+  else {
+    rows.value.splice(i, 1)
+    if (i < defaultStart.value) defaultStart.value--
+  }
 }
 
 function mapOf(src: Row[]): Record<string, string> {
@@ -312,7 +344,7 @@ function validateEnv(): Record<string, string> | null {
 }
 
 async function saveEnv(thenRestart: boolean): Promise<boolean> {
-  if (textMode.value) rows.value = rowsFromText()
+  if (textMode.value) setRows(rowsFromText())
   const vars = validateEnv()
   if (!vars) {
     tab.value = 'env'
@@ -631,7 +663,10 @@ const tabs = computed(() => [
       />
       <template v-else>
         <p v-if="showEnvSearch && envSearch.trim() && visibleRows.length === 0" class="pd-dim">No variable matches "{{ envSearch.trim() }}".</p>
-        <div v-for="{ r, i } in visibleRows" :key="i" class="pd-env" :class="{ 'pd-env--override': r.inh && r.v !== '' }">
+        <template v-for="{ r, i } in visibleRows" :key="i">
+        <h3 v-if="showGroups && i === 0 && defaultStart > 0" class="pd-env-group">Set in {{ activeName }}</h3>
+        <h3 v-if="showGroups && i === defaultStart" class="pd-env-group">From Default <span>type a value to change it for {{ activeName }}</span></h3>
+        <div class="pd-env">
           <UiInput
             v-model="r.k"
             mono
@@ -655,7 +690,8 @@ const tabs = computed(() => [
             @click="removeRow(i)"
           >&times;</UiButton>
         </div>
-        <div><UiButton @click="rows.push({ k: '', v: '' })"><UiIcon name="plus" />Add variable</UiButton></div>
+        </template>
+        <div><UiButton @click="addRow"><UiIcon name="plus" />Add variable</UiButton></div>
       </template>
       <UiBanner v-if="envError" tone="err" title="Check the variables">{{ envError }}</UiBanner>
       <div v-if="activeName" class="pd-env-actions">
@@ -726,7 +762,7 @@ const tabs = computed(() => [
 .pd-grid dt { color: var(--muted); }
 .pd-grid dd { margin: 0; color: var(--text); min-width: 0; }
 .pd-sec { display: flex; flex-direction: column; gap: var(--space-2); }
-.pd-label { margin: 0; font-size: var(--text-xs); font-weight: 500; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; }
+.pd-label { margin: 0; font-size: var(--text-xs); font-weight: 500; color: var(--muted); }
 .pd-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-xs); }
 .pd-list li { display: flex; gap: var(--space-2); align-items: baseline; }
 .pd-mono { font-family: var(--font-mono); font-weight: 500; }
@@ -759,7 +795,8 @@ const tabs = computed(() => [
 .pd-text { margin: 0; line-height: 1.6; }
 .pd-env-del { margin-right: auto; }
 .pd-env { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }
-.pd-env--override :deep(input) { border-color: var(--accent); }
+.pd-env-group { margin: var(--space-2) 0 0; font-size: var(--text-xs); font-weight: 600; color: var(--muted); }
+.pd-env-group span { margin-left: var(--space-2); font-weight: 400; color: var(--faint); }
 .pd-env-actions { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; }
 .pd-env-actions .pd-dim { margin-right: auto; }
 .pd-envhelp { display: flex; align-items: center; gap: var(--space-2); }

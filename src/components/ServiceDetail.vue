@@ -235,7 +235,7 @@ const formats = [
 .sd-body { display: flex; flex-direction: column; gap: var(--space-4); font-size: var(--text-sm); }
 .sd-mono { font-family: var(--font-mono); font-size: var(--text-xs); }
 .sd-note { margin: 0; color: var(--faint); font-size: var(--text-xs); }
-.sd-label { margin: 0; font-size: var(--text-xs); font-weight: 500; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; }
+.sd-label { margin: 0; font-size: var(--text-xs); font-weight: 500; color: var(--muted); }
 .sd-fields { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-2) var(--space-4); margin: 0; }
 .sd-fields dt { color: var(--faint); font-size: var(--text-xs); }
 .sd-fields dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }

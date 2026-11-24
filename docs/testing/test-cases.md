@@ -29,7 +29,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
-| U · Tampilan & aksesibilitas | 15 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0, v3.22.0 |
+| U · Tampilan & aksesibilitas | 16 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0, v3.22.0, v3.23.0 |
 | W · Khusus Windows | 11 | 0 | ➖ | v3.10.x, v3.16.2, v3.17.0, v3.21.2 |
 | L · Khusus Linux | 11 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3 |
 
@@ -88,12 +88,12 @@ Persiapan: project yang gagal karena env, mis. Laravel tanpa `DB_*` padahal butu
 | ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
 |---|---|---|---|---|---|---|
 | TC-D1 | Buka Services. | Semua service tampil (grup core/additional) dengan toggle; pemilih profil di header. | ⬜ | ⬜ | | |
-| TC-D2 | Ganti profil, lalu Start selected. | Toggle mengikuti profil; service terpilih mulai. *Artboard D2 memakai tombol "Start profile"; keputusan final ada di v3.14.0.* | ⬜ | ⬜ | | v3.14.0: tombol "Start <profil>" selama pilihan = isi profil |
+| TC-D2 | Ganti profil, lalu klik tombol utama; setelah semua berjalan klik lagi. | Toggle mengikuti profil; tombol *Start <profil>* dengan jumlah yang belum berjalan; setelah semua berjalan tombolnya *Stop <profil>* dan hanya menghentikan pilihan itu. Pilihan berbeda dari profil = *Start selected* / *Stop selected*. | ⬜ | ⬜ | | v3.23.0 (canvas D2) |
 | TC-D3 | Amati saat service mulai (pertama kali: image belum ada). Ulangi dengan port service dipakai program lain. | Tiap baris punya status sendiri; image diunduh dulu. Port bentrok → banner "Port … is already in use" di detail service; bila start tetap gagal, pesan menyebut port dan service-nya ("Ports 3306 (mysql) … already used by another program"), bukan "docker compose failed (exit …)". | ⬜ | ⬜ | | |
 | TC-D4 | Buka detail MySQL → Connect. Pilih format Laravel, Copy .env, lalu Copy URL. | Host, port, user, password, database tampil; potongan `.env` sesuai format; URL `mysql://root@127.0.0.1:3306/…`. | ⬜ | ⬜ | | |
 | TC-D5 | Tempel hasil Copy .env ke project. | Toast menyebut jumlah baris yang disalin; nilai bisa langsung dipakai project (lihat C4). | ⬜ | ⬜ | | |
 | TC-D6 | Dengan service berjalan, diamkan di layar Services; arahkan kursor ke angka RAM. Lalu sembunyikan jendela ke tray. | Angka RAM berubah sekitar tiap 2 detik; tooltip "measured at HH:MM:SS". Service berhenti → angka `~` dengan tooltip estimasi. | ⬜ | ⬜ | | v3.10.1 |
-| TC-D7 | Stop all. | Semua berhenti; RAM di ringkasan dan status bar menjadi 0. | ⬜ | ⬜ | | v3.10.1 |
+| TC-D7 | Menu ⋯ di samping tombol utama → Stop all services. | Semua berhenti, termasuk yang tidak dipilih; RAM di ringkasan dan status bar menjadi 0. Item nonaktif bila tidak ada yang berjalan. | ⬜ | ⬜ | | v3.10.1, v3.23.0 |
 | TC-D8 | Engine Docker (**W:** Docker Desktop, **L:** Docker Engine). Pasang v3.15.2 atau lebih lama, start MySQL dan isi satu tabel; update ke v3.15.3+, Start lagi. Lalu `docker port servel_mysql`. Dari perangkat lain di LAN coba sambung ke port 3306. | Container dibuat ulang sekali saat start; tabel tetap ada (volume sama). `docker port` menunjukkan `127.0.0.1:3306`, bukan `0.0.0.0`; dari LAN tidak bisa tersambung. Log pull image hanya berisi baris Pulling/Pulled dan status container. | ⬜ | ⬜ | | v3.15.3 |
 
 ## E · Runtimes (canvas E1–E8)
@@ -153,7 +153,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-H7 | Isi `APP_ENV=local` di Default, sementara `.env` project berisi `APP_ENV=production` dan `DB_HOST=…`. Start project (Laravel), cek `env('APP_ENV')` dan `env('DB_HOST')`. | `APP_ENV` = `local` (dari Kova); `DB_HOST` tetap dari `.env`. Teks tab menjelaskan aturan ini. | ⬜ | ⬜ | | v3.16.1 |
 | TC-H8 | Default dengan lebih dari 10 variabel; ketik sebagian nama atau nilai di Search. Lalu Add variable saat Search terisi. | Search hanya muncul di atas 10 baris; daftar tersaring; "No variable matches" bila kosong; baris baru tetap tampil. | ⬜ | ⬜ | | v3.16.1 |
 | TC-H10 | Ubah satu nilai di tab Environment tanpa Save, lalu: klik project lain; klik kartu yang sama; klik dua kali pemisah; tekan Esc di daftar; buka Services; ganti environment. | Setiap kali muncul *Save changes to Default?* (atau nama environment). Stay here = tetap di tempat dengan isian utuh; Discard changes = isian kembali ke yang tersimpan lalu lanjut; Save = tersimpan lalu lanjut. Nama variabel tidak valid saat Save = dialog tertutup, tetap di tab Environment dengan pesan error. | ⬜ | ⬜ | | v3.22.0 |
-| TC-H9 | Di environment bernama, override dua nilai Default dan tambah satu variabel baru; Save, pindah ke Default lalu kembali. | Dua override di paling atas dengan border aksen, lalu variabel baru, lalu baris Default lain. Baris tidak berpindah saat mengetik. | ⬜ | ⬜ | | v3.16.1 |
+| TC-H9 | Di environment bernama, override dua nilai Default dan tambah satu variabel baru; Save, pindah ke Default lalu kembali. | Kelompok *Set in <env>* berisi dua override lalu variabel baru; kelompok *From Default* berisi baris Default lain. Tidak ada garis accent per baris. Baris tidak berpindah saat mengetik; Add variable menambah baris di kelompok pertama dan memfokuskannya. | ⬜ | ⬜ | | v3.16.1, v3.23.0 |
 
 ## I · Port & Terminal (canvas Flow I1–I11)
 
@@ -258,6 +258,7 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-U12 | (a) Ctrl K → "Add project". (b) Settings → Engine, pilih engine lain. (c) Services › MySQL › Data → Restore database, pilih file. (d) Settings → On launch, matikan "Start projects marked start on launch", tutup dan buka Kova. (e) Rusak config.json (mis. hapus satu kurung), buka Kova. | (a) Dialog Add project terbuka. (b) Dialog konfirmasi; Cancel tidak mengubah engine. (c) Dialog konfirmasi menyebut nama file sebelum restore berjalan. (d) Project bertanda tidak start; deskripsi menyebut nama project-nya. (e) Banner menyebut path config.json dan tombol Open folder; Services dan Runtimes tetap bisa dibuka. | ⬜ | ⬜ | | v3.16.0 |
 | TC-U14 | Picu error: Services › ⋯ › Delete data… pada service yang sedang dipakai, atau Settings › About › Data folder › Open setelah folder dihapus. | Toast error bergaris merah, dibacakan NVDA sebagai alert, tetap tampil lebih dari 10 detik, Copy menyalin pesannya, × menutupnya. | ⬜ | ⬜ | | v3.22.0 |
 | TC-U15 | Keyboard dan pembaca layar di Services dan Settings: Tab ke baris service lalu Enter; navigasi heading (NVDA: H) di Settings; tab di detail project. | Enter di nama service membuka detail; heading *On launch*, *Container engine*, dst. terbaca sebagai heading level 2; tab mengumumkan panelnya. Service yang berhenti menulis "–" di kolom RAM, tooltip menyebut perkiraan. | ⬜ | ⬜ | | v3.22.0 |
+| TC-U16 | Perkecil jendela ke 900 px. Projects: klik kartu lain. Services: buka detail MySQL. | Panel detail Projects tetap di kanan dan menampilkan project yang diklik; Add project jadi ikon, pencarian di baris sendiri, tidak ada scroll horizontal. Services: status dan ⋯ setiap baris terlihat utuh; tombol header terbungkus, tidak terpotong. Label kelompok dan judul bagian ditulis huruf biasa. | ⬜ | ⬜ | | v3.23.0 |
 | TC-U13 | Buka Services, panel detail satu service, popup tray, dan Ctrl K → ketik nama service. | MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO memakai logo resminya (bukan emoji); Mailpit dan Gotenberg ikon garis; logo jelas terbaca di tema gelap dan terang; nama service tetap tertulis di sampingnya. | ⬜ | ⬜ | | v3.16.0 |
 
 ## W · Khusus Windows

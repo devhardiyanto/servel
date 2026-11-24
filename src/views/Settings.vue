@@ -885,7 +885,6 @@ onMounted(async () => {
   padding: var(--space-2) var(--space-4);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
-  letter-spacing: 0.06em;
   color: var(--muted);
   cursor: pointer;
   transition: color 0.1s, border-color 0.1s, background 0.1s;

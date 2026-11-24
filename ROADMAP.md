@@ -708,7 +708,7 @@ Kasus: project Go dengan *Run inside WSL* mencetak "Server started" lalu langsun
 - [x] Dari review UI: klik baris service membuka detail (bukan menyalakan service), Reset Kova menjelaskan apa yang dihapus, Export log menyimpan `kova-logs.txt`, banner port terpakai menawarkan Change port, teks dan aksesibilitas kecil.
 - [x] v3.21.4: tombol bawah panel detail dan toolbar Environment tetap rapi di panel sempit.
 - [x] Perubahan Environment yang belum disimpan hilang tanpa peringatan saat pindah project atau layar (v3.22.0).
-- [ ] Jendela 900–1000 px: panel detail Projects turun ke bawah daftar; Services dengan panel terbuka terlalu sempit (v3.23.0).
+- [x] Jendela 900–1000 px: panel detail Projects turun ke bawah daftar; Services dengan panel terbuka terlalu sempit (v3.23.0).
 - [x] Toast error tanpa timer; tab sumber Logs dari data; Clear per sumber dengan Undo (v3.22.0).
 - [x] Judul seksi Settings/Services sebagai heading (`h2`) dan relasi tab–panel (v3.22.0).
 
@@ -717,13 +717,13 @@ Kasus: project Go dengan *Run inside WSL* mencetak "Server started" lalu langsun
 Sumber: [anti-slop/audit-001-2026-11-24.md](anti-slop/audit-001-2026-11-24.md), 25 nomor dalam empat milestone.
 
 - [x] M1 · v3.22.0: dialog perubahan belum disimpan, tab Logs dari data, Clear per sumber + Undo, toast error, em dash, baris service sebagai tombol, kursor dasar, heading seksi, relasi tab–panel, fokus log, RAM service berhenti.
-- [ ] M2 · v3.23.0: layout 900–1000 px, label huruf biasa, accent override Environment, Start/Stop profile di Services.
+- [x] M2 · v3.23.0: layout 900–1000 px, label huruf biasa, kelompok baris Environment (tanpa accent per baris), Start/Stop profil di Services dengan Stop all di menu ⋯.
 - [ ] M3 · v3.24.0: perintah kova di Settings, install versi runtime, komentar, folder duplikat, Ready when log line, Run with dari Dockerfile/compose, Reinstall CLI.
 - [ ] M4 · v3.25.0: Runtimes di lokasi WSL.
 
 ## Status per 24 November 2026
 
-Versi terbaru: **v3.22.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.23.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 
@@ -748,7 +748,7 @@ Hasil audit artboard canvas (flow A–H, S-*, C-*, sitemap) terhadap `src/` pada
 - [ ] Ganti nama repo; lalu endpoint updater, README, dan tautan rilis dalam satu PR (lihat F).
 - [ ] Code signing (G3): ditunda sampai ada adopsi atau pengguna yang terhalang SmartScreen; opsi berbayar belum diperiksa.
 - [x] Menu ⋯ per service (v3.19.0). "Add tool": v3.21.0.
-- [ ] Services → **Stop all** menghentikan semua service, canvas D2 menulis "Stop profile" (ikut canvas di v3.23.0). Logs → Clear sudah per sumber sejak v3.22.0.
+- [x] Services mengikuti canvas D2 (Start/Stop profil, Stop all di ⋯) sejak v3.23.0; Logs → Clear per sumber sejak v3.22.0.
 - [ ] Canvas status bar masih format v3.15.0 (`RAM 1.3 GB · Kova 186 MB`); aplikasi sejak v3.15.1 menulis rincian. Perbarui canvas.
 
 ### Batasan yang tetap berlaku

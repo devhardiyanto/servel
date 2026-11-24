@@ -17,6 +17,7 @@ import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
 import UiModal from '@/components/ui/UiModal.vue'
+import UiMenu, { type MenuItem } from '@/components/ui/UiMenu.vue'
 import AddServiceModal from '@/components/AddServiceModal.vue'
 import ServicePortModal from '@/components/ServicePortModal.vue'
 import { invoke } from '@tauri-apps/api/core'
@@ -90,6 +91,7 @@ const {
   reconcileSelectedWithRunning,
   applyProfile,
   start,
+  stop,
   stopAll,
   dismissPortConflicts,
   startIgnoringConflicts,
@@ -113,9 +115,22 @@ const selectionIsProfile = computed(() => {
 const startingCount = computed(() => Object.values(uiState.value).filter((s) => s.status === 'starting').length)
 /** Profile whose empty-state banner the user closed with "Show all services". */
 const emptyDismissed = ref<string | null>(null)
-const startLabel = computed(() =>
-  selectionIsProfile.value ? `Start ${activeProfileName.value}` : 'Start selected',
-)
+/**
+ * Tombol utama (canvas D2) bekerja pada pilihan: profil aktif bila pilihannya
+ * sama dengan isi profil, selain itu "selected". Ada yang belum berjalan →
+ * Start; semuanya berjalan → Stop. Stop all ada di menu ⋯.
+ */
+const target = computed(() => (selectionIsProfile.value ? activeProfileName.value : 'selected'))
+const selectedIdle = computed(() => selectedIds.value.filter((id) => uiState.value[id]?.status !== 'running'))
+const selectedRunning = computed(() => selectedIds.value.filter((id) => uiState.value[id]?.status === 'running'))
+const primaryIsStop = computed(() => selectedIdle.value.length === 0 && selectedRunning.value.length > 0)
+const startLabel = computed(() => `Start ${target.value}`)
+const headerMenu = computed<MenuItem[]>(() => [
+  { id: 'stop-all', label: 'Stop all services', disabled: hasStopping.value || runningCount.value === 0, hint: runningCount.value === 0 ? 'none running' : undefined },
+])
+function onHeaderMenu(id: string): void {
+  if (id === 'stop-all') void stopAll()
+}
 
 // Start / Retry dari baris service yang dipilih tetapi tidak berjalan.
 function startOne(id: string): void {
@@ -260,26 +275,29 @@ function focusFirstSwitch(): void {
         </div>
         <div class="sw-actions">
           <UiButton size="md" @click="editDef = null; addOpen = true"><UiIcon name="plus" />Add service</UiButton>
-          <UiButton
-            size="md"
-            :disabled="hasStopping || runningCount === 0"
-            @click="stopAll"
-          >
-            <UiIcon name="stop" />Stop all
-          </UiButton>
           <UiButton v-if="hasStarting" variant="primary" size="md" loading>
             Starting {{ startingCount }} {{ startingCount === 1 ? 'service' : 'services' }}…
+          </UiButton>
+          <UiButton
+            v-else-if="primaryIsStop"
+            size="md"
+            :disabled="hasStopping"
+            :aria-label="`Stop ${target}, ${selectedRunning.length} ${selectedRunning.length === 1 ? 'service' : 'services'}`"
+            @click="stop(selectedRunning)"
+          >
+            <UiIcon name="stop" />Stop {{ target }}<span class="sw-start-count">{{ selectedRunning.length }}</span>
           </UiButton>
           <UiButton
             v-else
             variant="primary"
             size="md"
-            :disabled="selectedCount === 0"
-            :aria-label="`${startLabel}, ${selectedCount} ${selectedCount === 1 ? 'service' : 'services'}`"
+            :disabled="selectedIdle.length === 0"
+            :aria-label="`${startLabel}, ${selectedIdle.length} ${selectedIdle.length === 1 ? 'service' : 'services'}`"
             @click="start()"
           >
-            <UiIcon name="play" />{{ startLabel }}<span v-if="selectedCount > 0" class="sw-start-count">{{ selectedCount }}</span>
+            <UiIcon name="play" />{{ startLabel }}<span v-if="selectedIdle.length > 0" class="sw-start-count">{{ selectedIdle.length }}</span>
           </UiButton>
+          <UiMenu :items="headerMenu" label="More service actions" @select="onHeaderMenu" />
         </div>
       </header>
     <UiBanner
@@ -566,6 +584,8 @@ function focusFirstSwitch(): void {
 
 .sw-actions {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-2);
   margin-left: auto;
 }
@@ -643,6 +663,10 @@ function focusFirstSwitch(): void {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+@media (max-width: 1000px) {
+  .svc-detail { max-width: 45%; padding: var(--space-4); }
+  .dashboard-content { padding: 16px 20px; }
 }
 .svc-detail__head { display: flex; align-items: center; justify-content: space-between; }
 .svc-detail__name { font-size: var(--text-lg); font-weight: 600; color: var(--text); }

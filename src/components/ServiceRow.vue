@@ -246,6 +246,13 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
   .svc-row { grid-template-columns: 36px 24px minmax(0, 1fr) 68px 84px 76px 32px; }
   .svc-port { display: none; }
 }
+/* Lebih sempit lagi (jendela 900–1000 px dengan panel terbuka): detail sudah
+   terbuka di samping dan nama baris membukanya, jadi Connect dan RAM
+   disembunyikan agar status dan ⋯ tidak terpotong. */
+@container (max-width: 480px) {
+  .svc-row { grid-template-columns: 36px 24px minmax(0, 1fr) 84px 32px; }
+  .svc-ram, .svc-connect { display: none; }
+}
 .svc-custom { margin-left: var(--space-2); vertical-align: middle; }
 .svc-menu { display: flex; justify-content: center; }
 </style>

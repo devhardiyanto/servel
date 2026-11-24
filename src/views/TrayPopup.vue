@@ -526,9 +526,7 @@ onUnmounted(() => {
   padding: 6px 10px 4px;
   font-size: var(--text-xs);
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--faint);
+  color: var(--muted);
 }
 .tp-count { margin-left: auto; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--muted); }
 .tp-item {
@@ -597,7 +595,6 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--muted);
 }
-.tp-ghead__n { letter-spacing: 0.04em; text-transform: uppercase; }
 .tp-ghead:first-child { padding-top: 2px; }
 .tp-logo { margin-left: -2px; }
 .tp-empty { margin: 0; padding: 6px 10px; font-size: var(--text-xs); color: var(--muted); }

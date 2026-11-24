@@ -160,7 +160,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
         <!-- Tanpa project, Add project ada di empty state; jangan dobel. -->
         <template v-if="config.projects.length">
           <UiButton size="md" title="New group" :disabled="!!actions.draftGroup.value" @click="newGroup"><UiIcon name="plus" /><span class="pv-newgroup-label">New group</span></UiButton>
-          <UiButton variant="primary" size="md" @click="actions.adding.value = true"><UiIcon name="plus" />Add project</UiButton>
+          <UiButton variant="primary" size="md" title="Add project" @click="actions.adding.value = true"><UiIcon name="plus" /><span class="pv-add-label">Add project</span></UiButton>
         </template>
       </header>
       <ProjectsPanel :selected-id="selectedId" :query="query" :details-open="!panel.collapsed.value" @select="choose" @clear-search="query = ''" />
@@ -257,6 +257,12 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
   .pv-newgroup-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .pv-search { flex-basis: 200px; min-width: 96px; }
 }
+/* Daftar sangat sempit (jendela 900 px dengan panel terbuka): Add project juga ikon. */
+@container pv-list (max-width: 420px) {
+  .pv-bar { flex-wrap: wrap; row-gap: var(--space-2); }
+  .pv-search { order: 5; flex: 1 1 100%; }
+  .pv-add-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
 .pv-title { margin: 0; font-size: var(--text-xl); white-space: nowrap; font-weight: 600; color: var(--text); }
 .pv-count { font: 400 var(--text-xs) var(--font-mono); color: var(--faint); margin-left: var(--space-1); }
 .pv-strip {
@@ -290,11 +296,10 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
 .pv-reopen:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .pv-reopen svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
+/* Jendela sempit (900–1000 px): panel tetap di kanan supaya klik kartu
+   langsung terlihat hasilnya; panel dibatasi separuh lebar layar. */
 @media (max-width: 1000px) {
-  .pv { flex-direction: column; overflow-y: auto; }
-  .pv-list, .pv-detail { overflow: visible; }
-  .pv-detail { width: auto !important; max-width: none; border-left: 0; border-top: 1px solid var(--border); }
-  .pv > .ps { display: none; }
-  .pv-reopen { width: auto; padding: var(--space-2); border-left: 0; border-top: 1px solid var(--border); }
+  .pv-detail { max-width: 52%; }
+  .pv-list { padding: 16px 14px 12px; }
 }
 </style>

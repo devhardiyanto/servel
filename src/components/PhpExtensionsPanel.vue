@@ -188,7 +188,7 @@ watch(
 <template>
   <div class="px">
     <div class="px-head">
-      <div class="px-title">PHP EXTENSIONS</div>
+      <h2 class="px-title">PHP extensions</h2>
       <UiInput
         v-if="versions.length > 1"
         as="select"
@@ -316,8 +316,7 @@ watch(
   font-family: var(--font-sans);
   font-size: var(--text-xs);
   font-weight: 600;
-  letter-spacing: 0.12em;
-  color: var(--faint);
+  color: var(--muted);
 }
 
 .px-hint,
