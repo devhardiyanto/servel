@@ -605,7 +605,11 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     } else {
         std::path::PathBuf::from(&site.path)
     })
-        .stdin(Stdio::null())
+        // stdin = pipe yang tetap terbuka (tidak pernah ditulis), seperti
+        // terminal yang diam. Dengan `null`, app yang membaca stdin (mis.
+        // `fmt.Scanln()` sebagai penahan, atau goroutine pembaca perintah)
+        // langsung dapat EOF dan keluar dengan exit 0 tepat setelah start.
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env("PORT", site.port.to_string())
@@ -662,6 +666,8 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     emit_log(app, &source, &format!("$ {}  (in {})", line, place), None);
     let mut child = cmd.spawn().map_err(|e| format!("could not run the command: {}", e))?;
     let pid = child.id();
+    // Dipegang sampai proses selesai supaya stdin-nya tidak pernah EOF.
+    let hold_stdin = child.stdin.take();
 
     // Pastikan dev server tidak tertinggal bila Kova mati paksa.
     if let Some(pid) = pid {
@@ -733,6 +739,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     let wait_cleanup = cplan.as_ref().map(|c| c.cleanup.clone());
     tauri::async_runtime::spawn(async move {
         let code = child.wait().await.ok().and_then(|s| s.code());
+        drop(hold_stdin);
         if unc {
             release_drive(&wait_drive).await;
         }
@@ -1232,6 +1239,28 @@ mod tests {
         }
         assert!(running && port_open(port).await, "setelah Restart, server harus jalan lagi");
         stop(&handle, "e2e").await.unwrap();
+    }
+
+    /// App yang membaca stdin (mis. Go dengan `fmt.Scanln()` sebagai penahan)
+    /// tidak boleh langsung keluar: stdin-nya tetap terbuka sampai Stop.
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stdin_stays_open_until_stop() {
+        let app = tauri::test::mock_app();
+        app.manage(SiteProcs::default());
+        let handle = app.handle().clone();
+        let port = {
+            let l = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+            l.local_addr().unwrap().port()
+        };
+        let dir = std::env::temp_dir();
+        let mut p = site(&dir.to_string_lossy(), "echo started; read x; echo eof", port);
+        p.id = "stdin".into();
+        start(&handle, &p).await.expect("start gagal");
+        tokio::time::sleep(Duration::from_millis(800)).await;
+        let st = snapshot(&handle).into_iter().find(|r| r.id == "stdin").unwrap();
+        assert_ne!(st.state, SiteState::Exited, "proses keluar karena stdin EOF");
+        stop(&handle, "stdin").await.unwrap();
     }
 
     /// Proses yang berhenti sendiri dilaporkan `exited` dengan exit code dan
