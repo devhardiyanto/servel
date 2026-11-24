@@ -155,7 +155,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
           <UiButton variant="primary" size="md" @click="actions.adding.value = true"><UiIcon name="plus" />Add project</UiButton>
         </template>
       </header>
-      <ProjectsPanel :selected-id="selectedId" :query="query" :details-open="!panel.collapsed.value" @select="choose" />
+      <ProjectsPanel :selected-id="selectedId" :query="query" :details-open="!panel.collapsed.value" @select="choose" @clear-search="query = ''" />
       <div v-if="config.projects.length" class="pv-strip">
         <span>{{ runningServices.length ? `${runningServices.join(' · ')} running` : 'No services running' }}</span>
         <UiButton variant="quiet" @click="setView('services')">Services</UiButton>
@@ -201,9 +201,9 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
 .pv-sp { flex: 1; }
 
 .pv-config-path { display: block; margin-top: var(--space-2); font: 400 var(--text-xs) var(--font-mono); color: var(--muted); word-break: break-all; }
-.pv-unavailable { opacity: .55; text-align: center; padding: var(--space-8) 0; }
+.pv-unavailable { text-align: center; padding: var(--space-8) 0; }
 .pv-unavailable h2 { margin: 0 0 var(--space-1); font-size: var(--text-md); font-weight: 600; color: var(--text); }
-.pv-unavailable p { margin: 0; font-size: var(--text-sm); color: var(--muted); }
+.pv-unavailable p { margin: 0; font-size: var(--text-sm); color: var(--faint); }
 .pv-state { padding: var(--space-6) var(--space-8); display: flex; flex-direction: column; gap: var(--space-3); max-width: 720px; }
 .pv-skel {
   display: flex;

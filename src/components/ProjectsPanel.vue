@@ -19,7 +19,7 @@ import { wslDistro, wslLinuxPath } from '@/utils/wsl'
 import type { Project, ProjectGroup } from '@/types/mise'
 
 const props = defineProps<{ selectedId?: string | null; query?: string; detailsOpen?: boolean }>()
-const emit = defineEmits<{ select: [id: string] }>()
+const emit = defineEmits<{ select: [id: string]; 'clear-search': [] }>()
 
 const { config, createGroup, renameGroup, deleteGroup, setGroupCollapsed } = useConfig()
 const { stateOf, infoOf } = useProjectRuntime()
@@ -277,6 +277,9 @@ defineExpose({ startNewGroup })
 
   <EmptyState v-else-if="searching && matchCount === 0" title="No project matches" icon="search">
     Nothing matches "{{ query }}".
+    <template #actions>
+      <UiButton size="md" @click="emit('clear-search')">Clear search</UiButton>
+    </template>
   </EmptyState>
 
   <div v-else ref="wrap" class="pl-wrap" :class="{ 'pl-wrap--drag': drag?.active }">
@@ -352,7 +355,7 @@ defineExpose({ startNewGroup })
               <span class="pl-main">
                 <span class="pl-name" :title="p.name">{{ p.name }}</span>
                 <span v-if="p.wsl && wslDistro(p.path)" class="pl-path" :title="p.path"><span class="pl-wsl">WSL · {{ wslDistro(p.path) }}</span>{{ wslLinuxPath(p.path) }}</span>
-                <span v-else class="pl-path">{{ p.path || 'Folder not chosen yet' }}</span>
+                <span v-else class="pl-path" :title="p.path || undefined">{{ p.path || 'Folder not chosen yet' }}</span>
               </span>
               <FrameworkChip v-if="p.kind" :kind="p.kind" />
               <span v-else></span>

@@ -270,16 +270,16 @@ async function confirmRemove(): Promise<void> {
       <div v-if="portState && !portState.free && portState.suggestion">
         <UiButton @click="form.port = String(portState.suggestion)">Use {{ portState.suggestion }}</UiButton>
       </div>
-      <UiInput v-model="form.profileId" label="Services" as="select" :options="profileOptions" aria-label="Service profile" />
+      <UiInput v-model="form.profileId" label="Service profile" as="select" :options="profileOptions" />
       <label class="pdl-toggle" :class="{ 'pdl-toggle--off': !form.profileId }">
         <UiToggle
           size="sm"
           :on="form.startServices && !!form.profileId"
           :disabled="!form.profileId"
-          label="Start services with project"
+          label="Start its services with the project"
           @click="form.startServices = !form.startServices"
         />
-        Start services with project
+        Start its services with the project
       </label>
       <label class="pdl-toggle">
         <UiToggle size="sm" :on="form.autoStart" label="Start when Kova opens" @click="form.autoStart = !form.autoStart" />

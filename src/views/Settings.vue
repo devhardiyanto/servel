@@ -321,15 +321,18 @@ async function chooseEngine(value: EnginePreference): Promise<void> {
   }
 }
 
+const resetMessage = computed(() => {
+  const n = config.value.projects?.length ?? 0
+  const what = n ? `all ${n} project${n === 1 ? '' : 's'}, their environments and groups` : 'your projects'
+  return `This removes ${what}, your service profiles and custom services from Kova, then opens setup again. Project folders and database volumes stay on disk.`
+})
+
 async function handleReset(): Promise<void> {
   let ok = false
   try {
-    ok = await ask(
-      'Reset all settings? This will restore defaults and clear saved selection.',
-      { title: 'Reset Settings', kind: 'warning' },
-    )
+    ok = await ask(resetMessage.value, { title: 'Reset Kova?', kind: 'warning', okLabel: 'Remove everything and reset' })
   } catch {
-    ok = window.confirm('Reset all settings?')
+    ok = window.confirm(resetMessage.value)
   }
   if (!ok) return
   await reset()
@@ -459,9 +462,9 @@ onMounted(async () => {
               <UiToggle label="Remember last session" :on="config.rememberSession" @click="setRememberSession(!config.rememberSession)" />
             </SettingRow>
 
-            <SettingRow label="Start projects marked &quot;start on launch&quot;" :desc="launchProjectsDesc">
+            <SettingRow label="Start projects set to start with Kova" :desc="launchProjectsDesc">
               <UiToggle
-                label="Start projects marked start on launch"
+                label="Start projects set to start with Kova"
                 :on="config.autoStartProjects !== false"
                 @click="setAutoStartProjects(config.autoStartProjects === false)"
               />
@@ -615,8 +618,8 @@ onMounted(async () => {
             <div class="section-title section-title--red">DANGER ZONE</div>
 
             <SettingRow
-              label="Reset all settings"
-              desc="Restore defaults and clear saved selection"
+              label="Reset Kova"
+              desc="Removes all projects, environments, profiles and custom services from Kova. Folders and databases stay on disk."
             >
               <UiButton variant="danger" @click="handleReset">Reset</UiButton>
             </SettingRow>
@@ -851,48 +854,6 @@ onMounted(async () => {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-}
-
-.app-strip {
-  display: flex;
-  align-items: center;
-  padding: 0 var(--space-4);
-  height: 36px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
-  background: var(--surface);
-  flex-shrink: 0;
-  gap: var(--space-4);
-}
-
-.app-strip__back {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-size: var(--text-lg);
-  cursor: pointer;
-  padding: 0 var(--space-2);
-  line-height: 1;
-  border-radius: var(--radius-xs);
-  transition: color 0.1s, background 0.1s;
-}
-
-.app-strip__back:hover {
-  color: var(--text);
-  background: var(--surface2);
-}
-
-.app-strip__title {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: var(--text);
-  flex: 1;
-  text-align: center;
-}
-
-.app-strip__spacer {
-  width: 32px;
 }
 
 .settings-body {

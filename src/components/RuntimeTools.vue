@@ -337,7 +337,7 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
       <code class="rtt-mono">{{ installLine || 'starting mise…' }}</code>
       <template #actions><UiButton @click="cancelInstall">Cancel</UiButton></template>
     </UiBanner>
-    <UiBanner v-if="actionError" tone="err" title="That did not work">{{ actionError }}</UiBanner>
+    <UiBanner v-if="actionError" tone="err" :title="`mise could not finish the ${meta.label} change`">{{ actionError }}</UiBanner>
 
     <div v-if="!loc || distroMise" class="rtt-install">
       <span class="rtt-label" aria-hidden="true">Install version</span>

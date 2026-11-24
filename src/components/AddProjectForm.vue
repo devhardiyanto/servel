@@ -194,17 +194,17 @@ defineExpose({ save, ready, saving, canStart: computed(() => !!form.value.comman
       <CommandSuggestions v-model="form.command" :path="props.path" />
 
       <template v-if="!compact">
-        <UiInput v-model="form.profileId" label="Services" as="select" :options="profileOptions" />
+        <UiInput v-model="form.profileId" label="Service profile" as="select" :options="profileOptions" />
         <div class="apf-toggles">
           <label class="apf-toggle" :class="{ 'apf-toggle--off': !form.profileId }">
             <UiToggle
               size="sm"
               :on="form.startServices && !!form.profileId"
               :disabled="!form.profileId"
-              label="Start services with project"
+              label="Start its services with the project"
               @click="form.startServices = !form.startServices"
             />
-            Start with project
+            Start its services with the project
           </label>
           <label class="apf-toggle">
             <UiToggle size="sm" :on="form.autoStart" label="Start when Kova opens" @click="form.autoStart = !form.autoStart" />

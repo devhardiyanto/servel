@@ -4,7 +4,8 @@
 // - Seret melewati batas kiri panel (min - COLLAPSE_SLACK) lalu lepas: panel
 //   ditutup (bila `collapsible`); pemanggil menampilkan tombol untuk membuka.
 // - Keyboard: panah kiri/kanan ±16 px, Home = lebar maksimum, End = minimum,
-//   Enter = tutup panel. Klik dua kali = lebar bawaan.
+//   Enter = tutup panel. Klik dua kali = tutup panel (bila `collapsible`),
+//   selain itu lebar bawaan.
 import { ref } from 'vue'
 
 const props = withDefaults(
@@ -62,6 +63,11 @@ function onPointerUp(e: PointerEvent): void {
   }
 }
 
+function onDoubleClick(): void {
+  if (props.collapsible) emit('collapse')
+  else emit('update:width', props.defaultWidth)
+}
+
 function onKey(e: KeyboardEvent): void {
   let next: number | null = null
   if (e.key === 'ArrowLeft') next = props.width + STEP
@@ -91,12 +97,12 @@ function onKey(e: KeyboardEvent): void {
     :aria-valuenow="width"
     :aria-valuemin="min"
     :aria-valuemax="max"
-    :title="collapsible ? 'Drag to resize · drag right to hide · double-click to reset' : 'Drag to resize · double-click to reset'"
+    :title="collapsible ? 'Drag to resize · double-click to hide' : 'Drag to resize · double-click to reset'"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
     @pointercancel="onPointerUp"
-    @dblclick="emit('update:width', defaultWidth)"
+    @dblclick="onDoubleClick"
     @keydown="onKey"
   ></div>
 </template>
