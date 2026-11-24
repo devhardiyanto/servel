@@ -194,6 +194,7 @@ function buildRows(name: string, overrides: Record<string, string>): Row[] {
 // Search shows once the list is long enough to need it.
 const ENV_SEARCH_MIN = 10
 const envSearch = ref('')
+const envHelpOpen = ref(false)
 const showEnvSearch = computed(() => !textMode.value && rows.value.length > ENV_SEARCH_MIN)
 /** Rows with their index in `rows`. New rows without a name always show. */
 const visibleRows = computed(() => {
@@ -541,9 +542,42 @@ const tabs = computed(() => [
         retry-label="Restart"
         @retry="actions.restart(p)"
       />
-      <p class="pd-dim">Used when Kova starts the project. A name set here wins over the same name in the project's .env file; names you leave out still come from .env. Values stay on this PC.</p>
-      <p class="pd-dim">Tip: Services › MySQL › Connect copies the connection values for you.</p>
-      <p v-if="activeName" class="pd-dim">An empty value uses Default (shown greyed). Type a value to override it for {{ activeName }}; clear it to use Default again.</p>
+      <div class="pd-envhelp">
+        <p class="pd-dim">Wins over the same name in the project's .env.</p>
+        <button
+          type="button"
+          class="pd-help"
+          :aria-expanded="envHelpOpen"
+          aria-controls="pd-envhelp-text"
+          aria-label="How environment variables work"
+          @click="envHelpOpen = !envHelpOpen"
+          @keydown.esc="envHelpOpen = false"
+        >?</button>
+      </div>
+      <div v-if="envHelpOpen" id="pd-envhelp-text" class="pd-envhelp-text">
+        <p>Kova sets these when it starts the project. Names you leave out still come from .env. Values stay on this PC.</p>
+        <p v-if="activeName">An empty value uses Default (greyed). Type a value to override it for {{ activeName }}; clear it to go back to Default.</p>
+        <p>Services › MySQL › Connect copies connection values for you.</p>
+      </div>
+      <div class="pd-envtools">
+        <UiInput
+          v-if="showEnvSearch"
+          v-model="envSearch"
+          class="pd-envsearch"
+          type="search"
+          mono
+          aria-label="Search variables"
+          :placeholder="`Search ${rows.length} variables`"
+        />
+        <span v-else class="pd-sp"></span>
+        <UiButton :disabled="!envDirty || envSaving" @click="saveEnv(false)">Save</UiButton>
+        <UiButton
+          variant="primary"
+          :disabled="!canRun(p) || envSaving || (!envDirty && isActive(state))"
+          :loading="envSaving"
+          @click="saveEnv(true)"
+        >{{ isActive(state) ? 'Save & restart' : 'Save & start' }}</UiButton>
+      </div>
       <UiStatusNotice
         v-if="pasteNote"
         :tone="pasteNote.skipped.length ? 'warn' : 'ok'"
@@ -563,14 +597,6 @@ const tabs = computed(() => [
         placeholder="APP_ENV=local"
       />
       <template v-else>
-        <UiInput
-          v-if="showEnvSearch"
-          v-model="envSearch"
-          type="search"
-          mono
-          aria-label="Search variables"
-          :placeholder="`Search ${rows.length} variables`"
-        />
         <p v-if="showEnvSearch && envSearch.trim() && visibleRows.length === 0" class="pd-dim">No variable matches "{{ envSearch.trim() }}".</p>
         <div v-for="{ r, i } in visibleRows" :key="i" class="pd-env" :class="{ 'pd-env--override': r.inh && r.v !== '' }">
           <UiInput
@@ -599,15 +625,8 @@ const tabs = computed(() => [
         <div><UiButton @click="rows.push({ k: '', v: '' })"><UiIcon name="plus" />Add variable</UiButton></div>
       </template>
       <UiBanner v-if="envError" tone="err" title="Check the variables">{{ envError }}</UiBanner>
-      <div class="pd-env-actions">
-        <UiButton v-if="activeName" variant="quiet" class="pd-env-del" @click="deleteEnvOpen = true"><UiIcon name="trash" />Delete {{ activeName }}</UiButton>
-        <UiButton :disabled="!envDirty || envSaving" @click="saveEnv(false)">Save</UiButton>
-        <UiButton
-          variant="primary"
-          :disabled="!canRun(p) || envSaving || (!envDirty && isActive(state))"
-          :loading="envSaving"
-          @click="saveEnv(true)"
-        >{{ isActive(state) ? 'Save & restart' : 'Save & start' }}</UiButton>
+      <div v-if="activeName" class="pd-env-actions">
+        <UiButton variant="quiet" class="pd-env-del" @click="deleteEnvOpen = true"><UiIcon name="trash" />Delete {{ activeName }}</UiButton>
       </div>
     </div>
 
@@ -711,4 +730,45 @@ const tabs = computed(() => [
 .pd-env--override :deep(input) { border-color: var(--accent); }
 .pd-env-actions { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; }
 .pd-env-actions .pd-dim { margin-right: auto; }
+.pd-envhelp { display: flex; align-items: center; gap: var(--space-2); }
+.pd-help {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font: 600 var(--text-xs) var(--font-sans);
+  cursor: pointer;
+}
+.pd-help:hover, .pd-help[aria-expanded='true'] { color: var(--text); border-color: var(--accent); }
+.pd-help:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pd-envhelp-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.pd-envhelp-text p { margin: 0; line-height: 1.5; }
+/* Toolbar menempel di atas saat daftar variabel di-scroll. */
+.pd-envtools {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  margin: 0 -16px;
+  padding: var(--space-2) 16px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.pd-envsearch { flex: 1; min-width: 0; }
 </style>
