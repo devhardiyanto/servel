@@ -61,6 +61,19 @@ fn wsl_not_found_hint(code: Option<i32>, command: &str, distro: &str) -> Option<
     ))
 }
 
+/// Proses selesai sendiri dengan exit 0 tanpa port pernah menjawab: biasanya
+/// server gagal listen tetapi error-nya diabaikan. Penyebab yang paling sering:
+/// app memakai PORT sebagai alamat (Go `http.Server{Addr: os.Getenv("PORT")}`)
+/// dan butuh `:8081`, bukan `8081`.
+fn no_listen_hint(code: Option<i32>, ever_ready: bool, port: u16) -> Option<String> {
+    if code != Some(0) || ever_ready {
+        return None;
+    }
+    Some(format!(
+        "The app ended without listening on port {port}. If it uses PORT as an address (like Go's http.Server{{Addr: os.Getenv(\"PORT\")}}), put a colon in front in the command: PORT=\":{{port}}\" <command>. Otherwise check that the app starts its server and does not stop right after."
+    ))
+}
+
 /// ENV untuk Terminal here: sama dengan Start, tanpa variabel tampilan log.
 pub fn terminal_env(site: &Project) -> Vec<(String, String)> {
     let mut out = vec![
@@ -736,6 +749,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
     let wait_cmd = line.clone();
     let wait_drive = drive.clone();
     let wait_distro = wsl_target.as_ref().map(|w| w.distro.clone());
+    let wait_port = site.port;
     let wait_cleanup = cplan.as_ref().map(|c| c.cleanup.clone());
     tauri::async_runtime::spawn(async move {
         let code = child.wait().await.ok().and_then(|s| s.code());
@@ -750,6 +764,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
         let procs = wait_app.state::<SiteProcs>();
         record_remove(&procs, &wait_id);
         let mut requested = false;
+        let mut ever_ready = false;
         {
             let mut map = procs.entries.lock().unwrap();
             if let Some(e) = map.get_mut(&wait_id) {
@@ -757,6 +772,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
                     return;
                 }
                 requested = e.stopping;
+                ever_ready = e.state == SiteState::Running;
                 e.pid = None;
                 e.exit_code = code;
                 e.state = if requested { SiteState::Stopped } else { SiteState::Exited };
@@ -776,7 +792,8 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
             let hint = match &wait_distro {
                 Some(d) => wsl_not_found_hint(code, &wait_cmd, d),
                 None => not_found_hint(code, &wait_cmd),
-            };
+            }
+            .or_else(|| no_listen_hint(code, ever_ready, wait_port));
             if let Some(hint) = hint {
                 emit_log(&wait_app, &wait_src, &hint, Some("error"));
                 let mut map = procs.entries.lock().unwrap();
@@ -1067,6 +1084,15 @@ mod tests {
     }
 
     #[test]
+    fn exit_zero_without_listening_gets_a_hint() {
+        let h = no_listen_hint(Some(0), false, 8081).unwrap();
+        assert!(h.contains("port 8081") && h.contains("PORT=\":{port}\""));
+        assert!(no_listen_hint(Some(0), true, 8081).is_none());
+        assert!(no_listen_hint(Some(1), false, 8081).is_none());
+        assert!(no_listen_hint(None, false, 8081).is_none());
+    }
+
+    #[test]
     fn late_answer_moves_unresponsive_to_running() {
         use super::{ready_transition, SiteState::*};
         assert_eq!(ready_transition(Starting, false, false), None);
@@ -1261,6 +1287,34 @@ mod tests {
         let st = snapshot(&handle).into_iter().find(|r| r.id == "stdin").unwrap();
         assert_ne!(st.state, SiteState::Exited, "proses keluar karena stdin EOF");
         stop(&handle, "stdin").await.unwrap();
+    }
+
+    /// Exit 0 tanpa port pernah menjawab → petunjuk soal PORT jadi baris terakhir.
+    #[cfg(unix)]
+    #[tokio::test(flavor = "multi_thread")]
+    async fn clean_exit_without_listening_shows_the_hint() {
+        let app = tauri::test::mock_app();
+        app.manage(SiteProcs::default());
+        let handle = app.handle().clone();
+        let port = {
+            let l = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+            l.local_addr().unwrap().port()
+        };
+        let dir = std::env::temp_dir();
+        let mut p = site(&dir.to_string_lossy(), "echo \"Server started on $PORT\"", port);
+        p.id = "nolisten".into();
+        start(&handle, &p).await.expect("start gagal");
+        let mut info = None;
+        for _ in 0..40 {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            info = snapshot(&handle).into_iter().find(|r| r.id == "nolisten");
+            if info.as_ref().is_some_and(|r| r.state == SiteState::Exited) {
+                break;
+            }
+        }
+        let info = info.unwrap();
+        assert_eq!((info.state, info.exit_code), (SiteState::Exited, Some(0)));
+        assert!(info.last_line.unwrap().contains("without listening on port"));
     }
 
     /// Proses yang berhenti sendiri dilaporkan `exited` dengan exit code dan
