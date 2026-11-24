@@ -669,7 +669,7 @@ Canvas B8–B12 dan "Tray popup · v3.15".
 
 - [x] Switch *Run inside WSL* per project (default menyala untuk folder WSL baru); start lewat `wsl.exe -d <distro> --cd`, ENV lewat `WSLENV`, Stop TERM/KILL grup proses di distro.
 - [x] Overview: *Runs in* dan versi tool dari distro; Terminal here dan VS Code Remote WSL.
-- [ ] Uji di Windows sungguhan (TC-W7–W10), termasuk localhost forwarding untuk server yang listen di 127.0.0.1.
+- [ ] Uji di Windows sungguhan (TC-W7–W11), termasuk localhost forwarding untuk server yang listen di 127.0.0.1.
 - [x] Runtimes untuk distro (v3.21.0). PHP extensions untuk distro: belum.
 
 ### X — v3.18.0: port dan Terminal here (canvas Flow I)
@@ -693,7 +693,16 @@ Canvas B8–B12 dan "Tray popup · v3.15".
 - [x] Runtimes › Windows | WSL · distro: daftar/install/global/use in/remove lewat mise di distro; Install mise di distro.
 - [x] Add tool: tab untuk tool mise lain, versi terbaru dipasang di Windows atau distro.
 
-## Status per 23 November 2026
+### AB — v3.21.1–v3.21.2: patch dari pemakaian WSL
+
+Kasus: project Go dengan *Run inside WSL* mencetak "Server started" lalu langsung `exit 0`. Penyebab akhirnya ada di app (`http.Server{Addr: os.Getenv("PORT")}` butuh `:8081`, error `ListenAndServe` diabaikan); solusinya command `PORT=":{port}" <command>`.
+
+- [x] v3.21.1: stdin dev server berupa pipe yang tetap terbuka sampai proses selesai, jadi app yang membaca stdin tidak langsung keluar.
+- [x] v3.21.2: Terminal here untuk project WSL (juga fallback PowerShell dan Open shell service tanpa Windows Terminal) tidak lagi memakai stdin/stdout `null`, jadi jendelanya tetap terbuka.
+- [x] v3.21.2: petunjuk di log dan kartu bila proses keluar dengan exit 0 tanpa port pernah menjawab, dengan saran `PORT=":{port}"`.
+- [ ] Uji di Windows: TC-C7, TC-C8, TC-W11.
+
+## Status per 24 November 2026
 
 Versi terbaru: **v3.21.2**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 

@@ -16,7 +16,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 |---|---|---|---|---|
 | A · Onboarding | 9 | 0 | 0 | v3.10.x, v3.12.0 |
 | B · Add project | 10 | 0 | 0 | v3.10.x, v3.15.0 |
-| C · Project gagal | 6 | 0 | 0 | v3.10.x |
+| C · Project gagal | 8 | 0 | 0 | v3.10.x, v3.21.1, v3.21.2 |
 | D · Services | 8 | 0 | 0 | v3.12.0, v3.14.0, v3.15.3 |
 | E · Runtimes | 12 | 0 | 0 | v3.13.0, v3.15.4, v3.16.0 |
 | F · Update | 7 | 0 | 0 | v3.13.0, v3.16.2 |
@@ -30,7 +30,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
 | U · Tampilan & aksesibilitas | 13 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0 |
-| W · Khusus Windows | 10 | 0 | ➖ | v3.10.x, v3.16.2, v3.17.0 |
+| W · Khusus Windows | 11 | 0 | ➖ | v3.10.x, v3.16.2, v3.17.0, v3.21.2 |
 | L · Khusus Linux | 11 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3 |
 
 ---
@@ -78,6 +78,8 @@ Persiapan: project yang gagal karena env, mis. Laravel tanpa `DB_*` padahal butu
 | TC-C4 | Tab Environment: tambah variabel yang hilang, klik Save & restart. | Tersimpan, project di-restart. | ⬜ | ⬜ | | |
 | TC-C5 | Amati saat restart. | Banner error hilang; output baru menggantikan yang lama. Bila gagal lagi → kembali ke C2 dengan baris baru. | ⬜ | ⬜ | | |
 | TC-C6 | Tunggu sampai Running. | Status Running; badge Logs berkurang; toast hilang sendiri dan bisa ditutup manual. | ⬜ | ⬜ | | |
+| TC-C7 | Project yang membaca stdin sebagai penahan (mis. command `echo started; read x`, atau app Go dengan `fmt.Scanln()`). Start, tunggu 10 detik. | Proses tetap hidup sampai Stop; tidak ada `the process ended (exit 0)` tepat setelah start. | ⬜ | ⬜ | | v3.21.1 |
+| TC-C8 | Project yang keluar dengan exit 0 tanpa listen (mis. Go `http.Server{Addr: os.Getenv("PORT")}` dengan command tanpa `PORT=":{port}"`, atau `echo "Server started on $PORT"`). | Log: `the process ended (exit 0)` lalu petunjuk "The app ended without listening on port …" dengan saran `PORT=":{port}"`; petunjuk yang sama di kartu. Dengan `PORT=":{port}" <command>` project Running. | ⬜ | ⬜ | | v3.21.2 |
 
 ## D · Services (canvas D1–D5, ditambah RAM v3.10.1)
 
@@ -265,6 +267,7 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-W8 | Isi `HTTP_ADDR` dan satu variabel lain di tab Environment; Start; cetak variabelnya dari aplikasi (atau command `env \| grep HTTP_ADDR`). | Nilai dari Kova terbaca di dalam distro; `PORT` = port project. | ⬜ | ➖ | | v3.17.0 |
 | TC-W9 | Stop project WSL yang sedang jalan, lalu Start lagi; ulangi 3 kali. Cek `ps -ef` di distro. | Tidak ada proses yang tertinggal; port bebas; Start berikutnya langsung berhasil. | ⬜ | ➖ | | v3.17.0 |
 | TC-W10 | Project WSL: Terminal here, Open in VS Code. Project lama dengan command `wslc …`: switch mati, Start. | Terminal terbuka di distro pada folder project; VS Code membuka Remote WSL; project `wslc` tetap jalan dengan program Windows. | ⬜ | ➖ | | v3.17.0 |
+| TC-W11 | Project WSL dengan variabel di tab Environment: Terminal here, lalu `echo $PORT` dan satu variabel project. Ulangi untuk service: menu ⋯ → Open shell tanpa Windows Terminal. | Jendela tetap terbuka di folder project dan bisa diketik; `PORT` dan variabel project terbaca; jendela shell service juga tetap terbuka. | ⬜ | ➖ | | v3.21.2 |
 
 ## L · Khusus Linux (Docker Engine, tanpa Docker Desktop)
 
