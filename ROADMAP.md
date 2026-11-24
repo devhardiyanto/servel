@@ -719,11 +719,12 @@ Sumber: [anti-slop/audit-001-2026-11-24.md](anti-slop/audit-001-2026-11-24.md), 
 - [x] M1 · v3.22.0: dialog perubahan belum disimpan, tab Logs dari data, Clear per sumber + Undo, toast error, em dash, baris service sebagai tombol, kursor dasar, heading seksi, relasi tab–panel, fokus log, RAM service berhenti.
 - [x] M2 · v3.23.0: layout 900–1000 px, label huruf biasa, kelompok baris Environment (tanpa accent per baris), Start/Stop profil di Services dengan Stop all di menu ⋯.
 - [x] M3 · v3.24.0: perintah kova sekali di Settings dengan Reinstall/Add to PATH di Windows, tombol Install untuk versi runtime yang belum terpasang, komentar, folder duplikat saat dipilih, Ready when: Log line, Run with dari Dockerfile/compose (port dari EXPOSE).
-- [ ] M4 · v3.25.0: Runtimes di lokasi WSL.
+- [x] M4 · v3.25.0: Runtimes di lokasi WSL (Version manager dan Repair di distro, penjelasan PHP extensions distro). Laporan: [anti-slop/audit-001-2026-11-24-report.md](anti-slop/audit-001-2026-11-24-report.md).
+- [ ] Uji di Windows untuk v3.22.0–v3.25.0 (lihat "Catatan" di tiap file rilis).
 
 ## Status per 24 November 2026
 
-Versi terbaru: **v3.24.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.25.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 

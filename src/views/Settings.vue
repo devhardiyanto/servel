@@ -12,6 +12,7 @@ import { getVersion } from '@tauri-apps/api/app'
 import { appDataDir } from '@tauri-apps/api/path'
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useVersionContext } from '@/composables/useVersionContext'
+import { useRuntimeLocation } from '@/composables/useRuntimeLocation'
 import { SetViewKey } from '@/types/navigation'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
@@ -181,6 +182,8 @@ const { refresh: refreshEngineBanner } = useEngineStatus()
 // --- Version manager (mise) & projects -------------------------------------
 const versionCtx = useVersionContext()
 const { ctx: miseCtx, busy: miseBusy, lastError: miseError } = versionCtx
+const runtimeLoc = useRuntimeLocation()
+const wslMiseVersion = computed(() => runtimeLoc.distroMise.value)
 
 // State "mise is not installed" di Runtimes.
 const isWindowsHost = navigator.userAgent.includes('Windows')
@@ -763,8 +766,27 @@ onMounted(async () => {
           </div>
 
           <div class="section-block">
-            <h2 class="section-title">Version manager</h2>
+            <h2 class="section-title">Version manager<template v-if="runtimeLoc.loc.value"> in {{ runtimeLoc.loc.value }}</template></h2>
 
+            <!-- Lokasi WSL (canvas L8): mise milik distro, bukan milik Windows. -->
+            <template v-if="runtimeLoc.loc.value">
+              <SettingRow
+                label="mise"
+                :desc="wslMiseVersion ? `Manages PHP, Node, Go and Python for projects in ${runtimeLoc.loc.value}` : wslMiseVersion === null ? `Not installed in ${runtimeLoc.loc.value}. Install it from the list above.` : `Checking ${runtimeLoc.loc.value}…`"
+              >
+                <span class="setting-value-mono">{{ wslMiseVersion ? `v${wslMiseVersion}` : wslMiseVersion === null ? 'not installed' : '…' }}</span>
+              </SettingRow>
+              <SettingRow
+                v-if="wslMiseVersion"
+                label="Repair"
+                :desc="`Runs mise inside ${runtimeLoc.loc.value}. Reshim fixes missing commands; Clear cache refreshes version lists; Doctor writes a report to the log`"
+              >
+                <UiButton :disabled="miseBusy" @click="versionCtx.repair('reshim', runtimeLoc.loc.value)">Reshim</UiButton>
+                <UiButton :disabled="miseBusy" @click="versionCtx.repair('cache-clear', runtimeLoc.loc.value)">Clear cache</UiButton>
+                <UiButton :disabled="miseBusy" @click="versionCtx.repair('doctor', runtimeLoc.loc.value)">Doctor</UiButton>
+              </SettingRow>
+            </template>
+            <template v-else>
             <SettingRow
               label="mise"
               :desc="miseCtx?.provider === 'mise' ? 'Manages PHP, Node, Go and Python per project folder' : 'Not installed. PHP and Node versions need mise.'"
@@ -781,6 +803,7 @@ onMounted(async () => {
               <UiButton :disabled="miseBusy" @click="versionCtx.repair('cache-clear')">Clear cache</UiButton>
               <UiButton :disabled="miseBusy" @click="versionCtx.repair('doctor')">Doctor</UiButton>
             </SettingRow>
+            </template>
 
             <p v-if="miseError" class="section-hint section-hint--note">{{ miseError }}</p>
           </div>

@@ -25,7 +25,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | I · Port & Terminal | 6 | 0 | 0 | v3.18.0 |
 | J · Custom service & menu | 7 | 0 | 0 | v3.19.0, v3.24.0 |
 | K · Container mode | 5 | 0 | 0 | v3.20.0 |
-| L2 · Runtimes WSL & Add tool | 5 | 0 | 0 | v3.21.0 |
+| L2 · Runtimes WSL & Add tool | 6 | 0 | 0 | v3.21.0, v3.25.0 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
@@ -200,6 +200,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-RW3 | Add tool › Bun › Install on Windows. Ulangi dengan Install on WSL. | Tab Bun muncul dan aktif; Bun latest terpasang dan jadi global; `bun --version` jalan di terminal baru. | ⬜ | ⬜ | | v3.21.0 |
 | TC-RW4 | Add tool: ketik `java`, pilih; install versi `temurin-21`. | Diterima (bukan "version is not valid"); terpasang. | ⬜ | ⬜ | | v3.21.0 |
 | TC-RW5 | Tab Bun › Remove tab; restart Kova. | Tab hilang dan tetap hilang; versi Bun yang terpasang masih ada di `mise ls`. | ⬜ | ⬜ | | v3.21.0 |
+| TC-RW6 | Runtimes › PHP › WSL · Ubuntu-24.04 (mise terpasang di distro). Klik Reshim lalu Doctor. Kembali ke Windows. | Seksi menjadi *Version manager in Ubuntu-24.04* dengan versi mise distro; log Logs › mise menulis `mise reshim  (in Ubuntu-24.04)` dan laporan doctor distro. Panel samping *PHP extensions in Ubuntu-24.04* menjelaskan `php --ini`, tanpa daftar extension Windows. Di Windows, seksi dan panel kembali ke milik Windows. | ⬜ | ➖ | | v3.25.0 (canvas L8) |
 
 ## S · Scripts & dev server (regresi v3.10.2, persiapan v3.11.0)
 

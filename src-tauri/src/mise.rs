@@ -1136,15 +1136,17 @@ pub async fn mise_trust(app: AppHandle, path: String) -> Result<(), String> {
 /// Aksi pemulihan: `reshim` (shim rusak / tool baru tak terdeteksi) dan
 /// `cache-clear` (daftar versi remote basi).
 #[tauri::command]
-pub async fn mise_repair(app: AppHandle, action: String) -> Result<(), String> {
+pub async fn mise_repair(app: AppHandle, action: String, distro: Option<String>) -> Result<(), String> {
     let args: Vec<String> = match action.as_str() {
         "reshim" => vec!["reshim".into()],
         "cache-clear" => vec!["cache".into(), "clear".into()],
         "doctor" => vec!["doctor".into()],
         other => return Err(format!("unknown action '{}'", other)),
     };
-    // `doctor` exit non-zero bila menemukan masalah — laporannya tetap di log.
-    let r = run_logged(&app, &args, &home_dir()).await;
+    // `distro` = Runtimes di lokasi WSL: mise milik distro, bukan milik Windows.
+    let host = host_of(&distro)?;
+    // `doctor` exit non-zero bila menemukan masalah; laporannya tetap di log.
+    let r = run_logged_on(&app, &host, &args, &home_dir()).await;
     if action == "doctor" { Ok(()) } else { r }
 }
 
