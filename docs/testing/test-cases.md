@@ -16,7 +16,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 |---|---|---|---|---|
 | A · Onboarding | 9 | 0 | 0 | v3.10.x, v3.12.0 |
 | B · Add project | 10 | 0 | 0 | v3.10.x, v3.15.0 |
-| C · Project gagal | 8 | 0 | 0 | v3.10.x, v3.21.1, v3.21.2 |
+| C · Project gagal | 10 | 0 | 0 | v3.10.x, v3.21.1–v3.21.3 |
 | D · Services | 8 | 0 | 0 | v3.12.0, v3.14.0, v3.15.3 |
 | E · Runtimes | 12 | 0 | 0 | v3.13.0, v3.15.4, v3.16.0 |
 | F · Update | 7 | 0 | 0 | v3.13.0, v3.16.2 |
@@ -79,6 +79,8 @@ Persiapan: project yang gagal karena env, mis. Laravel tanpa `DB_*` padahal butu
 | TC-C5 | Amati saat restart. | Banner error hilang; output baru menggantikan yang lama. Bila gagal lagi → kembali ke C2 dengan baris baru. | ⬜ | ⬜ | | |
 | TC-C6 | Tunggu sampai Running. | Status Running; badge Logs berkurang; toast hilang sendiri dan bisa ditutup manual. | ⬜ | ⬜ | | |
 | TC-C7 | Project yang membaca stdin sebagai penahan (mis. command `echo started; read x`, atau app Go dengan `fmt.Scanln()`). Start, tunggu 10 detik. | Proses tetap hidup sampai Stop; tidak ada `the process ended (exit 0)` tepat setelah start. | ⬜ | ⬜ | | v3.21.1 |
+| TC-C9 | Tab Environment dengan 90+ variabel: ubah satu nilai di bawah, scroll; klik **?**. | Save / Save & start tetap terlihat di atas sebaris dengan pencarian; **?** membuka dan menutup penjelasan (Esc juga menutup). | ⬜ | ⬜ | | v3.21.3 |
+| TC-C10 | Klik dua kali garis pemisah di Projects dan di Services (panel detail terbuka). | Panel detail tertutup; tombol ‹ di tepi kanan membukanya lagi dengan lebar sebelumnya. | ⬜ | ⬜ | | v3.21.3 |
 | TC-C8 | Project yang keluar dengan exit 0 tanpa listen (mis. Go `http.Server{Addr: os.Getenv("PORT")}` dengan command tanpa `PORT=":{port}"`, atau `echo "Server started on $PORT"`). | Log: `the process ended (exit 0)` lalu petunjuk "The app ended without listening on port …" dengan saran `PORT=":{port}"`; petunjuk yang sama di kartu. Dengan `PORT=":{port}" <command>` project Running. | ⬜ | ⬜ | | v3.21.2 |
 
 ## D · Services (canvas D1–D5, ditambah RAM v3.10.1)

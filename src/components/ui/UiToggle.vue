@@ -49,7 +49,7 @@ withDefaults(
   background: color-mix(in srgb, var(--accent) 35%, transparent);
   border-color: color-mix(in srgb, var(--accent) 60%, transparent);
 }
-.ui-toggle:disabled { cursor: wait; opacity: 0.6; }
+.ui-toggle:disabled { cursor: not-allowed; opacity: 0.6; }
 .ui-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .ui-toggle__knob {
   position: absolute;

@@ -301,11 +301,21 @@ function focusFirstSwitch(): void {
       </template>
     </UiBanner>
 
-    <UiBanner v-if="portConflicts.length > 0" tone="warn" title="A port is used by another program">
+    <UiBanner
+      v-if="portConflicts.length > 0"
+      tone="warn"
+      :title="portConflicts.length === 1 ? `Port ${portConflicts[0].port} is taken by another program` : 'Ports are taken by other programs'"
+    >
       <template v-for="(c, i) in portConflicts" :key="c.serviceId + ':' + c.port">
         {{ c.serviceName }} ({{ c.port }})<span v-if="i < portConflicts.length - 1">, </span>
       </template>
+      can't start on {{ portConflicts.length === 1 ? 'it' : 'them' }}.
       <template #actions>
+        <UiButton
+          v-if="portConflicts.length === 1"
+          variant="accent"
+          @click="portDef = definitions.find((d) => d.id === portConflicts[0].serviceId) ?? null; dismissPortConflicts()"
+        >Change port…</UiButton>
         <UiButton @click="startIgnoringConflicts">Start anyway</UiButton>
         <UiButton variant="quiet" @click="dismissPortConflicts">Close</UiButton>
       </template>
@@ -332,7 +342,7 @@ function focusFirstSwitch(): void {
         Turn on the services this profile starts with the switches below. Projects that use {{ activeProfileName }} can start them together with the project.
         <template #actions>
           <UiButton variant="accent" @click="focusFirstSwitch">Choose services</UiButton>
-          <UiButton variant="quiet" @click="emptyDismissed = activeProfileId ?? ''">Show all services</UiButton>
+          <UiButton variant="quiet" @click="emptyDismissed = activeProfileId ?? ''">Not now</UiButton>
         </template>
       </UiBanner>
       <div class="services-table">
@@ -472,67 +482,6 @@ function focusFirstSwitch(): void {
   color: var(--text);
 }
 
-.app-strip {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--space-6);
-  height: 34px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-  flex-shrink: 0;
-}
-
-.app-strip__brand {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-}
-
-.app-strip__name {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  color: var(--accent);
-  letter-spacing: 0.02em;
-}
-
-.app-strip__tag {
-  font-family: var(--font-sans);
-  font-size: var(--text-xs);
-  color: var(--faint);
-  letter-spacing: 0.04em;
-}
-
-.app-strip__right {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.app-strip__uptime {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--faint);
-}
-
-.app-strip__settings-btn {
-  background: transparent;
-  border: none;
-  color: var(--faint);
-  font-size: var(--text-sm);
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: var(--radius-xs);
-  line-height: 1;
-  transition: color 0.1s, background 0.1s;
-}
-
-.app-strip__settings-btn:hover {
-  color: var(--text);
-  background: var(--surface2);
-}
-
 .dashboard-content {
   flex: 1;
   min-width: 0;
@@ -542,11 +491,6 @@ function focusFirstSwitch(): void {
   gap: var(--space-4);
   min-height: 0;
   overflow: hidden;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
 }
 
 .services-wrap {

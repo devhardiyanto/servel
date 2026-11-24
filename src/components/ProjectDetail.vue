@@ -424,7 +424,7 @@ const tabs = computed(() => [
         @use-port="usePort"
         @stopped="actions.start(p)"
       />
-      <UiBanner v-else-if="error" tone="err" title="That did not work">{{ error }}</UiBanner>
+      <UiBanner v-else-if="error" tone="err" :title="`Something went wrong with ${p.name}`">{{ error }}</UiBanner>
       <UiBanner
         v-else-if="state === 'exited'"
         tone="err"
@@ -434,7 +434,7 @@ const tabs = computed(() => [
         <template #actions>
           <UiButton @click="actions.viewLog(p)">View log</UiButton>
           <UiButton @click="tab = 'env'">Environment</UiButton>
-          <UiButton variant="accent" :loading="busy" @click="actions.start(p)">Restart</UiButton>
+          <UiButton variant="accent" :loading="busy" @click="actions.start(p)">Start again</UiButton>
         </template>
       </UiBanner>
       <UiBanner v-else-if="state === 'unresponsive' && printedPort" tone="warn" :title="`Nothing answers on :${p.port}`">

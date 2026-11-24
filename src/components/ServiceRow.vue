@@ -96,12 +96,12 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
   <div
     class="svc-row"
     :class="{ 'svc-row--enabled': state.selected }"
-    @click="emit('toggle', def.id)"
+    @click="emit('connect', def.id)"
   >
     <UiToggle
       size="sm"
       :on="state.selected"
-      :label="`Include ${def.name} in the selection`"
+      :label="`Run ${def.name}`"
       @click.stop="emit('toggle', def.id)"
     />
     <div class="svc-icon"><ServiceLogo :id="def.id" /></div>

@@ -8,7 +8,6 @@ import UiIcon from '@/components/ui/UiIcon.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
 import { useLogFocus } from '@/composables/useLogFocus'
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
-import { save } from '@tauri-apps/plugin-dialog'
 import { useLogs } from '@/composables/useLogs'
 import { useLogCopy } from '@/composables/useLogCopy'
 import { badgeStyle } from '@/utils/logColors'
@@ -274,24 +273,8 @@ async function exportLogs(): Promise<void> {
     .map((l) => `${l.ts} [${l.src}] ${l.text}`)
     .join('\n')
 
-  let saved = false
-  try {
-    const filePath = await save({
-      defaultPath: 'kova-logs.txt',
-      filters: [{ name: 'Logs', extensions: ['txt', 'log'] }],
-    })
-    if (filePath) {
-      // Without plugin-fs the chosen path can't be written; use a blob download.
-      triggerDownload(content, 'servel-logs.txt')
-      saved = true
-    }
-  } catch {
-    // dialog plugin unavailable — use blob fallback directly
-  }
-
-  if (!saved) {
-    triggerDownload(content, 'servel-logs.txt')
-  }
+  triggerDownload(content, 'kova-logs.txt')
+  toast.show('Saved kova-logs.txt to Downloads')
 }
 
 function triggerDownload(text: string, filename: string): void {
@@ -499,22 +482,6 @@ function triggerDownload(text: string, filename: string): void {
   flex-shrink: 0;
 }
 
-.lv-back-btn {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-size: var(--text-lg);
-  cursor: pointer;
-  padding: 2px 4px;
-  line-height: 1;
-  border-radius: var(--radius-xs);
-  transition: color 0.1s;
-}
-
-.lv-back-btn:hover {
-  color: var(--text);
-}
-
 .lv-title {
   margin: 0;
   font-family: var(--font-sans);
@@ -599,7 +566,7 @@ function triggerDownload(text: string, filename: string): void {
 }
 
 .lv-area:focus-visible {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: inset 0 0 0 2px var(--accent);
 }
 
 .lv-line {
