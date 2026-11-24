@@ -93,7 +93,15 @@ fn not_found_message(target: Target) -> String {
 fn spawn(a: &Attempt, dir: &Path, env: &[(String, String)]) -> std::io::Result<()> {
     let mut cmd = Command::new(a.program);
     cmd.envs(env.iter().map(|(k, v)| (k.as_str(), v.as_str())));
-    cmd.args(&a.args).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    cmd.args(&a.args);
+    // Jendela konsol baru (`wsl.exe`, fallback `powershell`) harus memakai
+    // stdin/stdout konsol itu sendiri. Dengan `null`, shell di dalamnya
+    // langsung membaca EOF lalu keluar, dan jendelanya tertutup. Kova tidak
+    // punya konsol, jadi handle yang diwarisi kosong dan Windows memakai
+    // handle konsol baru.
+    if !a.new_console {
+        cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
+    }
     // Terminal/editor yang dibuka dari AppImage tidak boleh mewarisi library-nya.
     #[cfg(not(target_os = "windows"))]
     crate::commands::util::apply_host_env_std(&mut cmd);
