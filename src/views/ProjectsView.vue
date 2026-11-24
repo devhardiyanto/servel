@@ -19,6 +19,7 @@ import UiBanner from '@/components/ui/UiBanner.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import PanelSplitter from '@/components/ui/PanelSplitter.vue'
 import { PROJECTS_PANEL, usePanelWidth } from '@/composables/usePanelWidth'
+import { useUnsavedGuard } from '@/composables/useUnsavedGuard'
 
 const { config, loaded, loadError, load } = useConfig()
 
@@ -51,6 +52,7 @@ async function retry(): Promise<void> {
 }
 useProjectRuntime()
 const actions = useProjectActions()
+const guard = useUnsavedGuard()
 const setView = inject(SetViewKey, () => {})
 const query = ref('')
 
@@ -69,19 +71,24 @@ const selectedId = ref<string | null>(null)
  * Klik kartu membuka panel yang tertutup; klik kartu yang sedang terbuka
  * menutup panel supaya daftar melebar. Pilihan tetap diingat untuk tombol ‹.
  */
-function choose(id: string): void {
+async function choose(id: string): Promise<void> {
   if (selectedId.value === id && !panel.collapsed.value) {
-    panel.collapsed.value = true
+    await closePanel()
     return
   }
+  if (selectedId.value !== id && !(await guard.confirmLeave())) return
   selectedId.value = id
   panel.collapsed.value = false
+}
+/** Menutup panel membuang isian Environment yang belum disimpan: tanya dulu. */
+async function closePanel(): Promise<void> {
+  if (await guard.confirmLeave()) panel.collapsed.value = true
 }
 /** Esc di daftar menutup panel; Esc di kolom isian tetap milik kolom itu. */
 function onListEsc(e: KeyboardEvent): void {
   const t = e.target as HTMLElement | null
   if (t?.closest('input, textarea, select, [role="menu"]')) return
-  if (!panel.collapsed.value && config.value.projects.length) panel.collapsed.value = true
+  if (!panel.collapsed.value && config.value.projects.length) void closePanel()
 }
 function newGroup(): void {
   actions.renamingGroupId.value = null
@@ -101,10 +108,11 @@ watch(
 // Permintaan dari layar lain (Logs → Open project).
 watch(
   () => actions.selectRequest.value,
-  (id) => {
+  async (id) => {
     if (!id) return
-    selectedId.value = id
     actions.selectRequest.value = null
+    if (id !== selectedId.value && !(await guard.confirmLeave())) return
+    selectedId.value = id
   },
   { immediate: true },
 )
@@ -169,7 +177,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
           v-bind="{ min: PANEL.min, max: PANEL.max, defaultWidth: PANEL.default }"
           controls="pv-detail"
           label="Resize project details"
-          @collapse="panel.collapsed.value = true"
+          @collapse="closePanel"
         />
         <aside id="pv-detail" class="pv-detail" aria-label="Project details" :style="{ width: `${panel.width.value}px` }">
           <ProjectDetail v-if="selected" :key="selected.id" :project="selected" />

@@ -10,6 +10,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import UiModal from '@/components/ui/UiModal.vue'
 import ServiceLogo from '@/components/ui/ServiceLogo.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
+import { tabPanelAttrs } from '@/utils/tabs'
 import UiTabs from '@/components/ui/UiTabs.vue'
 import UiSegmented from '@/components/ui/UiSegmented.vue'
 import StatusDot, { type DotState } from '@/components/ui/StatusDot.vue'
@@ -147,9 +148,9 @@ const formats = [
       </div>
     </header>
 
-    <UiTabs v-model="tab" :tabs="tabs" label="Service details" />
+    <UiTabs v-model="tab" :tabs="tabs" label="Service details" id-base="sd" />
 
-    <div v-if="tab === 'connect'" class="sd-body" role="tabpanel">
+    <div v-if="tab === 'connect'" class="sd-body" v-bind="tabPanelAttrs('sd', tab)">
       <template v-if="conflict">
         <PortOwnerBanner
           :key="conflict.port"
@@ -189,7 +190,7 @@ const formats = [
       </div>
     </div>
 
-    <div v-else-if="tab === 'data'" class="sd-body" role="tabpanel">
+    <div v-else-if="tab === 'data'" class="sd-body" v-bind="tabPanelAttrs('sd', tab)">
       <section class="sd-sec">
         <h3 class="sd-label">Volumes</h3>
         <ul v-if="volumes.length" class="sd-list">
@@ -206,7 +207,7 @@ const formats = [
       </section>
     </div>
 
-    <div v-else class="sd-body" role="tabpanel">
+    <div v-else class="sd-body" v-bind="tabPanelAttrs('sd', tab)">
       <LogTail v-if="serviceLines.length" :lines="serviceLines" max-height="calc(100vh - 320px)" />
       <p v-else class="sd-note">No output from Kova for {{ def.name }} in this session.</p>
       <p class="sd-note">Container output: <code class="sd-mono">kova logs {{ def.id }} -f</code></p>

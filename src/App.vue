@@ -26,6 +26,8 @@ import { openExternal } from './utils/openExternal'
 import { useServices } from './composables/useServices'
 import { useConfig } from './composables/useConfig'
 import { useVersionContext } from './composables/useVersionContext'
+import UnsavedChangesModal from './components/UnsavedChangesModal.vue'
+import { useUnsavedGuard } from './composables/useUnsavedGuard'
 
 // Onboarding hanya sampai pernah diselesaikan sekali. Sampai config
 // terbaca, tidak ada layar yang dirender, supaya onboarding tidak berkedip.
@@ -49,10 +51,15 @@ const viewComponent = computed(() =>
   currentView.value === null || currentView.value === 'onboarding' ? null : viewMap[currentView.value],
 )
 
-function setView(view: ViewName | 'dashboard'): void {
-  currentView.value = view === 'dashboard' ? 'services' : view
+async function setView(view: ViewName | 'dashboard'): Promise<void> {
+  const next = view === 'dashboard' ? 'services' : view
+  if (next === currentView.value) return
+  // Isian Environment yang belum disimpan hilang saat layar diganti.
+  if (!(await unsavedGuard.confirmLeave())) return
+  currentView.value = next
 }
 
+const unsavedGuard = useUnsavedGuard()
 provide(SetViewKey, setView)
 
 const { runAutoStartOnce } = useAutoStart()
@@ -161,6 +168,7 @@ onUnmounted(() => window.removeEventListener('focus', onWindowFocus))
     <StatusBar class="shell-status" />
     <CommandPalette ref="palette" :view="currentView" @go="setView" />
     <ToastHost />
+    <UnsavedChangesModal />
   </div>
 </template>
 

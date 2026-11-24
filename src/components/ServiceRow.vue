@@ -23,15 +23,16 @@ const ramTitle = computed(() => {
     const t = statsAt.value ? new Date(statsAt.value).toTimeString().slice(0, 8) : ''
     return `Memory used by the container${t ? `, measured at ${t}` : ''}. Updates every 2 s on this screen.`
   }
-  return `Estimate. Shown until ${props.def.name} runs and reports its real memory use.`
+  return `Not running. About ${props.def.ramEstimateMb} MB when it runs (estimate).`
 })
 
+/** Hanya angka terukur yang tampil; perkiraan cukup di tooltip. */
 const ramDisplay = computed(() => {
   const ui = props.state
   if (ui?.status === 'running' && ui.memMb != null) {
     return `${Math.round(ui.memMb)} MB`
   }
-  return `~${props.def.ramEstimateMb} MB`
+  return '–'
 })
 
 const emit = defineEmits<{
@@ -93,11 +94,7 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
 </script>
 
 <template>
-  <div
-    class="svc-row"
-    :class="{ 'svc-row--enabled': state.selected }"
-    @click="emit('connect', def.id)"
-  >
+  <div class="svc-row" :class="{ 'svc-row--enabled': state.selected }">
     <UiToggle
       size="sm"
       :on="state.selected"
@@ -105,12 +102,19 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
       @click.stop="emit('toggle', def.id)"
     />
     <div class="svc-icon"><ServiceLogo :id="def.id" /></div>
-    <div class="svc-id">
+    <!-- Tombol nama menutupi seluruh baris (::after), jadi klik di mana saja membuka detail. -->
+    <button
+      type="button"
+      class="svc-id"
+      :aria-expanded="connectOpen"
+      :aria-label="`${def.name} details`"
+      @click="emit('connect', def.id)"
+    >
       <span class="svc-name">{{ def.name }}<UiChip v-if="def.custom" class="svc-custom" tone="accent">custom</UiChip></span>
       <span class="svc-version">{{ imageTag(def) }}</span>
-    </div>
+    </button>
     <span class="svc-port">{{ formatPorts(def) }}</span>
-    <span class="svc-ram" :title="ramTitle">{{ ramDisplay }}</span>
+    <span class="svc-ram" :title="ramTitle"><span aria-hidden="true">{{ ramDisplay }}</span><span class="sr-only">{{ ramDisplay === '–' ? 'Not running' : ramDisplay }}</span></span>
     <div class="svc-status-cell">
       <StatusDot :state="failed ? 'exited' : dot.state" :label="statusLabel" :title="failed ? state.error : undefined" />
       <button
@@ -154,9 +158,11 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
   padding: 7px var(--space-4);
   font-family: var(--font-sans);
   font-size: var(--text-xs);
-  cursor: pointer;
+  position: relative;
   transition: background 0.18s var(--ease);
 }
+/* Kontrol lain di baris berada di atas lapisan klik tombol nama. */
+.svc-row > :not(.svc-id, .svc-icon, .svc-port) { position: relative; z-index: 1; }
 
 .svc-row:hover {
   background: color-mix(in srgb, var(--accent) 5%, transparent);
@@ -176,9 +182,21 @@ const statusLabel = computed(() => (failed.value ? 'failed' : selectedIdle.value
 .svc-id {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 1px;
   min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
 }
+.svc-id::after { content: ''; position: absolute; inset: 0; }
+.svc-id:focus-visible { outline: none; }
+.svc-id:focus-visible::after { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--radius-xs); }
+.svc-id .svc-name { max-width: 100%; }
 
 .svc-name {
   color: var(--text);

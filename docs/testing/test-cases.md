@@ -20,8 +20,8 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | D · Services | 8 | 0 | 0 | v3.12.0, v3.14.0, v3.15.3 |
 | E · Runtimes | 12 | 0 | 0 | v3.13.0, v3.15.4, v3.16.0 |
 | F · Update | 7 | 0 | 0 | v3.13.0, v3.16.2 |
-| G · Logs | 6 | 0 | 0 | v3.11.0, v3.16.0 |
-| H · Environments | 9 | 0 | 0 | v3.10.x, v3.16.1 |
+| G · Logs | 8 | 0 | 0 | v3.11.0, v3.16.0, v3.22.0 |
+| H · Environments | 10 | 0 | 0 | v3.10.x, v3.16.1, v3.22.0 |
 | I · Port & Terminal | 6 | 0 | 0 | v3.18.0 |
 | J · Custom service & menu | 6 | 0 | 0 | v3.19.0 |
 | K · Container mode | 5 | 0 | 0 | v3.20.0 |
@@ -29,7 +29,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
-| U · Tampilan & aksesibilitas | 13 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0 |
+| U · Tampilan & aksesibilitas | 15 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0, v3.22.0 |
 | W · Khusus Windows | 11 | 0 | ➖ | v3.10.x, v3.16.2, v3.17.0, v3.21.2 |
 | L · Khusus Linux | 11 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3 |
 
@@ -134,8 +134,10 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-G1 | Buka Logs dengan beberapa project dan service berjalan. | Semua sumber digabung dan diurutkan waktu; warna kolom sumber sesuai jenisnya. | ⬜ | ⬜ | | |
 | TC-G2 | Tab Projects → chip satu project. | Hanya output project itu; badge di chip = jumlah error; tombol Open project muncul. | ⬜ | ⬜ | | |
 | TC-G3 | Pilih Errors & warnings (All / Errors & warnings). | Baris biasa disembunyikan; footer menandai hasil terfilter. | ⬜ | ⬜ | | |
-| TC-G4 | Ketik teks di filter, klik Copy, lalu Clear. | Filter teks dan level bisa digabung; Copy hanya menyalin baris yang terlihat; Clear mengosongkan seluruh daftar log (semua sumber, bukan hanya yang terfilter). Project dan service tetap berjalan. | ⬜ | ⬜ | | |
+| TC-G4 | Ketik teks di filter, klik Copy, lalu Clear. | Filter teks dan level bisa digabung; Copy hanya menyalin baris yang terlihat; di tab All tombolnya *Clear all* dan mengosongkan semua sumber. Project dan service tetap berjalan. | ⬜ | ⬜ | | v3.22.0 |
 | TC-G5 | Matikan Follow lalu scroll ke atas; nyalakan lagi. Export logs. | Follow off = tidak lompat ke bawah; on = ikut baris baru. Footer "Last 500 lines per source". Export menghasilkan file. | ⬜ | ⬜ | | |
+| TC-G7 | Pilih MySQL dan Mailpit di Services, tambah satu custom service, jalankan semuanya; buka Logs. | Tab: All, Projects, MySQL, Mailpit, nama custom service, mise (bila ada baris mise), Kova. Tidak ada tab PHP atau Node. Tiap tab hanya berisi baris sumber itu. Hapus custom service saat tabnya terbuka → kembali ke All. | ⬜ | ⬜ | | v3.22.0 |
+| TC-G8 | Tab MySQL → **Clear MySQL**; lalu Undo. Ulangi di tab Projects dengan chip satu project. | Hanya baris MySQL hilang; toast "Cleared MySQL logs (N lines)" dengan Undo mengembalikannya, baris baru yang masuk sesudahnya tetap ada. Di chip project tombolnya *Clear <project>*. | ⬜ | ⬜ | | v3.22.0 |
 | TC-G6 | Buat satu project gagal start (error di Logs), lihat badge Logs. Perbaiki dan start lagi sampai running. Lalu buka Logs dan kembali. | Badge naik saat error; turun setelah project running kembali; nol setelah Logs dibuka. Saat project running muncul toast "… is running on localhost:PORT" dengan tombol Open yang membuka browser. | ⬜ | ⬜ | | v3.16.0 |
 
 ## H · Environments (canvas H1–H6)
@@ -150,6 +152,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-H6 | Klik Restart. | Kartu project, header detail, dan popup tray menampilkan `tenant-acme`; log mencatat `env (tenant-acme): …`. | ⬜ | ⬜ | | |
 | TC-H7 | Isi `APP_ENV=local` di Default, sementara `.env` project berisi `APP_ENV=production` dan `DB_HOST=…`. Start project (Laravel), cek `env('APP_ENV')` dan `env('DB_HOST')`. | `APP_ENV` = `local` (dari Kova); `DB_HOST` tetap dari `.env`. Teks tab menjelaskan aturan ini. | ⬜ | ⬜ | | v3.16.1 |
 | TC-H8 | Default dengan lebih dari 10 variabel; ketik sebagian nama atau nilai di Search. Lalu Add variable saat Search terisi. | Search hanya muncul di atas 10 baris; daftar tersaring; "No variable matches" bila kosong; baris baru tetap tampil. | ⬜ | ⬜ | | v3.16.1 |
+| TC-H10 | Ubah satu nilai di tab Environment tanpa Save, lalu: klik project lain; klik kartu yang sama; klik dua kali pemisah; tekan Esc di daftar; buka Services; ganti environment. | Setiap kali muncul *Save changes to Default?* (atau nama environment). Stay here = tetap di tempat dengan isian utuh; Discard changes = isian kembali ke yang tersimpan lalu lanjut; Save = tersimpan lalu lanjut. Nama variabel tidak valid saat Save = dialog tertutup, tetap di tab Environment dengan pesan error. | ⬜ | ⬜ | | v3.22.0 |
 | TC-H9 | Di environment bernama, override dua nilai Default dan tambah satu variabel baru; Save, pindah ke Default lalu kembali. | Dua override di paling atas dengan border aksen, lalu variabel baru, lalu baris Default lain. Baris tidak berpindah saat mengetik. | ⬜ | ⬜ | | v3.16.1 |
 
 ## I · Port & Terminal (canvas Flow I1–I11)
@@ -253,6 +256,8 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-U10 | Buka Projects dengan panel detail terbuka di jendela ±1100 px, project bernama panjang (≥ 24 karakter). | Tidak ada scroll horizontal; New group tampil sebagai ikon; nama project satu baris dengan elipsis (tooltip nama lengkap); port tetap terlihat di panel detail. Tidak ada kotak putih di pojok scrollbar. | ⬜ | ⬜ | | v3.15.1 |
 | TC-U11 | Jalankan beberapa service, lihat footer Services dan status bar. | Status bar menulis `RAM <total> (services <X> + Kova <Y>)`; X sama dengan angka di footer Services. Y kira-kira sama dengan jumlah grup Kova + WebView2 Manager di Task Manager (W) atau Private di `smem`/smaps_rollup (L), selisih ≤ 15%. | ⬜ | ⬜ | | v3.15.1 |
 | TC-U12 | (a) Ctrl K → "Add project". (b) Settings → Engine, pilih engine lain. (c) Services › MySQL › Data → Restore database, pilih file. (d) Settings → On launch, matikan "Start projects marked start on launch", tutup dan buka Kova. (e) Rusak config.json (mis. hapus satu kurung), buka Kova. | (a) Dialog Add project terbuka. (b) Dialog konfirmasi; Cancel tidak mengubah engine. (c) Dialog konfirmasi menyebut nama file sebelum restore berjalan. (d) Project bertanda tidak start; deskripsi menyebut nama project-nya. (e) Banner menyebut path config.json dan tombol Open folder; Services dan Runtimes tetap bisa dibuka. | ⬜ | ⬜ | | v3.16.0 |
+| TC-U14 | Picu error: Services › ⋯ › Delete data… pada service yang sedang dipakai, atau Settings › About › Data folder › Open setelah folder dihapus. | Toast error bergaris merah, dibacakan NVDA sebagai alert, tetap tampil lebih dari 10 detik, Copy menyalin pesannya, × menutupnya. | ⬜ | ⬜ | | v3.22.0 |
+| TC-U15 | Keyboard dan pembaca layar di Services dan Settings: Tab ke baris service lalu Enter; navigasi heading (NVDA: H) di Settings; tab di detail project. | Enter di nama service membuka detail; heading *On launch*, *Container engine*, dst. terbaca sebagai heading level 2; tab mengumumkan panelnya. Service yang berhenti menulis "–" di kolom RAM, tooltip menyebut perkiraan. | ⬜ | ⬜ | | v3.22.0 |
 | TC-U13 | Buka Services, panel detail satu service, popup tray, dan Ctrl K → ketik nama service. | MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO memakai logo resminya (bukan emoji); Mailpit dan Gotenberg ikon garis; logo jelas terbaca di tema gelap dan terang; nama service tetap tertulis di sampingnya. | ⬜ | ⬜ | | v3.16.0 |
 
 ## W · Khusus Windows

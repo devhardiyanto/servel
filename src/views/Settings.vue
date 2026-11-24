@@ -154,20 +154,20 @@ async function copyDiagnostics(): Promise<void> {
     await navigator.clipboard.writeText(text)
     toast.show('Copied diagnostics. Paste it into the bug report.')
   } catch {
-    toast.show('Could not copy the diagnostics.', { tone: 'info' })
+    toast.error('Could not copy the diagnostics.', { copy: false })
   }
 }
 async function openDataDir(): Promise<void> {
   try {
     await invoke('project_open_in', { target: 'folder', path: dataDir.value })
   } catch (err) {
-    toast.show(String(err), { tone: 'info' })
+    toast.error(String(err))
   }
 }
 
 const engineRunning = computed<boolean | null>(() => engineInfo.value?.engine_running ?? null)
 const activeEngineLabel = computed<string>(() =>
-  engineInfo.value ? ENGINE_LABEL[engineInfo.value.engine] : '—',
+  engineInfo.value ? ENGINE_LABEL[engineInfo.value.engine] : 'Checking…',
 )
 
 const ENGINE_OPTIONS: { value: EnginePreference; label: string }[] = [
@@ -250,7 +250,7 @@ async function fetchComposePath(): Promise<void> {
   try {
     composePath.value = await invoke<string>('get_compose_path')
   } catch {
-    composePath.value = '—'
+    composePath.value = ''
   }
 }
 
@@ -433,7 +433,7 @@ onMounted(async () => {
           <!-- Kiri On launch + Window & quit, kanan Container engine + Command line. -->
           <div class="settings-col">
           <div class="section-block">
-            <div class="section-title">ON LAUNCH</div>
+            <h2 class="section-title">On launch</h2>
 
             <SettingRow
               label="Start Kova when you sign in"
@@ -473,7 +473,7 @@ onMounted(async () => {
 
 
           <div class="section-block">
-            <div class="section-title">WINDOW &amp; QUIT</div>
+            <h2 class="section-title">Window &amp; quit</h2>
 
             <SettingRow
               label="Keep running in the tray when the window closes"
@@ -494,7 +494,7 @@ onMounted(async () => {
 
 
           <div class="section-block">
-            <div class="section-title">APPEARANCE</div>
+            <h2 class="section-title">Appearance</h2>
             <SettingRow label="Interface size" desc="Text and controls in every Kova window. Default matches the design.">
               <UiSegmented
                 label="Interface size"
@@ -508,7 +508,7 @@ onMounted(async () => {
           </div>
           <div class="settings-col">
           <div class="section-block">
-            <div class="section-title">CONTAINER ENGINE</div>
+            <h2 class="section-title">Container engine</h2>
 
             <SettingRow
               v-if="platform === 'windows'"
@@ -536,7 +536,7 @@ onMounted(async () => {
                 <span v-else-if="engineRunning === false">
                   {{ engineInfo?.engine_problem === 'permission' ? 'No access' : engineInfo?.engine_installed ? 'Stopped' : 'Not installed' }}
                 </span>
-                <span v-else>—</span>
+                <span v-else>Checking…</span>
               </span>
               <span v-if="engineCheckedText && !checkingEngine" class="engine-checked">{{ engineCheckedText }}</span>
               <UiButton :loading="checkingEngine" @click="checkEngine">{{ checkingEngine ? 'Checking…' : 'Check again' }}</UiButton>
@@ -555,13 +555,13 @@ onMounted(async () => {
             </UiStatusNotice>
 
             <SettingRow v-if="platform === 'windows'" label="WSL version" desc="Built-in containers need WSL 3.0.1 or newer">
-              <span class="setting-value-mono">{{ engineInfo?.wsl_version ?? '—' }}</span>
+              <span class="setting-value-mono">{{ engineInfo?.wsl_version ?? 'Unknown' }}</span>
             </SettingRow>
 
             <SettingRow
               v-if="platform === 'windows'"
               label="Terminal command"
-              desc="Added to your PATH by the installer — kova up · down · status · logs · shell · restore (the old servel command still works until v4.0)"
+              desc="Added to your PATH by the installer. Commands: kova up, down, status, logs, shell, restore. The old servel command still works until v4.0."
             >
               <span class="setting-value-mono">kova help</span>
             </SettingRow>
@@ -571,7 +571,7 @@ onMounted(async () => {
               label="Docker Compose file path"
               desc="Path to generated compose file"
             >
-              <span class="setting-value-mono">{{ composePath || '—' }}</span>
+              <span class="setting-value-mono">{{ composePath || 'Not created yet' }}</span>
             </SettingRow>
 
             <!-- Masalah Docker yang bisa diperbaiki pengguna. -->
@@ -594,12 +594,12 @@ onMounted(async () => {
 
 
           <div v-if="platform === 'windows'" class="section-block">
-            <div class="section-title">COMMAND LINE</div>
+            <h2 class="section-title">Command line</h2>
             <SettingRow label="kova command" desc="The installer adds kova to your user PATH (%LOCALAPPDATA%\Kova\cli\bin). Open a new terminal to use it; if it is not found, run the Kova installer again." />
           </div>
 
           <div v-else-if="cli?.supported" class="section-block">
-            <div class="section-title">COMMAND LINE</div>
+            <h2 class="section-title">Command line</h2>
 
             <SettingRow label="kova command" :desc="cliDesc">
               <UiButton :loading="cliBusy" :disabled="cliBusy || (cli.installed && !cli.outdated)" @click="installCli">
@@ -615,7 +615,7 @@ onMounted(async () => {
 
 
           <div class="section-block section-block--danger">
-            <div class="section-title section-title--red">DANGER ZONE</div>
+            <h2 class="section-title section-title--red">Danger zone</h2>
 
             <SettingRow
               label="Reset Kova"
@@ -628,7 +628,7 @@ onMounted(async () => {
         </template>
         <template v-else-if="activeNav === 'services'">
           <div class="section-block">
-            <div class="section-title">PROFILES</div>
+            <h2 class="section-title">Profiles</h2>
             <p class="section-hint">
               Saved sets of services. Change the active profile with the switcher on Services.
             </p>
@@ -686,7 +686,7 @@ onMounted(async () => {
           </div>
 
           <div class="section-block">
-            <div class="section-title">RESTORE DATABASE</div>
+            <h2 class="section-title">Restore database</h2>
             <p class="section-hint">
               Import a .sql dump into MySQL or PostgreSQL. Kova starts the service, waits until it
               accepts connections, then runs the dump. Useful after switching engines.
@@ -734,7 +734,7 @@ onMounted(async () => {
           </div>
 
           <div class="section-block">
-            <div class="section-title">VERSION MANAGER</div>
+            <h2 class="section-title">Version manager</h2>
 
             <SettingRow
               label="mise"
@@ -760,7 +760,7 @@ onMounted(async () => {
 
         <template v-else-if="activeNav === 'about'">
           <div class="section-block">
-            <div class="section-title">ABOUT</div>
+            <h2 class="section-title">About</h2>
             <div class="about-block">
               <span class="about-name">kova</span>
               <span class="about-desc">Local dev environment manager</span>
@@ -814,7 +814,7 @@ onMounted(async () => {
           </div>
 
           <div class="section-block">
-            <div class="section-title">DIAGNOSTICS</div>
+            <h2 class="section-title">Diagnostics</h2>
             <SettingRow label="Diagnostics" desc="Versions, engine and paths, for bug reports">
               <UiButton @click="copyDiagnostics">Copy info</UiButton>
             </SettingRow>
@@ -926,9 +926,8 @@ onMounted(async () => {
 
 .section-title {
   font-family: var(--font-sans);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: 600;
-  letter-spacing: 0.07em;
   color: var(--muted);
   margin-bottom: var(--space-3);
 }

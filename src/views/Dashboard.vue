@@ -157,7 +157,7 @@ async function onServiceMenu(id: string, action: string): Promise<void> {
       removeDef.value = def
     }
   } catch (err) {
-    toast.show(String(err), { tone: 'info' })
+    toast.error(String(err))
   }
 }
 
@@ -170,7 +170,7 @@ async function confirmDeleteData(): Promise<void> {
     deleteDef.value = null
     toast.show(saved ? `${def.name} data deleted. Backup: ${saved}` : `${def.name} data deleted. It starts empty.`, { timed: true })
   } catch (err) {
-    toast.show(`Could not delete ${def.name} data: ${String(err)}`, { tone: 'info' })
+    toast.error(`Could not delete ${def.name} data: ${String(err)}`)
   } finally {
     working.value = false
   }
@@ -188,7 +188,7 @@ async function confirmRemove(): Promise<void> {
     removeDef.value = null
     toast.show(`Removed ${def.name}${removeData.value ? ' and its data' : ''}`)
   } catch (err) {
-    toast.show(`Could not remove ${def.name}: ${String(err)}`, { tone: 'info' })
+    toast.error(`Could not remove ${def.name}: ${String(err)}`)
   } finally {
     working.value = false
   }
@@ -347,7 +347,7 @@ function focusFirstSwitch(): void {
       </UiBanner>
       <div class="services-table">
         <template v-if="coreServices.length > 0">
-          <div class="svc-group-label">core</div>
+          <h2 class="svc-group-label">Core</h2>
           <template v-for="def in coreServices" :key="def.id">
             <ServiceRow
               :def="def"
@@ -362,7 +362,7 @@ function focusFirstSwitch(): void {
           </template>
         </template>
         <template v-if="additionalServices.length > 0">
-          <div class="svc-group-label">additional</div>
+          <h2 class="svc-group-label">Additional</h2>
           <template v-for="def in additionalServices" :key="def.id">
             <ServiceRow
               :def="def"
@@ -377,7 +377,7 @@ function focusFirstSwitch(): void {
           </template>
         </template>
         <template v-if="customServices.length > 0">
-          <div class="svc-group-label">custom</div>
+          <h2 class="svc-group-label">Custom</h2>
           <template v-for="def in customServices" :key="def.id">
             <ServiceRow
               :def="def"
@@ -421,7 +421,7 @@ function focusFirstSwitch(): void {
 
     <section class="log-wrap">
       <div class="log-wrap__bar">
-        <span class="log-wrap__label">LOGS</span>
+        <h2 class="log-wrap__label">Logs</h2>
         <UiButton variant="quiet" @click="setView('logs')">Open logs</UiButton>
       </div>
       <LogTail :lines="logLines" max-height="148px" />
@@ -581,10 +581,8 @@ function focusFirstSwitch(): void {
 .svc-group-label {
   font-family: var(--font-sans);
   font-size: var(--text-xs);
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--faint);
+  font-weight: 600;
+  color: var(--muted);
   padding: var(--space-2) var(--space-4) var(--space-1);
 }
 
@@ -632,9 +630,7 @@ function focusFirstSwitch(): void {
   font-family: var(--font-sans);
   font-size: var(--text-xs);
   font-weight: 600;
-  letter-spacing: 0.1em;
-  color: var(--faint);
-  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .svc-detail {

@@ -285,7 +285,7 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
     <div class="rtt-cols" :class="{ 'rtt-cols--split': tool === 'php' && !loc }">
     <div class="rtt-main">
     <UiBanner v-if="versionCtx.untrustedPath.value" tone="warn" title="mise.toml is not trusted yet">
-      <code class="rtt-mono">{{ versionCtx.untrustedPath.value }}</code> — mise ignores this file until you trust it.
+      <code class="rtt-mono">{{ versionCtx.untrustedPath.value }}</code>: mise ignores this file until you trust it.
       <template #actions><UiButton @click="versionCtx.trust(versionCtx.untrustedPath.value!)">Trust</UiButton></template>
     </UiBanner>
 
@@ -324,7 +324,7 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
               <UiChip v-if="isFresh(r.version)" tone="ok">new</UiChip>
               <UiChip v-if="!r.installed" tone="warn">not installed</UiChip>
             </td>
-            <td class="rtt-used">{{ r.usedBy.length ? r.usedBy.join(', ') : '—' }}</td>
+            <td class="rtt-used">{{ r.usedBy.length ? r.usedBy.join(', ') : 'Not used' }}</td>
             <td class="rtt-act">
               <UiMenu :items="menuItems(r)" :label="`${meta.label} ${r.version} actions`" @select="onMenu(r, $event)" />
             </td>

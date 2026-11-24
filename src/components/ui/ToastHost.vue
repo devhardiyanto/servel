@@ -11,7 +11,8 @@ const { toasts, dismiss, hold, release } = useToast()
       v-for="t in toasts"
       :key="t.id"
       class="ui-toast"
-      role="status"
+      :class="{ 'ui-toast--error': t.tone === 'error' }"
+      :role="t.tone === 'error' ? 'alert' : 'status'"
       @mouseenter="hold(t.id)"
       @mouseleave="release(t.id)"
       @focusin="hold(t.id)"
@@ -22,7 +23,7 @@ const { toasts, dismiss, hold, release } = useToast()
         <template v-else><circle cx="8" cy="8" r="6" /><path d="M8 7.5v3.5M8 5.2h.01" /></template>
       </svg>
       <span class="ui-toast__text">{{ t.text }}</span>
-      <button v-if="t.action" type="button" class="ui-toast__action" @click="t.action.run(); dismiss(t.id)">
+      <button v-if="t.action" type="button" class="ui-toast__action" @click="t.action.run(); t.tone === 'error' || dismiss(t.id)">
         {{ t.action.label }}
       </button>
       <button type="button" class="ui-toast__close" aria-label="Dismiss" @click="dismiss(t.id)">
@@ -61,6 +62,8 @@ const { toasts, dismiss, hold, release } = useToast()
 .ui-toast__close svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .ui-toast__icon--ok { color: var(--green); }
 .ui-toast__icon--info { color: var(--accent); }
+.ui-toast__icon--error { color: var(--red); }
+.ui-toast--error { border-color: color-mix(in srgb, var(--red) 55%, var(--border-strong)); }
 .ui-toast__text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .ui-toast__action {
   height: 26px;

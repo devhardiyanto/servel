@@ -1,13 +1,14 @@
 <script setup lang="ts">
 // Panel detail project: kepala dengan status dan aksi, lalu tab Overview,
 // Environment, Logs.
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import PortOwnerBanner from '@/components/PortOwnerBanner.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiMenu from '@/components/ui/UiMenu.vue'
+import { tabPanelAttrs } from '@/utils/tabs'
 import UiTabs from '@/components/ui/UiTabs.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import UiModal from '@/components/ui/UiModal.vue'
@@ -22,6 +23,7 @@ import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
 import { useServices } from '@/composables/useServices'
 import { useToast } from '@/composables/useToast'
+import { useUnsavedGuard, type UnsavedSource } from '@/composables/useUnsavedGuard'
 import { useProjectRuntime, isActive } from '@/composables/useProjectRuntime'
 import { useProjectActions, canRun, missingReason } from '@/composables/useProjectActions'
 import type { Project, ToolCurrent } from '@/types/mise'
@@ -229,7 +231,7 @@ function noteFor(title: string, skipped: SkippedLine[]): void {
   pasteNote.value = { title, skipped }
 }
 const pasteDetail = computed(() =>
-  pasteNote.value?.skipped.map((s) => `Line ${s.line}: ${s.text} — ${s.reason}`).join('\n') || undefined,
+  pasteNote.value?.skipped.map((s) => `Line ${s.line}: ${s.text} (${s.reason})`).join('\n') || undefined,
 )
 
 function rowsFromText(): Row[] {
@@ -309,10 +311,13 @@ function validateEnv(): Record<string, string> | null {
   return env
 }
 
-async function saveEnv(thenRestart: boolean): Promise<void> {
+async function saveEnv(thenRestart: boolean): Promise<boolean> {
   if (textMode.value) rows.value = rowsFromText()
   const vars = validateEnv()
-  if (!vars) return
+  if (!vars) {
+    tab.value = 'env'
+    return false
+  }
   envSaving.value = true
   try {
     const name = activeName.value
@@ -326,14 +331,42 @@ async function saveEnv(thenRestart: boolean): Promise<void> {
     } else {
       toast.show(`${name || 'Default'} saved. It applies the next time the project starts.`)
     }
+    return true
+  } catch (err) {
+    envError.value = `Could not save: ${String(err)}`
+    tab.value = 'env'
+    return false
   } finally {
     envSaving.value = false
   }
 }
 
+// Perubahan yang belum disimpan ikut dijaga saat pindah project, menutup
+// panel, pindah layar, atau ganti environment.
+const guard = useUnsavedGuard()
+const guardSource: UnsavedSource = {
+  get label() {
+    return activeName.value || 'Default'
+  },
+  get owner() {
+    return p.value.name
+  },
+  save: () => saveEnv(false),
+  discard: () => {
+    textMode.value = false
+    pasteNote.value = null
+    resetRows()
+  },
+}
+watch(envDirty, (dirty) => guard.setSource(dirty ? guardSource : null), { immediate: true })
+onBeforeUnmount(() => {
+  if (guard.source.value === guardSource) guard.setSource(null)
+})
+
 /** Ganti environment yang dipakai saat start. */
 async function selectEnv(name: string): Promise<void> {
   if (name === activeName.value) return
+  if (!(await guard.confirmLeave())) return
   await updateProject(p.value.id, { activeEnv: name || null })
 }
 
@@ -411,10 +444,10 @@ const tabs = computed(() => [
       </div>
     </header>
 
-    <UiTabs v-model="tab" :tabs="tabs" label="Project details" />
+    <UiTabs v-model="tab" :tabs="tabs" label="Project details" id-base="pd" />
 
     <!-- Overview -->
-    <div v-if="tab === 'overview'" class="pd-body" role="tabpanel">
+    <div v-if="tab === 'overview'" class="pd-body" v-bind="tabPanelAttrs('pd', tab)">
       <PortOwnerBanner
         v-if="busyPort"
         :key="busyPort"
@@ -458,7 +491,7 @@ const tabs = computed(() => [
         <dt>Type</dt>
         <dd><FrameworkChip v-if="p.kind" :kind="p.kind" /><template v-else>Not detected</template></dd>
         <dt>Command</dt>
-        <dd class="pd-mono pd-wrap">{{ containerLabel ? (p.runMode === 'compose' ? 'docker compose up --build' : 'build + run') : p.command || '—' }}</dd>
+        <dd class="pd-mono pd-wrap">{{ containerLabel ? (p.runMode === 'compose' ? 'docker compose up --build' : 'build + run') : p.command || 'No command set' }}</dd>
         <dt>Folder</dt>
         <dd class="pd-mono pd-wrap pd-muted">{{ p.path || 'Not chosen yet' }}</dd>
         <template v-if="containerLabel">
@@ -517,7 +550,7 @@ const tabs = computed(() => [
     </div>
 
     <!-- Environment -->
-    <div v-else-if="tab === 'env'" class="pd-body" role="tabpanel">
+    <div v-else-if="tab === 'env'" class="pd-body" v-bind="tabPanelAttrs('pd', tab)">
       <div class="pd-envbar">
         <UiInput
           as="select"
@@ -631,7 +664,7 @@ const tabs = computed(() => [
     </div>
 
     <!-- Logs -->
-    <div v-else class="pd-body" role="tabpanel">
+    <div v-else class="pd-body" v-bind="tabPanelAttrs('pd', tab)">
       <LogTail v-if="last500.length" :lines="last500" max-height="calc(100vh - 300px)" />
       <p v-else class="pd-dim">No output yet in this session.</p>
       <div class="pd-env-actions">

@@ -94,7 +94,7 @@ async function run(): Promise<void> {
   }
   if (!engine.running) {
     const why = engine.installed ? `${engine.label} is not responding` : `${engine.label} is not installed`
-    log(`auto-start: skipped — ${why}`)
+    log(`auto-start: skipped: ${why}`)
     state.value = { phase: 'skipped', message: `Saved services were not started: ${why}.`, services: names, detail: why, engineProblem: true }
     return
   }
@@ -115,12 +115,12 @@ async function run(): Promise<void> {
       state.value = { phase: 'done', message: `${list} ${names.length > 1 ? 'are' : 'is'} already running.`, services: names }
       break
     case 'nothing-selected':
-      log('auto-start: skipped — no service selected')
+      log('auto-start: skipped: no service selected')
       state.value = { phase: 'idle', message: '', services: [] }
       break
     case 'port-conflict': {
       const blocked = outcome.ids.map(nameOf).join(', ')
-      log(`auto-start: skipped — port in use (${blocked})`)
+      log(`auto-start: skipped: port in use (${blocked})`)
       state.value = {
         phase: 'skipped',
         message: `${blocked} not started: its port is used by another program.`,
@@ -130,7 +130,7 @@ async function run(): Promise<void> {
       break
     }
     case 'failed':
-      log(`auto-start: failed — ${outcome.error}`)
+      log(`auto-start: failed: ${outcome.error}`)
       state.value = { phase: 'failed', message: `Could not start ${list}.`, services: names, detail: outcome.error }
       break
   }

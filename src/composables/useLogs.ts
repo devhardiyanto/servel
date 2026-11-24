@@ -52,5 +52,18 @@ export function useLogs(defaultSrc = 'KOVA') {
     lines.value = []
   }
 
-  return { lines, push, clear }
+  /** Hapus baris yang cocok; hasilnya dipakai `restore` untuk Undo. */
+  function removeWhere(match: (l: LogLine) => boolean): { before: LogLine[]; keptLen: number } {
+    const before = lines.value
+    lines.value = before.filter((l) => !match(l))
+    return { before, keptLen: lines.value.length }
+  }
+
+  /** Kembalikan baris yang dihapus; baris yang masuk sesudahnya tetap di akhir. */
+  function restore(snap: { before: LogLine[]; keptLen: number }): void {
+    const arrived = lines.value.slice(snap.keptLen)
+    lines.value = [...snap.before, ...arrived]
+  }
+
+  return { lines, push, clear, removeWhere, restore }
 }
