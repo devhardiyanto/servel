@@ -22,7 +22,7 @@ export interface ServiceDef {
   connectEnv?: string | null
 }
 
-export type ReadyCheck = { kind: 'port' } | { kind: 'http'; path: string }
+export type ReadyCheck = { kind: 'port' } | { kind: 'http'; path: string } | { kind: 'log'; text: string }
 
 export interface ServiceStatus {
   id: string

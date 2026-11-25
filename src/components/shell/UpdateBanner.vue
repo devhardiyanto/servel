@@ -77,7 +77,8 @@ const progressText = computed(() => {
 </template>
 
 <style scoped>
-.ub { padding: var(--space-3) var(--space-6) 0; flex: none !important; }
+/* Jarak bawah sama dengan atas: di Projects panel detail mulai tepat di bawah banner. */
+.ub { padding: var(--space-3) var(--space-6); flex: none !important; }
 .ub-track { margin-top: var(--space-2); height: 4px; border-radius: 2px; background: var(--surface3); overflow: hidden; max-width: 360px; }
 .ub-fill { height: 100%; background: var(--accent); transition: width var(--dur-fast) var(--ease); }
 .ub-fill--unknown { animation: ub-slide 1.2s ease-in-out infinite; }

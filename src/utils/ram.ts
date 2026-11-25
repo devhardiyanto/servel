@@ -34,6 +34,6 @@ export function summarizeRam(r: RamParts): { text: string; title: string } | nul
     ? ` (${shown[0][0]})`
     : ` (${shown.map(([n, mb]) => `${n} ${n === 'services' ? est : ''}${formatMb(mb)}`).join(' + ')})`
   const text = `RAM ${est}${formatMb(total)}${detail}`
-  const at = r.measuredAt ? ` — measured at ${new Date(r.measuredAt).toTimeString().slice(0, 8)}` : ''
+  const at = r.measuredAt ? `, measured at ${new Date(r.measuredAt).toTimeString().slice(0, 8)}` : ''
   return { text, title: parts.join(' · ') + at }
 }

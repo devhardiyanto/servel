@@ -104,18 +104,18 @@ pub fn project_entry(project: &Project, runtime: Option<&SiteRuntime>) -> Projec
     let state = runtime.map(|r| r.state).unwrap_or(SiteState::Stopped);
     let runnable = !project.path.is_empty() && !project.command.trim().is_empty() && project.port >= 1024;
     let (label, enabled) = match state {
-        SiteState::Running => (format!("● {} — running · open localhost:{}", name, project.port), true),
-        SiteState::Unresponsive => (format!("◐ {} — not answering · open localhost:{}", name, project.port), true),
-        SiteState::Starting => (format!("◌ {} — starting…", name), false),
+        SiteState::Running => (format!("● {} · running · open localhost:{}", name, project.port), true),
+        SiteState::Unresponsive => (format!("◐ {} · not answering · open localhost:{}", name, project.port), true),
+        SiteState::Starting => (format!("◌ {} · starting…", name), false),
         SiteState::Exited if runnable => {
             let code = runtime
                 .and_then(|r| r.exit_code)
                 .map(|c| format!("exited ({})", c))
                 .unwrap_or_else(|| "exited".into());
-            (format!("■ {} — {} · start", name, code), true)
+            (format!("■ {} · {} · start", name, code), true)
         }
-        _ if runnable => (format!("○ {} — stopped · start", name), true),
-        _ => (format!("○ {} — not set up yet", name), false),
+        _ if runnable => (format!("○ {} · stopped · start", name), true),
+        _ => (format!("○ {} · not set up yet", name), false),
     };
     let active = matches!(state, SiteState::Running | SiteState::Unresponsive | SiteState::Starting | SiteState::Exited);
     ProjectEntry { id: project.id.clone(), label, enabled, active, group_id: project.group_id.clone() }
@@ -129,9 +129,9 @@ pub fn stop_label(running: usize) -> Option<String> {
 /// Tooltip ikon tray, dengan versi Kova.
 pub fn tooltip_text(version: &str, running: usize) -> String {
     match running {
-        0 => format!("Kova {} — idle", version),
-        1 => format!("Kova {} — 1 service running", version),
-        n => format!("Kova {} — {} services running", version, n),
+        0 => format!("Kova {} · idle", version),
+        1 => format!("Kova {} · 1 service running", version),
+        n => format!("Kova {} · {} services running", version, n),
     }
 }
 
@@ -514,16 +514,16 @@ mod tests {
     fn project_entries_name_state_and_action() {
         let p = project("C:\\dev\\acme\\acme-api", "php artisan serve --port {port}", 8801);
         let e = project_entry(&p, Some(&rt(SiteState::Running, None)));
-        assert_eq!(e.label, "● acme-api — running · open localhost:8801");
+        assert_eq!(e.label, "● acme-api · running · open localhost:8801");
         assert!(e.enabled);
         assert_eq!(e.id, "p1");
 
         let e = project_entry(&p, None);
-        assert_eq!(e.label, "○ acme-api — stopped · start");
+        assert_eq!(e.label, "○ acme-api · stopped · start");
         assert!(e.enabled);
 
         let e = project_entry(&p, Some(&rt(SiteState::Exited, Some(1))));
-        assert_eq!(e.label, "■ acme-api — exited (1) · start");
+        assert_eq!(e.label, "■ acme-api · exited (1) · start");
 
         let e = project_entry(&p, Some(&rt(SiteState::Starting, None)));
         assert!(!e.enabled);
@@ -537,7 +537,7 @@ mod tests {
     #[test]
     fn unfinished_projects_are_disabled() {
         let e = project_entry(&project("C:\\dev\\acme\\acme-api", "  ", 8801), None);
-        assert_eq!((e.label.as_str(), e.enabled), ("○ acme-api — not set up yet", false));
+        assert_eq!((e.label.as_str(), e.enabled), ("○ acme-api · not set up yet", false));
         assert!(!project_entry(&project("", "npm run dev", 3000), None).enabled);
     }
 
@@ -606,8 +606,8 @@ mod tests {
     fn service_texts() {
         assert_eq!(stop_label(0), None);
         assert_eq!(stop_label(3).as_deref(), Some("Stop all services (3 running)"));
-        assert_eq!(tooltip_text("3.6.1", 0), "Kova 3.6.1 — idle");
-        assert_eq!(tooltip_text("3.6.1", 1), "Kova 3.6.1 — 1 service running");
-        assert_eq!(tooltip_text("3.6.1", 4), "Kova 3.6.1 — 4 services running");
+        assert_eq!(tooltip_text("3.6.1", 0), "Kova 3.6.1 · idle");
+        assert_eq!(tooltip_text("3.6.1", 1), "Kova 3.6.1 · 1 service running");
+        assert_eq!(tooltip_text("3.6.1", 4), "Kova 3.6.1 · 4 services running");
     }
 }

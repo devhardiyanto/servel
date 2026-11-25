@@ -25,8 +25,9 @@ const hostPort = ref('')
 const innerPort = ref('')
 const envText = ref('')
 const dataPath = ref('')
-const readyKind = ref<'port' | 'http'>('port')
+const readyKind = ref<'port' | 'http' | 'log'>('port')
 const readyPath = ref('/')
+const readyText = ref('')
 const connectEnv = ref('')
 const error = ref('')
 const saving = ref(false)
@@ -49,8 +50,9 @@ watch(() => props.open, (o) => {
   innerPort.value = d?.ports[0]?.container ?? ''
   envText.value = Object.entries(d?.environment ?? {}).map(([k, v]) => `${k}=${v}`).join('\n')
   dataPath.value = d?.volumes?.[0]?.split(':').slice(1).join(':') ?? ''
-  readyKind.value = d?.ready?.kind === 'http' ? 'http' : 'port'
+  readyKind.value = d?.ready?.kind ?? 'port'
   readyPath.value = d?.ready?.kind === 'http' ? d.ready.path : '/'
+  readyText.value = d?.ready?.kind === 'log' ? d.ready.text : ''
   connectEnv.value = d?.connectEnv ?? ''
 })
 
@@ -84,6 +86,7 @@ const problem = computed(() => {
   if (!Number.isInteger(c) || c < 1 || c > 65535) return 'Enter the port the service listens on inside the container.'
   if (!Number.isInteger(h) || h < 1024 || h > 65535) return 'Port on this PC must be 1024–65535.'
   if (dataPath.value && !dataPath.value.startsWith('/')) return 'The data folder is a path inside the container, starting with /.'
+  if (readyKind.value === 'log' && !readyText.value.trim()) return 'Enter the text the log prints when the service is ready.'
   return ''
 })
 
@@ -101,7 +104,12 @@ function build(): ServiceDef {
     volumes: dataPath.value ? [`servel_${vid}_data:${dataPath.value}`] : undefined,
     ramEstimateMb: props.edit?.ramEstimateMb ?? 200,
     custom: true,
-    ready: readyKind.value === 'http' ? { kind: 'http', path: readyPath.value || '/' } : { kind: 'port' },
+    ready:
+      readyKind.value === 'http'
+        ? { kind: 'http', path: readyPath.value || '/' }
+        : readyKind.value === 'log'
+          ? { kind: 'log', text: readyText.value.trim() }
+          : { kind: 'port' },
     connectEnv: connectEnv.value.trim() || null,
   }
 }
@@ -131,6 +139,7 @@ async function save(start: boolean): Promise<void> {
 const readyOptions = [
   { value: 'port', label: 'Port answers' },
   { value: 'http', label: 'HTTP 200 on a path' },
+  { value: 'log', label: 'Log line' },
 ]
 </script>
 
@@ -156,6 +165,14 @@ const readyOptions = [
       <span class="asm-label">Ready when</span>
       <UiSegmented v-model="readyKind" :options="readyOptions" label="Ready when" />
       <UiInput v-if="readyKind === 'http'" v-model="readyPath" mono aria-label="Path to check" placeholder="/_cluster/health" />
+      <UiInput
+        v-if="readyKind === 'log'"
+        v-model="readyText"
+        mono
+        aria-label="Text in the container log"
+        placeholder="ready to accept connections"
+        help="Ready once this text appears in the last 200 lines of the container log"
+      />
     </div>
     <UiInput v-model="connectEnv" as="textarea" :rows="2" mono label="Connect values" placeholder="ELASTICSEARCH_URL=http://localhost:{port}" help="Shown in Connect and copied with Copy .env. {port} is the port on this PC." />
     <p v-if="problem && (name || image)" class="asm-err">{{ problem }}</p>

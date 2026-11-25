@@ -1,11 +1,15 @@
 <script setup lang="ts">
 // Tab bergaris bawah. Panah kiri/kanan berpindah tab; Home/End ke ujung.
+// Panel milik pemanggil memakai `tabPanelAttrs(idBase, value)` supaya
+// relasi tab–panel terbaca pembaca layar.
 import { ref } from 'vue'
 
 const props = defineProps<{
   modelValue: string
   tabs: { value: string; label: string; badge?: string | number; alert?: boolean }[]
   label: string
+  /** Awalan id tab dan panel; panel memakai `${idBase}-panel`. */
+  idBase: string
 }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 const root = ref<HTMLElement | null>(null)
@@ -29,6 +33,8 @@ function current(): number {
       :key="t.value"
       type="button"
       role="tab"
+      :id="`${idBase}-tab-${t.value}`"
+      :aria-controls="`${idBase}-panel`"
       class="ui-tab"
       :class="{ 'ui-tab--on': t.value === modelValue }"
       :aria-selected="t.value === modelValue"

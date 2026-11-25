@@ -705,6 +705,14 @@ pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str, source: &str)
 /// `wslc exec <name> sh -c <cmd>` → exit code (None bila gagal dijalankan/timeout).
 /// Satu percobaan saja (tanpa retry transien): dipakai probe readiness yang
 /// diulang tiap tick polling.
+/// stdout + stderr dari `wslc logs --tail <n> <name>`.
+pub async fn logs_tail(name: &str, n: u32) -> Option<String> {
+    let out = capture(&owned(&["logs", "--tail", &n.to_string(), name]), QUERY_TIMEOUT).await.ok()?;
+    out.status.success().then(|| {
+        format!("{}\n{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr))
+    })
+}
+
 pub async fn exec_status(name: &str, cmd: &str, timeout: Duration) -> Option<i32> {
     let args = owned(&["exec", name, "sh", "-c", cmd]);
     let _guard = LOCK.lock().await;

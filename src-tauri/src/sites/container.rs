@@ -223,6 +223,21 @@ pub struct ContainerInfo {
     pub dockerfile: bool,
     pub compose_file: Option<String>,
     pub compose_services: Vec<String>,
+    /// Port pertama dari `EXPOSE` di Dockerfile, untuk "Port in the container".
+    pub expose_port: Option<u16>,
+}
+
+/// Port pertama di baris `EXPOSE` (mis. `EXPOSE 8080/tcp 9000` → 8080).
+/// Variabel (`EXPOSE $PORT`) dilewati karena nilainya baru ada saat build.
+pub fn dockerfile_expose(text: &str) -> Option<u16> {
+    text.lines().find_map(|l| {
+        let t = l.trim();
+        let (kw, rest) = t.split_once(char::is_whitespace)?;
+        if !kw.eq_ignore_ascii_case("EXPOSE") {
+            return None;
+        }
+        rest.split_whitespace().find_map(|p| p.split('/').next()?.parse::<u16>().ok().filter(|n| *n > 0))
+    })
 }
 
 /// Nama service tingkat atas di compose (`services:` lalu kunci berindentasi
@@ -268,7 +283,9 @@ pub fn project_container_info(path: String) -> ContainerInfo {
         .and_then(|f| std::fs::read_to_string(dir.join(f)).ok())
         .map(|y| compose_services(&y))
         .unwrap_or_default();
-    ContainerInfo { dockerfile: dir.join("Dockerfile").is_file(), compose_file: compose, compose_services }
+    let dockerfile = dir.join("Dockerfile");
+    let expose_port = std::fs::read_to_string(&dockerfile).ok().and_then(|t| dockerfile_expose(&t));
+    ContainerInfo { dockerfile: dockerfile.is_file(), compose_file: compose, compose_services, expose_port }
 }
 
 #[cfg(test)]
@@ -285,6 +302,14 @@ mod tests {
             container: Some(ContainerSpec { container_port: 9000, join_services: true, ..Default::default() }),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn expose_port_from_dockerfile() {
+        assert_eq!(dockerfile_expose("FROM golang:1.23\nexpose 8080/tcp 9000\n"), Some(8080));
+        assert_eq!(dockerfile_expose("FROM node\nEXPOSE $PORT 3000\n"), Some(3000));
+        assert_eq!(dockerfile_expose("FROM node\n# EXPOSE 80\nCMD npm start\n"), None);
+        assert_eq!(dockerfile_expose("FROM alpine\n"), None);
     }
 
     #[test]

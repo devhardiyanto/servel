@@ -171,6 +171,19 @@ pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str) -> Result<(),
 }
 
 /// `docker exec <name> sh -c <cmd>` → exit code.
+/// stdout + stderr dari `docker logs --tail <n> <name>`.
+pub async fn logs_tail(name: &str, n: u32) -> Option<String> {
+    let fut = silent_command("docker")
+        .args(["logs", "--tail", &n.to_string(), name])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output();
+    let out = tokio::time::timeout(std::time::Duration::from_secs(10), fut).await.ok()?.ok()?;
+    out.status.success().then(|| {
+        format!("{}\n{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr))
+    })
+}
+
 pub async fn exec_status(name: &str, cmd: &str, timeout: std::time::Duration) -> Option<i32> {
     let fut = silent_command("docker").args(["exec", name, "sh", "-c", cmd]).status();
     tokio::time::timeout(timeout, fut).await.ok()?.ok()?.code()

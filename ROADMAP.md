@@ -706,14 +706,25 @@ Kasus: project Go dengan *Run inside WSL* mencetak "Server started" lalu langsun
 
 - [x] Klik dua kali pemisah menutup panel detail; tab Environment: penjelasan di balik **?**, Save sebaris dengan pencarian dan menempel di atas.
 - [x] Dari review UI: klik baris service membuka detail (bukan menyalakan service), Reset Kova menjelaskan apa yang dihapus, Export log menyimpan `kova-logs.txt`, banner port terpakai menawarkan Change port, teks dan aksesibilitas kecil.
-- [ ] Perubahan Environment yang belum disimpan hilang tanpa peringatan saat pindah project atau layar.
-- [ ] Jendela 900–1000 px: panel detail Projects turun ke bawah daftar; Services dengan panel terbuka terlalu sempit.
-- [ ] Toast error yang hilang sendiri (perlu tone error tanpa timer); tab sumber di Logs masih tetap (belum mengikuti service dan custom service); Clear log tanpa undo.
-- [ ] Judul seksi Settings/Services sebagai heading (`h2`) dan relasi tab–panel (`aria-controls`/`aria-labelledby`).
+- [x] v3.21.4: tombol bawah panel detail dan toolbar Environment tetap rapi di panel sempit.
+- [x] Perubahan Environment yang belum disimpan hilang tanpa peringatan saat pindah project atau layar (v3.22.0).
+- [x] Jendela 900–1000 px: panel detail Projects turun ke bawah daftar; Services dengan panel terbuka terlalu sempit (v3.23.0).
+- [x] Toast error tanpa timer; tab sumber Logs dari data; Clear per sumber dengan Undo (v3.22.0).
+- [x] Judul seksi Settings/Services sebagai heading (`h2`) dan relasi tab–panel (v3.22.0).
+
+### AD — audit antislop 001 (v3.22.0–v3.25.0)
+
+Sumber: [anti-slop/audit-001-2026-11-24.md](anti-slop/audit-001-2026-11-24.md), 25 nomor dalam empat milestone.
+
+- [x] M1 · v3.22.0: dialog perubahan belum disimpan, tab Logs dari data, Clear per sumber + Undo, toast error, em dash, baris service sebagai tombol, kursor dasar, heading seksi, relasi tab–panel, fokus log, RAM service berhenti.
+- [x] M2 · v3.23.0: layout 900–1000 px, label huruf biasa, kelompok baris Environment (tanpa accent per baris), Start/Stop profil di Services dengan Stop all di menu ⋯.
+- [x] M3 · v3.24.0: perintah kova sekali di Settings dengan Reinstall/Add to PATH di Windows, tombol Install untuk versi runtime yang belum terpasang, komentar, folder duplikat saat dipilih, Ready when: Log line, Run with dari Dockerfile/compose (port dari EXPOSE).
+- [x] M4 · v3.25.0: Runtimes di lokasi WSL (Version manager dan Repair di distro, penjelasan PHP extensions distro). Laporan: [anti-slop/audit-001-2026-11-24-report.md](anti-slop/audit-001-2026-11-24-report.md).
+- [ ] Uji di Windows untuk v3.22.0–v3.25.0 (lihat "Catatan" di tiap file rilis).
 
 ## Status per 24 November 2026
 
-Versi terbaru: **v3.21.3**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.25.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 
@@ -738,7 +749,7 @@ Hasil audit artboard canvas (flow A–H, S-*, C-*, sitemap) terhadap `src/` pada
 - [ ] Ganti nama repo; lalu endpoint updater, README, dan tautan rilis dalam satu PR (lihat F).
 - [ ] Code signing (G3): ditunda sampai ada adopsi atau pengguna yang terhalang SmartScreen; opsi berbayar belum diperiksa.
 - [x] Menu ⋯ per service (v3.19.0). "Add tool": v3.21.0.
-- [ ] Services → **Stop all** menghentikan semua service, canvas D2 menulis "Stop profile"; Logs → **Clear** mengosongkan semua sumber, canvas G4 hanya sumber terpilih. Pertahankan perilaku aplikasi (dan perbarui canvas) atau ikuti canvas.
+- [x] Services mengikuti canvas D2 (Start/Stop profil, Stop all di ⋯) sejak v3.23.0; Logs → Clear per sumber sejak v3.22.0.
 - [ ] Canvas status bar masih format v3.15.0 (`RAM 1.3 GB · Kova 186 MB`); aplikasi sejak v3.15.1 menulis rincian. Perbarui canvas.
 
 ### Batasan yang tetap berlaku

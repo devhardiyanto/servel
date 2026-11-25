@@ -87,7 +87,8 @@ onUnmounted(() => {
 }
 
 .log-tail-body:focus-visible {
-  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
 }
 
 .log-line {

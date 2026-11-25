@@ -452,7 +452,7 @@ pub fn parse_docker_error(stderr_acc: &str) -> Option<String> {
         return Some("Port conflict: one of the service ports is used by another program".to_string());
     }
     if lower.contains("network") && lower.contains("already exists") {
-        return Some("Network conflict — restart Docker Desktop".to_string());
+        return Some("Network conflict. Restart Docker Desktop".to_string());
     }
     if lower.contains("cannot connect to the docker daemon") {
         return Some("Docker Desktop is not running. Start Docker first".to_string());

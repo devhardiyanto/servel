@@ -246,7 +246,7 @@ function registerPersistWatch(): void {
     // Guard: jangan persist sebelum config selesai di-load,
     // kalau tidak watch awal (selectedIds = []) akan menimpa saved selection di disk.
     if (!useConfig().loaded.value) {
-      console.log('[CONFIG] skip persist — config not loaded yet')
+      console.log('[CONFIG] skip persist, config not loaded yet')
       return
     }
     console.log('[CONFIG] selectedIds changed:', [...newIds])
@@ -384,7 +384,7 @@ export function useServices() {
       useLogs('ENV').push({
         ts: new Date().toTimeString().slice(0, 8),
         src: 'ENV',
-        text: 'nothing to start — all selected services are up',
+        text: 'nothing to start: all selected services are up',
       })
       return { kind: 'already-running' }
     }
@@ -500,7 +500,7 @@ export function useServices() {
         useLogs('ENV').push({
           ts: new Date().toTimeString().slice(0, 8),
           src: 'ENV',
-          text: `stopped ${runningSnapshot.length} service${runningSnapshot.length > 1 ? 's' : ''} — selection kept`,
+          text: `stopped ${runningSnapshot.length} service${runningSnapshot.length > 1 ? 's' : ''}, selection kept`,
         })
       }
     } catch (err) {

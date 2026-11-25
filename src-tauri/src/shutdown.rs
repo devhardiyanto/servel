@@ -73,7 +73,7 @@ pub fn begin(app: &AppHandle) {
     tauri::async_runtime::spawn(async move {
         let stop_services = stop_services_enabled(&app);
         let _ = app.emit("app-quitting", serde_json::json!({ "stopServices": stop_services }));
-        set_tooltip(&app, if stop_services { "Kova — stopping services…" } else { "Kova — quitting…" });
+        set_tooltip(&app, if stop_services { "Kova · stopping services…" } else { "Kova · quitting…" });
 
         crate::sites::process::stop_all(&app).await;
         if stop_services {

@@ -415,7 +415,7 @@ defineExpose({ startNewGroup })
 .pl-caret svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--dur-fast) var(--ease); }
 .pl-caret--open { transform: rotate(90deg); }
 .pl-caret--none { cursor: default; }
-.pl-gname { margin: 0; font-size: var(--text-xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.pl-gname { margin: 0; font-size: var(--text-xs); font-weight: 600; color: var(--muted); }
 .pl-gname-in {
   min-width: 160px;
   height: 26px;
@@ -499,6 +499,12 @@ defineExpose({ startNewGroup })
 @container pv-list (max-width: 600px) {
   .pl-card { grid-template-columns: auto minmax(0, 1fr) auto 88px; }
   .pl-port { display: none; }
+}
+/* Lebih sempit lagi (jendela 900–1000 px): jenis framework juga hanya di
+   panel detail, nama dan path mendapat ruang. */
+@container pv-list (max-width: 420px) {
+  .pl-card { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .pl-card > :nth-child(3) { display: none; }
 }
 .pl-path { font: 400 var(--text-xs) var(--font-mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl-wsl { font-family: var(--font-sans); color: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 0 5px; margin-right: 6px; }

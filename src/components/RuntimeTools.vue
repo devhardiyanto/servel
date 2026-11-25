@@ -18,6 +18,7 @@ import SkeletonBox from '@/components/ui/SkeletonBox.vue'
 import PhpExtensionsPanel from '@/components/PhpExtensionsPanel.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useVersionContext } from '@/composables/useVersionContext'
+import { useRuntimeLocation } from '@/composables/useRuntimeLocation'
 import { useLogs } from '@/composables/useLogs'
 import { useToast } from '@/composables/useToast'
 import { useRuntimeInstall, toolLabel, freshKey, type RuntimeTool } from '@/composables/useRuntimeInstall'
@@ -47,10 +48,8 @@ const addToolOpen = ref(false)
 
 // Lokasi (Flow L1–L4): '' = PC ini, selain itu nama distro WSL.
 const distros = ref<string[]>([])
-const loc = ref('')
+const { loc, distroMise } = useRuntimeLocation()
 const distroArg = computed(() => loc.value || null)
-/** Versi mise di distro terpilih; undefined = belum dicek, null = tidak ada. */
-const distroMise = ref<string | null | undefined>(undefined)
 const installingMise = ref(false)
 const locOptions = computed(() => [{ value: '', label: 'Windows' }, ...distros.value.map((d) => ({ value: d, label: `WSL · ${d}` }))])
 async function checkDistroMise(): Promise<void> {
@@ -133,6 +132,9 @@ onMounted(async () => {
   // kembalikan ke global supaya tray tidak menulis ke mise.toml project lama.
   if (config.value.activeProjectId) await setActiveProject(null)
   distros.value = await invoke<string[]>('wsl_distros').catch(() => [])
+  // Distro yang tadi dipilih sudah tidak ada: kembali ke Windows.
+  if (loc.value && !distros.value.includes(loc.value)) loc.value = ''
+  else if (loc.value) await checkDistroMise()
   await load()
   // Versi global diganti dari popup tray: data tab itu sudah basi.
   unlistenGlobal = await listen<{ tool: Tool }>('runtime-global-changed', (e) => {
@@ -285,7 +287,7 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
     <div class="rtt-cols" :class="{ 'rtt-cols--split': tool === 'php' && !loc }">
     <div class="rtt-main">
     <UiBanner v-if="versionCtx.untrustedPath.value" tone="warn" title="mise.toml is not trusted yet">
-      <code class="rtt-mono">{{ versionCtx.untrustedPath.value }}</code> — mise ignores this file until you trust it.
+      <code class="rtt-mono">{{ versionCtx.untrustedPath.value }}</code>: mise ignores this file until you trust it.
       <template #actions><UiButton @click="versionCtx.trust(versionCtx.untrustedPath.value!)">Trust</UiButton></template>
     </UiBanner>
 
@@ -300,7 +302,7 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
       <span class="rtt-dim">Checking {{ loc }}…</span>
     </div>
     <div v-else-if="loading" class="rtt-loading" aria-busy="true">
-      <span class="rtt-dim">Reading mise ls…</span>
+      <span class="rtt-dim">Loading installed {{ meta.label }} versions…</span>
       <SkeletonBox v-for="n in 3" :key="n" width="100%" height="36px" />
     </div>
     <UiBanner v-else-if="loadError" tone="err" :title="`Could not read ${meta.label} versions`">
@@ -324,9 +326,17 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
               <UiChip v-if="isFresh(r.version)" tone="ok">new</UiChip>
               <UiChip v-if="!r.installed" tone="warn">not installed</UiChip>
             </td>
-            <td class="rtt-used">{{ r.usedBy.length ? r.usedBy.join(', ') : '—' }}</td>
+            <td class="rtt-used">{{ r.usedBy.length ? r.usedBy.join(', ') : 'Not used' }}</td>
             <td class="rtt-act">
-              <UiMenu :items="menuItems(r)" :label="`${meta.label} ${r.version} actions`" @select="onMenu(r, $event)" />
+              <!-- Versi yang diminta project tetapi belum terpasang: aksi utamanya langsung terlihat. -->
+              <UiButton
+                v-if="!r.installed"
+                size="sm"
+                :disabled="!!installing || busy"
+                :aria-label="`Install ${meta.label} ${r.version}`"
+                @click="install(r.version)"
+              >Install</UiButton>
+              <UiMenu v-else :items="menuItems(r)" :label="`${meta.label} ${r.version} actions`" @select="onMenu(r, $event)" />
             </td>
           </tr>
         </tbody>
@@ -357,6 +367,18 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
 
     <aside v-if="tool === 'php' && !loc" class="rtt-side" aria-label="PHP extensions">
       <PhpExtensionsPanel class="rtt-ext" :focus-version="extFocus" />
+    </aside>
+    <!-- Canvas L8: php.ini di distro belum diatur Kova; jelaskan, jangan tampilkan milik Windows. -->
+    <aside v-else-if="tool === 'php' && loc" class="rtt-side rtt-wslext" aria-labelledby="rtt-wslext-h">
+      <h2 id="rtt-wslext-h" class="rtt-wslext__h">PHP extensions in {{ loc }}</h2>
+      <p>
+        Kova manages extensions only for PHP on Windows. The PHP versions in {{ loc }} keep their own php.ini,
+        and Kova does not change it.
+      </p>
+      <p>
+        To turn an extension on there, run <code>php --ini</code> in {{ loc }} to see which php.ini that PHP reads,
+        edit it, then restart the project.
+      </p>
     </aside>
     </div>
 
@@ -405,7 +427,11 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
 .rtt-table td:first-child, .rtt-table th:first-child { padding-left: 0; }
 .rtt-ver { font-size: var(--text-md) !important; font-weight: 600; }
 .rtt-used { color: var(--muted); }
-.rtt-act { text-align: right; width: 40px; }
+.rtt-act { text-align: right; width: 72px; }
+.rtt-wslext { display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); color: var(--muted); line-height: 1.55; }
+.rtt-wslext p { margin: 0; }
+.rtt-wslext code { font-family: var(--font-mono); color: var(--text); }
+.rtt-wslext__h { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text); }
 .rtt-mono { font-family: var(--font-mono); font-size: var(--text-xs); }
 .rtt-dim { color: var(--faint); font-size: var(--text-xs); }
 .rtt-install { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }

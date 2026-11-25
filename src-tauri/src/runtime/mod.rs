@@ -237,18 +237,40 @@ pub async fn probe(service_id: &str, container_name: &str) -> readiness::ProbeOu
     readiness::classify_exit(code)
 }
 
-/// Readiness custom service dari PC: port TCP, atau HTTP GET dengan status
-/// 2xx/3xx/401/403 (server menjawab, autentikasi bukan urusan readiness).
-pub async fn probe_custom(check: &crate::commands::services::ReadyCheck, host_port: u16) -> readiness::ProbeOutcome {
+/// Baris log yang dicari sudah muncul. Spasi di tepi teks diabaikan; teks
+/// kosong tidak pernah cocok (kalau tidak, service langsung dianggap siap).
+pub fn log_has(logs: &str, text: &str) -> bool {
+    let t = text.trim();
+    !t.is_empty() && logs.lines().any(|l| l.contains(t))
+}
+
+/// Readiness custom service dari PC: port TCP, HTTP GET dengan status
+/// 2xx/3xx/401/403 (server menjawab, autentikasi bukan urusan readiness),
+/// atau teks tertentu di log container.
+pub async fn probe_custom(check: &crate::commands::services::ReadyCheck, host_port: u16, container_name: &str) -> readiness::ProbeOutcome {
     use crate::commands::services::ReadyCheck;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    if let ReadyCheck::Log { text } = check {
+        let logs = match ensure_resolved().await {
+            RuntimeKind::Docker => docker::logs_tail(container_name, 200).await,
+            RuntimeKind::Wslc => wslc::logs_tail(container_name, 200).await,
+        };
+        return if logs.is_some_and(|l| log_has(&l, text)) {
+            readiness::ProbeOutcome::Ready
+        } else {
+            readiness::ProbeOutcome::NotReady
+        };
+    }
+    if host_port == 0 {
+        return readiness::ProbeOutcome::Ready;
+    }
     let addr = ("127.0.0.1", host_port);
     let connect = tokio::time::timeout(std::time::Duration::from_secs(3), tokio::net::TcpStream::connect(addr)).await;
     let Ok(Ok(mut stream)) = connect else {
         return readiness::ProbeOutcome::NotReady;
     };
     match check {
-        ReadyCheck::Port => readiness::ProbeOutcome::Ready,
+        ReadyCheck::Port | ReadyCheck::Log { .. } => readiness::ProbeOutcome::Ready,
         ReadyCheck::Http { path } => {
             let path = if path.starts_with('/') { path.clone() } else { format!("/{}", path) };
             let path: String = path.chars().filter(|c| !c.is_control() && *c != ' ').collect();
@@ -316,6 +338,17 @@ pub async fn stop_all(app: &AppHandle, defs: &[ServiceDef]) -> Result<(), String
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn log_line_ready_check() {
+        let logs = "starting\n2026-11-24 ready to accept connections tcp\n";
+        assert!(super::log_has(logs, "ready to accept connections"));
+        assert!(super::log_has(logs, "  ready to accept connections  "));
+        assert!(!super::log_has(logs, "listening on"));
+        assert!(!super::log_has(logs, "   "));
+        let check: crate::commands::services::ReadyCheck = serde_json::from_str(r#"{"kind":"log","text":"ready"}"#).unwrap();
+        assert_eq!(check, crate::commands::services::ReadyCheck::Log { text: "ready".into() });
+    }
+
     use super::*;
 
     /// Antrean melayani sesuai urutan datang: stop yang datang selagi start

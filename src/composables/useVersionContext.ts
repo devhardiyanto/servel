@@ -68,10 +68,11 @@ async function trust(path: string): Promise<void> {
   }
 }
 
-async function repair(action: 'reshim' | 'cache-clear' | 'doctor'): Promise<void> {
+/** `distro`: jalankan mise milik distro WSL (Runtimes di lokasi WSL). */
+async function repair(action: 'reshim' | 'cache-clear' | 'doctor', distro: string | null = null): Promise<void> {
   busy.value = true
   try {
-    await invoke<void>('mise_repair', { action })
+    await invoke<void>('mise_repair', { action, distro })
   } catch (err) {
     lastError.value = String(err)
   } finally {

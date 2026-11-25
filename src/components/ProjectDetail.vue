@@ -1,13 +1,14 @@
 <script setup lang="ts">
 // Panel detail project: kepala dengan status dan aksi, lalu tab Overview,
 // Environment, Logs.
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import PortOwnerBanner from '@/components/PortOwnerBanner.vue'
 import UiButton from '@/components/ui/UiButton.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiMenu from '@/components/ui/UiMenu.vue'
+import { tabPanelAttrs } from '@/utils/tabs'
 import UiTabs from '@/components/ui/UiTabs.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import UiModal from '@/components/ui/UiModal.vue'
@@ -22,6 +23,7 @@ import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
 import { useServices } from '@/composables/useServices'
 import { useToast } from '@/composables/useToast'
+import { useUnsavedGuard, type UnsavedSource } from '@/composables/useUnsavedGuard'
 import { useProjectRuntime, isActive } from '@/composables/useProjectRuntime'
 import { useProjectActions, canRun, missingReason } from '@/composables/useProjectActions'
 import type { Project, ToolCurrent } from '@/types/mise'
@@ -204,13 +206,42 @@ const visibleRows = computed(() => {
   return all.filter(({ r }) => r.k.trim() === '' || r.k.toLowerCase().includes(q) || r.v.toLowerCase().includes(q))
 })
 
+/**
+ * Di environment bernama, baris dibagi dua kelompok: yang diatur environment
+ * ini (override + variabel sendiri) lalu baris Default yang tidak diubah.
+ * Batasnya dihitung saat baris dibangun, supaya baris tidak pindah kelompok
+ * saat diketik.
+ */
+const defaultStart = ref(0)
+function setRows(next: Row[]): void {
+  rows.value = next
+  const at = next.findIndex((r) => r.inh && r.v === '')
+  defaultStart.value = at === -1 ? next.length : at
+}
+const showGroups = computed(() => !!activeName.value && !textMode.value && !(showEnvSearch.value && envSearch.value.trim()))
+async function addRow(): Promise<void> {
+  let at = rows.value.length
+  if (activeName.value) {
+    at = defaultStart.value
+    rows.value.splice(at, 0, { k: '', v: '' })
+    defaultStart.value++
+  } else {
+    rows.value.push({ k: '', v: '' })
+  }
+  // Baris baru bisa berada jauh di atas tombol: bawa fokus ke sana.
+  await nextTick()
+  const el = document.querySelector<HTMLInputElement>(`#pd-panel [aria-label="Name of variable ${at + 1}"]`)
+  el?.focus()
+  el?.scrollIntoView({ block: 'center' })
+}
+
 /** Baris yang benar-benar disimpan: di environment lain, baris Default kosong = tidak di-override. */
 function effectiveRows(src: Row[]): Row[] {
   return src.filter((r) => !(r.inh && r.v === '') && (r.k.trim() !== '' || r.v !== ''))
 }
 
 function resetRows(): void {
-  rows.value = buildRows(activeName.value, savedMap(activeName.value))
+  setRows(buildRows(activeName.value, savedMap(activeName.value)))
   if (textMode.value) envText.value = serializeDotenv(effectiveRows(rows.value))
   envError.value = ''
 }
@@ -229,7 +260,7 @@ function noteFor(title: string, skipped: SkippedLine[]): void {
   pasteNote.value = { title, skipped }
 }
 const pasteDetail = computed(() =>
-  pasteNote.value?.skipped.map((s) => `Line ${s.line}: ${s.text} — ${s.reason}`).join('\n') || undefined,
+  pasteNote.value?.skipped.map((s) => `Line ${s.line}: ${s.text} (${s.reason})`).join('\n') || undefined,
 )
 
 function rowsFromText(): Row[] {
@@ -245,7 +276,7 @@ function toText(): void {
 }
 function toRows(): void {
   pasteNote.value = null
-  rows.value = rowsFromText()
+  setRows(rowsFromText())
   textMode.value = false
 }
 
@@ -261,14 +292,17 @@ function onPaste(e: ClipboardEvent, i: number, field: 'k' | 'v'): void {
   if (r.entries.length === 0 && r.skipped.length === 0) return
   e.preventDefault()
   const m = mergeRows(rows.value, r.entries, i)
-  rows.value = m.rows.length ? (m.rows as Row[]) : [{ k: '', v: '' }]
+  setRows(m.rows.length ? (m.rows as Row[]) : [{ k: '', v: '' }])
   noteFor(summarize(m.added, m.replaced, r.skipped.length), r.skipped)
 }
 
 function removeRow(i: number): void {
   const r = rows.value[i]
   if (r.inh) r.v = '' // kembali ke nilai Default
-  else rows.value.splice(i, 1)
+  else {
+    rows.value.splice(i, 1)
+    if (i < defaultStart.value) defaultStart.value--
+  }
 }
 
 function mapOf(src: Row[]): Record<string, string> {
@@ -309,10 +343,13 @@ function validateEnv(): Record<string, string> | null {
   return env
 }
 
-async function saveEnv(thenRestart: boolean): Promise<void> {
-  if (textMode.value) rows.value = rowsFromText()
+async function saveEnv(thenRestart: boolean): Promise<boolean> {
+  if (textMode.value) setRows(rowsFromText())
   const vars = validateEnv()
-  if (!vars) return
+  if (!vars) {
+    tab.value = 'env'
+    return false
+  }
   envSaving.value = true
   try {
     const name = activeName.value
@@ -326,14 +363,42 @@ async function saveEnv(thenRestart: boolean): Promise<void> {
     } else {
       toast.show(`${name || 'Default'} saved. It applies the next time the project starts.`)
     }
+    return true
+  } catch (err) {
+    envError.value = `Could not save: ${String(err)}`
+    tab.value = 'env'
+    return false
   } finally {
     envSaving.value = false
   }
 }
 
+// Perubahan yang belum disimpan ikut dijaga saat pindah project, menutup
+// panel, pindah layar, atau ganti environment.
+const guard = useUnsavedGuard()
+const guardSource: UnsavedSource = {
+  get label() {
+    return activeName.value || 'Default'
+  },
+  get owner() {
+    return p.value.name
+  },
+  save: () => saveEnv(false),
+  discard: () => {
+    textMode.value = false
+    pasteNote.value = null
+    resetRows()
+  },
+}
+watch(envDirty, (dirty) => guard.setSource(dirty ? guardSource : null), { immediate: true })
+onBeforeUnmount(() => {
+  if (guard.source.value === guardSource) guard.setSource(null)
+})
+
 /** Ganti environment yang dipakai saat start. */
 async function selectEnv(name: string): Promise<void> {
   if (name === activeName.value) return
+  if (!(await guard.confirmLeave())) return
   await updateProject(p.value.id, { activeEnv: name || null })
 }
 
@@ -411,10 +476,9 @@ const tabs = computed(() => [
       </div>
     </header>
 
-    <UiTabs v-model="tab" :tabs="tabs" label="Project details" />
+    <UiTabs v-model="tab" :tabs="tabs" label="Project details" id-base="pd" />
 
-    <!-- Overview -->
-    <div v-if="tab === 'overview'" class="pd-body" role="tabpanel">
+    <div v-if="tab === 'overview'" class="pd-body" v-bind="tabPanelAttrs('pd', tab)">
       <PortOwnerBanner
         v-if="busyPort"
         :key="busyPort"
@@ -458,7 +522,7 @@ const tabs = computed(() => [
         <dt>Type</dt>
         <dd><FrameworkChip v-if="p.kind" :kind="p.kind" /><template v-else>Not detected</template></dd>
         <dt>Command</dt>
-        <dd class="pd-mono pd-wrap">{{ containerLabel ? (p.runMode === 'compose' ? 'docker compose up --build' : 'build + run') : p.command || '—' }}</dd>
+        <dd class="pd-mono pd-wrap">{{ containerLabel ? (p.runMode === 'compose' ? 'docker compose up --build' : 'build + run') : p.command || 'No command set' }}</dd>
         <dt>Folder</dt>
         <dd class="pd-mono pd-wrap pd-muted">{{ p.path || 'Not chosen yet' }}</dd>
         <template v-if="containerLabel">
@@ -516,8 +580,7 @@ const tabs = computed(() => [
 
     </div>
 
-    <!-- Environment -->
-    <div v-else-if="tab === 'env'" class="pd-body" role="tabpanel">
+    <div v-else-if="tab === 'env'" class="pd-body" v-bind="tabPanelAttrs('pd', tab)">
       <div class="pd-envbar">
         <UiInput
           as="select"
@@ -598,7 +661,10 @@ const tabs = computed(() => [
       />
       <template v-else>
         <p v-if="showEnvSearch && envSearch.trim() && visibleRows.length === 0" class="pd-dim">No variable matches "{{ envSearch.trim() }}".</p>
-        <div v-for="{ r, i } in visibleRows" :key="i" class="pd-env" :class="{ 'pd-env--override': r.inh && r.v !== '' }">
+        <template v-for="{ r, i } in visibleRows" :key="i">
+        <h3 v-if="showGroups && i === 0 && defaultStart > 0" class="pd-env-group">Set in {{ activeName }}</h3>
+        <h3 v-if="showGroups && i === defaultStart" class="pd-env-group">From Default <span>type a value to change it for {{ activeName }}</span></h3>
+        <div class="pd-env">
           <UiInput
             v-model="r.k"
             mono
@@ -622,7 +688,8 @@ const tabs = computed(() => [
             @click="removeRow(i)"
           >&times;</UiButton>
         </div>
-        <div><UiButton @click="rows.push({ k: '', v: '' })"><UiIcon name="plus" />Add variable</UiButton></div>
+        </template>
+        <div><UiButton @click="addRow"><UiIcon name="plus" />Add variable</UiButton></div>
       </template>
       <UiBanner v-if="envError" tone="err" title="Check the variables">{{ envError }}</UiBanner>
       <div v-if="activeName" class="pd-env-actions">
@@ -630,8 +697,7 @@ const tabs = computed(() => [
       </div>
     </div>
 
-    <!-- Logs -->
-    <div v-else class="pd-body" role="tabpanel">
+    <div v-else class="pd-body" v-bind="tabPanelAttrs('pd', tab)">
       <LogTail v-if="last500.length" :lines="last500" max-height="calc(100vh - 300px)" />
       <p v-else class="pd-dim">No output yet in this session.</p>
       <div class="pd-env-actions">
@@ -675,15 +741,15 @@ const tabs = computed(() => [
 
     <!-- Selalu di bawah panel, untuk semua tab. -->
     <div class="pd-open">
-      <UiButton :disabled="!p.path" @click="openIn('folder')"><UiIcon name="folder" />Open folder</UiButton>
-      <UiButton :disabled="!p.path" @click="openIn('terminal')"><UiIcon name="terminal" />Terminal here</UiButton>
-      <UiButton :disabled="!p.path" @click="openIn('vscode')"><UiIcon name="code" />Open in VS Code</UiButton>
+      <UiButton :disabled="!p.path" title="Open folder" @click="openIn('folder')"><UiIcon name="folder" /><span class="pd-open-label">Open folder</span></UiButton>
+      <UiButton :disabled="!p.path" title="Terminal here" @click="openIn('terminal')"><UiIcon name="terminal" /><span class="pd-open-label">Terminal here</span></UiButton>
+      <UiButton :disabled="!p.path" title="Open in VS Code" @click="openIn('vscode')"><UiIcon name="code" /><span class="pd-open-label">Open in VS Code</span></UiButton>
     </div>
   </div>
 </template>
 
 <style scoped>
-.pd { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; min-height: 100%; }
+.pd { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; min-height: 100%; container: pd / inline-size; }
 .pd-head { display: flex; flex-direction: column; gap: var(--space-3); }
 .pd-title { display: flex; flex-direction: column; gap: var(--space-1); }
 .pd-name { margin: 0; font-size: var(--text-lg); font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
@@ -693,7 +759,7 @@ const tabs = computed(() => [
 .pd-grid dt { color: var(--muted); }
 .pd-grid dd { margin: 0; color: var(--text); min-width: 0; }
 .pd-sec { display: flex; flex-direction: column; gap: var(--space-2); }
-.pd-label { margin: 0; font-size: var(--text-xs); font-weight: 500; color: var(--faint); text-transform: uppercase; letter-spacing: 0.06em; }
+.pd-label { margin: 0; font-size: var(--text-xs); font-weight: 500; color: var(--muted); }
 .pd-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-xs); }
 .pd-list li { display: flex; gap: var(--space-2); align-items: baseline; }
 .pd-mono { font-family: var(--font-mono); font-weight: 500; }
@@ -708,7 +774,6 @@ const tabs = computed(() => [
   margin: auto -16px -16px;
   padding: 12px 16px;
   display: flex;
-  flex-wrap: wrap;
   gap: var(--space-2);
   border-top: 1px solid var(--border);
   background: var(--surface);
@@ -727,7 +792,8 @@ const tabs = computed(() => [
 .pd-text { margin: 0; line-height: 1.6; }
 .pd-env-del { margin-right: auto; }
 .pd-env { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }
-.pd-env--override :deep(input) { border-color: var(--accent); }
+.pd-env-group { margin: var(--space-2) 0 0; font-size: var(--text-xs); font-weight: 600; color: var(--muted); }
+.pd-env-group span { margin-left: var(--space-2); font-weight: 400; color: var(--faint); }
 .pd-env-actions { display: flex; gap: var(--space-2); align-items: center; justify-content: flex-end; }
 .pd-env-actions .pd-dim { margin-right: auto; }
 .pd-envhelp { display: flex; align-items: center; gap: var(--space-2); }
@@ -771,4 +837,11 @@ const tabs = computed(() => [
   border-bottom: 1px solid var(--border);
 }
 .pd-envsearch { flex: 1; min-width: 0; }
+/* Panel sempit: pencarian variabel di baris sendiri; tiga tombol bawah tetap satu baris, tinggal ikon (nama tetap terbaca
+   pembaca layar dan muncul sebagai tooltip). */
+@container pd (max-width: 400px) {
+  .pd-envtools { flex-wrap: wrap; }
+  .pd-envsearch { flex-basis: 100%; }
+  .pd-open-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+}
 </style>

@@ -72,6 +72,15 @@ textarea,
   height: 100%;
 }
 
+/* Afordans klik yang sama untuk semua kontrol native. :where() membuat
+   specificity 0, jadi gaya komponen tetap bisa menimpanya. */
+:where(button, [role="button"], [role="tab"], [role="menuitem"], [role="option"], summary, label:has(input:not(:disabled))) {
+  cursor: pointer;
+}
+:where(button:disabled, [aria-disabled="true"], input:disabled, select:disabled, textarea:disabled) {
+  cursor: not-allowed;
+}
+
 /* Loading skeleton — shimmer placeholder */
 @keyframes skeleton-shimmer {
   0%   { background-position: -200% 0; }

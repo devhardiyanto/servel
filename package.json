@@ -1,7 +1,7 @@
 {
   "name": "servel",
   "private": true,
-  "version": "3.21.3",
+  "version": "3.25.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

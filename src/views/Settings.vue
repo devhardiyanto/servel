@@ -12,6 +12,7 @@ import { getVersion } from '@tauri-apps/api/app'
 import { appDataDir } from '@tauri-apps/api/path'
 import { ask, open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useVersionContext } from '@/composables/useVersionContext'
+import { useRuntimeLocation } from '@/composables/useRuntimeLocation'
 import { SetViewKey } from '@/types/navigation'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
@@ -154,20 +155,20 @@ async function copyDiagnostics(): Promise<void> {
     await navigator.clipboard.writeText(text)
     toast.show('Copied diagnostics. Paste it into the bug report.')
   } catch {
-    toast.show('Could not copy the diagnostics.', { tone: 'info' })
+    toast.error('Could not copy the diagnostics.', { copy: false })
   }
 }
 async function openDataDir(): Promise<void> {
   try {
     await invoke('project_open_in', { target: 'folder', path: dataDir.value })
   } catch (err) {
-    toast.show(String(err), { tone: 'info' })
+    toast.error(String(err))
   }
 }
 
 const engineRunning = computed<boolean | null>(() => engineInfo.value?.engine_running ?? null)
 const activeEngineLabel = computed<string>(() =>
-  engineInfo.value ? ENGINE_LABEL[engineInfo.value.engine] : '—',
+  engineInfo.value ? ENGINE_LABEL[engineInfo.value.engine] : 'Checking…',
 )
 
 const ENGINE_OPTIONS: { value: EnginePreference; label: string }[] = [
@@ -181,6 +182,8 @@ const { refresh: refreshEngineBanner } = useEngineStatus()
 // --- Version manager (mise) & projects -------------------------------------
 const versionCtx = useVersionContext()
 const { ctx: miseCtx, busy: miseBusy, lastError: miseError } = versionCtx
+const runtimeLoc = useRuntimeLocation()
+const wslMiseVersion = computed(() => runtimeLoc.distroMise.value)
 
 // State "mise is not installed" di Runtimes.
 const isWindowsHost = navigator.userAgent.includes('Windows')
@@ -250,7 +253,7 @@ async function fetchComposePath(): Promise<void> {
   try {
     composePath.value = await invoke<string>('get_compose_path')
   } catch {
-    composePath.value = '—'
+    composePath.value = ''
   }
 }
 
@@ -381,12 +384,40 @@ async function installCli(): Promise<void> {
   }
 }
 
+// Windows: CLI dipasang installer; Reinstall menambah lagi folder-nya ke PATH user.
+interface WinCliStatus { binDir: string; filesPresent: boolean; onPath: boolean }
+const winCli = ref<WinCliStatus | null>(null)
+const winCliBusy = ref(false)
+const winCliError = ref('')
+const winCliDesc = computed(() => {
+  const c = winCli.value
+  if (!c) return 'Checking…'
+  if (!c.filesPresent) return `The kova files are missing from ${c.binDir}. Run the Kova installer again.`
+  if (!c.onPath) return `Not on your PATH. Add ${c.binDir} so new terminals find kova.`
+  return `On your PATH from ${c.binDir}. Open a new terminal after a reinstall.`
+})
+async function reinstallWinCli(): Promise<void> {
+  winCliBusy.value = true
+  winCliError.value = ''
+  try {
+    winCli.value = await invoke<WinCliStatus>('cli_windows_reinstall')
+    useToast().show('Added kova to your PATH. Open a new terminal to use it.')
+  } catch (err) {
+    winCliError.value = String(err)
+  } finally {
+    winCliBusy.value = false
+  }
+}
+
 onMounted(async () => {
   invoke<CliStatus>('cli_status').then((v) => (cli.value = v)).catch(() => {})
   invoke<boolean>('autostart_get').then((v) => (autostartOn.value = v)).catch(() => {})
   if (!loaded.value) await load()
   try {
     platform.value = await invoke<string>('get_platform')
+    if (platform.value === 'windows') {
+      invoke<WinCliStatus>('cli_windows_status').then((v) => (winCli.value = v)).catch(() => {})
+    }
   } catch {
     /* default windows */
   }
@@ -433,7 +464,7 @@ onMounted(async () => {
           <!-- Kiri On launch + Window & quit, kanan Container engine + Command line. -->
           <div class="settings-col">
           <div class="section-block">
-            <div class="section-title">ON LAUNCH</div>
+            <h2 class="section-title">On launch</h2>
 
             <SettingRow
               label="Start Kova when you sign in"
@@ -473,7 +504,7 @@ onMounted(async () => {
 
 
           <div class="section-block">
-            <div class="section-title">WINDOW &amp; QUIT</div>
+            <h2 class="section-title">Window &amp; quit</h2>
 
             <SettingRow
               label="Keep running in the tray when the window closes"
@@ -494,7 +525,7 @@ onMounted(async () => {
 
 
           <div class="section-block">
-            <div class="section-title">APPEARANCE</div>
+            <h2 class="section-title">Appearance</h2>
             <SettingRow label="Interface size" desc="Text and controls in every Kova window. Default matches the design.">
               <UiSegmented
                 label="Interface size"
@@ -508,7 +539,7 @@ onMounted(async () => {
           </div>
           <div class="settings-col">
           <div class="section-block">
-            <div class="section-title">CONTAINER ENGINE</div>
+            <h2 class="section-title">Container engine</h2>
 
             <SettingRow
               v-if="platform === 'windows'"
@@ -536,7 +567,7 @@ onMounted(async () => {
                 <span v-else-if="engineRunning === false">
                   {{ engineInfo?.engine_problem === 'permission' ? 'No access' : engineInfo?.engine_installed ? 'Stopped' : 'Not installed' }}
                 </span>
-                <span v-else>—</span>
+                <span v-else>Checking…</span>
               </span>
               <span v-if="engineCheckedText && !checkingEngine" class="engine-checked">{{ engineCheckedText }}</span>
               <UiButton :loading="checkingEngine" @click="checkEngine">{{ checkingEngine ? 'Checking…' : 'Check again' }}</UiButton>
@@ -555,15 +586,7 @@ onMounted(async () => {
             </UiStatusNotice>
 
             <SettingRow v-if="platform === 'windows'" label="WSL version" desc="Built-in containers need WSL 3.0.1 or newer">
-              <span class="setting-value-mono">{{ engineInfo?.wsl_version ?? '—' }}</span>
-            </SettingRow>
-
-            <SettingRow
-              v-if="platform === 'windows'"
-              label="Terminal command"
-              desc="Added to your PATH by the installer — kova up · down · status · logs · shell · restore (the old servel command still works until v4.0)"
-            >
-              <span class="setting-value-mono">kova help</span>
+              <span class="setting-value-mono">{{ engineInfo?.wsl_version ?? 'Unknown' }}</span>
             </SettingRow>
 
             <SettingRow
@@ -571,7 +594,7 @@ onMounted(async () => {
               label="Docker Compose file path"
               desc="Path to generated compose file"
             >
-              <span class="setting-value-mono">{{ composePath || '—' }}</span>
+              <span class="setting-value-mono">{{ composePath || 'Not created yet' }}</span>
             </SettingRow>
 
             <!-- Masalah Docker yang bisa diperbaiki pengguna. -->
@@ -594,12 +617,21 @@ onMounted(async () => {
 
 
           <div v-if="platform === 'windows'" class="section-block">
-            <div class="section-title">COMMAND LINE</div>
-            <SettingRow label="kova command" desc="The installer adds kova to your user PATH (%LOCALAPPDATA%\Kova\cli\bin). Open a new terminal to use it; if it is not found, run the Kova installer again." />
+            <h2 class="section-title">Command line</h2>
+            <SettingRow label="kova command" :desc="winCliDesc">
+              <UiButton :loading="winCliBusy" :disabled="winCliBusy || !winCli" @click="reinstallWinCli">
+                {{ winCli && !winCli.onPath ? 'Add to PATH' : 'Reinstall' }}
+              </UiButton>
+            </SettingRow>
+            <p class="settings-note settings-note--inline">
+              Commands: <code>kova up</code>, <code>down</code>, <code>status</code>, <code>logs</code>, <code>shell</code>, <code>restore</code>.
+              <code>kova help</code> in a new terminal lists them all.
+            </p>
+            <p v-if="winCliError" class="settings-error">{{ winCliError }}</p>
           </div>
 
           <div v-else-if="cli?.supported" class="section-block">
-            <div class="section-title">COMMAND LINE</div>
+            <h2 class="section-title">Command line</h2>
 
             <SettingRow label="kova command" :desc="cliDesc">
               <UiButton :loading="cliBusy" :disabled="cliBusy || (cli.installed && !cli.outdated)" @click="installCli">
@@ -615,7 +647,7 @@ onMounted(async () => {
 
 
           <div class="section-block section-block--danger">
-            <div class="section-title section-title--red">DANGER ZONE</div>
+            <h2 class="section-title section-title--red">Danger zone</h2>
 
             <SettingRow
               label="Reset Kova"
@@ -628,7 +660,7 @@ onMounted(async () => {
         </template>
         <template v-else-if="activeNav === 'services'">
           <div class="section-block">
-            <div class="section-title">PROFILES</div>
+            <h2 class="section-title">Profiles</h2>
             <p class="section-hint">
               Saved sets of services. Change the active profile with the switcher on Services.
             </p>
@@ -686,7 +718,7 @@ onMounted(async () => {
           </div>
 
           <div class="section-block">
-            <div class="section-title">RESTORE DATABASE</div>
+            <h2 class="section-title">Restore database</h2>
             <p class="section-hint">
               Import a .sql dump into MySQL or PostgreSQL. Kova starts the service, waits until it
               accepts connections, then runs the dump. Useful after switching engines.
@@ -734,8 +766,27 @@ onMounted(async () => {
           </div>
 
           <div class="section-block">
-            <div class="section-title">VERSION MANAGER</div>
+            <h2 class="section-title">Version manager<template v-if="runtimeLoc.loc.value"> in {{ runtimeLoc.loc.value }}</template></h2>
 
+            <!-- Lokasi WSL (canvas L8): mise milik distro, bukan milik Windows. -->
+            <template v-if="runtimeLoc.loc.value">
+              <SettingRow
+                label="mise"
+                :desc="wslMiseVersion ? `Manages PHP, Node, Go and Python for projects in ${runtimeLoc.loc.value}` : wslMiseVersion === null ? `Not installed in ${runtimeLoc.loc.value}. Install it from the list above.` : `Checking ${runtimeLoc.loc.value}…`"
+              >
+                <span class="setting-value-mono">{{ wslMiseVersion ? `v${wslMiseVersion}` : wslMiseVersion === null ? 'not installed' : '…' }}</span>
+              </SettingRow>
+              <SettingRow
+                v-if="wslMiseVersion"
+                label="Repair"
+                :desc="`Runs mise inside ${runtimeLoc.loc.value}. Reshim fixes missing commands; Clear cache refreshes version lists; Doctor writes a report to the log`"
+              >
+                <UiButton :disabled="miseBusy" @click="versionCtx.repair('reshim', runtimeLoc.loc.value)">Reshim</UiButton>
+                <UiButton :disabled="miseBusy" @click="versionCtx.repair('cache-clear', runtimeLoc.loc.value)">Clear cache</UiButton>
+                <UiButton :disabled="miseBusy" @click="versionCtx.repair('doctor', runtimeLoc.loc.value)">Doctor</UiButton>
+              </SettingRow>
+            </template>
+            <template v-else>
             <SettingRow
               label="mise"
               :desc="miseCtx?.provider === 'mise' ? 'Manages PHP, Node, Go and Python per project folder' : 'Not installed. PHP and Node versions need mise.'"
@@ -752,6 +803,7 @@ onMounted(async () => {
               <UiButton :disabled="miseBusy" @click="versionCtx.repair('cache-clear')">Clear cache</UiButton>
               <UiButton :disabled="miseBusy" @click="versionCtx.repair('doctor')">Doctor</UiButton>
             </SettingRow>
+            </template>
 
             <p v-if="miseError" class="section-hint section-hint--note">{{ miseError }}</p>
           </div>
@@ -760,7 +812,7 @@ onMounted(async () => {
 
         <template v-else-if="activeNav === 'about'">
           <div class="section-block">
-            <div class="section-title">ABOUT</div>
+            <h2 class="section-title">About</h2>
             <div class="about-block">
               <span class="about-name">kova</span>
               <span class="about-desc">Local dev environment manager</span>
@@ -814,7 +866,7 @@ onMounted(async () => {
           </div>
 
           <div class="section-block">
-            <div class="section-title">DIAGNOSTICS</div>
+            <h2 class="section-title">Diagnostics</h2>
             <SettingRow label="Diagnostics" desc="Versions, engine and paths, for bug reports">
               <UiButton @click="copyDiagnostics">Copy info</UiButton>
             </SettingRow>
@@ -885,7 +937,6 @@ onMounted(async () => {
   padding: var(--space-2) var(--space-4);
   font-family: var(--font-sans);
   font-size: var(--text-sm);
-  letter-spacing: 0.06em;
   color: var(--muted);
   cursor: pointer;
   transition: color 0.1s, border-color 0.1s, background 0.1s;
@@ -926,9 +977,8 @@ onMounted(async () => {
 
 .section-title {
   font-family: var(--font-sans);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: 600;
-  letter-spacing: 0.07em;
   color: var(--muted);
   margin-bottom: var(--space-3);
 }
@@ -997,7 +1047,6 @@ onMounted(async () => {
   color: color-mix(in srgb, var(--red) 80%, transparent);
 }
 
-/* Status pill */
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -1039,7 +1088,6 @@ onMounted(async () => {
   white-space: nowrap;
 }
 
-/* About section */
 .about-block {
   display: flex;
   flex-direction: column;
@@ -1107,7 +1155,6 @@ onMounted(async () => {
   color: var(--muted);
 }
 
-/* Placeholder */
 .placeholder-text {
   font-family: var(--font-sans);
   font-size: var(--text-xs);
@@ -1212,6 +1259,7 @@ onMounted(async () => {
   color: var(--text);
   user-select: text;
 }
+.settings-note--inline code { display: inline; margin: 0; }
 .settings-error {
   margin: 0 0 var(--space-2);
   font-size: var(--text-xs);
