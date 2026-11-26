@@ -714,17 +714,17 @@ Kasus: project Go dengan *Run inside WSL* mencetak "Server started" lalu langsun
 
 ### AD — audit antislop 001 (v3.22.0–v3.25.0)
 
-Sumber: [anti-slop/audit-001-2026-11-24.md](anti-slop/audit-001-2026-11-24.md), 25 nomor dalam empat milestone.
+Sumber: audit antislop 001 (catatan lokal, tidak di repo), 25 nomor dalam empat milestone.
 
 - [x] M1 · v3.22.0: dialog perubahan belum disimpan, tab Logs dari data, Clear per sumber + Undo, toast error, em dash, baris service sebagai tombol, kursor dasar, heading seksi, relasi tab–panel, fokus log, RAM service berhenti.
 - [x] M2 · v3.23.0: layout 900–1000 px, label huruf biasa, kelompok baris Environment (tanpa accent per baris), Start/Stop profil di Services dengan Stop all di menu ⋯.
 - [x] M3 · v3.24.0: perintah kova sekali di Settings dengan Reinstall/Add to PATH di Windows, tombol Install untuk versi runtime yang belum terpasang, komentar, folder duplikat saat dipilih, Ready when: Log line, Run with dari Dockerfile/compose (port dari EXPOSE).
-- [x] M4 · v3.25.0: Runtimes di lokasi WSL (Version manager dan Repair di distro, penjelasan PHP extensions distro). Laporan: [anti-slop/audit-001-2026-11-24-report.md](anti-slop/audit-001-2026-11-24-report.md).
+- [x] M4 · v3.25.0: Runtimes di lokasi WSL (Version manager dan Repair di distro, penjelasan PHP extensions distro).
 - [ ] Uji di Windows untuk v3.22.0–v3.25.0 (lihat "Catatan" di tiap file rilis).
 
 ### AE — audit 002: keamanan dan logika (v3.25.1)
 
-Sumber: [anti-slop/audit-002-2026-11-26.md](anti-slop/audit-002-2026-11-26.md), laporan [audit-002-2026-11-26-report.md](anti-slop/audit-002-2026-11-26-report.md).
+Sumber: audit 002 (catatan lokal, tidak di repo).
 
 - [x] Compose dan skrip terminal di folder per pengguna (0700/0600), nilai compose dikutip, token kontrol 0600.
 - [x] Start ganda, id custom service dengan `-`, nama container project unik, config.json rusak disalin, penulisan config berurutan, Stop Docker tanpa file compose, timeout Docker/WSL.
@@ -733,7 +733,7 @@ Sumber: [anti-slop/audit-002-2026-11-26.md](anti-slop/audit-002-2026-11-26.md), 
 
 ### AF — audit 003: sisa artboard (v3.26.0)
 
-Sumber: [anti-slop/audit-003-2026-11-26.md](anti-slop/audit-003-2026-11-26.md), laporan [audit-003-2026-11-26-report.md](anti-slop/audit-003-2026-11-26-report.md).
+Sumber: audit 003 (catatan lokal, tidak di repo).
 
 - [x] Follow mati saat scroll ke atas, Retry install, setting gagal disimpan dikembalikan, project yang masih memakai port lama service, baris Environment di Overview.
 - [x] WSL: versi di PATH distro tanpa mise, Open php.ini folder / Copy php --ini.
