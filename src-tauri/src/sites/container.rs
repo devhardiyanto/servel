@@ -296,8 +296,78 @@ pub fn project_container_info(path: String) -> ContainerInfo {
     ContainerInfo { dockerfile: dockerfile.is_file(), compose_file: compose, compose_services, expose_port }
 }
 
+/// Satu container project compose (canvas K7).
+#[derive(serde::Serialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ComposeContainer {
+    pub service: String,
+    pub state: String,
+    /// Port di PC yang dipetakan ke container, bila ada.
+    pub ports: Vec<u16>,
+}
+
+/// `docker compose ps --format json`: array JSON (Compose lama) atau satu objek per baris.
+pub fn parse_compose_ps(out: &str) -> Vec<ComposeContainer> {
+    let t = out.trim();
+    let items: Vec<serde_json::Value> = if t.starts_with('[') {
+        serde_json::from_str(t).unwrap_or_default()
+    } else {
+        t.lines().filter_map(|l| serde_json::from_str(l.trim()).ok()).collect()
+    };
+    let mut list: Vec<ComposeContainer> = items
+        .iter()
+        .filter_map(|v| {
+            let service = v.get("Service")?.as_str()?.to_string();
+            let state = v.get("State").and_then(|s| s.as_str()).unwrap_or("unknown").to_string();
+            let mut ports: Vec<u16> = v
+                .get("Publishers")
+                .and_then(|p| p.as_array())
+                .map(|a| a.iter().filter_map(|p| p.get("PublishedPort")?.as_u64()).filter(|n| *n > 0 && *n <= 65535).map(|n| n as u16).collect())
+                .unwrap_or_default();
+            ports.sort_unstable();
+            ports.dedup();
+            Some(ComposeContainer { service, state, ports })
+        })
+        .collect();
+    list.sort_by(|a, b| a.service.cmp(&b.service));
+    list
+}
+
+#[tauri::command]
+pub async fn project_compose_ps(app: tauri::AppHandle, project_id: String) -> Result<Vec<ComposeContainer>, String> {
+    let cfg = crate::commands::config::load_config(&app)?;
+    let site = cfg.projects.iter().find(|p| p.id == project_id).ok_or("project not found")?;
+    if site.run_mode != RunMode::Compose {
+        return Ok(Vec::new());
+    }
+    let name = format!("kova-{}", instance_slug(site));
+    let fut = crate::commands::util::silent_command("docker")
+        .args(["compose", "-p", &name, "ps", "--all", "--format", "json"])
+        .kill_on_drop(true)
+        .stdout(std::process::Stdio::piped())
+        .output();
+    let out = tokio::time::timeout(std::time::Duration::from_secs(20), fut)
+        .await
+        .map_err(|_| "docker compose ps did not answer within 20 s".to_string())?
+        .map_err(|e| format!("could not run docker: {e}"))?;
+    Ok(parse_compose_ps(&String::from_utf8_lossy(&out.stdout)))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn compose_ps_both_formats() {
+        let lines = r#"{"Service":"worker","State":"running","Publishers":[]}
+{"Service":"api","State":"running","Publishers":[{"PublishedPort":8080},{"PublishedPort":8080},{"PublishedPort":0}]}"#;
+        let l = super::parse_compose_ps(lines);
+        assert_eq!(l[0].service, "api");
+        assert_eq!(l[0].ports, vec![8080]);
+        assert_eq!(l[1].state, "running");
+        let arr = r#"[{"Service":"db","State":"exited","Publishers":null}]"#;
+        assert_eq!(super::parse_compose_ps(arr)[0].state, "exited");
+        assert!(super::parse_compose_ps("").is_empty());
+    }
+
     use super::*;
 
     fn site(dir: &Path, mode: RunMode) -> Project {

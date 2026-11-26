@@ -76,11 +76,28 @@ const loadError = ref('')
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 // Isi config tidak dicetak ke console: memuat nilai Environment (password, kunci API).
+/** Isi terakhir yang berhasil ditulis atau dibaca; dipakai bila simpan gagal. */
+let lastSaved: ConfigState | null = null
+const saveFailed = ref('')
+
+async function writeConfig(): Promise<void> {
+  const snapshot = structuredClone(toRaw(config.value))
+  await invoke<void>('config_write', { config: config.value })
+  lastSaved = snapshot
+}
+
 function scheduleSave(): void {
   if (saveTimer !== null) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     saveTimer = null
-    invoke<void>('config_write', { config: config.value }).catch((err) => console.error('[CONFIG] write failed:', String(err)))
+    const snapshot = structuredClone(toRaw(config.value))
+    invoke<void>('config_write', { config: config.value })
+      .then(() => (lastSaved = snapshot))
+      .catch((err) => {
+        // Canvas S-Settings › Error: toggle kembali ke nilai tersimpan dan pesan tampil.
+        if (lastSaved) config.value = structuredClone(lastSaved)
+        saveFailed.value = String(err)
+      })
   }, 500)
 }
 
@@ -110,6 +127,7 @@ export function useConfig() {
     }
     loadError.value = ''
     config.value = result
+    lastSaved = structuredClone(result)
     loaded.value = true
   }
 
@@ -118,7 +136,7 @@ export function useConfig() {
       clearTimeout(saveTimer)
       saveTimer = null
     }
-    await invoke<void>('config_write', { config: config.value })
+    await writeConfig()
   }
 
   // Tray membaca config dari backend: toggle tidak boleh menunggu debounce 500 ms.
@@ -127,7 +145,7 @@ export function useConfig() {
       clearTimeout(saveTimer)
       saveTimer = null
     }
-    await invoke<void>('config_write', { config: config.value })
+    await writeConfig()
   }
 
   function setAutoStart(value: boolean): void {
@@ -208,7 +226,7 @@ export function useConfig() {
       clearTimeout(saveTimer)
       saveTimer = null
     }
-    await invoke<void>('config_write', { config: config.value })
+    await writeConfig()
   }
 
   // Project & konteks versi ditulis segera: backend mise membaca config dari
@@ -290,7 +308,7 @@ export function useConfig() {
       clearTimeout(saveTimer)
       saveTimer = null
     }
-    await invoke<void>('config_write', { config: config.value })
+    await writeConfig()
   }
 
   // Selection = proyeksi profil aktif. Set selectedServiceIds DAN serviceIds
@@ -371,9 +389,11 @@ export function useConfig() {
     const def: ConfigState = structuredClone(DEFAULT_CONFIG)
     config.value = def
     await invoke<void>('config_write', { config: def })
+    lastSaved = structuredClone(def)
   }
 
   return {
+    saveFailed,
     config,
     loaded,
     loadError,

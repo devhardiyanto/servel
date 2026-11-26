@@ -17,6 +17,7 @@ import StatusDot, { type DotState } from '@/components/ui/StatusDot.vue'
 import LogTail from '@/components/LogTail.vue'
 import PortOwnerBanner from '@/components/PortOwnerBanner.vue'
 import ServicePortModal from '@/components/ServicePortModal.vue'
+import { lastPortChange } from '@/utils/portChange'
 import { useServices } from '@/composables/useServices'
 import { useLogs } from '@/composables/useLogs'
 import { useToast } from '@/composables/useToast'
@@ -126,6 +127,9 @@ const formats = [
   { value: 'url', label: 'URL' },
   { value: 'go', label: 'Go' },
 ]
+function dismissPortChange(): void {
+  lastPortChange.value = null
+}
 </script>
 
 <template>
@@ -165,6 +169,14 @@ const formats = [
         </div>
       </template>
       <p v-else-if="!running" class="sd-note">{{ def.name }} is not running. These values work once it starts.</p>
+      <UiBanner
+        v-if="lastPortChange?.serviceId === def.id && lastPortChange.projects.length"
+        tone="warn"
+        :title="`${lastPortChange.projects.length} ${lastPortChange.projects.length === 1 ? 'project uses' : 'projects use'} ${lastPortChange.from}`"
+      >
+        {{ lastPortChange.projects.join(', ') }} still {{ lastPortChange.projects.length === 1 ? 'has' : 'have' }} {{ lastPortChange.from }} in the Environment tab. Update {{ lastPortChange.projects.length === 1 ? 'it' : 'them' }} to {{ lastPortChange.to }}. A project's own .env file is not checked.
+        <template #actions><UiButton variant="quiet" @click="dismissPortChange">Done</UiButton></template>
+      </UiBanner>
 
       <dl class="sd-fields">
         <template v-for="f in info.fields" :key="f.label">

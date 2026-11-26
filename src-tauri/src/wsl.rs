@@ -157,24 +157,74 @@ pub fn parse_tools(out: &str, distro: &str) -> Vec<ToolCurrent> {
 #[tauri::command]
 pub async fn wsl_project_tools(path: String) -> Result<Vec<ToolCurrent>, String> {
     let wp = parse(&path).ok_or_else(|| format!("not a WSL folder: {}", path))?;
+    tools_in(&wp.distro, &wp.path).await
+}
+
+/// Versi tool di home distro (Runtimes › WSL tanpa mise: "Found on PATH").
+#[tauri::command]
+pub async fn wsl_path_tools(distro: String) -> Result<Vec<ToolCurrent>, String> {
+    let crate::mise::Host::Wsl(d) = crate::mise::host_of(&Some(distro))? else { return Err("no distro".into()) };
+    tools_in(&d, "~").await
+}
+
+/// Folder php.ini yang dibaca `php` di distro (Linux path), dari `php --ini`.
+#[tauri::command]
+pub async fn wsl_php_ini_dir(distro: String) -> Result<String, String> {
+    let crate::mise::Host::Wsl(d) = crate::mise::host_of(&Some(distro))? else { return Err("no distro".into()) };
     let out = silent_command("wsl.exe")
-        .args(["-d", &wp.distro, "--cd", &wp.path, "--exec", "bash", "-lc", TOOLS_SCRIPT])
+        .args(["-d", &d, "--cd", "~", "--exec", "bash", "-lc", "php --ini"])
+        .env("WSL_UTF8", "1")
         .kill_on_drop(true)
         .output();
     let out = tokio::time::timeout(std::time::Duration::from_secs(30), out)
         .await
-        .map_err(|_| format!("{} did not answer within 30 s", wp.distro))?
+        .map_err(|_| format!("{d} did not answer within 30 s"))?
+        .map_err(|e| format!("could not run wsl.exe: {e}"))?;
+    parse_php_ini_dir(&String::from_utf8_lossy(&out.stdout)).ok_or_else(|| format!("php was not found in {d}, or it reads no php.ini"))
+}
+
+/// Folder dari `Loaded Configuration File:`, atau `Configuration File (php.ini) Path:`.
+pub fn parse_php_ini_dir(out: &str) -> Option<String> {
+    let value = |prefix: &str| {
+        out.lines().find_map(|l| l.trim().strip_prefix(prefix).map(|v| v.trim().to_string())).filter(|v| v.starts_with('/'))
+    };
+    if let Some(file) = value("Loaded Configuration File:") {
+        return file.rsplit_once('/').map(|(dir, _)| if dir.is_empty() { "/".to_string() } else { dir.to_string() });
+    }
+    value("Configuration File (php.ini) Path:")
+}
+
+async fn tools_in(distro: &str, cd: &str) -> Result<Vec<ToolCurrent>, String> {
+    let out = silent_command("wsl.exe")
+        .args(["-d", distro, "--cd", cd, "--exec", "bash", "-lc", TOOLS_SCRIPT])
+        .kill_on_drop(true)
+        .output();
+    let out = tokio::time::timeout(std::time::Duration::from_secs(30), out)
+        .await
+        .map_err(|_| format!("{} did not answer within 30 s", distro))?
         .map_err(|e| format!("could not run wsl.exe: {}", e))?;
     if !out.status.success() && out.stdout.is_empty() {
-        return Err(format!("{} did not answer", wp.distro));
+        return Err(format!("{} did not answer", distro));
     }
-    Ok(parse_tools(&String::from_utf8_lossy(&out.stdout), &wp.distro))
+    Ok(parse_tools(&String::from_utf8_lossy(&out.stdout), distro))
 }
 
 /// Distro dan path Linux dari sebuah folder, untuk tampilan.
 #[tauri::command]
 pub fn wsl_path_info(path: String) -> Option<WslPath> {
     parse(&path)
+}
+
+#[cfg(test)]
+mod php_ini_tests {
+    #[test]
+    fn php_ini_dir_from_php_ini_output() {
+        let out = "Configuration File (php.ini) Path: /etc/php/8.3/cli\nLoaded Configuration File:         /etc/php/8.3/cli/php.ini\nScan for additional .ini files in: /etc/php/8.3/cli/conf.d\n";
+        assert_eq!(super::parse_php_ini_dir(out).as_deref(), Some("/etc/php/8.3/cli"));
+        let none = "Configuration File (php.ini) Path: /home/dev/.local/share/mise/installs/php/8.4.14/lib\nLoaded Configuration File:         (none)\n";
+        assert_eq!(super::parse_php_ini_dir(none).as_deref(), Some("/home/dev/.local/share/mise/installs/php/8.4.14/lib"));
+        assert_eq!(super::parse_php_ini_dir("bash: php: command not found"), None);
+    }
 }
 
 #[cfg(test)]

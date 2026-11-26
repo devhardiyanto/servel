@@ -731,9 +731,18 @@ Sumber: [anti-slop/audit-002-2026-11-26.md](anti-slop/audit-002-2026-11-26.md), 
 - [x] Frontend: Undo log, Stop profil, start ganda custom service, config dibaca ulang, rollback saat gagal simpan, toast error, validasi port, perbandingan folder, dialog guard, cek distro.
 - [ ] B11: lock WSLC tetap dipegang sepanjang pull/restore (lihat laporan).
 
+### AF — audit 003: sisa artboard (v3.26.0)
+
+Sumber: [anti-slop/audit-003-2026-11-26.md](anti-slop/audit-003-2026-11-26.md), laporan [audit-003-2026-11-26-report.md](anti-slop/audit-003-2026-11-26-report.md).
+
+- [x] Follow mati saat scroll ke atas, Retry install, setting gagal disimpan dikembalikan, project yang masih memakai port lama service, baris Environment di Overview.
+- [x] WSL: versi di PATH distro tanpa mise, Open php.ini folder / Copy php --ini.
+- [x] Mode container: Network, langkah build, banner build gagal, daftar container compose.
+- [ ] Waktu build + ukuran image (K3), *Service that answers on the port* (K6), baris PATH di distro ber-mise (L3).
+
 ## Status per 24 November 2026
 
-Versi terbaru: **v3.25.1**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.26.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 

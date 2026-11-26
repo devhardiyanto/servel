@@ -18,18 +18,18 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | B · Add project | 13 | 0 | 0 | v3.10.x, v3.15.0, v3.24.0, v3.25.1 |
 | C · Project gagal | 10 | 0 | 0 | v3.10.x, v3.21.1–v3.21.3 |
 | D · Services | 9 | 0 | 0 | v3.12.0, v3.14.0, v3.15.3, v3.25.1 |
-| E · Runtimes | 13 | 0 | 0 | v3.13.0, v3.15.4, v3.16.0, v3.24.0 |
+| E · Runtimes | 14 | 0 | 0 | v3.13.0, v3.15.4, v3.16.0, v3.24.0, v3.26.0 |
 | F · Update | 7 | 0 | 0 | v3.13.0, v3.16.2 |
-| G · Logs | 9 | 0 | 0 | v3.11.0, v3.16.0, v3.22.0, v3.25.1 |
+| G · Logs | 10 | 0 | 0 | v3.11.0, v3.16.0, v3.22.0, v3.25.1, v3.26.0 |
 | H · Environments | 10 | 0 | 0 | v3.10.x, v3.16.1, v3.22.0 |
-| I · Port & Terminal | 6 | 0 | 0 | v3.18.0 |
+| I · Port & Terminal | 7 | 0 | 0 | v3.18.0, v3.26.0 |
 | J · Custom service & menu | 8 | 0 | 0 | v3.19.0, v3.24.0, v3.25.1 |
-| K · Container mode | 6 | 0 | 0 | v3.20.0, v3.25.1 |
-| L2 · Runtimes WSL & Add tool | 6 | 0 | 0 | v3.21.0, v3.25.0 |
+| K · Container mode | 7 | 0 | 0 | v3.20.0, v3.25.1, v3.26.0 |
+| L2 · Runtimes WSL & Add tool | 7 | 0 | 0 | v3.21.0, v3.25.0, v3.26.0 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
-| U · Tampilan & aksesibilitas | 16 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0, v3.22.0, v3.23.0 |
+| U · Tampilan & aksesibilitas | 17 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0, v3.22.0, v3.23.0, v3.26.0 |
 | W · Khusus Windows | 12 | 0 | ➖ | v3.10.x, v3.16.2, v3.17.0, v3.21.2, v3.24.0 |
 | L · Khusus Linux | 12 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3, v3.25.1 |
 
@@ -117,6 +117,7 @@ Persiapan: project yang gagal karena env, mis. Laravel tanpa `DB_*` padahal butu
 | TC-E11 | Runtimes → PHP → ⋯ pada satu versi → Use in project…, dengan project Laravel, project Vite, dan project tanpa jenis. | Hanya project PHP (atau yang mise.toml-nya sudah menyebut PHP) yang tampil sebagai radio; **Show all projects** menampilkan semuanya; tombol **Use PHP x** menulis mise.toml; panel extension pindah ke versi itu. | ⬜ | ⬜ | | v3.16.0 |
 | TC-E12 | Nyalakan dua extension berurutan dengan cepat. | Baris pertama menampilkan *checking…* dan terkunci; toggle kedua tetap bisa diklik; keduanya selesai dengan hasil benar. | ⬜ | ⬜ | | v3.16.0 |
 | TC-E13 | Project dengan `mise.toml` yang meminta versi PHP/Node belum terpasang; buka Runtimes. | Baris versi itu bertanda *not installed* dengan tombol Install langsung (bukan menu ⋯); Install menampilkan banner progres. Saat memuat tertulis *Loading installed … versions…*. | ⬜ | ⬜ | | v3.24.0 |
+| TC-E14 | Install versi yang tidak ada (mis. PHP 9.9). | Banner *Could not install PHP 9.9* dengan pesan mise dan tombol Retry; Retry mengulang install. | ⬜ | ⬜ | | v3.26.0 |
 
 ## F · Update aplikasi (canvas F1–F5)
 
@@ -145,6 +146,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-G8 | Tab MySQL → **Clear MySQL**; lalu Undo. Ulangi di tab Projects dengan chip satu project. | Hanya baris MySQL hilang; toast "Cleared MySQL logs (N lines)" dengan Undo mengembalikannya, baris baru yang masuk sesudahnya tetap ada. Di chip project tombolnya *Clear <project>*. | ⬜ | ⬜ | | v3.22.0 |
 | TC-G9 | Clear MySQL saat sebuah project terus mencetak log; tunggu ±10 baris baru; Undo. Ulangi: Clear MySQL, Clear Kova, lalu Undo pada toast pertama. | Baris MySQL kembali di posisi waktunya, baris project yang baru tetap ada. Undo pada toast lama menampilkan "Only the latest Clear can be undone." dan tidak mengubah daftar. Badge error Logs tidak naik lagi untuk error yang sudah dilihat. | ⬜ | ⬜ | | v3.25.1 |
 | TC-G6 | Buat satu project gagal start (error di Logs), lihat badge Logs. Perbaiki dan start lagi sampai running. Lalu buka Logs dan kembali. | Badge naik saat error; turun setelah project running kembali; nol setelah Logs dibuka. Saat project running muncul toast "… is running on localhost:PORT" dengan tombol Open yang membuka browser. | ⬜ | ⬜ | | v3.16.0 |
+| TC-G10 | Logs dengan banyak baris; scroll ke atas, tunggu baris baru, lalu scroll ke paling bawah. | Follow mati saat scroll ke atas (baris baru tidak menarik ke bawah), menyala lagi di dasar. Menyalakan Follow langsung lompat ke baris terbaru. | ⬜ | ⬜ | | v3.26.0 |
 
 ## H · Environments (canvas H1–H6)
 
@@ -171,6 +173,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-I4 | Jalankan MySQL lokal (atau program lain) di 3306, Start service MySQL. | Banner menyebut program + PID; Change port… membuka dialog dengan port bebas; Change port and start → MySQL jalan di port baru, Connect dan Copy .env memakai port baru. | ⬜ | ⬜ | | v3.18.0 |
 | TC-I5 | Dari TC-I4 buka Change port… lagi, klik Use the default port. | MySQL kembali ke 3306 (container dibuat ulang, data tetap). | ⬜ | ⬜ | | v3.18.0 |
 | TC-I6 | Project dengan variabel di tab Environment: Terminal here (panel dan menu ⋯). Cek `echo $env:APP_ENV` / `echo $APP_ENV`, `php -v`. Ulangi untuk project Run inside WSL. | Baris pertama "Kova: … from <project> > Default"; nilai sama dengan tab Environment; versi PHP/Node sesuai project; script sementara sudah terhapus. WSL: terminal di distro dengan variabel yang sama. | ⬜ | ⬜ | | v3.18.0 |
+| TC-I12 | Isi `DB_PORT=3306` di Environment dua project; Services › MySQL › Change port… ke 3307. Ulangi lewat menu ⋯ di daftar Services. | Connect menampilkan *2 projects use 3306* dengan nama keduanya dan ajakan memperbarui ke 3307; Done menutupnya. Dari menu ⋯, panel MySQL terbuka dengan pesan yang sama. | ⬜ | ⬜ | | v3.26.0 |
 
 ## J · Custom service & menu ⋯ (canvas Flow J1–J8)
 
@@ -195,6 +198,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-K4 | Buat error kompilasi di kode, Start. | Status exited; banner dengan baris error terakhir; View log menampilkan output build. Perbaiki, Restart → jalan. | ⬜ | ⬜ | | v3.20.0 |
 | TC-K5 | Engine Docker: Run with: Compose pada folder dengan `compose.yaml` (api + redis), nyalakan *Use Kova's redis*. Start, lalu Stop. Ganti engine ke WSL containers dan buka Run with: Compose. | `compose up --build --scale redis=0`; api menjangkau Kova redis sebagai `servel_redis`; Stop = compose down. Di WSL containers muncul peringatan "Compose needs the Docker engine". | ⬜ | ⬜ | | v3.20.0 |
 | TC-K6 | Dua project Dockerfile bernama `Acme API` dan `acme-api`; start keduanya (port berbeda), stop yang pertama. | Container `kova-acme-api-<id>` berbeda untuk tiap project; keduanya berjalan bersamaan; menghentikan satu tidak memengaruhi yang lain. | ⬜ | ⬜ | | v3.25.1 |
+| TC-K7 | Project Dockerfile: Start dan amati status saat build; buat error kompilasi lalu Start. Project Compose: Start dan buka Overview. | Status *building image · step N of M*; build gagal = banner *The image did not build* dengan langkah + View log, Open in VS Code, Retry. Overview menulis Network; compose mendaftar container dengan port dan status. | ⬜ | ⬜ | | v3.26.0 |
 
 ## L2 · Runtimes WSL & Add tool (canvas Flow L1–L6)
 
@@ -206,6 +210,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-RW4 | Add tool: ketik `java`, pilih; install versi `temurin-21`. | Diterima (bukan "version is not valid"); terpasang. | ⬜ | ⬜ | | v3.21.0 |
 | TC-RW5 | Tab Bun › Remove tab; restart Kova. | Tab hilang dan tetap hilang; versi Bun yang terpasang masih ada di `mise ls`. | ⬜ | ⬜ | | v3.21.0 |
 | TC-RW6 | Runtimes › PHP › WSL · Ubuntu-24.04 (mise terpasang di distro). Klik Reshim lalu Doctor. Kembali ke Windows. | Seksi menjadi *Version manager in Ubuntu-24.04* dengan versi mise distro; log Logs › mise menulis `mise reshim  (in Ubuntu-24.04)` dan laporan doctor distro. Panel samping *PHP extensions in Ubuntu-24.04* menjelaskan `php --ini`, tanpa daftar extension Windows. Di Windows, seksi dan panel kembali ke milik Windows. | ⬜ | ➖ | | v3.25.0 (canvas L8) |
+| TC-RW7 | Distro tanpa mise yang punya `go`/`node` dari apt: Runtimes › WSL. Lalu distro dengan PHP: tab PHP › Open php.ini folder dan Copy php --ini. | Empty state menulis *Found on PATH in <distro>: go … · node …*. Open php.ini folder membuka folder php.ini distro di Explorer; tanpa PHP muncul toast error. Copy menyalin `php --ini`. | ⬜ | ➖ | | v3.26.0 |
 
 ## S · Scripts & dev server (regresi v3.10.2, persiapan v3.11.0)
 
@@ -270,6 +275,7 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-U15 | Keyboard dan pembaca layar di Services dan Settings: Tab ke baris service lalu Enter; navigasi heading (NVDA: H) di Settings; tab di detail project. | Enter di nama service membuka detail; heading *On launch*, *Container engine*, dst. terbaca sebagai heading level 2; tab mengumumkan panelnya. Service yang berhenti menulis "–" di kolom RAM, tooltip menyebut perkiraan. | ⬜ | ⬜ | | v3.22.0 |
 | TC-U16 | Perkecil jendela ke 900 px. Projects: klik kartu lain. Services: buka detail MySQL. | Panel detail Projects tetap di kanan dan menampilkan project yang diklik; Add project jadi ikon, pencarian di baris sendiri, tidak ada scroll horizontal. Services: status dan ⋯ setiap baris terlihat utuh; tombol header terbungkus, tidak terpotong. Label kelompok dan judul bagian ditulis huruf biasa. | ⬜ | ⬜ | | v3.23.0 |
 | TC-U13 | Buka Services, panel detail satu service, popup tray, dan Ctrl K → ketik nama service. | MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO memakai logo resminya (bukan emoji); Mailpit dan Gotenberg ikon garis; logo jelas terbaca di tema gelap dan terang; nama service tetap tertulis di sampingnya. | ⬜ | ⬜ | | v3.16.0 |
+| TC-U17 | Buat config.json read-only, lalu ubah satu toggle di Settings. | Setelah ±0,5 detik toggle kembali ke nilai semula dan toast error *Could not save the setting, so it was changed back…* muncul. | ⬜ | ⬜ | | v3.26.0 |
 
 ## W · Khusus Windows
 

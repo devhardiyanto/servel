@@ -85,6 +85,12 @@ watch(
 
 // Settings → General → Interface size (zoom webview).
 const uiCfg = useConfig()
+// Setting yang gagal disimpan sudah dikembalikan oleh useConfig; beri tahu sekali.
+watch(uiCfg.saveFailed, (msg) => {
+  if (!msg) return
+  updatedToast.error(`Could not save the setting, so it was changed back: ${msg}`)
+  uiCfg.saveFailed.value = ''
+})
 watch(
   () => uiCfg.config.value.uiScale ?? 1,
   (scale) => {

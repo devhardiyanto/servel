@@ -462,7 +462,7 @@ function focusFirstSwitch(): void {
     </aside>
 
     <AddServiceModal :open="addOpen" :edit="editDef" @close="addOpen = false; editDef = null" @saved="onCustomSaved" />
-    <ServicePortModal v-if="portDef" :open="!!portDef" :def="portDef" @close="portDef = null" />
+    <ServicePortModal v-if="portDef" :open="!!portDef" :def="portDef" @close="portDef = null" @changed="(c) => c.projects.length && (connectId = c.serviceId)" />
     <UiModal :open="!!deleteDef" :title="`Delete ${deleteDef?.name ?? ''} data?`" size="sm" danger @close="deleteDef = null">
       <p class="sw-confirm">{{ deleteDef?.name }} stops, its volume{{ (deleteDef?.volumes?.length ?? 0) > 1 ? 's are' : ' is' }} deleted, and it starts again empty. Everything stored in it is gone. This cannot be undone.</p>
       <ul class="sw-confirm sw-mono"><li v-for="v in deleteDef?.volumes ?? []" :key="v">{{ v.split(':')[0] }}</li></ul>

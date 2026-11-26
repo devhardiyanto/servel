@@ -256,9 +256,20 @@ const errorCount = computed(
 
 let areaObserver: ResizeObserver | null = null
 
+/** Scroll ke atas mematikan Follow; kembali ke dasar menyalakannya lagi. */
+let programmaticScroll = false
+function onAreaScroll(): void {
+  const el = logAreaRef.value
+  if (!el || programmaticScroll) return
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+  if (autoScroll.value !== atBottom) autoScroll.value = atBottom
+}
+
 function scrollToBottom(): void {
   if (logAreaRef.value) {
+    programmaticScroll = true
     logAreaRef.value.scrollTop = logAreaRef.value.scrollHeight
+    requestAnimationFrame(() => (programmaticScroll = false))
   }
 }
 
@@ -359,8 +370,8 @@ function triggerDownload(text: string, filename: string): void {
         />
         <span class="lv-sp"></span>
         <UiButton v-if="focusedProject" @click="projectActions.openProject(focusedProject)">Open project</UiButton>
-        <label class="lv-follow" title="Keep the newest line in view">
-          <UiToggle size="sm" label="Follow" :on="autoScroll" @click="autoScroll = !autoScroll" />
+        <label class="lv-follow" title="Keep the newest line in view. Scrolling up turns it off.">
+          <UiToggle size="sm" label="Follow" :on="autoScroll" @click="autoScroll = !autoScroll; autoScroll && scrollToBottom()" />
           <span aria-hidden="true">Follow</span>
         </label>
         <UiButton :disabled="filteredLines.length === 0" @click="copyView">Copy</UiButton>
@@ -426,7 +437,7 @@ function triggerDownload(text: string, filename: string): void {
       </template>
     </UiBanner>
 
-    <div ref="logAreaRef" class="lv-area" v-bind="tabPanelAttrs('lv', activeTab)" tabindex="0" @click="focusContainer">
+    <div ref="logAreaRef" class="lv-area" v-bind="tabPanelAttrs('lv', activeTab)" tabindex="0" @click="focusContainer" @scroll.passive="onAreaScroll">
       <button v-if="hiddenCount > 0" type="button" class="lv-older" @click.stop="showOlder">
         Show {{ Math.min(hiddenCount, RENDER_STEP).toLocaleString() }} older lines
         <span class="lv-older__count">({{ hiddenCount.toLocaleString() }} hidden)</span>
