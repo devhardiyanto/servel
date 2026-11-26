@@ -459,6 +459,10 @@ fn write_config_atomic(path: &Path, json: &str) -> Result<(), String> {
             .map_err(|e| format!("could not create the config folder: {}", e))?;
     }
 
+    // Satu penulis sekaligus: config_write async bisa jalan paralel dan
+    // berbagi nama file sementara.
+    static WRITE: Mutex<()> = Mutex::new(());
+    let _turn = WRITE.lock().unwrap_or_else(|e| e.into_inner());
     let tmp_path = path.with_extension("tmp");
     {
         let mut f = std::fs::File::create(&tmp_path)
@@ -498,8 +502,28 @@ pub fn load_config(app: &AppHandle) -> Result<ConfigState, String> {
     };
     match serde_json::from_str::<ConfigState>(&raw) {
         Ok(cfg) => Ok(migrate(cfg)),
-        Err(_) => Ok(ConfigState::default()),
+        Err(_) => {
+            keep_corrupt_copy(&path, &raw);
+            Ok(ConfigState::default())
+        }
     }
+}
+
+/// Simpan salinan config.json yang tidak terbaca sebelum default menimpanya
+/// pada penulisan berikutnya. Isi yang sama tidak disalin dua kali.
+fn keep_corrupt_copy(path: &Path, raw: &str) -> Option<PathBuf> {
+    let dir = path.parent()?;
+    let exists = std::fs::read_dir(dir).ok()?.flatten().any(|e| {
+        e.file_name().to_string_lossy().starts_with("config.json.corrupt-")
+            && std::fs::read_to_string(e.path()).is_ok_and(|c| c == raw)
+    });
+    if exists {
+        return None;
+    }
+    let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let copy = dir.join(format!("config.json.corrupt-{ts}"));
+    std::fs::write(&copy, raw).ok()?;
+    Some(copy)
 }
 
 pub fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -524,7 +548,7 @@ pub async fn config_read(app: AppHandle) -> Result<ConfigState, String> {
     let raw = match raw {
         Ok(s) => s,
         Err(err) => {
-            eprintln!("[config_read] warning: {} — returning default", err);
+            eprintln!("[config_read] warning: {err}, returning default");
             return Ok(ConfigState::default());
         }
     };
@@ -532,10 +556,8 @@ pub async fn config_read(app: AppHandle) -> Result<ConfigState, String> {
     let cfg: ConfigState = match serde_json::from_str(&raw) {
         Ok(c) => c,
         Err(err) => {
-            eprintln!(
-                "[config_read] warning: config.json corrupt ({}), returning default",
-                err
-            );
+            let copy = keep_corrupt_copy(&path, &raw);
+            eprintln!("[config_read] warning: config.json corrupt ({err}), returning default; copy: {copy:?}");
             return Ok(ConfigState::default());
         }
     };
@@ -591,6 +613,19 @@ pub async fn config_write(app: AppHandle, mut config: ConfigState) -> Result<(),
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn corrupt_config_is_copied_once() {
+        let dir = std::env::temp_dir().join(format!("kova-cfg-corrupt-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("config.json");
+        std::fs::write(&path, "{ broken").unwrap();
+        let copy = super::keep_corrupt_copy(&path, "{ broken").expect("copy");
+        assert_eq!(std::fs::read_to_string(copy).unwrap(), "{ broken");
+        assert!(super::keep_corrupt_copy(&path, "{ broken").is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     use super::*;
 
     #[test]

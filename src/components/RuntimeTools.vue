@@ -1,7 +1,6 @@
 <script setup lang="ts">
-// Runtimes per tool: tab PHP / Node / Go / Python,
-// tabel versi (global, dipakai project mana), menu ⋯ per versi, dialog
-// "Use in project", dan install dengan progres serta Cancel.
+// Runtimes per tool (PHP, Node, Go, Python, dan tool dari Add tool), per lokasi
+// (Windows atau distro WSL): tabel versi, menu ⋯, Use in project, install.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -54,12 +53,16 @@ const installingMise = ref(false)
 const locOptions = computed(() => [{ value: '', label: 'Windows' }, ...distros.value.map((d) => ({ value: d, label: `WSL · ${d}` }))])
 async function checkDistroMise(): Promise<void> {
   distroMise.value = undefined
-  if (!loc.value) return
+  const d = loc.value
+  if (!d) return
+  let v: string | null
   try {
-    distroMise.value = await invoke<string | null>('wsl_mise_version', { distro: loc.value })
+    v = await invoke<string | null>('wsl_mise_version', { distro: d })
   } catch {
-    distroMise.value = null
+    v = null
   }
+  // Jawaban distro yang sudah tidak dipilih tidak boleh menimpa yang baru.
+  if (loc.value === d) distroMise.value = v
 }
 async function installMiseInDistro(): Promise<void> {
   installingMise.value = true
@@ -143,15 +146,19 @@ onMounted(async () => {
     if (e.payload.tool === tool.value && !loc.value) void load()
     void versionCtx.refresh()
   })
+  // Halaman ditutup sebelum listen() selesai: lepas di sini.
+  if (unmounted) unlistenGlobal()
 })
 let unlistenGlobal: UnlistenFn | null = null
-onUnmounted(() => unlistenGlobal?.())
+let unmounted = false
+onUnmounted(() => {
+  unmounted = true
+  unlistenGlobal?.()
+})
 
 const rows = computed(() => data.value[key()]?.versions ?? [])
 const rtInstall = useRuntimeInstall()
 const isFresh = (version: string): boolean => rtInstall.fresh.value.has(freshKey(tool.value, version, distroArg.value))
-
-// --- Install -----------------------------------------------------------------
 // The job lives in useRuntimeInstall, so it survives leaving this page.
 const newVersion = ref('')
 const installing = computed(() => rtInstall.current.value)
@@ -187,7 +194,7 @@ async function cancelInstall(): Promise<void> {
   await rtInstall.cancel()
 }
 
-// --- Aksi per versi -------------------------------------------------------------
+// Aksi per versi
 function menuItems(r: VersionRow): MenuItem[] {
   if (!r.installed) return [{ id: 'install', label: `Install ${meta.value.label} ${r.version}` }]
   return [

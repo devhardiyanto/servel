@@ -29,13 +29,12 @@ interface ServicesActionPayload {
   services: string[]
 }
 
-// Singleton state — shared across all consumers
 const definitions = ref<ServiceDef[]>([])
 const statuses = ref<ServiceStatus[]>([])
 const uiState = ref<Record<string, ServiceUiState>>({})
 const serviceError = ref<string | null>(null)
 const portConflicts = ref<PortConflict[]>([])
-let initialized = false
+let loadPromise: Promise<void> | null = null
 let listenerRegistered = false
 let servicesActionListenerRegistered = false
 let statsListenerRegistered = false
@@ -82,11 +81,10 @@ function applyStatusChange(id: string, running: boolean): void {
   if (idx >= 0) {
     statuses.value[idx] = { ...statuses.value[idx], running, state: running ? 'running' : 'exited' }
   } else {
-    statuses.value.push({ id, containerName: `servel_${id}`, running, state: running ? 'running' : 'exited', exitCode: running ? null : 0 })
+    statuses.value.push({ id, containerName: definitions.value.find((d) => d.id === id)?.containerName ?? `servel_${id.replace(/-/g, '_')}`, running, state: running ? 'running' : 'exited', exitCode: running ? null : 0 })
   }
 
-  // Update uiState — resolve transitional state hanya saat polling result match target end-state.
-  // 'starting' tahan sampai running=true; 'stopping' tahan sampai running=false.
+  // 'starting' bertahan sampai running=true; 'stopping' sampai running=false.
   const current = uiState.value[id]
   if (current) {
     const holdTransition =
@@ -245,11 +243,7 @@ function registerPersistWatch(): void {
   watch(selectedIds, (newIds) => {
     // Guard: jangan persist sebelum config selesai di-load,
     // kalau tidak watch awal (selectedIds = []) akan menimpa saved selection di disk.
-    if (!useConfig().loaded.value) {
-      console.log('[CONFIG] skip persist, config not loaded yet')
-      return
-    }
-    console.log('[CONFIG] selectedIds changed:', [...newIds])
+    if (!useConfig().loaded.value) return
     if (debounceTimer !== null) clearTimeout(debounceTimer)
     debounceTimer = setTimeout(() => {
       debounceTimer = null
@@ -310,10 +304,14 @@ export function useServices() {
     await start([id])
   }
 
-  async function load(): Promise<void> {
-    if (initialized) return
-    initialized = true
+  /** Semua pemanggil menunggu muatan yang sama; pemanggil kedua tidak boleh
+   * lanjut dengan definisi yang masih kosong. */
+  function load(): Promise<void> {
+    loadPromise ??= doLoad()
+    return loadPromise
+  }
 
+  async function doLoad(): Promise<void> {
     try {
       const [defs, stats] = await Promise.all([
         call<ServiceDef[]>('load_services'),
@@ -331,7 +329,7 @@ export function useServices() {
       await registerStatsListener()
       registerPersistWatch()
     } catch (err) {
-      initialized = false
+      loadPromise = null
       serviceError.value = typeof err === 'string' ? err : 'Failed to load services'
     }
   }
@@ -350,10 +348,9 @@ export function useServices() {
     if (useConfig().loaded.value) {
       // Toggle = edit profil aktif: sinkronkan selection + serviceIds profil aktif.
       useConfig().applySelection(newSelectedIds)
-      void useConfig().saveImmediate()
+      useConfig().saveImmediate().catch((err) => (serviceError.value = `Could not save the selection: ${String(err)}`))
     }
 
-    // Toggle switch langsung memicu start/stop.
     if (willSelect) {
       if (entry.status !== 'running' && entry.status !== 'starting') {
         void start([id])
@@ -366,14 +363,9 @@ export function useServices() {
   }
 
   async function start(ids?: string[], opts?: { force?: boolean }): Promise<StartOutcome> {
-    // Backend SELALU butuh full selection untuk regenerate compose file —
-    // kalau cuma kirim subset, --remove-orphans bakal nge-remove container
-    // yang sedang running tapi tidak ada di compose.
     const allSelected = selectedIds.value
     if (allSelected.length === 0) return { kind: 'nothing-selected' }
 
-    // Compute "new ones" untuk UI 'starting' indicator — bisa dari `ids` arg
-    // (specific toggle) atau dari semua selected yang belum running.
     const candidatePool = ids ?? allSelected
     const newOnes = candidatePool.filter((id) => {
       const current = uiState.value[id]
@@ -389,8 +381,7 @@ export function useServices() {
       return { kind: 'already-running' }
     }
 
-    // Cek konflik host port SEBELUM start (kecuali user pilih "Tetap mulai").
-    // Konflik = port dipakai proses lain (bukan container servel yang running).
+    // Konflik = port dipakai proses lain (bukan container servel). "Tetap mulai" melewatinya.
     if (!opts?.force) {
       const conflicts = await call<PortConflict[]>('check_port_conflicts', { services: newOnes })
       if (conflicts && conflicts.length > 0) {
@@ -416,9 +407,11 @@ export function useServices() {
     }
 
     try {
-      // Pass FULL selection — compose file = all selected, `up -d` idempotent
-      // untuk yang sudah running, start yang belum.
-      await invoke('services_start', { services: allSelected })
+      // Yang dikirim: yang sedang berjalan + yang diminta. Compose memuat yang
+      // berjalan supaya --remove-orphans tidak menghapusnya; service terpilih
+      // yang sengaja dihentikan (Stop profil) tidak ikut menyala lagi.
+      const payload = [...new Set([...runningIds.value, ...newOnes])]
+      await invoke('services_start', { services: payload })
       for (const id of newOnes) settledAt[id] = Date.now()
       return { kind: 'started', ids: newOnes }
     } catch (err) {
@@ -460,16 +453,15 @@ export function useServices() {
     }
   }
 
-  // Terapkan profil: set switch (uiState) sesuai serviceIds profil, jadikan aktif,
-  // dan persist segera agar tray baca selection terbaru. Tidak meng-start/stop
-  // container yang sedang jalan — hanya mengubah selection (desired state).
+  // Hanya mengubah pilihan; container yang sedang jalan tetap jalan dan ikut
+  // dikirim pada start berikutnya (lihat `start`), jadi tidak terhapus orphan.
   function applyProfile(id: string): void {
     const cfg = useConfig()
     const p = cfg.config.value.profiles.find((pr) => pr.id === id)
     if (!p) return
     setSelectedIds(p.serviceIds)
     cfg.setActiveProfile(id)
-    void cfg.saveImmediate()
+    cfg.saveImmediate().catch((err) => (serviceError.value = `Could not save the profile: ${String(err)}`))
   }
 
   function dismissPortConflicts(): void {

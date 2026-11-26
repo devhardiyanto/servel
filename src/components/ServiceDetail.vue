@@ -87,8 +87,6 @@ async function toggleRun(): Promise<void> {
   } else if (!selected) services.toggle(props.def.id)
   else await services.start([props.def.id])
 }
-
-// --- Data ---------------------------------------------------------------------
 const restorable = computed(() => props.def.id === 'mysql' || props.def.id === 'postgres')
 const volumes = computed(() => props.def.volumes ?? [])
 const restoring = ref(false)

@@ -83,13 +83,14 @@ const statusLine = computed(
     (state.value === 'running' ? ` · :${p.value.port}` : '') +
     (isActive(state.value) && info.value?.envName ? ` · ${info.value.envName}` : ''),
 )
-
-// --- Overview ---------------------------------------------------------------
 /** Distro WSL tempat command dijalankan; `null` = Windows/OS ini. */
 const runsInWsl = computed(() => (p.value.wsl && (p.value.runMode ?? 'command') === 'command' ? wslDistro(p.value.path) : null))
 /** Run with: Dockerfile / Compose → "Container · kova/<nama>". */
 const containerLabel = computed(() => {
-  const slug = p.value.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'project'
+  const base = p.value.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'project'
+  // Sama dengan instance_slug di sites/container.rs: slug + 8 karakter id.
+  const short = p.value.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toLowerCase()
+  const slug = short ? `${base}-${short}` : base
   if (p.value.runMode === 'dockerfile') return `Container · kova/${slug} (${p.value.container?.dockerfile || 'Dockerfile'})`
   if (p.value.runMode === 'compose') return `Compose · ${p.value.container?.composeFile || 'compose.yaml'} (project kova-${slug})`
   return ''
@@ -143,8 +144,6 @@ async function openIn(target: 'folder' | 'terminal' | 'vscode'): Promise<void> {
     actions.setError(p.value.id, String(err))
   }
 }
-
-// --- Environment ------------------------------------------------------------
 // Default + environment lain. Environment lain hanya menyimpan nilai yang
 // berbeda; baris Default tampil dengan nilai Default sebagai placeholder, dan
 // baru disimpan bila diisi.
@@ -395,14 +394,12 @@ onBeforeUnmount(() => {
   if (guard.source.value === guardSource) guard.setSource(null)
 })
 
-/** Ganti environment yang dipakai saat start. */
 async function selectEnv(name: string): Promise<void> {
   if (name === activeName.value) return
   if (!(await guard.confirmLeave())) return
   await updateProject(p.value.id, { activeEnv: name || null })
 }
 
-// New environment.
 const ENV_NAME = /^[A-Za-z0-9_-]{1,40}$/
 const newEnvOpen = ref(false)
 const newEnvName = ref('')
@@ -428,7 +425,6 @@ async function createEnv(): Promise<void> {
   toast.show(`Created ${name}. Default's variables still apply; set only what changes.`)
 }
 
-// Hapus environment (kembali ke Default).
 const deleteEnvOpen = ref(false)
 async function deleteEnv(): Promise<void> {
   const name = activeName.value

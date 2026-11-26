@@ -4,12 +4,81 @@ use std::path::PathBuf;
 
 use super::services::ServiceDef;
 
-/// Resolve path ke docker-compose.yml di temp dir.
-/// Parent dir dibuat jika belum ada.
+/// Folder per pengguna untuk file yang Kova buat lalu dibaca Docker. Bukan
+/// `/tmp` bersama: isinya memuat password service. Linux/macOS memakai
+/// `$XDG_STATE_HOME/kova` (atau `~/.local/state/kova`) dengan izin 0700.
+pub fn private_dir() -> PathBuf {
+    #[cfg(unix)]
+    let base = std::env::var_os("XDG_STATE_HOME")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("state")))
+        .unwrap_or_else(std::env::temp_dir)
+        .join("kova");
+    #[cfg(not(unix))]
+    let base = std::env::temp_dir().join("kova");
+    if std::fs::create_dir_all(&base).is_ok() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(&base, std::fs::Permissions::from_mode(0o700));
+        }
+    }
+    base
+}
+
+/// Tulis `body` ke `path` lewat file sementara 0600 lalu rename, jadi file
+/// lama atau symlink milik orang lain tidak diikuti.
+pub fn write_private(path: &std::path::Path, body: &str) -> Result<(), String> {
+    use std::io::Write;
+    let dir = path.parent().ok_or_else(|| "no parent folder".to_string())?;
+    std::fs::create_dir_all(dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let tmp = dir.join(format!(".kova-{}-{nanos}.tmp", std::process::id()));
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(&tmp).map_err(|e| format!("could not write {}: {e}", tmp.display()))?;
+    let written = f.write_all(body.as_bytes()).and_then(|_| f.sync_all());
+    drop(f);
+    if let Err(e) = written.and_then(|_| std::fs::rename(&tmp, path)) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(format!("could not write {}: {e}", path.display()));
+    }
+    Ok(())
+}
+
+/// Compose service Kova. Nama folder `servel` = nama project compose lama.
 pub fn compose_path() -> PathBuf {
-    let base = std::env::temp_dir().join("servel");
-    std::fs::create_dir_all(&base).ok();
-    base.join("docker-compose.yml")
+    private_dir().join("servel").join("docker-compose.yml")
+}
+
+/// Nama project compose untuk service Kova (container lama memakai label ini).
+pub const COMPOSE_PROJECT: &str = "servel";
+
+/// Skalar YAML berkutip ganda. `$` digandakan karena Compose menginterpolasi
+/// `$VAR` di nilai; WSLC meneruskan nilai apa adanya.
+pub fn yaml_quote(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '$' => out.push_str("$$"),
+            c if c.is_control() => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 #[tauri::command]
@@ -38,7 +107,7 @@ pub(crate) fn generate_compose(defs: &[ServiceDef], selected_ids: &[String]) -> 
 
     for def in &selected {
         writeln!(out, "  {}:", def.id).ok();
-        writeln!(out, "    image: {}", def.image).ok();
+        writeln!(out, "    image: {}", yaml_quote(&def.image)).ok();
         writeln!(out, "    container_name: {}", def.container_name).ok();
         writeln!(out, "    restart: unless-stopped").ok();
 
@@ -58,7 +127,7 @@ pub(crate) fn generate_compose(defs: &[ServiceDef], selected_ids: &[String]) -> 
             let mut envs: Vec<(&String, &String)> = def.environment.iter().collect();
             envs.sort_by_key(|(k, _)| k.as_str());
             for (k, v) in envs {
-                writeln!(out, "      - {}={}", k, v).ok();
+                writeln!(out, "      - {}", yaml_quote(&format!("{k}={v}"))).ok();
             }
         }
 
@@ -66,13 +135,13 @@ pub(crate) fn generate_compose(defs: &[ServiceDef], selected_ids: &[String]) -> 
             if !volumes.is_empty() {
                 writeln!(out, "    volumes:").ok();
                 for vol in volumes {
-                    writeln!(out, "      - {}", vol).ok();
+                    writeln!(out, "      - {}", yaml_quote(vol)).ok();
                 }
             }
         }
 
         if let Some(cmd) = &def.command {
-            writeln!(out, "    command: {}", cmd).ok();
+            writeln!(out, "    command: {}", yaml_quote(cmd)).ok();
         }
 
         writeln!(out, "    networks:").ok();
@@ -185,6 +254,24 @@ mod tests {
     }
 
     #[test]
+    fn values_are_quoted_and_dollars_escaped() {
+        assert_eq!(yaml_quote("Pa$sw0rd"), "\"Pa$$sw0rd\"");
+        assert_eq!(yaml_quote("a\nprivileged: true"), "\"a\\nprivileged: true\"");
+        assert_eq!(yaml_quote(r#"say "hi" \ #x"#), r#""say \"hi\" \\ #x""#);
+        let mut def = mysql_def();
+        def.environment.insert("NOTE".into(), "a: b #c".into());
+        let yaml = generate_compose(&[def], &["mysql".to_string()]);
+        assert!(yaml.contains("- \"NOTE=a: b #c\""));
+    }
+
+    #[test]
+    fn hyphenated_custom_id_round_trips_from_container_name() {
+        assert_eq!(super::super::services::id_from_container_name("servel_acme_search").as_deref(), Some("acme-search"));
+        assert_eq!(super::super::services::id_from_container_name("servel_mysql").as_deref(), Some("mysql"));
+        assert_eq!(super::super::services::id_from_container_name("servel_"), None);
+    }
+
+    #[test]
     fn test_empty_selection() {
         let defs = vec![mysql_def(), redis_def()];
         let yaml = generate_compose(&defs, &[]);
@@ -208,7 +295,7 @@ mod tests {
         // Service block
         assert!(yaml.contains("services:"));
         assert!(yaml.contains("  mysql:"), "mysql service harus ada");
-        assert!(yaml.contains("image: mysql:8.0"), "image mysql");
+        assert!(yaml.contains("image: \"mysql:8.0\""), "image mysql");
         assert!(yaml.contains("container_name: servel_mysql"), "container_name");
         assert!(yaml.contains("restart: unless-stopped"), "restart policy");
 
@@ -216,10 +303,10 @@ mod tests {
         assert!(yaml.contains("- \"127.0.0.1:3306:3306\""), "port di-quote dan hanya di loopback");
 
         // Environment list format
-        assert!(yaml.contains("- MYSQL_ROOT_PASSWORD=root"), "env KEY=value format");
+        assert!(yaml.contains("- \"MYSQL_ROOT_PASSWORD=root\""), "env KEY=value format");
 
         // Volume service
-        assert!(yaml.contains("- servel_mysql_data:/var/lib/mysql"), "volume service entry");
+        assert!(yaml.contains("- \"servel_mysql_data:/var/lib/mysql\""), "volume service entry");
 
         // Named volume top-level
         assert!(yaml.contains("\nvolumes:"), "top-level volumes section");
@@ -261,7 +348,7 @@ mod tests {
         assert!(yaml.contains("  servel_redis_data:"), "redis volume top-level");
 
         // Env mysql ter-render
-        assert!(yaml.contains("- MYSQL_ROOT_PASSWORD=root"), "env mysql");
+        assert!(yaml.contains("- \"MYSQL_ROOT_PASSWORD=root\""), "env mysql");
 
         // Mailpit punya 2 port
         assert!(yaml.contains("- \"127.0.0.1:1025:1025\""), "mailpit port smtp");

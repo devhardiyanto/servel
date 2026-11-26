@@ -10,7 +10,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import UiSegmented from '@/components/ui/UiSegmented.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useServices } from '@/composables/useServices'
-import { parseDotenv } from '@/utils/dotenv'
+import { parseDotenv, serializeDotenv } from '@/utils/dotenv'
 import type { ServiceDef } from '@/types/service'
 
 const props = defineProps<{ open: boolean; edit?: ServiceDef | null }>()
@@ -48,7 +48,8 @@ watch(() => props.open, (o) => {
   image.value = d?.image ?? ''
   hostPort.value = d?.ports[0]?.host ?? ''
   innerPort.value = d?.ports[0]?.container ?? ''
-  envText.value = Object.entries(d?.environment ?? {}).map(([k, v]) => `${k}=${v}`).join('\n')
+  // Dikutip bila perlu, supaya `#`, spasi, dan kutip kembali utuh saat dibaca ulang.
+  envText.value = serializeDotenv(Object.entries(d?.environment ?? {}).map(([k, v]) => ({ k, v })))
   dataPath.value = d?.volumes?.[0]?.split(':').slice(1).join(':') ?? ''
   readyKind.value = d?.ready?.kind ?? 'port'
   readyPath.value = d?.ready?.kind === 'http' ? d.ready.path : '/'
@@ -123,8 +124,9 @@ async function save(start: boolean): Promise<void> {
     await saveCustomService(def)
     await services.reloadDefinitions()
     if (start) {
+      // toggle() menyalakan service yang baru dipilih; jangan start dua kali.
       if (!services.uiState.value[def.id]?.selected) services.toggle(def.id)
-      if (props.edit && services.uiState.value[def.id]?.status === 'running') await services.restart(def.id)
+      else if (props.edit && services.uiState.value[def.id]?.status === 'running') await services.restart(def.id)
       else await services.start([def.id])
     }
     emit('saved', def.id)

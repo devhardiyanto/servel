@@ -386,7 +386,8 @@ async fn serve(app: AppHandle) -> Result<(), String> {
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.map_err(|e| e.to_string())?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     let info = serde_json::json!({ "port": port, "token": token, "pid": std::process::id() });
-    std::fs::write(dir.join("control.json"), info.to_string()).map_err(|e| e.to_string())?;
+    // Token kontrol: hanya pemilik akun yang boleh membacanya (0600 di Unix).
+    crate::commands::compose::write_private(&dir.join("control.json"), &info.to_string())?;
 
     loop {
         let Ok((stream, _)) = listener.accept().await else { continue };

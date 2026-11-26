@@ -168,11 +168,16 @@ const clearTarget = computed<{ label: string; match: (src: string) => boolean }>
 function clearView(): void {
   const target = clearTarget.value
   const snap = logs.removeWhere((l) => target.match(l.src))
-  const removed = snap.before.length - snap.keptLen
+  const removed = snap.removed.length
   if (removed === 0) return
   const what = target.label === 'all' ? 'all logs' : `${target.label} logs`
   toast.show(`Cleared ${what} (${removed.toLocaleString()} line${removed === 1 ? '' : 's'})`, {
-    action: { label: 'Undo', run: () => logs.restore(snap) },
+    action: {
+      label: 'Undo',
+      run: () => {
+        if (!logs.restore(snap)) toast.show('Only the latest Clear can be undone.', { tone: 'info' })
+      },
+    },
     timed: true,
   })
 }

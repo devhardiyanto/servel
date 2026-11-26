@@ -58,8 +58,6 @@ const launchProjectsDesc = computed(() => {
 // (General, Services, About) dan "runtimes" (PHP/Node, runtime lain, extension).
 const props = withDefaults(defineProps<{ mode?: 'settings' | 'runtimes' }>(), { mode: 'settings' })
 const activeNav = ref<SettingsNav>(props.mode === 'runtimes' ? 'php_node' : 'general')
-
-// --- Profiles CRUD ---
 const newProfileName = ref('')
 const editingId = ref<string | null>(null)
 const editingName = ref('')
@@ -179,7 +177,7 @@ const ENGINE_OPTIONS: { value: EnginePreference; label: string }[] = [
 
 const { refresh: refreshEngineBanner } = useEngineStatus()
 
-// --- Version manager (mise) & projects -------------------------------------
+// Version manager (mise) & projects
 const versionCtx = useVersionContext()
 const { ctx: miseCtx, busy: miseBusy, lastError: miseError } = versionCtx
 const runtimeLoc = useRuntimeLocation()
@@ -202,7 +200,6 @@ async function installMise(): Promise<void> {
 function openMiseDocs(): void {
   void openExternal('https://mise.jdx.dev/getting-started.html')
 }
-// --- Restore database --------------------------------------------------------
 const restoreService = ref<'mysql' | 'postgres'>('mysql')
 const restoreFile = ref<string | null>(null)
 const restoring = ref(false)

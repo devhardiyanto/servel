@@ -61,13 +61,14 @@ fn engine_bin(kind: RuntimeKind) -> &'static str {
 /// Langkah-langkah (argv per langkah). Langkah pertama boleh gagal (bersih-bersih).
 pub fn steps(site: &Project, kind: RuntimeKind, env_names: &[String]) -> Result<(Vec<Vec<String>>, Cleanup), String> {
     let spec = site.container.clone().unwrap_or_default();
-    let name = format!("kova-{}", slug(&site.name));
+    let base = instance_slug(site);
+    let name = format!("kova-{base}");
     let bin = engine_bin(kind);
     let owned = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<String>>();
     match site.run_mode {
         RunMode::Command => Err("this project runs a command, not a container".into()),
         RunMode::Dockerfile => {
-            let image = format!("kova/{}", slug(&site.name));
+            let image = format!("kova/{base}");
             let dockerfile = if spec.dockerfile.trim().is_empty() { "Dockerfile".to_string() } else { spec.dockerfile.trim().to_string() };
             if !Path::new(&site.path).join(&dockerfile).is_file() {
                 return Err(format!("{} was not found in the project folder", dockerfile));
@@ -140,11 +141,18 @@ pub fn default_compose_file(dir: &str) -> String {
     "compose.yaml".into()
 }
 
+/// Slug nama ditambah 8 karakter id project, supaya dua project bernama mirip
+/// ("Acme API" dan "acme-api") tidak berbagi container, image, atau project compose.
+pub fn instance_slug(site: &Project) -> String {
+    let short: String = site.id.chars().filter(|c| c.is_ascii_alphanumeric()).take(8).collect::<String>().to_lowercase();
+    if short.is_empty() { slug(&site.name) } else { format!("{}-{short}", slug(&site.name)) }
+}
+
 /// Override compose: network default project = network service Kova.
 fn join_override() -> Result<PathBuf, String> {
-    let p = std::env::temp_dir().join("kova-compose-join.yaml");
+    let p = crate::commands::compose::private_dir().join("compose-join.yaml");
     let body = format!("networks:\n  default:\n    name: {}\n    external: true\n", SERVICES_NETWORK);
-    std::fs::write(&p, body).map_err(|e| format!("could not write the compose override: {}", e))?;
+    crate::commands::compose::write_private(&p, &body)?;
     Ok(p)
 }
 
@@ -318,13 +326,13 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("Dockerfile"), "FROM scratch").unwrap();
         let (st, cl) = steps(&site(&dir, RunMode::Dockerfile), RuntimeKind::Docker, &["APP_ENV".into()]).unwrap();
-        assert_eq!(st[0], ["docker", "rm", "-f", "kova-go-search-api"]);
-        assert_eq!(&st[1][..4], ["docker", "build", "-t", "kova/go-search-api"]);
+        assert_eq!(st[0], ["docker", "rm", "-f", "kova-go-search-api-p"]);
+        assert_eq!(&st[1][..4], ["docker", "build", "-t", "kova/go-search-api-p"]);
         assert_eq!(st[1].last().unwrap(), &dir.display().to_string());
         assert!(st[2].windows(2).any(|w| w == ["--network", SERVICES_NETWORK]));
         assert!(st[2].windows(2).any(|w| w == ["-p", "127.0.0.1:8080:9000"]));
         assert!(st[2].windows(2).any(|w| w == ["-e", "APP_ENV"]));
-        assert_eq!(cl, Cleanup::Remove { engine: "docker", name: "kova-go-search-api".into() });
+        assert_eq!(cl, Cleanup::Remove { engine: "docker", name: "kova-go-search-api-p".into() });
         let (w, _) = steps(&site(&dir, RunMode::Dockerfile), RuntimeKind::Wslc, &[]).unwrap();
         assert_eq!(w[0][1], "remove");
         assert!(!w[2].contains(&"--network".to_string()), "WSL containers has no shared network");

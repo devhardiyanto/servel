@@ -63,6 +63,14 @@ pub fn sanitize_custom(def: &ServiceDef, builtin: &[ServiceDef]) -> Option<Servi
     if def.image.chars().any(|c| c.is_whitespace()) {
         return None;
     }
+    // Baris baru di nilai mana pun bisa menyisipkan kunci YAML di compose.
+    let multiline = |s: &str| s.contains(['\n', '\r']);
+    if def.environment.iter().any(|(k, v)| multiline(k) || multiline(v) || k.contains('='))
+        || def.volumes.iter().flatten().any(|v| multiline(v))
+        || def.command.as_deref().is_some_and(multiline)
+    {
+        return None;
+    }
     let prefix = format!("servel_{}_", def.id.replace('-', "_"));
     let volumes: Vec<String> = def
         .volumes
@@ -168,10 +176,11 @@ pub fn parse_docker_ps_json(stdout: &str) -> Vec<ServiceStatus> {
     result
 }
 
-/// Strip prefix `servel_` dari container name, return service id.
-/// Container di luar prefix servel_ diabaikan.
+/// Id service dari nama container `servel_<id>`. Custom service `acme-search`
+/// memakai container `servel_acme_search` (lihat `sanitize_custom`); id bawaan
+/// tidak memakai `_`, jadi `_` dikembalikan menjadi `-`.
 pub fn id_from_container_name(name: &str) -> Option<String> {
-    name.strip_prefix("servel_").map(|s| s.to_string())
+    name.strip_prefix("servel_").filter(|s| !s.is_empty()).map(|s| s.replace('_', "-"))
 }
 
 /// Gabungkan `requested` dengan id container yang sedang running (dari status),

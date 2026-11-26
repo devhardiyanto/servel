@@ -217,6 +217,21 @@ pub struct SiteProcs {
     /// `None` = tidak disimpan (mis. di unit test).
     records_path: Mutex<Option<std::path::PathBuf>>,
     records: Mutex<HashMap<String, Record>>,
+    /// Id yang sedang di tengah `start`, sebelum entrinya ada. Mencegah dua
+    /// start bersamaan (dobel klik tray, UI + CLI) menjalankan dua proses.
+    starting: Mutex<std::collections::HashSet<String>>,
+}
+
+/// Lepas reservasi `starting` saat `start` selesai, berhasil atau gagal.
+struct StartingGuard<'a> {
+    procs: &'a SiteProcs,
+    id: String,
+}
+
+impl Drop for StartingGuard<'_> {
+    fn drop(&mut self) {
+        self.procs.starting.lock().unwrap_or_else(|e| e.into_inner()).remove(&self.id);
+    }
 }
 
 /// Dev server yang sedang jalan. `started` = waktu mulai proses menurut OS,
@@ -564,9 +579,10 @@ pub fn validate_env(key: &str, value: &str) -> Result<(), String> {
 pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(), String> {
     validate(site)?;
     let procs = app.state::<SiteProcs>();
-    if procs.is_active(&site.id) {
+    if procs.is_active(&site.id) || !procs.starting.lock().unwrap().insert(site.id.clone()) {
         return Err(format!("{} is already running", site.name));
     }
+    let _reserved = StartingGuard { procs: &procs, id: site.id.clone() };
     if !port_free(site.port).await {
         return Err(format!(
             "port {} is used by another program. Change this project's port or stop that program.",
@@ -762,12 +778,12 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
             super::container::cleanup(c).await;
         }
         let procs = wait_app.state::<SiteProcs>();
-        record_remove(&procs, &wait_id);
         let mut requested = false;
         let mut ever_ready = false;
         {
             let mut map = procs.entries.lock().unwrap();
             if let Some(e) = map.get_mut(&wait_id) {
+                // Proses lama dari start sebelumnya: catatan milik proses baru tetap ada.
                 if e.generation != generation {
                     return;
                 }
@@ -781,6 +797,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
                 }
             }
         }
+        record_remove(&procs, &wait_id);
         if requested {
             emit_log(&wait_app, &wait_src, "stopped", None);
         } else {

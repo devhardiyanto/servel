@@ -85,12 +85,27 @@ async fn backup(app: &AppHandle, defs: &[ServiceDef], def: &ServiceDef) -> Resul
     .spawn()
     .map_err(|e| format!("could not run the backup: {}", e))?;
     let mut out = child.stdout.take().ok_or("no output from the backup")?;
+    let mut stderr = child.stderr.take();
     let mut f = tokio::fs::File::create(&file).await.map_err(|e| format!("could not write {}: {}", file.display(), e))?;
-    let copied = tokio::io::copy(&mut out, &mut f).await.map_err(|e| e.to_string())?;
-    let mut err = String::new();
-    if let Some(mut e) = child.stderr.take() {
-        let _ = e.read_to_string(&mut err).await;
-    }
+    // stdout dan stderr dibaca bersamaan: stderr yang penuh tidak boleh menahan dump.
+    let work = async {
+        let mut err = String::new();
+        let read_err = async {
+            if let Some(e) = stderr.as_mut() {
+                let _ = e.read_to_string(&mut err).await;
+            }
+        };
+        let (copied, _) = tokio::join!(tokio::io::copy(&mut out, &mut f), read_err);
+        (copied, err)
+    };
+    let (copied, err) = match tokio::time::timeout(std::time::Duration::from_secs(30 * 60), work).await {
+        Ok((c, e)) => (c.map_err(|e| e.to_string())?, e),
+        Err(_) => {
+            let _ = child.kill().await;
+            let _ = tokio::fs::remove_file(&file).await;
+            return Err("the backup did not finish within 30 minutes".into());
+        }
+    };
     let status = child.wait().await.map_err(|e| e.to_string())?;
     if !status.success() || copied == 0 {
         let _ = tokio::fs::remove_file(&file).await;

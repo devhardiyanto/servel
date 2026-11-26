@@ -722,9 +722,18 @@ Sumber: [anti-slop/audit-001-2026-11-24.md](anti-slop/audit-001-2026-11-24.md), 
 - [x] M4 · v3.25.0: Runtimes di lokasi WSL (Version manager dan Repair di distro, penjelasan PHP extensions distro). Laporan: [anti-slop/audit-001-2026-11-24-report.md](anti-slop/audit-001-2026-11-24-report.md).
 - [ ] Uji di Windows untuk v3.22.0–v3.25.0 (lihat "Catatan" di tiap file rilis).
 
+### AE — audit 002: keamanan dan logika (v3.25.1)
+
+Sumber: [anti-slop/audit-002-2026-11-26.md](anti-slop/audit-002-2026-11-26.md), laporan [audit-002-2026-11-26-report.md](anti-slop/audit-002-2026-11-26-report.md).
+
+- [x] Compose dan skrip terminal di folder per pengguna (0700/0600), nilai compose dikutip, token kontrol 0600.
+- [x] Start ganda, id custom service dengan `-`, nama container project unik, config.json rusak disalin, penulisan config berurutan, Stop Docker tanpa file compose, timeout Docker/WSL.
+- [x] Frontend: Undo log, Stop profil, start ganda custom service, config dibaca ulang, rollback saat gagal simpan, toast error, validasi port, perbandingan folder, dialog guard, cek distro.
+- [ ] B11: lock WSLC tetap dipegang sepanjang pull/restore (lihat laporan).
+
 ## Status per 24 November 2026
 
-Versi terbaru: **v3.25.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.25.1**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 

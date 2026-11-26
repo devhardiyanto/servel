@@ -109,7 +109,7 @@ pub fn parse_docker_stats_json(stdout: &str) -> Vec<ContainerMemStat> {
         };
 
         let name = val.get("Name").and_then(|v| v.as_str()).unwrap_or("");
-        let Some(id) = name.strip_prefix("servel_") else {
+        let Some(id) = crate::commands::services::id_from_container_name(name) else {
             continue;
         };
 

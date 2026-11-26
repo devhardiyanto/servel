@@ -102,10 +102,12 @@ pub fn parse_pgid(line: &str) -> Option<u32> {
 
 /// Kirim sinyal ke seluruh grup proses di distro.
 pub async fn kill_group(distro: &str, pgid: u32, signal: &str) {
-    let _ = silent_command("wsl.exe")
+    // wsl.exe yang macet tidak boleh menahan Stop atau keluar dari Kova.
+    let fut = silent_command("wsl.exe")
         .args(["-d", distro, "--exec", "kill", &format!("-{}", signal), "--", &format!("-{}", pgid)])
-        .output()
-        .await;
+        .kill_on_drop(true)
+        .output();
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(15), fut).await;
 }
 
 /// Script versi tool: baris pertama `$HOME`, lalu JSON mise (atau kosong),
@@ -157,8 +159,11 @@ pub async fn wsl_project_tools(path: String) -> Result<Vec<ToolCurrent>, String>
     let wp = parse(&path).ok_or_else(|| format!("not a WSL folder: {}", path))?;
     let out = silent_command("wsl.exe")
         .args(["-d", &wp.distro, "--cd", &wp.path, "--exec", "bash", "-lc", TOOLS_SCRIPT])
-        .output()
+        .kill_on_drop(true)
+        .output();
+    let out = tokio::time::timeout(std::time::Duration::from_secs(30), out)
         .await
+        .map_err(|_| format!("{} did not answer within 30 s", wp.distro))?
         .map_err(|e| format!("could not run wsl.exe: {}", e))?;
     if !out.status.success() && out.stdout.is_empty() {
         return Err(format!("{} did not answer", wp.distro));

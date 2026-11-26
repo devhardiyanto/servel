@@ -85,7 +85,7 @@ pub async fn restore(app: &AppHandle, defs: &[ServiceDef], service_id: &str, fil
     emit(app, &source, "stdout", "running the restore…");
     let r = match ensure_resolved().await {
         RuntimeKind::Wslc => super::wslc::exec_streamed(app, &name, &cmd, &source).await,
-        RuntimeKind::Docker => super::docker::exec_streamed(app, &name, &cmd).await,
+        RuntimeKind::Docker => super::docker::exec_streamed(app, &name, &cmd, &source).await,
     };
     match &r {
         Ok(()) => emit(app, &source, "stdout", &format!("restore finished: {}", path.display())),

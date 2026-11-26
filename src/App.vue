@@ -66,7 +66,6 @@ const { runAutoStartOnce } = useAutoStart()
 const { refresh: refreshEngineStatus } = useEngineStatus()
 const { check: checkUpdate, startAutoCheck, consumeJustUpdated } = useUpdateCheck()
 const updatedToast = useToast()
-/** Setelah update, toast dengan What's new. */
 async function announceUpdated(): Promise<void> {
   const u = await consumeJustUpdated()
   if (!u) return
