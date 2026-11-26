@@ -76,8 +76,7 @@ async function copy(text: string): Promise<void> {
 const DOCKER_DESKTOP_URL = 'https://www.docker.com/products/docker-desktop/'
 const WSL_RELEASES_URL = 'https://github.com/microsoft/WSL/releases'
 
-// --- Langkah 1: engine -------------------------------------------------------
-
+// Langkah 1: engine
 const ENGINE_OPTIONS = [
   { value: 'wslc', label: 'WSL containers' },
   { value: 'docker', label: 'Docker' },
@@ -172,8 +171,7 @@ const showElevatedWarning = computed<boolean>(
   () => isWindows.value && isWslc.value && !!status.value?.elevated,
 )
 
-// --- Langkah 2: mise --------------------------------------------------------
-
+// Langkah 2: mise
 // mise satu-satunya pengelola versi PHP/Node.
 const usesMise = computed<boolean>(() => !!status.value?.mise_installed)
 
@@ -254,8 +252,7 @@ const miseLog = computed<{ x: string; cmd?: boolean }[]>(() => {
 
 watch(() => miseLog.value.length, () => nextTick(() => outEl.value?.scrollTo({ top: outEl.value.scrollHeight })))
 
-// --- Langkah 3: project pertama --------------------------------------------
-
+// Langkah 3: project pertama
 const step = ref<1 | 2 | 3>(1)
 const steps = [
   { n: 1, label: 'Engine' },

@@ -22,6 +22,7 @@ import LogTail from '@/components/LogTail.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
 import { useServices } from '@/composables/useServices'
+import { useEngineStatus } from '@/composables/useEngineStatus'
 import { useToast } from '@/composables/useToast'
 import { useUnsavedGuard, type UnsavedSource } from '@/composables/useUnsavedGuard'
 import { useProjectRuntime, isActive } from '@/composables/useProjectRuntime'
@@ -77,23 +78,76 @@ async function openPrinted(): Promise<void> {
 }
 const up = computed(() => state.value === 'running' || state.value === 'unresponsive')
 
+// Mode Dockerfile (canvas K2/K4): skrip run mencetak "$ <engine> build …" lalu
+// "$ <engine> run …". Langkah terakhir yang tercetak menentukan fasenya.
+const lastStep = computed(() => {
+  for (let i = projectLines.value.length - 1; i >= 0; i--) {
+    if (projectLines.value[i].text.startsWith('$ ')) return i
+  }
+  return -1
+})
+const inBuild = computed(
+  () => p.value.runMode === 'dockerfile' && lastStep.value >= 0 && /^\$ \S+ build /.test(projectLines.value[lastStep.value].text),
+)
+/** "step 3 of 4" dari baris build `[3/4]` (Docker BuildKit dan WSLC sama). */
+const buildStep = computed(() => {
+  if (!inBuild.value) return ''
+  for (let i = projectLines.value.length - 1; i > lastStep.value; i--) {
+    const m = /\[(\d+)\/(\d+)\]/.exec(projectLines.value[i].text)
+    if (m) return `step ${m[1]} of ${m[2]}`
+  }
+  return ''
+})
+const buildFailed = computed(() => state.value === 'exited' && inBuild.value)
+
 const statusLine = computed(
   () =>
-    actions.stateLabel(p.value) +
+    (state.value === 'starting' && inBuild.value ? `building image${buildStep.value ? ` · ${buildStep.value}` : ''}` : actions.stateLabel(p.value)) +
     (state.value === 'running' ? ` · :${p.value.port}` : '') +
     (isActive(state.value) && info.value?.envName ? ` · ${info.value.envName}` : ''),
 )
-
-// --- Overview ---------------------------------------------------------------
 /** Distro WSL tempat command dijalankan; `null` = Windows/OS ini. */
 const runsInWsl = computed(() => (p.value.wsl && (p.value.runMode ?? 'command') === 'command' ? wslDistro(p.value.path) : null))
 /** Run with: Dockerfile / Compose → "Container · kova/<nama>". */
 const containerLabel = computed(() => {
-  const slug = p.value.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'project'
+  const base = p.value.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'project'
+  // Sama dengan instance_slug di sites/container.rs: slug + 8 karakter id.
+  const short = p.value.id.replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toLowerCase()
+  const slug = short ? `${base}-${short}` : base
   if (p.value.runMode === 'dockerfile') return `Container · kova/${slug} (${p.value.container?.dockerfile || 'Dockerfile'})`
   if (p.value.runMode === 'compose') return `Compose · ${p.value.container?.composeFile || 'compose.yaml'} (project kova-${slug})`
   return ''
 })
+/** Canvas K7: container project compose dan statusnya, diperbarui selama berjalan. */
+const composeContainers = ref<{ service: string; state: string; ports: number[] }[]>([])
+let composeTimer: ReturnType<typeof setInterval> | undefined
+async function loadCompose(): Promise<void> {
+  if (p.value.runMode !== 'compose' || !isActive(state.value)) {
+    composeContainers.value = []
+    return
+  }
+  composeContainers.value = await invoke<{ service: string; state: string; ports: number[] }[]>('project_compose_ps', { projectId: p.value.id }).catch(() => [])
+}
+watch(
+  () => [p.value.runMode, state.value] as const,
+  () => {
+    clearInterval(composeTimer)
+    void loadCompose()
+    if (p.value.runMode === 'compose' && isActive(state.value)) composeTimer = setInterval(() => void loadCompose(), 5000)
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => clearInterval(composeTimer))
+
+/** Canvas K3: bagaimana container menjangkau service Kova. */
+const { engine } = useEngineStatus()
+const containerNetwork = computed(() =>
+  engine.value === 'wslc'
+    ? 'Ports on this PC (WSL containers has no shared network). Environment values are passed with -e.'
+    : p.value.container?.joinServices === false
+      ? 'Own network; services through their ports on this PC. Environment values are passed with -e.'
+      : 'servel_default · services by name, e.g. servel_mysql:3306. Environment values are passed with -e.',
+)
 const tools = ref<ToolCurrent[] | null>(null)
 async function loadTools(): Promise<void> {
   if (!p.value.path) {
@@ -143,8 +197,6 @@ async function openIn(target: 'folder' | 'terminal' | 'vscode'): Promise<void> {
     actions.setError(p.value.id, String(err))
   }
 }
-
-// --- Environment ------------------------------------------------------------
 // Default + environment lain. Environment lain hanya menyimpan nilai yang
 // berbeda; baris Default tampil dengan nilai Default sebagai placeholder, dan
 // baru disimpan bila diisi.
@@ -395,14 +447,12 @@ onBeforeUnmount(() => {
   if (guard.source.value === guardSource) guard.setSource(null)
 })
 
-/** Ganti environment yang dipakai saat start. */
 async function selectEnv(name: string): Promise<void> {
   if (name === activeName.value) return
   if (!(await guard.confirmLeave())) return
   await updateProject(p.value.id, { activeEnv: name || null })
 }
 
-// New environment.
 const ENV_NAME = /^[A-Za-z0-9_-]{1,40}$/
 const newEnvOpen = ref(false)
 const newEnvName = ref('')
@@ -428,7 +478,6 @@ async function createEnv(): Promise<void> {
   toast.show(`Created ${name}. Default's variables still apply; set only what changes.`)
 }
 
-// Hapus environment (kembali ke Default).
 const deleteEnvOpen = ref(false)
 async function deleteEnv(): Promise<void> {
   const name = activeName.value
@@ -437,6 +486,12 @@ async function deleteEnv(): Promise<void> {
   deleteEnvOpen.value = false
   toast.show(`Deleted ${name}. ${p.value.name} uses Default now.`)
 }
+
+const defaultCount = computed(() => Object.keys(p.value.env ?? {}).length)
+/** Canvas I10: Terminal here membawa Environment aktif dan versi mise project. */
+const terminalTitle = computed(
+  () => `Terminal here, with ${activeName.value || 'Default'} from the Environment tab and this project's mise versions`,
+)
 
 const tabs = computed(() => [
   { value: 'overview', label: 'Overview' },
@@ -489,6 +544,14 @@ const tabs = computed(() => [
         @stopped="actions.start(p)"
       />
       <UiBanner v-else-if="error" tone="err" :title="`Something went wrong with ${p.name}`">{{ error }}</UiBanner>
+      <UiBanner v-else-if="buildFailed" tone="err" title="The image did not build">
+        <span v-if="buildStep">{{ buildStep[0].toUpperCase() + buildStep.slice(1) }}: </span><code v-if="info?.lastLine" class="pd-lastline">{{ info.lastLine }}</code>
+        <template #actions>
+          <UiButton @click="actions.viewLog(p)">View log</UiButton>
+          <UiButton @click="openIn('vscode')">Open in VS Code</UiButton>
+          <UiButton variant="accent" :loading="busy" @click="actions.start(p)">Retry</UiButton>
+        </template>
+      </UiBanner>
       <UiBanner
         v-else-if="state === 'exited'"
         tone="err"
@@ -528,12 +591,30 @@ const tabs = computed(() => [
         <template v-if="containerLabel">
           <dt>Runs in</dt>
           <dd>{{ containerLabel }}</dd>
+          <dt>Network</dt>
+          <dd class="pd-dim">{{ containerNetwork }}</dd>
+        </template>
+        <template v-if="composeContainers.length">
+          <dt>Containers</dt>
+          <dd>
+            <ul class="pd-containers">
+              <li v-for="c in composeContainers" :key="c.service">
+                <span class="pd-mono">{{ c.service }}</span>
+                <span v-if="c.ports.length" class="pd-mono pd-dim">:{{ c.ports.join(', :') }}</span>
+                <span :class="c.state === 'running' ? 'pd-ok' : 'pd-dim'">{{ c.state }}</span>
+              </li>
+            </ul>
+          </dd>
         </template>
         <template v-else-if="runsInWsl">
           <dt>Runs in</dt>
           <dd>WSL · {{ runsInWsl }} <span class="pd-mono pd-muted">{{ wslLinuxPath(p.path) }}</span></dd>
         </template>
-        <template v-if="envs.length">
+        <template v-if="!envs.length">
+          <dt>Environment</dt>
+          <dd class="pd-dim">{{ defaultCount ? `Default · ${defaultCount} ${defaultCount === 1 ? 'variable' : 'variables'}` : 'No variables' }}</dd>
+        </template>
+        <template v-else>
           <dt>Environment</dt>
           <dd class="pd-rt">
             <UiChip tone="accent">{{ activeName || 'Default' }}</UiChip>
@@ -742,7 +823,7 @@ const tabs = computed(() => [
     <!-- Selalu di bawah panel, untuk semua tab. -->
     <div class="pd-open">
       <UiButton :disabled="!p.path" title="Open folder" @click="openIn('folder')"><UiIcon name="folder" /><span class="pd-open-label">Open folder</span></UiButton>
-      <UiButton :disabled="!p.path" title="Terminal here" @click="openIn('terminal')"><UiIcon name="terminal" /><span class="pd-open-label">Terminal here</span></UiButton>
+      <UiButton :disabled="!p.path" :title="terminalTitle" @click="openIn('terminal')"><UiIcon name="terminal" /><span class="pd-open-label">Terminal here</span></UiButton>
       <UiButton :disabled="!p.path" title="Open in VS Code" @click="openIn('vscode')"><UiIcon name="code" /><span class="pd-open-label">Open in VS Code</span></UiButton>
     </div>
   </div>
@@ -844,4 +925,7 @@ const tabs = computed(() => [
   .pd-envsearch { flex-basis: 100%; }
   .pd-open-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 }
+.pd-containers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.pd-containers li { display: flex; gap: var(--space-2); align-items: baseline; }
+.pd-ok { color: var(--green); }
 </style>

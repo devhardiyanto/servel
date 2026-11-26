@@ -24,23 +24,22 @@ const runningProjects = computed(
 )
 // Errors the user has not dealt with yet: lines after the last visit to Logs,
 // minus those of projects that are running again (they recovered).
-const seen = ref<object | null>(null)
+const seenSeq = ref(0)
 watch(
-  () => [props.current, lines.value[lines.value.length - 1]] as const,
+  () => [props.current, lines.value[lines.value.length - 1]?.seq ?? 0] as const,
   ([view, last]) => {
-    if (view === 'logs') seen.value = last ?? null
+    if (view === 'logs') seenSeq.value = last
   },
   { immediate: true },
 )
 const recovered = computed(
   () => new Set(config.value.projects.filter((p) => stateOf(p.id) === 'running').map((p) => p.name)),
 )
+// Dibanding nomor urut, bukan posisi: baris yang sudah dilihat bisa dibuang buffer.
 const errorCount = computed(() => {
-  const from = seen.value ? lines.value.indexOf(seen.value as (typeof lines.value)[number]) + 1 : 0
   let n = 0
-  for (let i = from; i < lines.value.length; i++) {
-    const l = lines.value[i]
-    if (l.level === 'error' && !recovered.value.has(l.src)) n++
+  for (const l of lines.value) {
+    if ((l.seq ?? 0) > seenSeq.value && l.level === 'error' && !recovered.value.has(l.src)) n++
   }
   return n
 })

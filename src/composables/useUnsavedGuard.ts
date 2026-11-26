@@ -20,6 +20,8 @@ const saving = ref(false)
 
 function setSource(s: UnsavedSource | null): void {
   source.value = s
+  // Tidak ada lagi yang perlu disimpan: pertanyaan yang masih terbuka dianggap boleh lanjut.
+  if (!s && asking.value && !saving.value) answer(true)
 }
 
 /** `true` = boleh lanjut (tidak ada perubahan, dibuang, atau tersimpan). */
@@ -38,6 +40,8 @@ function answer(leave: boolean): void {
 }
 
 async function choose(choice: 'discard' | 'stay' | 'save'): Promise<void> {
+  // Esc atau klik di luar dialog saat Save berjalan: tunggu hasil Save.
+  if (saving.value) return
   const s = source.value
   if (choice === 'stay' || !s) return answer(choice !== 'stay')
   if (choice === 'discard') {

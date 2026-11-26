@@ -19,6 +19,8 @@ import { useProjectActions } from '@/composables/useProjectActions'
 import { useVersionContext } from '@/composables/useVersionContext'
 import type { Project, RunMode, ToolCurrent } from '@/types/mise'
 import { wslDistro } from '@/utils/wsl'
+import { samePath } from '@/utils/paths'
+import { containerPort, projectPort } from '@/utils/ports'
 
 const props = withDefaults(defineProps<{ path: string; compact?: boolean }>(), { compact: false })
 
@@ -38,11 +40,12 @@ const runInWsl = ref(true)
 const portState = ref<{ free: boolean; reason: string; suggestion: number | null } | null>(null)
 const formError = ref('')
 const saving = ref(false)
+const portChecking = ref(false)
 
 // Run with (canvas K1): ditawarkan hanya bila folder punya Dockerfile atau compose.
 const cinfo = ref<{ dockerfile: boolean; composeFile: string | null; composeServices: string[]; exposePort: number | null } | null>(null)
 const runMode = ref<RunMode>('command')
-const containerPort = ref('')
+const containerPortText = ref('')
 const runModes = computed(() => [
   { value: 'command', label: 'Command' },
   ...(cinfo.value?.dockerfile ? [{ value: 'dockerfile', label: 'Dockerfile' }] : []),
@@ -82,7 +85,7 @@ async function run(): Promise<void> {
     runMode.value = 'command'
     try {
       cinfo.value = await invoke('project_container_info', { path: props.path })
-      containerPort.value = cinfo.value?.exposePort ? String(cinfo.value.exposePort) : ''
+      containerPortText.value = cinfo.value?.exposePort ? String(cinfo.value.exposePort) : ''
     } catch {
       cinfo.value = null
     }
@@ -106,16 +109,21 @@ watch(
   (raw) => {
     clearTimeout(portTimer)
     if (detecting.value) return
-    const port = Number(raw)
-    if (!/^\d{1,5}$/.test(raw.trim()) || port > 65535) {
+    const port = projectPort(raw)
+    if (port === null) {
       portState.value = { free: false, reason: 'Use a port from 1024 to 65535.', suggestion: null }
       return
     }
+    // Hasil port sebelumnya tidak berlaku lagi sampai cek untuk nilai ini kembali.
+    portChecking.value = true
     portTimer = setTimeout(async () => {
       try {
-        portState.value = await invoke('project_port_check', { port, taken: actions.takenPorts() })
+        const r = await invoke<{ free: boolean; reason: string; suggestion: number | null }>('project_port_check', { port, taken: actions.takenPorts() })
+        if (form.value.port === raw) portState.value = r
       } catch {
-        portState.value = null
+        if (form.value.port === raw) portState.value = null
+      } finally {
+        if (form.value.port === raw) portChecking.value = false
       }
     }, 250)
   },
@@ -134,12 +142,25 @@ async function save(start = false): Promise<Project | null> {
     formError.value = 'Name is required.'
     return null
   }
+  const port = projectPort(form.value.port)
+  if (port === null) {
+    formError.value = 'Use a port from 1024 to 65535.'
+    return null
+  }
+  if (portChecking.value) {
+    formError.value = `Still checking port ${port}. Try again in a moment.`
+    return null
+  }
   if (portState.value && !portState.value.free) {
     formError.value = portState.value.reason
     return null
   }
-  const port = Number(form.value.port)
-  if (config.value.projects.some((p) => p.path.toLowerCase() === props.path.replace(/[\\/]+$/, '').toLowerCase())) {
+  const cport = containerPort(containerPortText.value)
+  if (runMode.value === 'dockerfile' && cport === null) {
+    formError.value = 'Port in the container must be 1 to 65535.'
+    return null
+  }
+  if (config.value.projects.some((p) => samePath(p.path, props.path))) {
     formError.value = 'This folder is already in the list.'
     return null
   }
@@ -158,7 +179,7 @@ async function save(start = false): Promise<Project | null> {
       container:
         runMode.value === 'command'
           ? null
-          : { dockerfile: '', containerPort: Number(containerPort.value) || 0, joinServices: true, composeFile: cinfo.value?.composeFile ?? '' },
+          : { dockerfile: '', containerPort: cport ?? 0, joinServices: true, composeFile: cinfo.value?.composeFile ?? '' },
     })
     await versionCtx.refresh()
     if (project && start && (project.command?.trim() || runMode.value !== 'command')) await actions.start(project)
@@ -226,12 +247,12 @@ defineExpose({ save, ready, saving, canStart: computed(() => runMode.value !== '
       </template>
       <UiInput
         v-else-if="runMode === 'dockerfile'"
-        v-model="containerPort"
+        v-model="containerPortText"
         label="Port in the container"
         mono
         width="260px"
         :placeholder="form.port"
-        :help="cinfo?.exposePort && containerPort === String(cinfo.exposePort) ? 'From EXPOSE in the Dockerfile' : 'Empty = same as Port above'"
+        :help="cinfo?.exposePort && containerPortText === String(cinfo.exposePort) ? 'From EXPOSE in the Dockerfile' : 'Empty = same as Port above'"
       />
       <p v-else class="apf-run__hint">Kova runs docker compose up for this folder. Stop runs compose down. More options are in Project settings.</p>
 

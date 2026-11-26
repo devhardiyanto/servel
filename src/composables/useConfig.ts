@@ -1,6 +1,7 @@
 import type { ServiceDef } from '@/types/service'
-import { ref } from 'vue'
+import { ref, toRaw } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { samePath } from '@/utils/paths'
 import type { EnginePreference } from '@/types/prereq'
 import type { Project, ProjectGroup } from '@/types/mise'
 
@@ -23,9 +24,9 @@ export interface ConfigState {
   autoStartProjects: boolean
   rememberSession: boolean
   minimizeToTray: boolean
-  /** Skala antarmuka (zoom webview). */
+  /** Zoom webview. */
   uiScale?: number
-  // Engine container: 'auto' | 'docker' | 'wslc' (sejak config v5).
+  /** Sejak config v5. */
   containerRuntime: EnginePreference
   /** Field config v6; tidak dibaca lagi (mise satu-satunya), disimpan agar config tetap utuh. */
   versionProvider: 'auto' | 'mise' | 'legacy'
@@ -36,7 +37,6 @@ export interface ConfigState {
   activeProjectId: string | null
   /** Quit Kova juga menghentikan service. */
   stopServicesOnQuit: boolean
-  /** Onboarding sudah dilewati sekali. */
   onboarded: boolean
   /** Services › Change port: port di PC per service id. */
   servicePorts?: Record<string, number>
@@ -68,7 +68,6 @@ const DEFAULT_CONFIG: ConfigState = {
   onboarded: false,
 }
 
-// Singleton state
 const config = ref<ConfigState>(structuredClone(DEFAULT_CONFIG))
 const loaded = ref(false)
 /** Pesan bila config.json tidak terbaca; kosong bila baik. */
@@ -76,17 +75,45 @@ const loadError = ref('')
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
+// Isi config tidak dicetak ke console: memuat nilai Environment (password, kunci API).
+/** Isi terakhir yang berhasil ditulis atau dibaca; dipakai bila simpan gagal. */
+let lastSaved: ConfigState | null = null
+const saveFailed = ref('')
+
+async function writeConfig(): Promise<void> {
+  const snapshot = structuredClone(toRaw(config.value))
+  await invoke<void>('config_write', { config: config.value })
+  lastSaved = snapshot
+}
+
 function scheduleSave(): void {
-  console.log('[CONFIG] schedule save:', JSON.parse(JSON.stringify(config.value)))
   if (saveTimer !== null) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     saveTimer = null
+    const snapshot = structuredClone(toRaw(config.value))
     invoke<void>('config_write', { config: config.value })
-      .then(() => console.log('[CONFIG] write OK'))
+      .then(() => (lastSaved = snapshot))
       .catch((err) => {
-        console.error('[CONFIG] write FAILED:', err)
+        // Canvas S-Settings › Error: toggle kembali ke nilai tersimpan dan pesan tampil.
+        if (lastSaved) config.value = structuredClone(lastSaved)
+        saveFailed.value = String(err)
       })
   }, 500)
+}
+
+/**
+ * Ubah config lalu tulis segera. Bila penulisan gagal, memori dikembalikan
+ * ke isi sebelumnya dan error diteruskan, supaya UI tidak mengira tersimpan.
+ */
+async function commit(mutate: () => void, write: () => Promise<void>): Promise<void> {
+  const before = structuredClone(toRaw(config.value))
+  mutate()
+  try {
+    await write()
+  } catch (err) {
+    config.value = before
+    throw err
+  }
 }
 
 export function useConfig() {
@@ -100,8 +127,8 @@ export function useConfig() {
     }
     loadError.value = ''
     config.value = result
+    lastSaved = structuredClone(result)
     loaded.value = true
-    console.log('[CONFIG] loaded:', JSON.parse(JSON.stringify(result)))
   }
 
   async function save(): Promise<void> {
@@ -109,19 +136,16 @@ export function useConfig() {
       clearTimeout(saveTimer)
       saveTimer = null
     }
-    await invoke<void>('config_write', { config: config.value })
+    await writeConfig()
   }
 
-  // Flush pending debounce + write immediately — dipakai oleh toggle path
-  // agar tray baca Mutex Rust dengan nilai terbaru sebelum 500ms debounce expired.
+  // Tray membaca config dari backend: toggle tidak boleh menunggu debounce 500 ms.
   async function saveImmediate(): Promise<void> {
     if (saveTimer !== null) {
       clearTimeout(saveTimer)
       saveTimer = null
     }
-    await invoke<void>('config_write', { config: config.value })
-      .then(() => console.log('[CONFIG] write immediate OK'))
-      .catch((err) => console.error('[CONFIG] write immediate FAILED:', err))
+    await writeConfig()
   }
 
   function setAutoStart(value: boolean): void {
@@ -139,15 +163,13 @@ export function useConfig() {
     const next = { ...(config.value.servicePorts ?? {}) }
     if (port === null) delete next[id]
     else next[id] = port
-    config.value.servicePorts = next
-    await saveImmediate()
+    await commit(() => (config.value.servicePorts = next), saveImmediate)
   }
 
   /** Tambah atau ganti custom service (id sama = ganti). Disimpan langsung. */
   async function saveCustomService(def: ServiceDef): Promise<void> {
     const list = (config.value.customServices ?? []).filter((d) => d.id !== def.id)
-    config.value.customServices = [...list, def]
-    await saveImmediate()
+    await commit(() => (config.value.customServices = [...list, def]), saveImmediate)
   }
 
   async function addExtraTool(tool: string): Promise<void> {
@@ -204,7 +226,7 @@ export function useConfig() {
       clearTimeout(saveTimer)
       saveTimer = null
     }
-    await invoke<void>('config_write', { config: config.value })
+    await writeConfig()
   }
 
   // Project & konteks versi ditulis segera: backend mise membaca config dari
@@ -212,19 +234,19 @@ export function useConfig() {
   async function addProject(path: string, extra: Partial<Project> = {}): Promise<Project | null> {
     const clean = path.replace(/[\\/]+$/, '')
     if (!clean) return null
-    const exists = config.value.projects.find((p) => p.path.toLowerCase() === clean.toLowerCase())
+    const exists = config.value.projects.find((p) => samePath(p.path, clean))
     if (exists) return exists
     const name = clean.split(/[\\/]/).pop() || clean
     const project: Project = { id: crypto.randomUUID(), name, ...extra, path: clean }
-    config.value.projects = [...config.value.projects, project]
-    await writeNow()
+    await commit(() => (config.value.projects = [...config.value.projects, project]), writeNow)
     return project
   }
 
   async function removeProject(id: string): Promise<void> {
-    config.value.projects = config.value.projects.filter((p) => p.id !== id)
-    if (config.value.activeProjectId === id) config.value.activeProjectId = null
-    await writeNow()
+    await commit(() => {
+      config.value.projects = config.value.projects.filter((p) => p.id !== id)
+      if (config.value.activeProjectId === id) config.value.activeProjectId = null
+    }, writeNow)
   }
 
   async function setActiveProject(id: string | null): Promise<void> {
@@ -233,8 +255,7 @@ export function useConfig() {
   }
 
   async function updateProject(id: string, patch: Partial<Project>): Promise<void> {
-    config.value.projects = config.value.projects.map((p) => (p.id === id ? { ...p, ...patch, id } : p))
-    await writeNow()
+    await commit(() => (config.value.projects = config.value.projects.map((p) => (p.id === id ? { ...p, ...patch, id } : p))), writeNow)
   }
 
   // Kelompok dan urutan ditulis segera: popup tray dan menu Linux membaca
@@ -287,7 +308,7 @@ export function useConfig() {
       clearTimeout(saveTimer)
       saveTimer = null
     }
-    await invoke<void>('config_write', { config: config.value })
+    await writeConfig()
   }
 
   // Selection = proyeksi profil aktif. Set selectedServiceIds DAN serviceIds
@@ -328,8 +349,8 @@ export function useConfig() {
     scheduleSave()
   }
 
-  // Guard: minimal selalu ada 1 profil. Hapus profil aktif → fallback ke profil
-  // pertama tersisa (selectedServiceIds ikut). Return id aktif baru (utk sinkron UI).
+  // Profil terakhir tidak bisa dihapus. Menghapus profil aktif memindahkan pilihan ke
+  // profil pertama yang tersisa; hasilnya id profil aktif yang baru.
   function deleteProfile(id: string): string | null {
     if (config.value.profiles.length <= 1) return config.value.activeProfileId
     const idx = config.value.profiles.findIndex((pr) => pr.id === id)
@@ -368,9 +389,11 @@ export function useConfig() {
     const def: ConfigState = structuredClone(DEFAULT_CONFIG)
     config.value = def
     await invoke<void>('config_write', { config: def })
+    lastSaved = structuredClone(def)
   }
 
   return {
+    saveFailed,
     config,
     loaded,
     loadError,

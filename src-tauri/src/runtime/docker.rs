@@ -3,7 +3,7 @@
 use std::process::Stdio;
 use tauri::AppHandle;
 
-use crate::commands::compose::{compose_path, generate_compose};
+use crate::commands::compose::{compose_path, generate_compose, COMPOSE_PROJECT};
 use crate::commands::services::{parse_docker_ps_json, union_with_running, ServiceDef, ServiceStatus};
 use crate::commands::stats::{parse_docker_stats_json, ContainerMemStat};
 use crate::commands::util::{silent_command, stream_and_wait_app};
@@ -164,17 +164,17 @@ pub fn exec_command(name: &str, cmd: &str) -> tokio::process::Command {
 }
 
 /// `docker exec <name> sh -c <cmd>` dengan output di-stream ke panel log.
-pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str) -> Result<(), String> {
+pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str, source: &str) -> Result<(), String> {
     let mut c = silent_command("docker");
     c.args(["exec", name, "sh", "-c", cmd]);
-    stream_and_wait_app(c, app).await
+    crate::commands::util::stream_and_wait_as(c, app, Some(source)).await
 }
 
-/// `docker exec <name> sh -c <cmd>` → exit code.
 /// stdout + stderr dari `docker logs --tail <n> <name>`.
 pub async fn logs_tail(name: &str, n: u32) -> Option<String> {
     let fut = silent_command("docker")
         .args(["logs", "--tail", &n.to_string(), name])
+        .kill_on_drop(true)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output();
@@ -184,18 +184,25 @@ pub async fn logs_tail(name: &str, n: u32) -> Option<String> {
     })
 }
 
+/// `docker exec <name> sh -c <cmd>` → exit code. Timeout membunuh `docker exec`.
 pub async fn exec_status(name: &str, cmd: &str, timeout: std::time::Duration) -> Option<i32> {
-    let fut = silent_command("docker").args(["exec", name, "sh", "-c", cmd]).status();
+    let fut = silent_command("docker").args(["exec", name, "sh", "-c", cmd]).kill_on_drop(true).status();
     tokio::time::timeout(timeout, fut).await.ok()?.ok()?.code()
 }
+
+const QUERY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(20);
 
 pub async fn status() -> Result<Vec<ServiceStatus>, String> {
     let output = silent_command("docker")
         .args(["ps", "-a", "--filter", "name=servel_", "--format", "json"])
+        .kill_on_drop(true)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .output()
+        .output();
+    // Docker Desktop yang macet tidak boleh menahan polling status selamanya.
+    let output = tokio::time::timeout(QUERY_TIMEOUT, output)
         .await
+        .map_err(|_| "docker ps did not answer within 20 s".to_string())?
         .map_err(|e| format!("Could not run docker ps: {}", e))?;
 
     if !output.status.success() {
@@ -211,10 +218,13 @@ pub async fn status() -> Result<Vec<ServiceStatus>, String> {
 pub async fn stats() -> Result<Vec<ContainerMemStat>, String> {
     let output = silent_command("docker")
         .args(["stats", "--no-stream", "--format", "json"])
+        .kill_on_drop(true)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .output()
+        .output();
+    let output = tokio::time::timeout(QUERY_TIMEOUT, output)
         .await
+        .map_err(|_| "docker stats did not answer within 20 s".to_string())?
         .map_err(|e| format!("Could not run docker stats: {}", e))?;
 
     if !output.status.success() {
@@ -243,36 +253,60 @@ pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) ->
     let effective = union_with_running(services, &running);
 
     let yaml = generate_compose(defs, &effective);
-    let compose_file = compose_path();
-    if let Some(parent) = compose_file.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("Could not create the compose folder: {}", e))?;
-    }
-    std::fs::write(&compose_file, yaml).map_err(|e| format!("Could not write the compose file: {}", e))?;
+    crate::commands::compose::write_private(&compose_path(), &yaml)?;
 
     let path = compose_path_str()?;
     let mut cmd = silent_command("docker");
-    cmd.args(["compose", "-f", &path, "up", "-d", "--remove-orphans"]);
+    cmd.args(["compose", "-p", COMPOSE_PROJECT, "-f", &path, "up", "-d", "--remove-orphans"]);
+    stream_and_wait_app(cmd, app).await
+}
+
+/// Container project compose Kova yang sedang berjalan, opsional per service.
+/// Dipakai bila file compose tidak ada (mis. dibersihkan saat reboot).
+async fn running_by_label(service: Option<&str>) -> Vec<String> {
+    let mut cmd = silent_command("docker");
+    cmd.args(["ps", "-q", "--filter"]).arg(format!("label=com.docker.compose.project={COMPOSE_PROJECT}"));
+    if let Some(svc) = service {
+        cmd.arg("--filter").arg(format!("label=com.docker.compose.service={svc}"));
+    }
+    let out = tokio::time::timeout(QUERY_TIMEOUT, cmd.kill_on_drop(true).stdout(Stdio::piped()).output()).await;
+    match out {
+        Ok(Ok(o)) if o.status.success() => String::from_utf8_lossy(&o.stdout).split_whitespace().map(str::to_string).collect(),
+        _ => Vec::new(),
+    }
+}
+
+async fn stop_containers(app: &AppHandle, ids: Vec<String>) -> Result<(), String> {
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let mut cmd = silent_command("docker");
+    cmd.arg("stop").args(ids);
     stream_and_wait_app(cmd, app).await
 }
 
 pub async fn stop(app: &AppHandle, services: &[String]) -> Result<(), String> {
     if !compose_path().exists() {
-        return Err("compose file not found; run Start first".to_string());
+        let mut ids = Vec::new();
+        for s in services {
+            ids.extend(running_by_label(Some(s)).await);
+        }
+        return stop_containers(app, ids).await;
     }
     let path = compose_path_str()?;
     let mut cmd = silent_command("docker");
-    cmd.args(["compose", "-f", &path, "stop"]);
+    cmd.args(["compose", "-p", COMPOSE_PROJECT, "-f", &path, "stop"]);
     cmd.args(services);
     stream_and_wait_app(cmd, app).await
 }
 
 pub async fn stop_all(app: &AppHandle) -> Result<(), String> {
     if !compose_path().exists() {
-        return Ok(());
+        return stop_containers(app, running_by_label(None).await).await;
     }
     let path = compose_path_str()?;
     let mut cmd = silent_command("docker");
-    cmd.args(["compose", "-f", &path, "down"]);
+    cmd.args(["compose", "-p", COMPOSE_PROJECT, "-f", &path, "down"]);
     stream_and_wait_app(cmd, app).await
 }
 

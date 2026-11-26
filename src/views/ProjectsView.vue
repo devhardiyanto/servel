@@ -96,7 +96,7 @@ function newGroup(): void {
 }
 const selected = computed(() => config.value.projects.find((p) => p.id === selectedId.value) ?? null)
 
-// Pilih project pertama yang punya folder; lepas pilihan bila project dihapus.
+// Tanpa pilihan (awal, atau project terpilih dihapus): pilih project pertama.
 watch(
   () => config.value.projects.map((p) => p.id).join(','),
   () => {
@@ -116,7 +116,6 @@ watch(
   },
   { immediate: true },
 )
-// Ganti project = mulai dari tab Overview.
 watch(selectedId, () => (actions.detailTab.value = 'overview'))
 </script>
 

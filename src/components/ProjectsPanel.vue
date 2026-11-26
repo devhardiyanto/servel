@@ -103,7 +103,7 @@ async function onGroupMenu(s: Section, id: string): Promise<void> {
   }
 }
 
-// --- Nama kelompok (baru atau diubah) -----------------------------------------
+// Nama kelompok (baru atau diubah)
 const nameInput = ref<HTMLInputElement[] | HTMLInputElement | null>(null)
 const nameDraft = ref('')
 function focusName(): void {
@@ -164,7 +164,7 @@ function cancelName(): void {
   actions.renamingGroupId.value = null
 }
 
-// --- Seret untuk mengurutkan -------------------------------------------------
+// Seret untuk mengurutkan
 interface Drag {
   id: string
   pointerId: number

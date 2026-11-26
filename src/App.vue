@@ -66,7 +66,6 @@ const { runAutoStartOnce } = useAutoStart()
 const { refresh: refreshEngineStatus } = useEngineStatus()
 const { check: checkUpdate, startAutoCheck, consumeJustUpdated } = useUpdateCheck()
 const updatedToast = useToast()
-/** Setelah update, toast dengan What's new. */
 async function announceUpdated(): Promise<void> {
   const u = await consumeJustUpdated()
   if (!u) return
@@ -86,6 +85,12 @@ watch(
 
 // Settings → General → Interface size (zoom webview).
 const uiCfg = useConfig()
+// Setting yang gagal disimpan sudah dikembalikan oleh useConfig; beri tahu sekali.
+watch(uiCfg.saveFailed, (msg) => {
+  if (!msg) return
+  updatedToast.error(`Could not save the setting, so it was changed back: ${msg}`)
+  uiCfg.saveFailed.value = ''
+})
 watch(
   () => uiCfg.config.value.uiScale ?? 1,
   (scale) => {

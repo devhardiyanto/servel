@@ -1,12 +1,19 @@
 import { ref } from 'vue'
 import { listen } from '@tauri-apps/api/event'
-import { pushBounded } from '@/utils/logBuffer'
+import { capAll, pushBounded } from '@/utils/logBuffer'
 
 export interface LogLine {
   ts: string
   src: string
   text: string
   level?: 'warn' | 'error'
+  /** Nomor urut naik terus; tetap benar walau baris lama dibuang buffer. */
+  seq?: number
+}
+
+export interface ClearSnapshot {
+  removed: LogLine[]
+  gen: number
 }
 
 export interface CmdOutput {
@@ -16,8 +23,10 @@ export interface CmdOutput {
   level?: 'warn' | 'error'
 }
 
-// Singleton state — shared across all consumers
 const lines = ref<LogLine[]>([])
+let nextSeq = 1
+/** Clear terakhir; Undo dari toast yang lebih lama diabaikan. */
+let clearGen = 0
 let listenerRegistered = false
 let globalDefaultSrc = 'KOVA'
 
@@ -34,7 +43,7 @@ async function registerListener(): Promise<void> {
     const payload = e.payload
     const src = payload.source ?? globalDefaultSrc
     const level = payload.level ?? (payload.stream === 'stderr' ? 'error' : undefined)
-    pushBounded(lines.value, { ts: timestamp(), src, text: payload.line, level })
+    pushBounded(lines.value, { ts: timestamp(), src, text: payload.line, level, seq: nextSeq++ })
   })
 }
 
@@ -45,7 +54,7 @@ export function useLogs(defaultSrc = 'KOVA') {
 
 
   function push(line: Omit<LogLine, 'src'> & { src?: string }): void {
-    pushBounded(lines.value, { ...line, src: line.src ?? defaultSrc })
+    pushBounded(lines.value, { ...line, src: line.src ?? defaultSrc, seq: nextSeq++ })
   }
 
   function clear(): void {
@@ -53,16 +62,22 @@ export function useLogs(defaultSrc = 'KOVA') {
   }
 
   /** Hapus baris yang cocok; hasilnya dipakai `restore` untuk Undo. */
-  function removeWhere(match: (l: LogLine) => boolean): { before: LogLine[]; keptLen: number } {
-    const before = lines.value
-    lines.value = before.filter((l) => !match(l))
-    return { before, keptLen: lines.value.length }
+  function removeWhere(match: (l: LogLine) => boolean): ClearSnapshot {
+    const removed = lines.value.filter(match)
+    lines.value = lines.value.filter((l) => !match(l))
+    return { removed, gen: ++clearGen }
   }
 
-  /** Kembalikan baris yang dihapus; baris yang masuk sesudahnya tetap di akhir. */
-  function restore(snap: { before: LogLine[]; keptLen: number }): void {
-    const arrived = lines.value.slice(snap.keptLen)
-    lines.value = [...snap.before, ...arrived]
+  /**
+   * Kembalikan baris yang dihapus di posisi urutannya; baris yang masuk
+   * sesudah Clear tetap ada. Batas buffer diterapkan lagi setelahnya.
+   * `false` bila ada Clear yang lebih baru (Undo toast lama tidak berlaku).
+   */
+  function restore(snap: ClearSnapshot): boolean {
+    if (snap.gen !== clearGen) return false
+    const merged = [...lines.value, ...snap.removed].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0))
+    lines.value = capAll(merged)
+    return true
   }
 
   return { lines, push, clear, removeWhere, restore }

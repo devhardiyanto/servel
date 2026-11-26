@@ -12,6 +12,8 @@ import CommandSuggestions from '@/components/CommandSuggestions.vue'
 import UiBanner from '@/components/ui/UiBanner.vue'
 import UiToggle from '@/components/ui/UiToggle.vue'
 import { wslDistro } from '@/utils/wsl'
+import { samePath } from '@/utils/paths'
+import { containerPort, projectPort } from '@/utils/ports'
 import UiSegmented from '@/components/ui/UiSegmented.vue'
 import { useEngineStatus } from '@/composables/useEngineStatus'
 import { useServices } from '@/composables/useServices'
@@ -98,6 +100,7 @@ watch(editing, (p) => {
 })
 
 let timer: ReturnType<typeof setTimeout> | undefined
+const portChecking = ref(false)
 watch(
   () => form.value.port,
   (raw) => {
@@ -106,22 +109,27 @@ watch(
     if (!p) return
     if (raw.trim() === '') {
       portState.value = null
+      portChecking.value = false
       return
     }
-    const port = Number(raw)
-    if (!/^\d{1,5}$/.test(raw.trim()) || port > 65535) {
+    const port = projectPort(raw)
+    if (port === null) {
       portState.value = { free: false, reason: 'Use a port from 1024 to 65535.', suggestion: null }
       return
     }
+    portChecking.value = true
     timer = setTimeout(async () => {
       try {
-        portState.value = await invoke('project_port_check', {
+        const r = await invoke<{ free: boolean; reason: string; suggestion: number | null }>('project_port_check', {
           port,
           taken: actions.takenPorts(p.id),
           own: port === p.port && isActive(runtime.stateOf(p.id)),
         })
+        if (form.value.port === raw) portState.value = r
       } catch {
-        portState.value = null
+        if (form.value.port === raw) portState.value = null
+      } finally {
+        if (form.value.port === raw) portChecking.value = false
       }
     }, 250)
   },
@@ -156,7 +164,14 @@ async function save(): Promise<void> {
   if (!p) return
   const name = form.value.name.trim()
   if (!name) return void (formError.value = 'Name is required.')
+  if (form.value.port.trim() !== '' && projectPort(form.value.port) === null) return void (formError.value = 'Use a port from 1024 to 65535.')
+  if (portChecking.value) return void (formError.value = 'Still checking the port. Try again in a moment.')
   if (portState.value && !portState.value.free) return void (formError.value = portState.value.reason)
+  if (runMode.value === 'dockerfile' && containerPort(cform.value.containerPort) === null) {
+    return void (formError.value = 'Port in the container must be 1 to 65535.')
+  }
+  const other = config.value.projects.find((x) => x.id !== p.id && samePath(x.path, form.value.path))
+  if (other) return void (formError.value = `${other.name} already uses this folder. A folder can belong to one project only.`)
   saving.value = true
   try {
     const pathChanged = form.value.path !== p.path
@@ -177,7 +192,7 @@ async function save(): Promise<void> {
       runMode: runMode.value,
       container: runMode.value === 'command' ? null : {
         dockerfile: cform.value.dockerfile.trim(),
-        containerPort: Number(cform.value.containerPort) || 0,
+        containerPort: containerPort(cform.value.containerPort) ?? 0,
         joinServices: cform.value.joinServices,
         composeFile: cform.value.composeFile.trim(),
         skipComposeServices: cform.value.skip,

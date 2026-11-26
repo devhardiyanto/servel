@@ -11,6 +11,7 @@ import AddProjectForm from '@/components/AddProjectForm.vue'
 import { useProjectActions } from '@/composables/useProjectActions'
 import { useToast } from '@/composables/useToast'
 import { useConfig } from '@/composables/useConfig'
+import { samePath } from '@/utils/paths'
 
 const emit = defineEmits<{ added: [id: string] }>()
 const { adding, selectRequest } = useProjectActions()
@@ -21,9 +22,8 @@ const path = ref('')
 const form = ref<InstanceType<typeof AddProjectForm> | null>(null)
 const pickError = ref('')
 
-const norm = (p: string): string => p.replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase()
 /** Project yang sudah memakai folder terpilih. */
-const existing = computed(() => (path.value ? config.value.projects.find((p) => p.path && norm(p.path) === norm(path.value)) ?? null : null))
+const existing = computed(() => (path.value ? config.value.projects.find((p) => samePath(p.path, path.value)) ?? null : null))
 
 async function pick(): Promise<void> {
   pickError.value = ''

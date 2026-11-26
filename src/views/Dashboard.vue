@@ -137,7 +137,7 @@ function startOne(id: string): void {
   void start([id])
 }
 
-// --- Menu ⋯ per service dan custom service (Flow J) -------------------------
+// Menu ⋯ per service dan custom service (Flow J)
 const toast = useToast()
 const services = useServices()
 const addOpen = ref(false)
@@ -231,7 +231,8 @@ function onProfileChange(id: string): void {
 
 onMounted(async () => {
   await loadServices()
-  await useConfig().load()
+  // Membaca ulang dari disk akan membuang perubahan yang masih menunggu ditulis.
+  if (!useConfig().loaded.value) await useConfig().load().catch(() => {})
 
   const cfg = useConfig().config.value
 
@@ -239,12 +240,8 @@ onMounted(async () => {
     setSelectedIds(cfg.selectedServiceIds)
   }
 
-  // Rekonsiliasi: container yang auto-restart (restart: unless-stopped) setelah
-  // reboot tampil running → switch harus ON walau tidak ada di saved config.
-  // Dipanggil SETELAH config loaded + setSelectedIds; persist watch akan menulis
-  // ulang selection dari running state (menyembuhkan config yang hilang).
+  // Container yang hidup lagi sendiri setelah reboot (unless-stopped) tampil dengan switch ON.
   reconcileSelectedWithRunning()
-
 })
 
 
@@ -465,7 +462,7 @@ function focusFirstSwitch(): void {
     </aside>
 
     <AddServiceModal :open="addOpen" :edit="editDef" @close="addOpen = false; editDef = null" @saved="onCustomSaved" />
-    <ServicePortModal v-if="portDef" :open="!!portDef" :def="portDef" @close="portDef = null" />
+    <ServicePortModal v-if="portDef" :open="!!portDef" :def="portDef" @close="portDef = null" @changed="(c) => c.projects.length && (connectId = c.serviceId)" />
     <UiModal :open="!!deleteDef" :title="`Delete ${deleteDef?.name ?? ''} data?`" size="sm" danger @close="deleteDef = null">
       <p class="sw-confirm">{{ deleteDef?.name }} stops, its volume{{ (deleteDef?.volumes?.length ?? 0) > 1 ? 's are' : ' is' }} deleted, and it starts again empty. Everything stored in it is gone. This cannot be undone.</p>
       <ul class="sw-confirm sw-mono"><li v-for="v in deleteDef?.volumes ?? []" :key="v">{{ v.split(':')[0] }}</li></ul>

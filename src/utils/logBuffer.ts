@@ -24,3 +24,16 @@ export function pushBounded<T extends { src: string }>(
   }
   if (lines.length > maxTotal) lines.splice(0, lines.length - maxTotal)
 }
+
+/** Terapkan kedua batas ke seluruh daftar sekaligus, menyimpan yang terbaru. */
+export function capAll<T extends { src: string }>(lines: T[], perSource = PER_SOURCE, maxTotal = MAX_TOTAL): T[] {
+  const counts = new Map<string, number>()
+  const keep: T[] = []
+  for (let i = lines.length - 1; i >= 0 && keep.length < maxTotal; i--) {
+    const l = lines[i]
+    const n = (counts.get(l.src) ?? 0) + 1
+    counts.set(l.src, n)
+    if (n <= perSource) keep.push(l)
+  }
+  return keep.reverse()
+}

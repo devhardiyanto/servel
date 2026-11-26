@@ -1,7 +1,6 @@
 <script setup lang="ts">
-// Runtimes per tool: tab PHP / Node / Go / Python,
-// tabel versi (global, dipakai project mana), menu ⋯ per versi, dialog
-// "Use in project", dan install dengan progres serta Cancel.
+// Runtimes per tool (PHP, Node, Go, Python, dan tool dari Add tool), per lokasi
+// (Windows atau distro WSL): tabel versi, menu ⋯, Use in project, install.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -54,11 +53,42 @@ const installingMise = ref(false)
 const locOptions = computed(() => [{ value: '', label: 'Windows' }, ...distros.value.map((d) => ({ value: d, label: `WSL · ${d}` }))])
 async function checkDistroMise(): Promise<void> {
   distroMise.value = undefined
-  if (!loc.value) return
+  const d = loc.value
+  if (!d) return
+  let v: string | null
   try {
-    distroMise.value = await invoke<string | null>('wsl_mise_version', { distro: loc.value })
+    v = await invoke<string | null>('wsl_mise_version', { distro: d })
   } catch {
-    distroMise.value = null
+    v = null
+  }
+  // Jawaban distro yang sudah tidak dipilih tidak boleh menimpa yang baru.
+  if (loc.value !== d) return
+  distroMise.value = v
+  pathTools.value = []
+  // Canvas L2: tanpa mise, tunjukkan versi yang sudah ada di PATH distro.
+  if (v === null) {
+    const found = await invoke<{ tool: string; version: string }[]>('wsl_path_tools', { distro: d }).catch(() => [])
+    if (loc.value === d) pathTools.value = found
+  }
+}
+const pathTools = ref<{ tool: string; version: string }[]>([])
+
+// Canvas L8: bantu menemukan php.ini milik PHP di distro.
+async function copyPhpIni(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText('php --ini')
+    toast.show('Copied php --ini. Run it in the distro to see which php.ini PHP reads.')
+  } catch {
+    toast.show('Could not copy. Type php --ini in the distro.', { tone: 'info' })
+  }
+}
+async function openPhpIniFolder(): Promise<void> {
+  const d = loc.value
+  try {
+    const dir = await invoke<string>('wsl_php_ini_dir', { distro: d })
+    await invoke('project_open_in', { target: 'folder', path: `\\\\wsl.localhost\\${d}${dir.replace(/\//g, '\\')}` })
+  } catch (err) {
+    toast.error(String(err))
   }
 }
 async function installMiseInDistro(): Promise<void> {
@@ -143,15 +173,19 @@ onMounted(async () => {
     if (e.payload.tool === tool.value && !loc.value) void load()
     void versionCtx.refresh()
   })
+  // Halaman ditutup sebelum listen() selesai: lepas di sini.
+  if (unmounted) unlistenGlobal()
 })
 let unlistenGlobal: UnlistenFn | null = null
-onUnmounted(() => unlistenGlobal?.())
+let unmounted = false
+onUnmounted(() => {
+  unmounted = true
+  unlistenGlobal?.()
+})
 
 const rows = computed(() => data.value[key()]?.versions ?? [])
 const rtInstall = useRuntimeInstall()
 const isFresh = (version: string): boolean => rtInstall.fresh.value.has(freshKey(tool.value, version, distroArg.value))
-
-// --- Install -----------------------------------------------------------------
 // The job lives in useRuntimeInstall, so it survives leaving this page.
 const newVersion = ref('')
 const installing = computed(() => rtInstall.current.value)
@@ -168,11 +202,28 @@ async function install(version = newVersion.value.trim()): Promise<void> {
   if (r?.ok && newVersion.value.trim() === version) newVersion.value = ''
 }
 
+/** Install terakhir yang gagal, untuk Retry di banner (canvas E2). */
+const failedInstall = ref<{ tool: string; version: string; distro: string } | null>(null)
+const canRetryInstall = computed(() => {
+  const f = failedInstall.value
+  return !!f && !!actionError.value && f.tool === tool.value && f.distro === loc.value
+})
+function retryInstall(): void {
+  const f = failedInstall.value
+  if (!f) return
+  actionError.value = ''
+  failedInstall.value = null
+  void install(f.version)
+}
+
 // Reload when an install finishes, including one that ended while this page
 // was closed (onMounted loads anyway in that case).
 watch(rtInstall.lastResult, (r) => {
   if (!r) return
-  if (!r.ok && !r.cancelled) actionError.value = r.error
+  if (!r.ok && !r.cancelled) {
+    actionError.value = r.error
+    failedInstall.value = { tool: r.tool, version: r.version, distro: r.distro ?? '' }
+  }
   const { [`${r.distro ?? ''}|${r.tool}`]: _stale, ...rest } = data.value
   data.value = rest
   if (r.tool === tool.value && (r.distro ?? '') === loc.value) void load()
@@ -187,7 +238,7 @@ async function cancelInstall(): Promise<void> {
   await rtInstall.cancel()
 }
 
-// --- Aksi per versi -------------------------------------------------------------
+// Aksi per versi
 function menuItems(r: VersionRow): MenuItem[] {
   if (!r.installed) return [{ id: 'install', label: `Install ${meta.value.label} ${r.version}` }]
   return [
@@ -294,6 +345,9 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
     <EmptyState v-if="loc && distroMise === null" :title="`mise is not installed in ${loc}`" icon="lines">
       Kova installs and switches versions in the distro with mise, like on Windows. It goes into your home folder there (~/.local/bin); nothing else changes.
       <code class="rtt-mono">curl https://mise.run | sh</code>
+      <span v-if="pathTools.length" class="rtt-path">
+        Found on PATH in {{ loc }}: {{ pathTools.map((t) => `${t.tool} ${t.version}`).join(' · ') }}. Kova cannot switch these versions.
+      </span>
       <template #actions>
         <UiButton variant="accent" :loading="installingMise" @click="installMiseInDistro">Install mise in {{ loc }}</UiButton>
       </template>
@@ -347,7 +401,10 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
       <code class="rtt-mono">{{ installLine || 'starting mise…' }}</code>
       <template #actions><UiButton @click="cancelInstall">Cancel</UiButton></template>
     </UiBanner>
-    <UiBanner v-if="actionError" tone="err" :title="`mise could not finish the ${meta.label} change`">{{ actionError }}</UiBanner>
+    <UiBanner v-if="actionError" tone="err" :title="canRetryInstall ? `Could not install ${meta.label} ${failedInstall?.version}` : `mise could not finish the ${meta.label} change`">
+      {{ actionError }}
+      <template v-if="canRetryInstall" #actions><UiButton :disabled="!!installing" @click="retryInstall">Retry</UiButton></template>
+    </UiBanner>
 
     <div v-if="!loc || distroMise" class="rtt-install">
       <span class="rtt-label" aria-hidden="true">Install version</span>
@@ -379,6 +436,10 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
         To turn an extension on there, run <code>php --ini</code> in {{ loc }} to see which php.ini that PHP reads,
         edit it, then restart the project.
       </p>
+      <div class="rtt-wslext__btns">
+        <UiButton @click="openPhpIniFolder">Open php.ini folder</UiButton>
+        <UiButton variant="quiet" @click="copyPhpIni">Copy php --ini</UiButton>
+      </div>
     </aside>
     </div>
 
@@ -431,6 +492,8 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
 .rtt-wslext { display: flex; flex-direction: column; gap: var(--space-2); font-size: var(--text-sm); color: var(--muted); line-height: 1.55; }
 .rtt-wslext p { margin: 0; }
 .rtt-wslext code { font-family: var(--font-mono); color: var(--text); }
+.rtt-wslext__btns { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.rtt-path { display: block; margin-top: var(--space-2); font-size: var(--text-xs); color: var(--muted); }
 .rtt-wslext__h { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text); }
 .rtt-mono { font-family: var(--font-mono); font-size: var(--text-xs); }
 .rtt-dim { color: var(--faint); font-size: var(--text-xs); }

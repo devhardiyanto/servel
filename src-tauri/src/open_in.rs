@@ -170,16 +170,38 @@ pub fn sh_script(env: &[(String, String)], banner: &str, dir: &str) -> String {
     out
 }
 
+fn script_dir() -> PathBuf {
+    crate::commands::compose::private_dir().join("term")
+}
+
+/// Script berisi nilai Environment: di folder per pengguna, dibuat 0700 sejak awal.
 fn temp_script(ext: &str, content: &str) -> Result<PathBuf, String> {
+    use std::io::Write;
+    let dir = script_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| format!("could not create {}: {e}", dir.display()))?;
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
-    let p = std::env::temp_dir().join(format!("kova-term-{}-{}.{}", std::process::id(), nanos, ext));
-    std::fs::write(&p, content).map_err(|e| format!("could not write the terminal script: {e}"))?;
+    let p = dir.join(format!("kova-term-{}-{}.{}", std::process::id(), nanos, ext));
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o700));
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o700);
     }
+    let mut f = opts.open(&p).map_err(|e| format!("could not write the terminal script: {e}"))?;
+    f.write_all(content.as_bytes()).map_err(|e| format!("could not write the terminal script: {e}"))?;
     Ok(p)
+}
+
+/// Script hanya menghapus dirinya bila terminal benar-benar terbuka.
+fn drop_scripts(attempts: &[Attempt]) {
+    let dir = script_dir();
+    for arg in attempts.iter().flat_map(|a| a.args.iter()) {
+        let p = std::path::Path::new(arg);
+        if p.starts_with(&dir) {
+            let _ = std::fs::remove_file(p);
+        }
+    }
 }
 
 /// Terminal here untuk project: ENV yang sama dengan Start (PORT, Environment
@@ -268,9 +290,13 @@ pub fn open_terminal_running(program: &'static str, args: &[String], title: &str
         match spawn(at, &dir, &[]) {
             Ok(()) => return Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(e) => return Err(format!("Could not start {}: {e}", at.program)),
+            Err(e) => {
+                drop_scripts(&attempts);
+                return Err(format!("Could not start {}: {e}", at.program));
+            }
         }
     }
+    drop_scripts(&attempts);
     Err(not_found_message(Target::Terminal))
 }
 
@@ -318,9 +344,13 @@ pub async fn project_open_in(
         match spawn(a, &dir, &env) {
             Ok(()) => return Ok(()),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(e) => return Err(format!("Could not start {}: {e}", a.program)),
+            Err(e) => {
+                drop_scripts(&attempts);
+                return Err(format!("Could not start {}: {e}", a.program));
+            }
         }
     }
+    drop_scripts(&attempts);
     Err(not_found_message(target))
 }
 

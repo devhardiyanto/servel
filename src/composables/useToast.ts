@@ -39,7 +39,15 @@ function show(text: string, opts: { tone?: Toast['tone']; action?: Toast['action
   const id = nextId++
   const tone = opts.tone ?? 'ok'
   const timed = tone === 'error' ? false : opts.timed
-  toasts.value = [...toasts.value, { id, text, tone, action: opts.action, timed }].slice(-MAX)
+  const next = [...toasts.value, { id, text, tone, action: opts.action, timed }]
+  // Lewat batas: buang toast biasa yang paling lama dulu; error tetap sampai ditutup.
+  while (next.length > MAX) {
+    const i = next.findIndex((t) => t.tone !== 'error')
+    const [gone] = next.splice(i === -1 ? 0 : i, 1)
+    clearTimeout(timers.get(gone.id))
+    timers.delete(gone.id)
+  }
+  toasts.value = next
   if (tone !== 'error' && (!opts.action || opts.timed)) arm(id)
   return id
 }

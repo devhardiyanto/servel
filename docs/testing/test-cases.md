@@ -15,23 +15,23 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | Bagian | Jumlah | W ✅ | L ✅ | Milestone yang menutup |
 |---|---|---|---|---|
 | A · Onboarding | 9 | 0 | 0 | v3.10.x, v3.12.0 |
-| B · Add project | 12 | 0 | 0 | v3.10.x, v3.15.0, v3.24.0 |
+| B · Add project | 13 | 0 | 0 | v3.10.x, v3.15.0, v3.24.0, v3.25.1 |
 | C · Project gagal | 10 | 0 | 0 | v3.10.x, v3.21.1–v3.21.3 |
-| D · Services | 8 | 0 | 0 | v3.12.0, v3.14.0, v3.15.3 |
-| E · Runtimes | 13 | 0 | 0 | v3.13.0, v3.15.4, v3.16.0, v3.24.0 |
+| D · Services | 9 | 0 | 0 | v3.12.0, v3.14.0, v3.15.3, v3.25.1 |
+| E · Runtimes | 14 | 0 | 0 | v3.13.0, v3.15.4, v3.16.0, v3.24.0, v3.26.0 |
 | F · Update | 7 | 0 | 0 | v3.13.0, v3.16.2 |
-| G · Logs | 8 | 0 | 0 | v3.11.0, v3.16.0, v3.22.0 |
+| G · Logs | 10 | 0 | 0 | v3.11.0, v3.16.0, v3.22.0, v3.25.1, v3.26.0 |
 | H · Environments | 10 | 0 | 0 | v3.10.x, v3.16.1, v3.22.0 |
-| I · Port & Terminal | 6 | 0 | 0 | v3.18.0 |
-| J · Custom service & menu | 7 | 0 | 0 | v3.19.0, v3.24.0 |
-| K · Container mode | 5 | 0 | 0 | v3.20.0 |
-| L2 · Runtimes WSL & Add tool | 6 | 0 | 0 | v3.21.0, v3.25.0 |
+| I · Port & Terminal | 7 | 0 | 0 | v3.18.0, v3.26.0 |
+| J · Custom service & menu | 8 | 0 | 0 | v3.19.0, v3.24.0, v3.25.1 |
+| K · Container mode | 7 | 0 | 0 | v3.20.0, v3.25.1, v3.26.0 |
+| L2 · Runtimes WSL & Add tool | 7 | 0 | 0 | v3.21.0, v3.25.0, v3.26.0 |
 | S · Scripts / dev server | 7 | 0 | 0 | v3.11.0 |
 | P · Kelompok & urutan project | 10 | 0 | 0 | v3.15.0 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
-| U · Tampilan & aksesibilitas | 16 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0, v3.22.0, v3.23.0 |
+| U · Tampilan & aksesibilitas | 17 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0, v3.22.0, v3.23.0, v3.26.0 |
 | W · Khusus Windows | 12 | 0 | ➖ | v3.10.x, v3.16.2, v3.17.0, v3.21.2, v3.24.0 |
-| L · Khusus Linux | 11 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3 |
+| L · Khusus Linux | 12 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3, v3.25.1 |
 
 ---
 
@@ -67,6 +67,7 @@ Persiapan: lihat README → *Cara menyiapkan ulang*.
 | TC-B10 | Lihat chip jenis di kartu, panel detail (Type), dan Project settings → Detect pada project lama. | Chip berlogo dengan garis/latar warna merek dan teks normal; Express/Fastify/Next.js terlihat jelas (logo warna teks). Jenis tanpa logo = chip abu-abu. Detect memperbarui jenis setelah Save. Tidak ada permintaan jaringan untuk ikon. | ⬜ | ⬜ | | v3.15.0 |
 | TC-B11 | Add project, pilih folder yang sudah menjadi project (juga dengan garis miring di akhir atau huruf besar-kecil berbeda). | Dialog *<project> already uses this folder*; Show <project> menutup dialog dan memilih project itu; Choose another folder membuka pemilih folder lagi; tidak ada project ganda. | ⬜ | ⬜ | | v3.24.0 (canvas B13) |
 | TC-B12 | Add project untuk folder dengan `Dockerfile` (`EXPOSE 9000`) dan `compose.yaml`. | *Run with* (Command / Dockerfile / Compose) dan *Found in the folder: Dockerfile compose.yaml*. Dockerfile: *Port in the container* = 9000 dengan keterangan *From EXPOSE in the Dockerfile*; Save & start menjalankan container. Folder tanpa keduanya tidak menampilkan Run with. | ⬜ | ⬜ | | v3.24.0 (canvas K1) |
+| TC-B13 | Add project dengan port `80`; lalu ketik port yang dipakai MySQL dan langsung Save. Di Project settings, Change folder ke folder project lain. | Port 80 ditolak (1024–65535). Save cepat menunggu hasil cek port ("Still checking…"), lalu menolak port yang terpakai. Change folder ke folder milik project lain ditolak dengan nama project-nya. | ⬜ | ⬜ | | v3.25.1 |
 
 ## C · Project gagal → perbaiki (canvas C1–C6)
 
@@ -97,6 +98,7 @@ Persiapan: project yang gagal karena env, mis. Laravel tanpa `DB_*` padahal butu
 | TC-D6 | Dengan service berjalan, diamkan di layar Services; arahkan kursor ke angka RAM. Lalu sembunyikan jendela ke tray. | Angka RAM berubah sekitar tiap 2 detik; tooltip "measured at HH:MM:SS". Service berhenti → angka `~` dengan tooltip estimasi. | ⬜ | ⬜ | | v3.10.1 |
 | TC-D7 | Menu ⋯ di samping tombol utama → Stop all services. | Semua berhenti, termasuk yang tidak dipilih; RAM di ringkasan dan status bar menjadi 0. Item nonaktif bila tidak ada yang berjalan. | ⬜ | ⬜ | | v3.10.1, v3.23.0 |
 | TC-D8 | Engine Docker (**W:** Docker Desktop, **L:** Docker Engine). Pasang v3.15.2 atau lebih lama, start MySQL dan isi satu tabel; update ke v3.15.3+, Start lagi. Lalu `docker port servel_mysql`. Dari perangkat lain di LAN coba sambung ke port 3306. | Container dibuat ulang sekali saat start; tabel tetap ada (volume sama). `docker port` menunjukkan `127.0.0.1:3306`, bukan `0.0.0.0`; dari LAN tidak bisa tersambung. Log pull image hanya berisi baris Pulling/Pulled dan status container. | ⬜ | ⬜ | | v3.15.3 |
+| TC-D9 | Engine Docker: nyalakan MySQL, hapus folder `~/.local/state/kova` (atau reboot pada versi lama yang memakai `/tmp`), lalu matikan switch MySQL dan Stop all services. | Keduanya menghentikan container (tidak ada pesan "compose file not found"). File compose baru berada di `~/.local/state/kova/servel/` dengan izin 0600, bukan di `/tmp`. | ⬜ | ⬜ | | v3.25.1 |
 
 ## E · Runtimes (canvas E1–E8)
 
@@ -115,6 +117,7 @@ Persiapan: project yang gagal karena env, mis. Laravel tanpa `DB_*` padahal butu
 | TC-E11 | Runtimes → PHP → ⋯ pada satu versi → Use in project…, dengan project Laravel, project Vite, dan project tanpa jenis. | Hanya project PHP (atau yang mise.toml-nya sudah menyebut PHP) yang tampil sebagai radio; **Show all projects** menampilkan semuanya; tombol **Use PHP x** menulis mise.toml; panel extension pindah ke versi itu. | ⬜ | ⬜ | | v3.16.0 |
 | TC-E12 | Nyalakan dua extension berurutan dengan cepat. | Baris pertama menampilkan *checking…* dan terkunci; toggle kedua tetap bisa diklik; keduanya selesai dengan hasil benar. | ⬜ | ⬜ | | v3.16.0 |
 | TC-E13 | Project dengan `mise.toml` yang meminta versi PHP/Node belum terpasang; buka Runtimes. | Baris versi itu bertanda *not installed* dengan tombol Install langsung (bukan menu ⋯); Install menampilkan banner progres. Saat memuat tertulis *Loading installed … versions…*. | ⬜ | ⬜ | | v3.24.0 |
+| TC-E14 | Install versi yang tidak ada (mis. PHP 9.9). | Banner *Could not install PHP 9.9* dengan pesan mise dan tombol Retry; Retry mengulang install. | ⬜ | ⬜ | | v3.26.0 |
 
 ## F · Update aplikasi (canvas F1–F5)
 
@@ -141,7 +144,9 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-G5 | Matikan Follow lalu scroll ke atas; nyalakan lagi. Export logs. | Follow off = tidak lompat ke bawah; on = ikut baris baru. Footer "Last 500 lines per source". Export menghasilkan file. | ⬜ | ⬜ | | |
 | TC-G7 | Pilih MySQL dan Mailpit di Services, tambah satu custom service, jalankan semuanya; buka Logs. | Tab: All, Projects, MySQL, Mailpit, nama custom service, mise (bila ada baris mise), Kova. Tidak ada tab PHP atau Node. Tiap tab hanya berisi baris sumber itu. Hapus custom service saat tabnya terbuka → kembali ke All. | ⬜ | ⬜ | | v3.22.0 |
 | TC-G8 | Tab MySQL → **Clear MySQL**; lalu Undo. Ulangi di tab Projects dengan chip satu project. | Hanya baris MySQL hilang; toast "Cleared MySQL logs (N lines)" dengan Undo mengembalikannya, baris baru yang masuk sesudahnya tetap ada. Di chip project tombolnya *Clear <project>*. | ⬜ | ⬜ | | v3.22.0 |
+| TC-G9 | Clear MySQL saat sebuah project terus mencetak log; tunggu ±10 baris baru; Undo. Ulangi: Clear MySQL, Clear Kova, lalu Undo pada toast pertama. | Baris MySQL kembali di posisi waktunya, baris project yang baru tetap ada. Undo pada toast lama menampilkan "Only the latest Clear can be undone." dan tidak mengubah daftar. Badge error Logs tidak naik lagi untuk error yang sudah dilihat. | ⬜ | ⬜ | | v3.25.1 |
 | TC-G6 | Buat satu project gagal start (error di Logs), lihat badge Logs. Perbaiki dan start lagi sampai running. Lalu buka Logs dan kembali. | Badge naik saat error; turun setelah project running kembali; nol setelah Logs dibuka. Saat project running muncul toast "… is running on localhost:PORT" dengan tombol Open yang membuka browser. | ⬜ | ⬜ | | v3.16.0 |
+| TC-G10 | Logs dengan banyak baris; scroll ke atas, tunggu baris baru, lalu scroll ke paling bawah. | Follow mati saat scroll ke atas (baris baru tidak menarik ke bawah), menyala lagi di dasar. Menyalakan Follow langsung lompat ke baris terbaru. | ⬜ | ⬜ | | v3.26.0 |
 
 ## H · Environments (canvas H1–H6)
 
@@ -168,6 +173,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-I4 | Jalankan MySQL lokal (atau program lain) di 3306, Start service MySQL. | Banner menyebut program + PID; Change port… membuka dialog dengan port bebas; Change port and start → MySQL jalan di port baru, Connect dan Copy .env memakai port baru. | ⬜ | ⬜ | | v3.18.0 |
 | TC-I5 | Dari TC-I4 buka Change port… lagi, klik Use the default port. | MySQL kembali ke 3306 (container dibuat ulang, data tetap). | ⬜ | ⬜ | | v3.18.0 |
 | TC-I6 | Project dengan variabel di tab Environment: Terminal here (panel dan menu ⋯). Cek `echo $env:APP_ENV` / `echo $APP_ENV`, `php -v`. Ulangi untuk project Run inside WSL. | Baris pertama "Kova: … from <project> > Default"; nilai sama dengan tab Environment; versi PHP/Node sesuai project; script sementara sudah terhapus. WSL: terminal di distro dengan variabel yang sama. | ⬜ | ⬜ | | v3.18.0 |
+| TC-I12 | Isi `DB_PORT=3306` di Environment dua project; Services › MySQL › Change port… ke 3307. Ulangi lewat menu ⋯ di daftar Services. | Connect menampilkan *2 projects use 3306* dengan nama keduanya dan ajakan memperbarui ke 3307; Done menutupnya. Dari menu ⋯, panel MySQL terbuka dengan pesan yang sama. | ⬜ | ⬜ | | v3.26.0 |
 
 ## J · Custom service & menu ⋯ (canvas Flow J1–J8)
 
@@ -180,6 +186,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-J5 | Menu ⋯ Elasticsearch › Edit service… ganti port di PC ke 9201, Save and restart. Lalu Remove service… tanpa dan dengan Also delete its data. | Port baru dipakai; Remove menghapus container dan definisi; dengan centang, volume `servel_elasticsearch_data` ikut terhapus. | ⬜ | ⬜ | | v3.19.0 |
 | TC-J6 | Menu ⋯ › Restart dan View logs pada service yang berjalan. | Restart = stop lalu start; View logs membuka panel service di tab Logs. | ⬜ | ⬜ | | v3.19.0 |
 | TC-J7 | Add service dengan image yang lama siap (mis. `postgres:17` sebagai custom), Ready when: **Log line** = `ready to accept connections`; Add and start. Coba juga teks yang tidak pernah muncul. | Status *starting* sampai teks muncul di log container, lalu running. Teks yang tidak muncul: setelah 120 detik baris log "readiness check has not passed…" dan service dianggap siap. Field kosong ditolak. | ⬜ | ⬜ | | v3.24.0 |
+| TC-J8 | Add service dengan nama `Acme Search` (id `acme-search`) dan env `PASSWORD=Pa$sw0rd #1`; Add and start. Edit service, lalu nyalakan Redis. | Baris tampil running dan RAM terukur; `docker exec servel_acme_search env` menulis `PASSWORD=Pa$sw0rd #1` utuh; Edit menampilkan nilai yang sama; menyalakan Redis tidak menghapus container acme-search. Hanya satu start di log. | ⬜ | ⬜ | | v3.25.1 |
 
 ## K · Project container mode (canvas Flow K1–K7)
 
@@ -190,6 +197,8 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-K3 | Stop, lalu Start lagi; ulangi 3 kali. Cek `docker ps -a` / `wslc list`. | Tidak ada container `kova-<nama>` yang tertinggal setelah Stop; Start berikutnya langsung jalan. | ⬜ | ⬜ | | v3.20.0 |
 | TC-K4 | Buat error kompilasi di kode, Start. | Status exited; banner dengan baris error terakhir; View log menampilkan output build. Perbaiki, Restart → jalan. | ⬜ | ⬜ | | v3.20.0 |
 | TC-K5 | Engine Docker: Run with: Compose pada folder dengan `compose.yaml` (api + redis), nyalakan *Use Kova's redis*. Start, lalu Stop. Ganti engine ke WSL containers dan buka Run with: Compose. | `compose up --build --scale redis=0`; api menjangkau Kova redis sebagai `servel_redis`; Stop = compose down. Di WSL containers muncul peringatan "Compose needs the Docker engine". | ⬜ | ⬜ | | v3.20.0 |
+| TC-K6 | Dua project Dockerfile bernama `Acme API` dan `acme-api`; start keduanya (port berbeda), stop yang pertama. | Container `kova-acme-api-<id>` berbeda untuk tiap project; keduanya berjalan bersamaan; menghentikan satu tidak memengaruhi yang lain. | ⬜ | ⬜ | | v3.25.1 |
+| TC-K7 | Project Dockerfile: Start dan amati status saat build; buat error kompilasi lalu Start. Project Compose: Start dan buka Overview. | Status *building image · step N of M*; build gagal = banner *The image did not build* dengan langkah + View log, Open in VS Code, Retry. Overview menulis Network; compose mendaftar container dengan port dan status. | ⬜ | ⬜ | | v3.26.0 |
 
 ## L2 · Runtimes WSL & Add tool (canvas Flow L1–L6)
 
@@ -201,6 +210,7 @@ Persiapan: pasang versi sebelumnya dari Releases.
 | TC-RW4 | Add tool: ketik `java`, pilih; install versi `temurin-21`. | Diterima (bukan "version is not valid"); terpasang. | ⬜ | ⬜ | | v3.21.0 |
 | TC-RW5 | Tab Bun › Remove tab; restart Kova. | Tab hilang dan tetap hilang; versi Bun yang terpasang masih ada di `mise ls`. | ⬜ | ⬜ | | v3.21.0 |
 | TC-RW6 | Runtimes › PHP › WSL · Ubuntu-24.04 (mise terpasang di distro). Klik Reshim lalu Doctor. Kembali ke Windows. | Seksi menjadi *Version manager in Ubuntu-24.04* dengan versi mise distro; log Logs › mise menulis `mise reshim  (in Ubuntu-24.04)` dan laporan doctor distro. Panel samping *PHP extensions in Ubuntu-24.04* menjelaskan `php --ini`, tanpa daftar extension Windows. Di Windows, seksi dan panel kembali ke milik Windows. | ⬜ | ➖ | | v3.25.0 (canvas L8) |
+| TC-RW7 | Distro tanpa mise yang punya `go`/`node` dari apt: Runtimes › WSL. Lalu distro dengan PHP: tab PHP › Open php.ini folder dan Copy php --ini. | Empty state menulis *Found on PATH in <distro>: go … · node …*. Open php.ini folder membuka folder php.ini distro di Explorer; tanpa PHP muncul toast error. Copy menyalin `php --ini`. | ⬜ | ➖ | | v3.26.0 |
 
 ## S · Scripts & dev server (regresi v3.10.2, persiapan v3.11.0)
 
@@ -265,6 +275,7 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-U15 | Keyboard dan pembaca layar di Services dan Settings: Tab ke baris service lalu Enter; navigasi heading (NVDA: H) di Settings; tab di detail project. | Enter di nama service membuka detail; heading *On launch*, *Container engine*, dst. terbaca sebagai heading level 2; tab mengumumkan panelnya. Service yang berhenti menulis "–" di kolom RAM, tooltip menyebut perkiraan. | ⬜ | ⬜ | | v3.22.0 |
 | TC-U16 | Perkecil jendela ke 900 px. Projects: klik kartu lain. Services: buka detail MySQL. | Panel detail Projects tetap di kanan dan menampilkan project yang diklik; Add project jadi ikon, pencarian di baris sendiri, tidak ada scroll horizontal. Services: status dan ⋯ setiap baris terlihat utuh; tombol header terbungkus, tidak terpotong. Label kelompok dan judul bagian ditulis huruf biasa. | ⬜ | ⬜ | | v3.23.0 |
 | TC-U13 | Buka Services, panel detail satu service, popup tray, dan Ctrl K → ketik nama service. | MySQL, PostgreSQL, Redis, RabbitMQ, MongoDB, MinIO memakai logo resminya (bukan emoji); Mailpit dan Gotenberg ikon garis; logo jelas terbaca di tema gelap dan terang; nama service tetap tertulis di sampingnya. | ⬜ | ⬜ | | v3.16.0 |
+| TC-U17 | Buat config.json read-only, lalu ubah satu toggle di Settings. | Setelah ±0,5 detik toggle kembali ke nilai semula dan toast error *Could not save the setting, so it was changed back…* muncul. | ⬜ | ⬜ | | v3.26.0 |
 
 ## W · Khusus Windows
 
@@ -300,3 +311,4 @@ Catat di *Catatan putaran*: distro, desktop environment, `docker version`, `dock
 | TC-L9 | (a) Dengan tailscaled mendengarkan 3306/6379/5432/5672 di IP Tailscale, Start profil berisi MySQL, Redis, PostgreSQL, RabbitMQ. (b) Dengan MySQL bawaan Linux di 127.0.0.1:3306, Start MySQL. | (a) Keempat service running; `ss -ltnp` menunjukkan docker-proxy di 127.0.0.1. (b) Peringatan port dipakai program lain sebelum start; bila dipaksa, pesan menyebut port dan service-nya, bukan "exit status". Log pull tanpa ratusan baris "Downloading". | ➖ | ⬜ | | v3.15.3 |
 | TC-L10 | Lihat status bar setelah Kova terbuka ±1 menit. | Angka Kova ratusan MB, bukan GB; kira-kira sama dengan `ps`/System Monitor untuk proses kova + WebKit. | ➖ | ⬜ | | v3.15.3 |
 | TC-L11 | (a) Runtimes → PHP → Install 8.4 dari AppImage, dengan paket build terpasang (dari terminal `mise install php@8.4` berhasil). (b) Ulangi tanpa paket build. (c) Buka Terminal here dari Kova, jalankan `echo $LD_LIBRARY_PATH $APPDIR`. | (a) Berhasil, sama dengan dari terminal. (b) Gagal dengan pesan yang menyertakan daftar paket apt/dnf. (c) Keduanya kosong. | ➖ | ⬜ | | v3.15.3 |
+| TC-L12 | Rusak config.json (hapus satu kurung), buka Kova, lalu ubah satu setting. Juga Terminal here tanpa terminal yang dikenal. | Ada `config.json.corrupt-<waktu>` berisi isi lama sebelum config ditimpa. Terminal here gagal dengan pesan, tanpa skrip `kova-term-*` tertinggal; `control.json` berizin 0600. | ➖ | ⬜ | | v3.25.1 |

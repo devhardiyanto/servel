@@ -10,9 +10,10 @@ import UiButton from '@/components/ui/UiButton.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useServices } from '@/composables/useServices'
 import type { ServiceDef } from '@/types/service'
+import { lastPortChange, type PortChange } from '@/utils/portChange'
 
 const props = defineProps<{ open: boolean; def: ServiceDef; suggestion?: number | null }>()
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: []; changed: [change: PortChange] }>()
 
 const { config, setServicePort } = useConfig()
 const services = useServices()
@@ -58,14 +59,29 @@ const valid = computed(() => {
 /** Contoh baris .env dengan port baru. */
 const preview = computed(() => `${props.def.id.toUpperCase()}_PORT=${value.value || '…'}`)
 
+/** Project yang Environment-nya masih menyebut port lama (canvas I9). */
+function projectsUsing(port: number): string[] {
+  const re = new RegExp(`(^|[^0-9])${port}([^0-9]|$)`)
+  return config.value.projects
+    .filter((p) => {
+      const maps = [p.env ?? {}, ...(p.envs ?? []).map((e) => e.vars)]
+      return maps.some((m) => Object.values(m).some((v) => re.test(v)))
+    })
+    .map((p) => p.name)
+}
+
 async function apply(port: number | null): Promise<void> {
   saving.value = true
   error.value = ''
+  const old = current.value
   try {
     await setServicePort(props.def.id, port)
     await services.reloadDefinitions()
     services.dismissPortConflicts()
     await services.restart(props.def.id)
+    const now = Number(services.definitions.value.find((d) => d.id === props.def.id)?.ports[0]?.host ?? 0)
+    lastPortChange.value = { serviceId: props.def.id, from: old, to: now, projects: projectsUsing(old) }
+    emit('changed', lastPortChange.value)
     emit('close')
   } catch (err) {
     error.value = String(err)

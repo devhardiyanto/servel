@@ -23,3 +23,6 @@ src-tauri/target/
 *.njsproj
 *.sln
 *.sw?
+
+# Catatan audit antislop (lokal, tidak di repo)
+anti-slop/

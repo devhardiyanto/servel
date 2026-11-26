@@ -463,8 +463,15 @@ pub fn parse_docker_error(stderr_acc: &str) -> Option<String> {
 /// Stream stdout/stderr dari `cmd` ke frontend via `cmd-output` event, pakai `AppHandle`.
 /// Source tag di-derive dari konten line via `src_from_line` (per-service tagging).
 /// Tunggu sampai proses selesai; return Err kalau exit code != 0.
-pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<(), String> {
+pub async fn stream_and_wait_app(cmd: Command, app: &AppHandle) -> Result<(), String> {
+    stream_and_wait_as(cmd, app, None).await
+}
+
+/// Seperti `stream_and_wait_app`; `source` = sumber log tetap (mis. `MYSQL`
+/// untuk `docker exec` restore) dan pesan gagal tidak menyebut compose.
+pub async fn stream_and_wait_as(mut cmd: Command, app: &AppHandle, source: Option<&str>) -> Result<(), String> {
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    let fixed = source.map(str::to_string);
 
     let mut child = cmd.spawn().map_err(|e| format!("Could not run docker: {}", e))?;
 
@@ -474,13 +481,14 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
     let stderr_buf: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
 
     let app_out = app.clone();
+    let fixed_out = fixed.clone();
     let stdout_task = tokio::spawn(async move {
         let mut reader = BufReader::new(stdout).lines();
         while let Ok(Some(line)) = reader.next_line().await {
             if is_layer_progress(&line) {
                 continue;
             }
-            let source = src_from_line(&line);
+            let source = fixed_out.clone().unwrap_or_else(|| src_from_line(&line));
             let _ = app_out.emit(
                 "cmd-output",
                 serde_json::json!({ "line": line, "stream": "stdout", "source": source }),
@@ -490,6 +498,7 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
 
     let app_err = app.clone();
     let stderr_buf_clone = Arc::clone(&stderr_buf);
+    let fixed_err = fixed.clone();
     let stderr_task = tokio::spawn(async move {
         let mut reader = BufReader::new(stderr).lines();
         while let Ok(Some(line)) = reader.next_line().await {
@@ -499,7 +508,7 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
             if is_layer_progress(&line) {
                 continue;
             }
-            let source = src_from_line(&line);
+            let source = fixed_err.clone().unwrap_or_else(|| src_from_line(&line));
             // docker compose menulis progress (Pulling, Created, Started) ke
             // stderr — tampilkan sebagai output biasa. Pesan error final
             // di-emit di bawah bila perintah gagal.
@@ -526,10 +535,13 @@ pub async fn stream_and_wait_app(mut cmd: Command, app: &AppHandle) -> Result<()
         let msg = crate::runtime::docker::friendly_error(&acc)
             .or_else(|| parse_docker_error(&acc))
             // `ExitStatus` sudah menulis "exit status: 1".
-            .unwrap_or_else(|| format!("docker compose failed ({})", status));
+            .unwrap_or_else(|| match &fixed {
+                Some(_) => format!("the command failed ({})", status),
+                None => format!("docker compose failed ({})", status),
+            });
         let _ = app.emit(
             "cmd-output",
-            serde_json::json!({ "line": msg, "stream": "stderr", "source": "KOVA" }),
+            serde_json::json!({ "line": msg, "stream": "stderr", "source": fixed.as_deref().unwrap_or("KOVA") }),
         );
         return Err(msg);
     }
