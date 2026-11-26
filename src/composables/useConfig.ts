@@ -1,5 +1,5 @@
 import type { ServiceDef } from '@/types/service'
-import { ref, toRaw } from 'vue'
+import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { samePath } from '@/utils/paths'
 import type { EnginePreference } from '@/types/prereq'
@@ -76,12 +76,21 @@ const loadError = ref('')
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 // Isi config tidak dicetak ke console: memuat nilai Environment (password, kunci API).
+/**
+ * Salinan lepas dari config. Bukan `structuredClone`: objek di dalam config bisa
+ * berupa proxy reaktif Vue (mis. hasil `envs.map(...)`), dan proxy tidak bisa di-clone.
+ * Config selalu JSON (itu yang ditulis ke disk), jadi salinan JSON setara.
+ */
+function cloneConfig(c: ConfigState): ConfigState {
+  return JSON.parse(JSON.stringify(c)) as ConfigState
+}
+
 /** Isi terakhir yang berhasil ditulis atau dibaca; dipakai bila simpan gagal. */
 let lastSaved: ConfigState | null = null
 const saveFailed = ref('')
 
 async function writeConfig(): Promise<void> {
-  const snapshot = structuredClone(toRaw(config.value))
+  const snapshot = cloneConfig(config.value)
   await invoke<void>('config_write', { config: config.value })
   lastSaved = snapshot
 }
@@ -90,12 +99,12 @@ function scheduleSave(): void {
   if (saveTimer !== null) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     saveTimer = null
-    const snapshot = structuredClone(toRaw(config.value))
+    const snapshot = cloneConfig(config.value)
     invoke<void>('config_write', { config: config.value })
       .then(() => (lastSaved = snapshot))
       .catch((err) => {
         // Canvas S-Settings › Error: toggle kembali ke nilai tersimpan dan pesan tampil.
-        if (lastSaved) config.value = structuredClone(lastSaved)
+        if (lastSaved) config.value = cloneConfig(lastSaved)
         saveFailed.value = String(err)
       })
   }, 500)
@@ -106,7 +115,7 @@ function scheduleSave(): void {
  * ke isi sebelumnya dan error diteruskan, supaya UI tidak mengira tersimpan.
  */
 async function commit(mutate: () => void, write: () => Promise<void>): Promise<void> {
-  const before = structuredClone(toRaw(config.value))
+  const before = cloneConfig(config.value)
   mutate()
   try {
     await write()
@@ -127,7 +136,7 @@ export function useConfig() {
     }
     loadError.value = ''
     config.value = result
-    lastSaved = structuredClone(result)
+    lastSaved = cloneConfig(result)
     loaded.value = true
   }
 
@@ -389,7 +398,7 @@ export function useConfig() {
     const def: ConfigState = structuredClone(DEFAULT_CONFIG)
     config.value = def
     await invoke<void>('config_write', { config: def })
-    lastSaved = structuredClone(def)
+    lastSaved = cloneConfig(def)
   }
 
   return {
