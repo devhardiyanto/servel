@@ -138,7 +138,7 @@ pub fn printed_port(line: &str) -> Option<u16> {
 
 /// Folder UNC (`\\wsl.localhost\…`, `\\server\share`). `cmd` tidak bisa
 /// memakainya sebagai folder kerja dan pindah ke C:\Windows.
-fn is_unc(path: &str) -> bool {
+pub(crate) fn is_unc(path: &str) -> bool {
     path.starts_with(r"\\")
 }
 
@@ -274,7 +274,7 @@ fn emit_status<R: Runtime>(app: &AppHandle<R>) {
     let _ = app.emit("site-status-changed", procs.snapshot());
 }
 
-fn emit_log<R: Runtime>(app: &AppHandle<R>, source: &str, line: &str, level: Option<&str>) {
+pub(crate) fn emit_log<R: Runtime>(app: &AppHandle<R>, source: &str, line: &str, level: Option<&str>) {
     let mut payload = serde_json::json!({ "line": line, "stream": "stdout", "source": source });
     if let Some(l) = level {
         payload["level"] = serde_json::Value::String(l.to_string());
@@ -363,7 +363,7 @@ pub fn port_bindable(port: u16) -> bool {
     std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, port)).is_ok()
 }
 
-fn shell_command(line: &str) -> tokio::process::Command {
+pub(crate) fn shell_command(line: &str) -> tokio::process::Command {
     #[cfg(target_os = "windows")]
     {
         // `/S /C "<line>"`: cmd membuang tanda kutip terluar dan menjalankan
@@ -407,7 +407,7 @@ pub(crate) async fn kill_tree(pid: u32) {
 /// Proses anak yang dibuat sebelum penugasan selesai (beberapa milidetik
 /// pertama) bisa lolos; catatan di disk menjadi cadangannya.
 #[cfg(target_os = "windows")]
-mod job {
+pub(crate) mod job {
     use std::sync::OnceLock;
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
     use windows_sys::Win32::System::JobObjects::{
@@ -510,6 +510,20 @@ fn record_remove(procs: &SiteProcs, id: &str) {
     if removed {
         persist_records(procs);
     }
+}
+
+/// Catat proses lain milik project (mis. queue worker) supaya ikut
+/// dibersihkan bila Kova mati paksa. `key` unik per proses.
+pub(crate) async fn track_pid<R: Runtime>(app: &AppHandle<R>, key: &str, pid: u32) {
+    if let Some(started) = process_started(pid).await {
+        let procs = app.state::<SiteProcs>();
+        procs.records.lock().unwrap().insert(key.to_string(), Record { pid, started });
+        persist_records(&procs);
+    }
+}
+
+pub(crate) fn untrack_pid<R: Runtime>(app: &AppHandle<R>, key: &str) {
+    record_remove(&app.state::<SiteProcs>(), key);
 }
 
 /// Aktifkan penyimpanan catatan di `path` (dipanggil sekali saat Kova start).
@@ -806,6 +820,7 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
                 None => "the process ended".to_string(),
             };
             emit_log(&wait_app, &wait_src, &msg, Some("error"));
+            crate::notify::project_exited(&wait_app, &wait_src, code);
             let hint = match &wait_distro {
                 Some(d) => wsl_not_found_hint(code, &wait_cmd, d),
                 None => not_found_hint(code, &wait_cmd),
@@ -1009,6 +1024,8 @@ pub async fn restart<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(
 
 /// Hentikan semua dev server (dipanggil saat Kova keluar).
 pub async fn stop_all<R: Runtime>(app: &AppHandle<R>) {
+    let workers_app = app.clone();
+    let workers = tauri::async_runtime::spawn(async move { super::workers::stop_everything(&workers_app).await });
     let procs = app.state::<SiteProcs>();
     let targets: Vec<(String, u32, Option<(String, u32)>)> = {
         let mut map = procs.entries.lock().unwrap();
@@ -1030,6 +1047,7 @@ pub async fn stop_all<R: Runtime>(app: &AppHandle<R>) {
     for h in handles {
         let _ = h.await;
     }
+    let _ = workers.await;
     // Tunggu proses benar-benar selesai (maks 10 dtk), supaya port dan drive
     // sementara sudah lepas sebelum Kova keluar atau installer berjalan.
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
@@ -1056,7 +1074,9 @@ pub fn snapshot<R: Runtime>(app: &AppHandle<R>) -> Vec<SiteRuntime> {
 
 /// PID akar dev server yang sedang hidup, untuk menghitung RAM project.
 pub fn running_pids<R: Runtime>(app: &AppHandle<R>) -> Vec<u32> {
-    app.state::<SiteProcs>().entries.lock().unwrap().values().filter_map(|e| e.pid).collect()
+    let mut pids: Vec<u32> = app.state::<SiteProcs>().entries.lock().unwrap().values().filter_map(|e| e.pid).collect();
+    pids.extend(super::workers::running_pids(app));
+    pids
 }
 
 #[cfg(test)]
@@ -1142,6 +1162,7 @@ mod tests {
             wsl: false,
             run_mode: Default::default(),
             container: None,
+            processes: Vec::new(),
         }
     }
 

@@ -38,6 +38,7 @@ const {
   setAutoStartProjects,
   setRememberSession,
   setMinimizeToTray,
+  setNotifications,
   setUiScale,
   setStopServicesOnQuit,
   setContainerRuntime,
@@ -507,6 +508,12 @@ onMounted(async () => {
               desc="Closing the window hides Kova in the system tray; projects and services keep running"
             >
               <UiToggle label="Keep running in the tray when the window closes" :on="config.minimizeToTray" @click="setMinimizeToTray(!config.minimizeToTray)" />
+            </SettingRow>
+            <SettingRow
+              label="Notify me when something stops on its own"
+              desc="A desktop notification when a project, one of its processes or a service stops without being asked, while the Kova window is hidden or in the background"
+            >
+              <UiToggle label="Notify me when something stops on its own" :on="config.notifications !== false" @click="setNotifications(config.notifications === false)" />
             </SettingRow>
             <SettingRow
               label="Stop services when Kova quits"

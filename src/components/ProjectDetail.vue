@@ -19,6 +19,7 @@ import FrameworkChip from '@/components/FrameworkChip.vue'
 import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
 import { parseDotenv, serializeDotenv, mergeRows, summarize, type SkippedLine } from '@/utils/dotenv'
 import LogTail from '@/components/LogTail.vue'
+import ProcessesPanel from '@/components/ProcessesPanel.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
 import { useServices } from '@/composables/useServices'
@@ -643,6 +644,8 @@ const tabs = computed(() => [
           </template>
         </template>
       </dl>
+
+      <ProcessesPanel v-if="!p.runMode || p.runMode === 'command'" :project="p" />
 
       <section class="pd-sec">
         <h3 class="pd-label">Services{{ profile ? ` · profile ${profile.name}` : '' }}</h3>

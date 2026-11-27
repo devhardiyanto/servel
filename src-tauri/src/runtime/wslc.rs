@@ -702,6 +702,13 @@ pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str, source: &str)
     run_streamed(app, &owned(&["exec", name, "sh", "-c", cmd]), source, RUN_TIMEOUT).await
 }
 
+/// `wslc logs -f --tail <n> <name>` untuk diikuti terus (log service di Logs).
+pub fn follow_command(name: &str, n: u32) -> tokio::process::Command {
+    let mut c = command(&owned(&["logs", "-f", "--tail", &n.to_string(), name]));
+    c.stdout(Stdio::piped()).stderr(Stdio::piped());
+    c
+}
+
 /// stdout + stderr dari `wslc logs --tail <n> <name>`.
 pub async fn logs_tail(name: &str, n: u32) -> Option<String> {
     let out = capture(&owned(&["logs", "--tail", &n.to_string(), name]), QUERY_TIMEOUT).await.ok()?;

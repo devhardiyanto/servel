@@ -378,7 +378,7 @@ Rebrand dan tampilan baru selesai dengan v3.0.0. Milestone A–F tertutup kecual
 
 ## Setelah v3.0.0
 
-Penomoran: v3.x menambah fitur tanpa memutus apa pun dari Servel. **v4.0 adalah rilis yang membuang lapisan kompatibilitas Servel**; belum dijadwalkan dan baru dikerjakan bila ada alasan (misalnya nama `servel_*` mulai menghalangi fitur).
+Penomoran: v3.x menambah fitur tanpa memutus apa pun dari Servel. **v4.0 adalah rilis Kova Editor, sekaligus rilis yang membuang lapisan kompatibilitas Servel** (lihat bagian v4.0 di bawah). Nama repo tetap `devhardiyanto/servel`.
 
 ### G — v3.1: lanjutan
 
@@ -750,9 +750,17 @@ Sumber: audit 004 (catatan lokal, tidak di repo).
 - [x] Komentar basi di frontend dan backend (doc comment yang menempel di fungsi yang salah, label dan nama fungsi lama).
 - [ ] Item RENDAH audit 004 (U11–U23, komentar yang terlalu panjang atau mengulang kode).
 
+### AH · v3.27.0: proses tambahan, log service, notifikasi
+
+- [x] Processes per project: status, Start/Stop/Restart per proses, restart otomatis dengan jeda dan batas, usulan queue/scheduler/Vite untuk Laravel, prefiks log dan chip `server`.
+- [x] Log container service mengalir ke tab service di Logs (`logs -f`, cadangan baca berkala).
+- [x] Notifikasi OS saat project, proses, atau service berhenti sendiri; setting untuk mematikannya.
+- [ ] Uji di perangkat: TC-R1 sampai TC-R10.
+- [x] v3.27.1: komentar dari audit 006 (em dash, campuran bahasa, docstring `migrate` yang basi).
+
 ## Status per 24 November 2026
 
-Versi terbaru: **v3.26.2**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.27.1**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 
@@ -791,7 +799,11 @@ Hasil audit artboard canvas (flow A–H, S-*, C-*, sitemap) terhadap `src/` pada
 
 - ~~Dukungan Dockerfile/compose per project~~ — selesai di v3.20.0. Catatan lama: ditunda per 20 November 2026: belum ada kebutuhan dari pengguna; dibuka lagi bila permintaannya banyak. Bila dibuka, mulai dengan spike: verifikasi `wslc build`, bind mount folder project, dan jaringan ke service. Docker jelas bisa; dukungan wslc belum pasti dan `wslc compose` belum ada.
 
-### v4.0 — pemutusan kompatibilitas Servel (belum dijadwalkan)
+### v4.0 · Kova Editor + pemutusan kompatibilitas Servel (belum dijadwalkan)
+
+Keputusan 27 November 2026: Kova Editor (VS Code Lite di dalam Kova, CodeMirror 6, Windows native dulu) menjadi isi utama v4.0, dan pemutusan kompatibilitas Servel ikut di rilis yang sama supaya pengguna cukup sekali melewati upgrade besar. **Nama repo tidak diganti**: tetap `devhardiyanto/servel`. Desain di canvas (halaman 6 · Kova Editor); riset dan audit di catatan lokal.
+
+- Kova Editor: satu folder (Open Folder) dan workspace (grup Kova, import `.code-workspace` sebagai Preview), operasi file, LSP, Problems, rename dengan preview. Didahului spike: RAM, beberapa language server per file Vue, shortcut di WebView2, pemulihan saat webview crash.
 
 - Perintah terminal `servel` dihapus; hanya `kova`. Pemberitahuan di terminal ("keeps working until v4.0") merujuk ke rilis ini.
 - Kandidat, masing-masing butuh migrasi dan keputusan terpisah: nama container/volume `servel_*` → `kova_*`, folder data dengan bundle id lama (`com.devhardiyanto.servel`), field config lama (`versionProvider`), migrasi config v7.

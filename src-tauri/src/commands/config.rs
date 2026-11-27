@@ -84,6 +84,23 @@ pub struct Project {
     /// Setelan mode container (Dockerfile / compose).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub container: Option<ContainerSpec>,
+    /// Proses tambahan yang berjalan bersama dev server (queue worker,
+    /// scheduler, Vite). Hanya untuk mode `command`. Kova versi lama
+    /// mengabaikan field ini.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub processes: Vec<ProjectProcess>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectProcess {
+    /// Nama pendek, unik per project (`queue`, `vite`). Dipakai sebagai
+    /// prefiks baris log `[queue]`.
+    pub name: String,
+    pub command: String,
+    /// Jalankan lagi bila berhenti sendiri.
+    #[serde(default = "default_true")]
+    pub auto_restart: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -201,6 +218,10 @@ pub struct ConfigState {
     pub remember_session: bool,
     #[serde(default = "default_true")]
     pub minimize_to_tray: bool,
+    /// Notifikasi Windows/desktop saat project, proses, atau service berhenti
+    /// sendiri dan jendela Kova tidak sedang dilihat.
+    #[serde(default = "default_true")]
+    pub notifications: bool,
     /// Skala antarmuka: zoom webview, 0.9 / 1.0 / 1.1.
     #[serde(default = "default_ui_scale")]
     pub ui_scale: f64,
@@ -254,9 +275,9 @@ fn default_runtime() -> String {
 /// - v1 → v2: config flat (`selected_service_ids`, tanpa `profiles`) → buat
 ///   profil "Default" berisi selection existing, set `active_profile_id`.
 /// - v2 → v3: perkenalkan `sites`. Config lama tanpa field
-///   ini di-isi `[]` oleh serde default — tak butuh rebuild, cukup bump versi.
+///   ini di-isi `[]` oleh serde default; cukup bump versi.
 /// - v3 → v4: perkenalkan `Site.target`. Site lama tak
-///   punya makna proxy, jadi sengaja **tidak** diberi target default — serde
+///   punya makna proxy, jadi sengaja **tidak** diberi target default; serde
 ///   mengisinya `None` dan site tetap hosts-only. Cukup bump versi.
 /// - v4 → v5: perkenalkan `container_runtime` (WSL containers). Serde
 ///   default `auto` → install lama di Windows yang masih punya Docker tetap di
@@ -268,7 +289,7 @@ fn default_runtime() -> String {
 ///   nama, port target menjadi port, folder masih kosong. File hosts tidak
 ///   disentuh di sini.
 ///
-/// Idempotent: config yang sudah `CURRENT_VERSION` & punya profil valid dibiarkan apa adanya.
+/// Aman dipanggil berulang; invariant diperbaiki di setiap baca.
 fn migrate(mut cfg: ConfigState) -> ConfigState {
     // Pengguna lama yang sudah memakai Kova tidak perlu onboarding lagi.
     if !cfg.onboarded && (!cfg.projects.is_empty() || cfg.profiles.iter().any(|p| !p.service_ids.is_empty())) {
@@ -317,6 +338,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
                 wsl: false,
                 run_mode: Default::default(),
                 container: None,
+                processes: Vec::new(),
             });
         }
     }
@@ -346,6 +368,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
             wsl: false,
             run_mode: Default::default(),
             container: None,
+            processes: Vec::new(),
         });
     }
 
@@ -433,6 +456,7 @@ impl Default for ConfigState {
             auto_start_projects: true,
             remember_session: true,
             minimize_to_tray: true,
+            notifications: true,
             ui_scale: 1.0,
             container_runtime: default_runtime(),
             version_provider: default_runtime(),
@@ -476,8 +500,7 @@ fn write_config_atomic(path: &Path, json: &str) -> Result<(), String> {
     std::fs::rename(&tmp_path, path)
         .map_err(|e| format!("could not rename config.tmp to config.json: {}", e))?;
 
-    // fsync direktori parent agar entri rename durable. Pada Windows File::open ke
-    // direktori tidak selalu didukung — best-effort, abaikan error.
+    // fsync folder supaya rename durable; di Windows bisa gagal, diabaikan.
     #[cfg(unix)]
     if let Some(parent) = path.parent() {
         if let Ok(dir) = std::fs::File::open(parent) {
@@ -597,8 +620,7 @@ pub async fn config_write(app: AppHandle, mut config: ConfigState) -> Result<(),
     // supaya polling berikutnya langsung memakai engine baru.
     crate::runtime::apply_preference(&config.container_runtime).await;
 
-    // Sync ke in-memory Mutex<ConfigState> — tray membaca dari Mutex ini
-    // saat user klik "Start selected services". Tanpa sync, Mutex stale = default kosong.
+    // Tray membaca Mutex ini, bukan disk.
     if let Some(state) = app.try_state::<Mutex<ConfigState>>() {
         if let Ok(mut guard) = state.lock() {
             *guard = config.clone();
@@ -713,6 +735,7 @@ mod tests {
             auto_start_projects: true,
             remember_session: false,
             minimize_to_tray: true,
+            notifications: true,
             ui_scale: 1.0,
             container_runtime: "auto".to_string(),
             version_provider: "auto".to_string(),
@@ -757,7 +780,7 @@ mod tests {
 
     #[test]
     fn test_parse_with_unknown_field() {
-        // Field tak dikenal harus di-skip (bukan error) — default serde behavior
+        // Field tak dikenal dilewati, bukan error.
         let json = r#"{
             "version": 1,
             "selectedServiceIds": ["mysql"],
@@ -800,6 +823,7 @@ mod tests {
             auto_start_projects: true,
             remember_session: true,
             minimize_to_tray: false,
+            notifications: true,
             ui_scale: 1.0,
             container_runtime: "wslc".to_string(),
             version_provider: "mise".to_string(),
@@ -820,6 +844,7 @@ mod tests {
                 wsl: false,
                 run_mode: Default::default(),
                 container: None,
+                processes: Vec::new(),
             }],
             groups: Vec::new(),
             active_project_id: Some("p1".into()),

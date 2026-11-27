@@ -24,6 +24,8 @@ export interface ConfigState {
   autoStartProjects: boolean
   rememberSession: boolean
   minimizeToTray: boolean
+  /** Notifikasi OS saat project, proses, atau service berhenti sendiri. */
+  notifications?: boolean
   /** Zoom webview. */
   uiScale?: number
   /** Sejak config v5. */
@@ -58,6 +60,7 @@ const DEFAULT_CONFIG: ConfigState = {
   autoStartProjects: true,
   rememberSession: true,
   minimizeToTray: true,
+  notifications: true,
   uiScale: 1,
   containerRuntime: 'auto',
   versionProvider: 'auto',
@@ -230,6 +233,11 @@ export function useConfig() {
     scheduleSave()
   }
 
+  function setNotifications(value: boolean): void {
+    config.value.notifications = value
+    scheduleSave()
+  }
+
   async function writeNow(): Promise<void> {
     if (saveTimer !== null) {
       clearTimeout(saveTimer)
@@ -338,8 +346,7 @@ export function useConfig() {
     scheduleSave()
   }
 
-  // Dipakai path toggle (immediate persist, bypass rememberSession) — tetap
-  // meng-edit profil aktif ("toggle = edit profil aktif").
+  // Switch di Services: simpan langsung ke profil aktif, tanpa melihat rememberSession.
   function applySelection(ids: string[]): void {
     syncSelection(ids)
   }
@@ -419,6 +426,7 @@ export function useConfig() {
     removeCustomService,
     setRememberSession,
     setMinimizeToTray,
+    setNotifications,
     setStopServicesOnQuit,
     markOnboarded,
     setContainerRuntime,

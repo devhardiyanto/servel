@@ -170,6 +170,17 @@ pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str, source: &str)
     crate::commands::util::stream_and_wait_as(c, app, Some(source)).await
 }
 
+/// `docker logs -f --tail <n> <name>` untuk diikuti terus (log service di Logs).
+pub fn follow_command(name: &str, n: u32) -> tokio::process::Command {
+    let mut c = silent_command("docker");
+    c.args(["logs", "-f", "--tail", &n.to_string(), name])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    c
+}
+
 /// stdout + stderr dari `docker logs --tail <n> <name>`.
 pub async fn logs_tail(name: &str, n: u32) -> Option<String> {
     let fut = silent_command("docker")
