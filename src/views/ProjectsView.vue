@@ -121,8 +121,9 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
 
 <template>
   <div v-if="loadError" class="pv-state">
+    <h1 class="pv-title">Projects</h1>
     <UiBanner tone="err" title="Couldn't load your projects">
-      {{ loadError }} Kova did not change the file.
+      config.json could not be read: {{ loadError.replace(/\.?\s*$/, '') }}. Kova did not change the file.
       <code v-if="configFile" class="pv-config-path">{{ configFile }}</code>
       <template #actions>
         <UiButton v-if="configDir" variant="quiet" @click="openConfigDir">Open folder</UiButton>
@@ -135,6 +136,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
     </div>
   </div>
   <div v-else-if="!loaded" class="pv-state" aria-busy="true" aria-label="Loading projects">
+    <h1 class="pv-title">Projects</h1>
     <div v-for="n in 3" :key="n" class="pv-skel">
       <SkeletonBox width="38%" height="14px" />
       <SkeletonBox width="62%" height="11px" />
@@ -158,7 +160,7 @@ watch(selectedId, () => (actions.detailTab.value = 'overview'))
         <span class="pv-sp"></span>
         <!-- Tanpa project, Add project ada di empty state; jangan dobel. -->
         <template v-if="config.projects.length">
-          <UiButton size="md" title="New group" :disabled="!!actions.draftGroup.value" @click="newGroup"><UiIcon name="plus" /><span class="pv-newgroup-label">New group</span></UiButton>
+          <UiButton size="md" title="New group" :disabled="!!actions.draftGroup.value" @click="newGroup"><UiIcon name="folder-plus" /><span class="pv-newgroup-label">New group</span></UiButton>
           <UiButton variant="primary" size="md" title="Add project" @click="actions.adding.value = true"><UiIcon name="plus" /><span class="pv-add-label">Add project</span></UiButton>
         </template>
       </header>

@@ -118,7 +118,6 @@ fn emit(app: &AppHandle, source: &str, stream: &str, line: &str) {
     );
 }
 
-/// Jalankan wslc sambil men-stream stdout/stderr ke panel log. Serial + retry.
 /// Nama container yang dicetak ulang wslc setelah `start`/`stop`/`remove`
 /// berhasil. Baris itu tidak ditampilkan di Logs: tanpa konteks, baris
 /// `servel_redis` sendirian membingungkan, dan hasilnya sudah terlihat dari
@@ -130,6 +129,7 @@ fn echoed_target(args: &[String]) -> Option<String> {
     }
 }
 
+/// Jalankan wslc sambil men-stream stdout/stderr ke panel log. Serial + retry.
 async fn run_streamed(
     app: &AppHandle,
     args: &[String],
@@ -669,7 +669,6 @@ pub async fn copy_file_into(name: &str, host: &std::path::Path, dest: &str) -> R
     }
 }
 
-/// `exec <name> sh -c <cmd>` dengan output di-stream ke panel log.
 /// Hapus container (Delete data / Remove service). Tidak ada = berhasil.
 pub async fn remove_container(name: &str) -> Result<(), String> {
     match capture_ok(&owned(&["remove", "-f", name]), STOP_TIMEOUT).await {
@@ -698,13 +697,11 @@ pub fn exec_command(name: &str, cmd: &str) -> tokio::process::Command {
     c
 }
 
+/// `exec <name> sh -c <cmd>` dengan output di-stream ke panel log.
 pub async fn exec_streamed(app: &AppHandle, name: &str, cmd: &str, source: &str) -> Result<(), String> {
     run_streamed(app, &owned(&["exec", name, "sh", "-c", cmd]), source, RUN_TIMEOUT).await
 }
 
-/// `wslc exec <name> sh -c <cmd>` → exit code (None bila gagal dijalankan/timeout).
-/// Satu percobaan saja (tanpa retry transien): dipakai probe readiness yang
-/// diulang tiap tick polling.
 /// stdout + stderr dari `wslc logs --tail <n> <name>`.
 pub async fn logs_tail(name: &str, n: u32) -> Option<String> {
     let out = capture(&owned(&["logs", "--tail", &n.to_string(), name]), QUERY_TIMEOUT).await.ok()?;
@@ -713,6 +710,9 @@ pub async fn logs_tail(name: &str, n: u32) -> Option<String> {
     })
 }
 
+/// `wslc exec <name> sh -c <cmd>` → exit code (None bila gagal dijalankan/timeout).
+/// Satu percobaan saja (tanpa retry transien): dipakai probe readiness yang
+/// diulang tiap tick polling.
 pub async fn exec_status(name: &str, cmd: &str, timeout: Duration) -> Option<i32> {
     let args = owned(&["exec", name, "sh", "-c", cmd]);
     let _guard = LOCK.lock().await;

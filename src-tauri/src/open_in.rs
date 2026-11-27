@@ -193,7 +193,7 @@ fn temp_script(ext: &str, content: &str) -> Result<PathBuf, String> {
     Ok(p)
 }
 
-/// Script hanya menghapus dirinya bila terminal benar-benar terbuka.
+/// Hapus script sementara bila tidak ada terminal yang berhasil dibuka.
 fn drop_scripts(attempts: &[Attempt]) {
     let dir = script_dir();
     for arg in attempts.iter().flat_map(|a| a.args.iter()) {

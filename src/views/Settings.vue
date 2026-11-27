@@ -458,7 +458,6 @@ onMounted(async () => {
 
       <main class="settings-content" :class="{ 'settings-content--cards': props.mode === 'settings' }">
         <template v-if="activeNav === 'general'">
-          <!-- Kiri On launch + Window & quit, kanan Container engine + Command line. -->
           <div class="settings-col">
           <div class="section-block">
             <h2 class="section-title">On launch</h2>

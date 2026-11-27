@@ -2,6 +2,7 @@
 //!
 //! - `detect`: kenali jenis project → usulan perintah dan port.
 //! - `process`: jalankan/hentikan dev server.
+//! - `container`: project mode Dockerfile / Compose.
 
 pub mod container;
 pub mod detect;
@@ -184,8 +185,8 @@ pub async fn site_forget(app: AppHandle, id: String) {
     process::forget(&app, &id);
 }
 
-/// Saat Kova dibuka: bersihkan dev server sisa sesi sebelumnya, lalu
-/// jalankan project ber-`auto_start`. Gagal start satu
+/// Saat Kova dibuka: bersihkan dev server sisa sesi sebelumnya, lalu bila
+/// `auto_start_projects` aktif jalankan project ber-`auto_start`. Gagal start satu
 /// project tidak menghalangi yang lain; errornya masuk ke panel log.
 pub fn autostart(app: &AppHandle) {
     if let Ok(dir) = app.path().app_data_dir() {

@@ -195,8 +195,8 @@ onBeforeUnmount(() => hide())
   text-align: left;
   cursor: pointer;
 }
-.ui-menu__item:hover:not(:disabled),
-.ui-menu__item:focus-visible { background: var(--surface3); outline: none; }
+.ui-menu__item:hover:not(:disabled) { background: var(--surface3); }
+.ui-menu__item:focus-visible { background: var(--surface3); outline: 2px solid var(--accent); outline-offset: -2px; }
 .ui-menu__item:disabled { color: var(--faint); cursor: not-allowed; }
 .ui-menu__item--danger { color: var(--red); }
 .ui-menu__item--back { color: var(--muted); }

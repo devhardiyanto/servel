@@ -243,8 +243,6 @@ pub fn plan_use(
     }
 }
 
-/// Versi yang boleh diteruskan ke mise: 1–3 segmen angka (`24`, `8.3`, `22.23.3`).
-/// Menolak apa pun yang bisa disalahartikan sebagai flag atau spec lain.
 /// Versi untuk halaman Runtimes: `latest`, angka (`8.4.14`), atau untuk tool
 /// tambahan bentuk lain yang dipakai mise (`temurin-21`, `1.2.4-beta`).
 pub fn validate_tool_version(tool: &str, version: &str) -> Result<(), String> {
@@ -259,6 +257,8 @@ pub fn validate_tool_version(tool: &str, version: &str) -> Result<(), String> {
     if extra && shape { Ok(()) } else { Err(format!("version '{}' is not valid", version)) }
 }
 
+/// Versi yang boleh diteruskan ke mise: 1–3 segmen angka (`24`, `8.3`, `22.23.3`).
+/// Menolak apa pun yang bisa disalahartikan sebagai flag atau spec lain.
 pub fn validate_version(version: &str) -> Result<(), String> {
     let parts: Vec<&str> = version.split('.').collect();
     let ok = !version.is_empty()
@@ -671,10 +671,10 @@ pub struct MiseContext {
 }
 
 // ---------------------------------------------------------------------------
-// Runtimes lain lewat mise: Go dan Python
+// Perintah lama untuk Go dan Python; halaman Runtimes kini memakai `runtime_overview`
 // ---------------------------------------------------------------------------
 
-/// Tool yang boleh diatur dari panel Runtimes. PHP/Node punya panel sendiri.
+/// Tool yang diterima `runtime_versions`, `runtime_install`, dan `runtime_use`.
 pub const RUNTIME_TOOLS: &[&str] = &["go", "python"];
 
 pub fn check_runtime_tool(tool: &str) -> Result<(), String> {
@@ -724,7 +724,7 @@ pub async fn runtime_use(app: AppHandle, tool: String, version: String, scope: S
 // Halaman Runtimes per tool
 // ---------------------------------------------------------------------------
 
-/// Tool yang punya tab di Runtimes.
+/// Tool bawaan Runtimes; tool lain ditambah lewat Add tool.
 pub const ALL_TOOLS: &[&str] = &["php", "node", "go", "python"];
 
 /// Tool bawaan atau tool mise yang ditambah lewat Add tool (`bun`,

@@ -175,7 +175,7 @@ pub struct LegacySite {
 pub struct ConfigState {
     #[serde(default)]
     pub version: u32,
-    /// Proyeksi `service_ids` profil aktif. Tray & compose membaca field ini —
+    /// Proyeksi `service_ids` profil aktif. Tray dan CLI `kova up` membaca field ini,
     /// selalu di-sinkronkan dari profil aktif saat write (lihat `config_write`).
     #[serde(default)]
     pub selected_service_ids: Vec<String>,
@@ -208,8 +208,8 @@ pub struct ConfigState {
     /// Config lama tanpa field ini → `auto` (migrasi v4→v5).
     #[serde(default = "default_runtime")]
     pub container_runtime: String,
-    /// Version manager PHP/Node: `auto` | `mise` | `legacy` (phpvm/fnm).
-    /// `auto` memakai mise bila terpasang.
+    /// Tidak dibaca lagi (mise satu-satunya pengelola versi); disimpan untuk
+    /// kompatibilitas file config.
     #[serde(default = "default_runtime")]
     pub version_provider: String,
     #[serde(default)]
@@ -268,7 +268,7 @@ fn default_runtime() -> String {
 ///   nama, port target menjadi port, folder masih kosong. File hosts tidak
 ///   disentuh di sini.
 ///
-/// Idempotent: config yang sudah v4 & punya profil valid dibiarkan apa adanya.
+/// Idempotent: config yang sudah `CURRENT_VERSION` & punya profil valid dibiarkan apa adanya.
 fn migrate(mut cfg: ConfigState) -> ConfigState {
     // Pengguna lama yang sudah memakai Kova tidak perlu onboarding lagi.
     if !cfg.onboarded && (!cfg.projects.is_empty() || cfg.profiles.iter().any(|p| !p.service_ids.is_empty())) {
@@ -395,7 +395,7 @@ fn project_name_from_path(path: &str) -> String {
 }
 
 /// Sinkronkan `selected_service_ids` = `service_ids` profil aktif. Menjamin tray
-/// & compose (yang membaca `selected_service_ids`) selalu match profil aktif.
+/// dan CLI `kova up` (yang membaca `selected_service_ids`) selalu match profil aktif.
 fn project_active_selection(cfg: &mut ConfigState) {
     if let Some(active_id) = cfg.active_profile_id.clone() {
         if let Some(p) = cfg.profiles.iter().find(|p| p.id == active_id) {
@@ -490,7 +490,7 @@ fn write_config_atomic(path: &Path, json: &str) -> Result<(), String> {
 
 /// Baca + migrasi config.json secara sinkron (tanpa sentuh Mutex in-memory).
 /// Dipakai command lain (mis. `sites_*`) yang butuh state config terkini.
-/// Config absent/corrupt → `ConfigState::default()` (sama seperti `config_read`).
+/// Config absent/corrupt → `ConfigState::default()`; yang corrupt disalin dulu (sama seperti `config_read`).
 pub fn load_config(app: &AppHandle) -> Result<ConfigState, String> {
     let path = config_path(app)?;
     if !path.exists() {
@@ -583,8 +583,8 @@ pub async fn config_read(app: AppHandle) -> Result<ConfigState, String> {
 pub async fn config_write(app: AppHandle, mut config: ConfigState) -> Result<(), String> {
     let path = config_path(&app)?;
 
-    // Invariant: selected_service_ids selalu = profil aktif (proyeksi). Tray &
-    // compose membaca field ini; frontend cukup update profil, backend proyeksi.
+    // Invariant: selected_service_ids selalu = profil aktif (proyeksi). Tray dan
+    // CLI membaca field ini; frontend cukup update profil, backend proyeksi.
     project_active_selection(&mut config);
 
     let json = serde_json::to_string_pretty(&config)
@@ -598,7 +598,7 @@ pub async fn config_write(app: AppHandle, mut config: ConfigState) -> Result<(),
     crate::runtime::apply_preference(&config.container_runtime).await;
 
     // Sync ke in-memory Mutex<ConfigState> — tray membaca dari Mutex ini
-    // saat user klik "Start all selected". Tanpa sync, Mutex stale = default kosong.
+    // saat user klik "Start selected services". Tanpa sync, Mutex stale = default kosong.
     if let Some(state) = app.try_state::<Mutex<ConfigState>>() {
         if let Ok(mut guard) = state.lock() {
             *guard = config.clone();

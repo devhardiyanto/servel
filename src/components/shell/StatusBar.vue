@@ -83,8 +83,8 @@ onUnmounted(() => unlisten?.())
         {{ engineLabel }} · {{ engineText }}
       </span>
     </span>
-    <span class="sb-item">{{ runningCount }}/{{ definitions.length }} services</span>
-    <span v-if="ram" class="sb-item sb-ram" aria-live="off" :title="ram.title">{{ ram.text }}</span>
+    <span class="sb-item">{{ engineActionable ? '–' : runningCount }}/{{ definitions.length }} services</span>
+    <span v-if="ram && !engineActionable" class="sb-item sb-ram" aria-live="off" :title="ram.title">{{ ram.text }}</span>
     <span class="sb-spacer"></span>
     <span v-if="version" class="sb-item">v{{ version }}</span>
   </footer>
