@@ -756,10 +756,11 @@ Sumber: audit 004 (catatan lokal, tidak di repo).
 - [x] Log container service mengalir ke tab service di Logs (`logs -f`, cadangan baca berkala).
 - [x] Notifikasi OS saat project, proses, atau service berhenti sendiri; setting untuk mematikannya.
 - [ ] Uji di perangkat: TC-R1 sampai TC-R10.
+- [x] v3.27.1: komentar dari audit 006 (em dash, campuran bahasa, docstring `migrate` yang basi).
 
 ## Status per 24 November 2026
 
-Versi terbaru: **v3.27.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.27.1**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 

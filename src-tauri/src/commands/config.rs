@@ -275,9 +275,9 @@ fn default_runtime() -> String {
 /// - v1 → v2: config flat (`selected_service_ids`, tanpa `profiles`) → buat
 ///   profil "Default" berisi selection existing, set `active_profile_id`.
 /// - v2 → v3: perkenalkan `sites`. Config lama tanpa field
-///   ini di-isi `[]` oleh serde default — tak butuh rebuild, cukup bump versi.
+///   ini di-isi `[]` oleh serde default; cukup bump versi.
 /// - v3 → v4: perkenalkan `Site.target`. Site lama tak
-///   punya makna proxy, jadi sengaja **tidak** diberi target default — serde
+///   punya makna proxy, jadi sengaja **tidak** diberi target default; serde
 ///   mengisinya `None` dan site tetap hosts-only. Cukup bump versi.
 /// - v4 → v5: perkenalkan `container_runtime` (WSL containers). Serde
 ///   default `auto` → install lama di Windows yang masih punya Docker tetap di
@@ -289,7 +289,7 @@ fn default_runtime() -> String {
 ///   nama, port target menjadi port, folder masih kosong. File hosts tidak
 ///   disentuh di sini.
 ///
-/// Idempotent: config yang sudah `CURRENT_VERSION` & punya profil valid dibiarkan apa adanya.
+/// Aman dipanggil berulang; invariant diperbaiki di setiap baca.
 fn migrate(mut cfg: ConfigState) -> ConfigState {
     // Pengguna lama yang sudah memakai Kova tidak perlu onboarding lagi.
     if !cfg.onboarded && (!cfg.projects.is_empty() || cfg.profiles.iter().any(|p| !p.service_ids.is_empty())) {
@@ -500,8 +500,7 @@ fn write_config_atomic(path: &Path, json: &str) -> Result<(), String> {
     std::fs::rename(&tmp_path, path)
         .map_err(|e| format!("could not rename config.tmp to config.json: {}", e))?;
 
-    // fsync direktori parent agar entri rename durable. Pada Windows File::open ke
-    // direktori tidak selalu didukung — best-effort, abaikan error.
+    // fsync folder supaya rename durable; di Windows bisa gagal, diabaikan.
     #[cfg(unix)]
     if let Some(parent) = path.parent() {
         if let Ok(dir) = std::fs::File::open(parent) {
@@ -621,8 +620,7 @@ pub async fn config_write(app: AppHandle, mut config: ConfigState) -> Result<(),
     // supaya polling berikutnya langsung memakai engine baru.
     crate::runtime::apply_preference(&config.container_runtime).await;
 
-    // Sync ke in-memory Mutex<ConfigState> — tray membaca dari Mutex ini
-    // saat user klik "Start selected services". Tanpa sync, Mutex stale = default kosong.
+    // Tray membaca Mutex ini, bukan disk.
     if let Some(state) = app.try_state::<Mutex<ConfigState>>() {
         if let Ok(mut guard) = state.lock() {
             *guard = config.clone();
@@ -782,7 +780,7 @@ mod tests {
 
     #[test]
     fn test_parse_with_unknown_field() {
-        // Field tak dikenal harus di-skip (bukan error) — default serde behavior
+        // Field tak dikenal dilewati, bukan error.
         let json = r#"{
             "version": 1,
             "selectedServiceIds": ["mysql"],

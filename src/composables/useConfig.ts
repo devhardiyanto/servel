@@ -346,8 +346,7 @@ export function useConfig() {
     scheduleSave()
   }
 
-  // Dipakai path toggle (immediate persist, bypass rememberSession) — tetap
-  // meng-edit profil aktif ("toggle = edit profil aktif").
+  // Switch di Services: simpan langsung ke profil aktif, tanpa melihat rememberSession.
   function applySelection(ids: string[]): void {
     syncSelection(ids)
   }

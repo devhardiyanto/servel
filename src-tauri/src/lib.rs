@@ -46,8 +46,7 @@ fn format_down_message(def: Option<&ServiceDef>, id: &str) -> String {
     }
 }
 
-/// Suppress hard-error MessageBox dari child `docker.exe`/`wsl.exe` (yang inherit
-/// error mode proses ini) saat WSL boot/teardown — cegah loader popup intermittent.
+/// Matikan dialog error Windows yang diwarisi `docker.exe`/`wsl.exe` saat WSL boot/teardown.
 #[cfg(target_os = "windows")]
 fn suppress_windows_error_popups() {
     use windows_sys::Win32::System::Diagnostics::Debug::{
