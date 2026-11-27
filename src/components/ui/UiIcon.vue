@@ -9,6 +9,7 @@ export type IconName =
   | 'external'
   | 'more'
   | 'folder'
+  | 'folder-plus'
   | 'terminal'
   | 'code'
   | 'copy'
@@ -28,6 +29,7 @@ withDefaults(defineProps<{ name: IconName; size?: 14 | 16 }>(), { size: 14 })
     <path v-else-if="name === 'restart'" d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5V5h-2.5" />
     <path v-else-if="name === 'external'" d="M9 3h4v4M13 3L7.5 8.5M12 9.5V13H3V4h3.5" />
     <path v-else-if="name === 'more'" d="M3.5 8h.01M8 8h.01M12.5 8h.01" />
+    <path v-else-if="name === 'folder-plus'" d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5zM8 7v4M6 9h4" />
     <path v-else-if="name === 'folder'" d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" />
     <template v-else-if="name === 'terminal'"><rect x="2" y="3" width="12" height="10" rx="1.5" /><path d="M5 6.5l2 1.5-2 1.5M8.5 10H11" /></template>
     <path v-else-if="name === 'code'" d="M6 4.5L2.5 8 6 11.5M10 4.5L13.5 8 10 11.5" />

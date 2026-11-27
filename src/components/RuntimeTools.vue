@@ -73,6 +73,14 @@ async function checkDistroMise(): Promise<void> {
 }
 const pathTools = ref<{ tool: string; version: string }[]>([])
 
+async function copyMiseCommand(): Promise<void> {
+  try {
+    await navigator.clipboard.writeText('curl https://mise.run | sh')
+    toast.show(`Copied. Run it in ${loc.value}, then come back and Kova picks it up.`)
+  } catch {
+    toast.show('Could not copy. Type curl https://mise.run | sh in the distro.', { tone: 'info' })
+  }
+}
 // Canvas L8: bantu menemukan php.ini milik PHP di distro.
 async function copyPhpIni(): Promise<void> {
   try {
@@ -342,14 +350,15 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
       <template #actions><UiButton @click="versionCtx.trust(versionCtx.untrustedPath.value!)">Trust</UiButton></template>
     </UiBanner>
 
-    <EmptyState v-if="loc && distroMise === null" :title="`mise is not installed in ${loc}`" icon="lines">
+    <EmptyState v-if="loc && distroMise === null" :title="`mise is not installed in ${loc}`" icon="layers">
       Kova installs and switches versions in the distro with mise, like on Windows. It goes into your home folder there (~/.local/bin); nothing else changes.
-      <code class="rtt-mono">curl https://mise.run | sh</code>
+      <span class="rtt-cmd"><code class="rtt-mono">curl https://mise.run | sh</code></span>
       <span v-if="pathTools.length" class="rtt-path">
         Found on PATH in {{ loc }}: {{ pathTools.map((t) => `${t.tool} ${t.version}`).join(' · ') }}. Kova cannot switch these versions.
       </span>
       <template #actions>
         <UiButton variant="accent" :loading="installingMise" @click="installMiseInDistro">Install mise in {{ loc }}</UiButton>
+        <UiButton variant="quiet" @click="copyMiseCommand">Copy command</UiButton>
       </template>
     </EmptyState>
     <div v-else-if="loc && distroMise === undefined" class="rtt-loading" aria-busy="true">
@@ -493,6 +502,7 @@ const tabs = computed(() => TOOLS.value.map((t) => ({ value: t.value, label: t.l
 .rtt-wslext p { margin: 0; }
 .rtt-wslext code { font-family: var(--font-mono); color: var(--text); }
 .rtt-wslext__btns { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.rtt-cmd { display: block; margin: var(--space-2) 0; }
 .rtt-path { display: block; margin-top: var(--space-2); font-size: var(--text-xs); color: var(--muted); }
 .rtt-wslext__h { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--text); }
 .rtt-mono { font-family: var(--font-mono); font-size: var(--text-xs); }

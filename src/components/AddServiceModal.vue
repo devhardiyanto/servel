@@ -149,9 +149,9 @@ const readyOptions = [
   <UiModal :open="open" :title="edit ? `Edit ${edit.name}` : 'Add service'" @close="emit('close')">
     <p class="asm-text">Runs on the same engine and network as the built-in services. Other containers reach it by its name.</p>
     <div class="asm-grid">
-      <UiInput v-model="name" label="Name" placeholder="Elasticsearch" :disabled="!!edit" data-autofocus />
-      <UiInput v-model="image" label="Image" mono placeholder="elasticsearch:8.15.0" help="From Docker Hub or a registry this PC can reach" />
-      <UiInput v-model="innerPort" label="Port in the container" mono placeholder="9200" />
+      <UiInput v-model="name" label="Name" placeholder="e.g. Elasticsearch" :disabled="!!edit" data-autofocus />
+      <UiInput v-model="image" label="Image" mono placeholder="e.g. elasticsearch:8.15.0" help="From Docker Hub or a registry this PC can reach" />
+      <UiInput v-model="innerPort" label="Port in the container" mono placeholder="e.g. 9200" />
       <UiInput
         v-model="hostPort"
         label="Port on this PC"
@@ -161,8 +161,8 @@ const readyOptions = [
         :help="portCheck?.free ? `${hostPort} is free` : undefined"
       />
     </div>
-    <UiInput v-model="envText" as="textarea" :rows="3" mono label="Environment" placeholder="discovery.type=single-node&#10;xpack.security.enabled=false" help="One KEY=VALUE per line" />
-    <UiInput v-model="dataPath" label="Data folder in the container" mono placeholder="/usr/share/elasticsearch/data" :help="dataPath ? `Kept in the volume servel_${id.replace(/-/g, '_')}_data when the service stops` : 'Leave empty if the service keeps no data'" />
+    <UiInput v-model="envText" as="textarea" :rows="3" mono label="Environment" placeholder="KEY=value" help="One KEY=VALUE per line" />
+    <UiInput v-model="dataPath" label="Data folder in the container" mono placeholder="e.g. /usr/share/elasticsearch/data" :help="dataPath ? `Kept in the volume servel_${id.replace(/-/g, '_')}_data when the service stops` : 'Leave empty if the service keeps no data'" />
     <div class="asm-ready">
       <span class="asm-label">Ready when</span>
       <UiSegmented v-model="readyKind" :options="readyOptions" label="Ready when" />
@@ -176,10 +176,11 @@ const readyOptions = [
         help="Ready once this text appears in the last 200 lines of the container log"
       />
     </div>
-    <UiInput v-model="connectEnv" as="textarea" :rows="2" mono label="Connect values" placeholder="ELASTICSEARCH_URL=http://localhost:{port}" help="Shown in Connect and copied with Copy .env. {port} is the port on this PC." />
+    <UiInput v-model="connectEnv" as="textarea" :rows="2" mono label="Connect values" placeholder="e.g. SEARCH_URL=http://localhost:{port}" help="Shown in Connect and copied with Copy .env. {port} is the port on this PC." />
     <p v-if="problem && (name || image)" class="asm-err">{{ problem }}</p>
     <p v-if="error" class="asm-err" role="alert">{{ error }}</p>
     <template #footer>
+      <span v-if="problem && !(name || image)" class="asm-req">Name, image and port are required.</span>
       <UiButton size="md" @click="emit('close')">Cancel</UiButton>
       <UiButton size="md" :disabled="!!problem" :loading="saving" @click="save(false)">{{ edit ? 'Save' : 'Add' }}</UiButton>
       <UiButton variant="primary" size="md" :disabled="!!problem" :loading="saving" @click="save(true)">{{ edit ? 'Save and restart' : 'Add and start' }}</UiButton>
@@ -192,5 +193,6 @@ const readyOptions = [
 .asm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 .asm-ready { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .asm-label { font-size: var(--text-xs); font-weight: 500; color: var(--muted); width: 100%; }
+.asm-req { margin-right: auto; color: var(--muted); font-size: var(--text-sm); }
 .asm-err { margin: 0; color: var(--red); font-size: var(--text-sm); }
 </style>

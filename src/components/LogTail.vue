@@ -68,7 +68,7 @@ onUnmounted(() => {
       <span class="log-text">{{ line.text }}</span>
     </div>
     <div v-if="lines.length === 0" class="log-empty">
-      no logs &#x2014; command output will appear here
+      No output yet. Command output appears here.
     </div>
   </div>
 </template>

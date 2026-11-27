@@ -586,6 +586,8 @@ const tabs = computed(() => [
         <dd><FrameworkChip v-if="p.kind" :kind="p.kind" /><template v-else>Not detected</template></dd>
         <dt>Command</dt>
         <dd class="pd-mono pd-wrap">{{ containerLabel ? (p.runMode === 'compose' ? 'docker compose up --build' : 'build + run') : p.command || 'No command set' }}</dd>
+        <dt>Port</dt>
+        <dd class="pd-mono">{{ (p.port ?? 0) > 0 ? `localhost:${p.port}` : 'Not set' }}</dd>
         <dt>Folder</dt>
         <dd class="pd-mono pd-wrap pd-muted">{{ p.path || 'Not chosen yet' }}</dd>
         <template v-if="containerLabel">

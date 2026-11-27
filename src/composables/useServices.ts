@@ -95,10 +95,7 @@ function applyStatusChange(id: string, running: boolean): void {
         ...current,
         status: running ? 'running' : 'stopped',
         error: running ? undefined : current.error,
-        // Continuous reconcile: container yang terobservasi running → switch ON.
-        // Jaga selectedIds selalu ⊇ running supaya `start` mengirim full set dan
-        // --remove-orphans (backend) tak menghancurkan yang running. Tidak
-        // meng-deselect saat stop — `selected` = keinginan terakhir user.
+        // Container yang terlihat running → switch ON; stop tidak melepas pilihan.
         selected: running ? true : current.selected,
         memMb: running ? current.memMb : null,
       }
@@ -381,7 +378,7 @@ export function useServices() {
       return { kind: 'already-running' }
     }
 
-    // Konflik = port dipakai proses lain (bukan container servel). "Tetap mulai" melewatinya.
+    // Konflik = port dipakai proses lain (bukan container servel). "Start anyway" melewatinya.
     if (!opts?.force) {
       const conflicts = await call<PortConflict[]>('check_port_conflicts', { services: newOnes })
       if (conflicts && conflicts.length > 0) {
@@ -468,7 +465,7 @@ export function useServices() {
     portConflicts.value = []
   }
 
-  // "Tetap mulai" dari banner konflik: start service yang tadi diblok, lewati probe.
+  // "Start anyway" dari banner konflik: start service yang tadi diblok, lewati probe.
   async function startIgnoringConflicts(): Promise<void> {
     const ids = portConflicts.value.map((c) => c.serviceId)
     portConflicts.value = []

@@ -57,11 +57,11 @@ fn suppress_windows_error_popups() {
     }
 }
 
-static WINDOW_SHOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-
 /// Tampilkan jendela utama sekali saja saat start. Setelah itu tidak
 /// berpengaruh, supaya jendela yang sengaja disembunyikan ke tray tidak
 /// muncul sendiri oleh pengaman batas waktu.
+static WINDOW_SHOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// Tray berhasil dibuat; tanpa tray jendela tidak boleh disembunyikan saat start.
 static TRAY_OK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
@@ -257,7 +257,7 @@ pub fn run() {
                     &format!("container engine: {}", engine.label()),
                 );
 
-                // Load service definitions sekali di awal — services.json bundled, tidak berubah runtime.
+                // Definisi service (bawaan + custom + port) dibaca sekali saat loop dimulai.
                 let service_defs: Vec<ServiceDef> =
                     match commands::services::load_services_internal(&app_handle).await {
                         Ok(defs) => defs,

@@ -72,7 +72,7 @@ async function announceUpdated(): Promise<void> {
   updatedToast.show(`Kova updated to ${u.to}`, { action: { label: "What's new", run: () => void openExternal(u.url) } })
 }
 
-// Polling RAM cepat saat Services terlihat, jeda saat jendela tersembunyi.
+// Polling RAM dijeda saat jendela tersembunyi.
 const docHidden = ref(document.hidden)
 document.addEventListener('visibilitychange', () => (docHidden.value = document.hidden))
 watch(

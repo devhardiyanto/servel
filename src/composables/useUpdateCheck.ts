@@ -31,7 +31,7 @@ export function compareSemver(a: string, b: string): number {
   return pa.pre > pb.pre ? 1 : -1
 }
 
-// State singleton — cek sekali saat launch, dibagi ke semua konsumen.
+// State singleton, dibagi ke semua konsumen.
 const currentVersion = ref<string>('')
 const latestVersion = ref<string>('')
 const updateAvailable = ref(false)
@@ -39,8 +39,7 @@ const checking = ref(false)
 const lastChecked = ref<number | null>(null)
 /** Pengecekan terakhir gagal (jaringan, cache GitHub, latest.json). */
 const checkError = ref('')
-// In-app updater. `canInstall` = updater bawaan menemukan versi yang
-// sama dan bisa memasangnya; bila false, banner hanya menawarkan halaman rilis.
+// `canInstall` = updater bawaan menemukan versi baru dan bisa memasangnya; bila false, banner hanya menawarkan halaman rilis.
 const canInstall = ref(false)
 const installing = ref(false)
 const installPercent = ref<number | null>(null)

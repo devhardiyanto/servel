@@ -262,7 +262,7 @@ pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) ->
 }
 
 /// Container project compose Kova yang sedang berjalan, opsional per service.
-/// Dipakai bila file compose tidak ada (mis. dibersihkan saat reboot).
+/// Dipakai bila file compose tidak ada (mis. dihapus atau belum pernah ditulis).
 async fn running_by_label(service: Option<&str>) -> Vec<String> {
     let mut cmd = silent_command("docker");
     cmd.args(["ps", "-q", "--filter"]).arg(format!("label=com.docker.compose.project={COMPOSE_PROJECT}"));

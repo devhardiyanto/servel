@@ -1,8 +1,6 @@
 <script setup lang="ts">
 // Satu pola untuk keadaan sementara sebuah proses: sedang berjalan,
-// berhasil, dilewati, atau gagal. Dipakai oleh hasil auto-start, pemeriksaan
-// engine di Settings, dan error service, supaya ketiganya tampil dan berperilaku
-// sama:
+// berhasil, dilewati, atau gagal, supaya semuanya tampil dan berperilaku sama:
 // - `pending`: ikon berputar, tanpa tombol.
 // - `warn` / `err`: alasan di `detail`, tombol Retry (bila ada handler `retry`)
 //   dan tombol tutup (bila `dismissible`). Aksi tambahan lewat slot `actions`.

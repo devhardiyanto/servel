@@ -1,8 +1,8 @@
 //! Popup tray.
 //!
-//! Klik kiri ikon tray membuka jendela kecil tanpa bingkai di dekat ikon,
-//! berisi project dan service dengan status berwarna. Klik kanan tetap
-//! membuka menu native (`tray.rs`).
+//! Klik kiri atau kanan ikon tray membuka jendela kecil tanpa bingkai di dekat
+//! ikon, berisi project dan service dengan status berwarna. Menu native
+//! (`tray.rs`) hanya dipakai di Linux.
 //!
 //! - Jendela dibuat sekali saat pertama dibuka, lalu hanya disembunyikan dan
 //!   ditampilkan, supaya muncul tanpa menunggu WebView2 dimuat ulang.
@@ -112,7 +112,7 @@ fn reveal(app: &AppHandle, win: &tauri::WebviewWindow) {
     let _ = app.emit_to(LABEL, "tray-popup-shown", ());
 }
 
-/// Klik kiri ikon tray: buka popup, atau tutup bila sedang terbuka.
+/// Klik ikon tray: buka popup, atau tutup bila sedang terbuka.
 pub fn toggle(app: &AppHandle, rect: &tauri::Rect) {
     if let Some(win) = app.get_webview_window(LABEL) {
         if win.is_visible().unwrap_or(false) {

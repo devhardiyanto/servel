@@ -1,6 +1,6 @@
 <#
-  Tambah / hapus folder CLI Servel di PATH user. Dipanggil installer NSIS
-  (post-install: -Action add, pre-uninstall: -Action remove).
+  Tambah / hapus folder CLI Kova di PATH user. Dipanggil installer NSIS
+  (post-install: -Action add, pre-uninstall: -Action remove) dan Reinstall di Settings.
 
   Ditulis langsung ke HKCU\Environment dengan nilai TIDAK di-expand dan tipe
   REG_EXPAND_SZ, supaya entri seperti %USERPROFILE%\... milik user tetap utuh

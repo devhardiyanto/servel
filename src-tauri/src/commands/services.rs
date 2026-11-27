@@ -54,8 +54,8 @@ pub fn valid_custom_id(id: &str) -> bool {
         && !id.starts_with('-')
 }
 
-/// Rapikan custom service dari config: container `servel_<id>`, hanya volume
-/// bernama `servel_<id>_…` (tanpa bind mount ke folder PC), port angka.
+/// Rapikan custom service dari config: container `servel_<id>` (`-` menjadi `_`),
+/// hanya volume bernama `servel_<id>_…` (tanpa bind mount ke folder PC), port angka.
 pub fn sanitize_custom(def: &ServiceDef, builtin: &[ServiceDef]) -> Option<ServiceDef> {
     if !valid_custom_id(&def.id) || builtin.iter().any(|b| b.id == def.id) || def.image.trim().is_empty() {
         return None;
@@ -185,7 +185,7 @@ pub fn id_from_container_name(name: &str) -> Option<String> {
 
 /// Gabungkan `requested` dengan id container yang sedang running (dari status),
 /// jaga urutan `requested` dulu lalu running yang belum ada. Dipakai
-/// `services_start` agar `--remove-orphans` tak menghancurkan service running
+/// `docker::start` agar `--remove-orphans` tak menghancurkan service running
 /// yang tidak ikut dikirim frontend.
 pub fn union_with_running(requested: &[String], statuses: &[ServiceStatus]) -> Vec<String> {
     let mut effective = requested.to_vec();

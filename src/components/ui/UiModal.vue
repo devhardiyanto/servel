@@ -23,8 +23,14 @@ watch(
       await nextTick()
       const root = panel.value
       if (!root) return
-      const preferred = root.querySelector<HTMLElement>('[data-autofocus]')
-      ;(preferred ?? focusables(root)[0] ?? root).focus()
+      // `data-autofocus` pada komponen (mis. UiInput) jatuh ke pembungkusnya:
+      // fokuskan kontrol di dalamnya, bukan div yang tidak bisa difokus.
+      const marked = root.querySelector<HTMLElement>('[data-autofocus]')
+      const preferred = marked && (marked.matches('input, select, textarea, button, [tabindex]') ? marked : focusables(marked)[0])
+      const target = preferred ?? focusables(root)[0] ?? root
+      target.focus()
+      // Kolom yang sudah berisi (mis. port lama) siap ditimpa dengan mengetik.
+      if (target instanceof HTMLInputElement && target.value) target.select()
     } else {
       lastFocus?.focus?.()
       lastFocus = null

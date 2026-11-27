@@ -50,7 +50,7 @@ pub fn parse_lsof(out: &str) -> Option<(u32, String)> {
     Some((pid?, name.unwrap_or_default()))
 }
 
-/// JSON dari script PowerShell di `owner_windows`.
+/// JSON dari script PowerShell di `owner_os` (Windows).
 #[allow(dead_code)] // per OS + tests
 pub fn parse_ps_json(out: &str) -> Option<PortOwner> {
     let v: serde_json::Value = serde_json::from_str(out.trim()).ok()?;

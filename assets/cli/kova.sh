@@ -3,7 +3,8 @@
 #
 # Service and project commands are carried out by the running Kova app over
 # its local control channel, so the app and the terminal always agree.
-# status, logs and shell talk to Docker directly and work without the app.
+# status asks the app first and falls back to Docker; logs and shell talk to
+# Docker directly and work without the app.
 #
 # Installed by Kova (Settings > General > Install the kova command).
 

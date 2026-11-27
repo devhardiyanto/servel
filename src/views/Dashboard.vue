@@ -123,6 +123,9 @@ const emptyDismissed = ref<string | null>(null)
 const target = computed(() => (selectionIsProfile.value ? activeProfileName.value : 'selected'))
 const selectedIdle = computed(() => selectedIds.value.filter((id) => uiState.value[id]?.status !== 'running'))
 const selectedRunning = computed(() => selectedIds.value.filter((id) => uiState.value[id]?.status === 'running'))
+const isLinux = /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)
+/** Engine tidak menjawab: status dan RAM terakhir sudah tidak bisa dipercaya. */
+const engineDown = computed(() => engineStatus.value === 'down' || engineStatus.value === 'missing')
 const primaryIsStop = computed(() => selectedIdle.value.length === 0 && selectedRunning.value.length > 0)
 const startLabel = computed(() => `Start ${target.value}`)
 const headerMenu = computed<MenuItem[]>(() => [
@@ -258,7 +261,7 @@ function focusFirstSwitch(): void {
     <div class="dashboard-content">
       <header class="sw-header">
         <h1 class="sw-title">Services</h1>
-        <span class="sw-counter">{{ runningCount }}/{{ definitions.length }}</span>
+        <span class="sw-counter">{{ engineDown ? '–' : runningCount }}/{{ definitions.length }}</span>
         <div v-if="profiles.length > 0" class="sw-profile">
           <span class="sw-profile__label">profile</span>
           <UiInput
@@ -278,7 +281,7 @@ function focusFirstSwitch(): void {
           <UiButton
             v-else-if="primaryIsStop"
             size="md"
-            :disabled="hasStopping"
+            :disabled="hasStopping || engineDown"
             :aria-label="`Stop ${target}, ${selectedRunning.length} ${selectedRunning.length === 1 ? 'service' : 'services'}`"
             @click="stop(selectedRunning)"
           >
@@ -288,7 +291,7 @@ function focusFirstSwitch(): void {
             v-else
             variant="primary"
             size="md"
-            :disabled="selectedIdle.length === 0"
+            :disabled="selectedIdle.length === 0 || engineDown"
             :aria-label="`${startLabel}, ${selectedIdle.length} ${selectedIdle.length === 1 ? 'service' : 'services'}`"
             @click="start()"
           >
@@ -304,6 +307,9 @@ function focusFirstSwitch(): void {
     >
       <template v-if="engine === 'wslc'">Run <code>wsl --update</code>, then Retry.</template>
       <template v-else-if="canSwitchToWslc">Start Docker Desktop, or switch to the built-in WSL containers.</template>
+      <template v-else-if="isLinux">
+        {{ engineStatus === 'missing' ? 'Install Docker Engine and the Compose plugin' : 'Start Docker' }} to use services<template v-if="engineStatus !== 'missing'"> (<code>sudo systemctl start docker</code>)</template>.
+      </template>
       <template v-else>{{ engineStatus === 'missing' ? 'Install Docker Desktop' : 'Start Docker Desktop' }} to use services.</template>
       <span v-if="engineLastError"> ({{ engineLastError }})</span>
       Kova can't read service status. Data in the servel_* volumes is not affected.
@@ -428,7 +434,8 @@ function focusFirstSwitch(): void {
         </template>
       </div>
       <div v-if="definitions.length > 0" class="sw-summary">
-        <span>{{ runningCount }} running<template v-if="runningRamMb > 0"> · {{ runningRamMb >= 1024 ? `${(runningRamMb / 1024).toFixed(1)} GB` : `${Math.round(runningRamMb)} MB` }}</template></span>
+        <span v-if="engineDown">Status unknown until {{ engineLabel }} answers</span>
+        <span v-else>{{ runningCount }} running<template v-if="runningRamMb > 0"> · {{ runningRamMb >= 1024 ? `${(runningRamMb / 1024).toFixed(1)} GB` : `${Math.round(runningRamMb)} MB` }}</template></span>
         <span class="sw-sp"></span>
         <span>Engine: {{ engineLabel }}</span>
       </div>

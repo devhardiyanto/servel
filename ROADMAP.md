@@ -740,9 +740,19 @@ Sumber: audit 003 (catatan lokal, tidak di repo).
 - [x] Mode container: Network, langkah build, banner build gagal, daftar container compose.
 - [ ] Waktu build + ukuran image (K3), *Service that answers on the port* (K6), baris PATH di distro ber-mise (L3).
 
+### AG · audit 004: tampilan dan komentar (v3.26.2)
+
+Sumber: audit 004 (catatan lokal, tidak di repo).
+
+- [x] Fokus dialog (Add service, Change port, Add tool), garis fokus menu ⋯, teks log kosong tanpa em dash.
+- [x] Engine mati: hitungan `–`, RAM disembunyikan, Start/Stop nonaktif; banner Linux tanpa Docker Desktop.
+- [x] Baris Port di Overview, ikon New group, Copy command mise di distro WSL, pesan config.json rusak dengan judul Projects, placeholder Add service.
+- [x] Komentar basi di frontend dan backend (doc comment yang menempel di fungsi yang salah, label dan nama fungsi lama).
+- [ ] Item RENDAH audit 004 (U11–U23, komentar yang terlalu panjang atau mengulang kode).
+
 ## Status per 24 November 2026
 
-Versi terbaru: **v3.26.1**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.26.2**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 

@@ -94,7 +94,7 @@ pub fn parse_mem_usage_to_mb(raw: &str) -> Option<u64> {
 
 /// Parse line-delimited JSON output dari `docker stats --no-stream --format json`.
 /// Filter ke container yang punya prefix `servel_` (selaras dengan filter polling status).
-/// Strip prefix dari `Name` untuk dapat service id.
+/// Service id dari `Name` lewat `id_from_container_name`.
 pub fn parse_docker_stats_json(stdout: &str) -> Vec<ContainerMemStat> {
     let mut result = Vec::new();
 
