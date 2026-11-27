@@ -13,6 +13,7 @@
 //! [`resolve`]. Resolusi ulang terjadi saat config dibaca/ditulis.
 
 pub mod docker;
+pub mod follow;
 pub mod readiness;
 pub mod restore;
 pub mod wslc;
@@ -320,7 +321,32 @@ pub async fn start(app: &AppHandle, defs: &[ServiceDef], services: &[String]) ->
     }
 }
 
+/// Service yang dihentikan atas permintaan (UI, tray, CLI, keluar). Saat
+/// statusnya turun, Kova tidak mengirim notifikasi "berhenti sendiri".
+static STOP_REQUESTS: std::sync::Mutex<Option<std::collections::HashMap<String, std::time::Instant>>> = std::sync::Mutex::new(None);
+const STOP_REQUEST_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+
+fn mark_stop_requested<'a>(ids: impl IntoIterator<Item = &'a String>) {
+    let mut guard = STOP_REQUESTS.lock().unwrap_or_else(|e| e.into_inner());
+    let map = guard.get_or_insert_with(std::collections::HashMap::new);
+    let now = std::time::Instant::now();
+    map.retain(|_, t| now.duration_since(*t) < STOP_REQUEST_TTL);
+    for id in ids {
+        map.insert(id.clone(), now);
+    }
+}
+
+/// `true` bila `id` baru saja dihentikan atas permintaan. Catatannya dipakai sekali.
+pub fn take_stop_request(id: &str) -> bool {
+    let mut guard = STOP_REQUESTS.lock().unwrap_or_else(|e| e.into_inner());
+    guard
+        .as_mut()
+        .and_then(|m| m.remove(id))
+        .is_some_and(|t| t.elapsed() < STOP_REQUEST_TTL)
+}
+
 pub async fn stop(app: &AppHandle, defs: &[ServiceDef], services: &[String]) -> Result<(), String> {
+    mark_stop_requested(services);
     let _turn = OPS.lock().await;
     match ensure_resolved().await {
         RuntimeKind::Docker => docker::stop(app, services).await,
@@ -329,6 +355,7 @@ pub async fn stop(app: &AppHandle, defs: &[ServiceDef], services: &[String]) -> 
 }
 
 pub async fn stop_all(app: &AppHandle, defs: &[ServiceDef]) -> Result<(), String> {
+    mark_stop_requested(defs.iter().map(|d| &d.id));
     let _turn = OPS.lock().await;
     match ensure_resolved().await {
         RuntimeKind::Docker => docker::stop_all(app).await,

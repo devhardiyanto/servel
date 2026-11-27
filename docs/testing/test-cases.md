@@ -30,6 +30,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | P · Kelompok & urutan project | 11 | 0 | 0 | v3.15.0, v3.26.2 |
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
 | U · Tampilan & aksesibilitas | 21 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0, v3.22.0, v3.23.0, v3.26.0, v3.26.2 |
+| R · Proses tambahan, log service, notifikasi | 10 | 0 | 0 | v3.27.0 |
 | W · Khusus Windows | 12 | 0 | ➖ | v3.10.x, v3.16.2, v3.17.0, v3.21.2, v3.24.0 |
 | L · Khusus Linux | 13 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3, v3.25.1, v3.26.2 |
 
@@ -285,6 +286,21 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-U19 | Buka tab Output project yang belum pernah dijalankan. | Teks *No output yet. Command output appears here.*, tanpa em dash. | ⬜ | ⬜ | | v3.26.2 |
 | TC-U20 | Buka menu ⋯ di Projects atau Services, pindah item dengan panah. | Item terfokus punya garis aksen 2 px, terlihat jelas dibanding item lain; hover mouse tanpa garis. | ⬜ | ⬜ | | v3.26.2 |
 | TC-U21 | Rusak config.json (hapus satu kurung), buka Projects. Lalu buka Projects saat daftar masih dimuat (start Kova). | Judul Projects tetap ada; banner menulis *config.json could not be read: <alasan>. Kova did not change the file.* Saat memuat, judul tampil di atas skeleton. | ⬜ | ⬜ | | v3.26.2 |
+
+## R · Proses tambahan, log service, notifikasi (v3.27.0)
+
+| ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
+|---|---|---|---|---|---|---|
+| TC-R1 | Project Laravel dengan Command `php artisan serve --port={port}`. Buka Overview. | Bagian Processes kosong dengan penjelasan; tombol Add queue, Add scheduler, dan Add vite (bila ada script `dev`). | ⬜ | ⬜ | | |
+| TC-R2 | Project dengan Command `composer run dev`. | Hanya Add scheduler yang diusulkan (queue dan Vite sudah di `composer run dev`). | ⬜ | ⬜ | | |
+| TC-R3 | Add queue, lalu Start project. | Dev server dan queue sama-sama Running; Logs project berisi baris `[queue] …`; chip `server` dan `queue` di Logs › Projects. | ⬜ | ⬜ | | |
+| TC-R4 | Stop project. | Dev server dan queue berhenti; tidak ada `php` sisa (W: Task Manager, L: `pgrep -fa artisan`). | ⬜ | ⬜ | | |
+| TC-R5 | Tambah proses `crash` dengan perintah yang langsung keluar (W: `cmd /c exit 1`, L: `sh -c "exit 1"`), restart otomatis nyala; Start. | Log "restarting in 1 s", 2 s, 5 s, …; setelah 6 kali crash dalam 2 menit statusnya *Keeps crashing · not restarted* dan log menjelaskan. | ⬜ | ⬜ | | |
+| TC-R6 | Proses yang sama dengan restart otomatis dimatikan. | Exit sekali, status *Exited (exit 1)* dengan baris terakhir; tidak dijalankan ulang. | ⬜ | ⬜ | | |
+| TC-R7 | Saat proses sedang menunggu restart, tekan Stop. | Tidak dijalankan ulang; status Stopped. | ⬜ | ⬜ | | |
+| TC-R8 | Start MySQL, buka Logs › tab MySQL. | 50 baris terakhir log container lalu baris baru mengalir; berhenti mengalir saat MySQL di-stop. | ⬜ | ⬜ | | WSLC: bila `logs -f` tidak ada, baris baru tetap muncul tiap ±3 detik |
+| TC-R9 | Sembunyikan Kova ke tray; matikan container service dari terminal (`docker stop servel_mysql` / `wslc stop …`). | Notifikasi OS "MySQL stopped". Stop dari Kova tidak memberi notifikasi. | ⬜ | ⬜ | | |
+| TC-R10 | Settings › Notify me when something stops on its own dimatikan; ulangi TC-R9. | Tidak ada notifikasi; Logs tetap mencatat DOWN. | ⬜ | ⬜ | | |
 
 ## W · Khusus Windows
 

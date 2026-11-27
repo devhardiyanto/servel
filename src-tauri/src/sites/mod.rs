@@ -7,6 +7,7 @@
 pub mod container;
 pub mod detect;
 pub mod process;
+pub mod workers;
 
 use serde::Serialize;
 use std::collections::HashSet;
@@ -117,13 +118,28 @@ pub async fn site_restart(app: AppHandle, project: Project) -> Result<(), String
 /// Start dev server; service profilnya ikut bila opsinya aktif. Dipakai UI
 /// dan CLI (`control`).
 pub async fn start_with_services(app: &AppHandle, project: &Project) -> Result<(), String> {
+    workers::validate(project)?;
     start_profile_services(app, project);
-    process::start(app, project).await
+    process::start(app, project).await?;
+    workers::forget_missing(app, project);
+    workers::start_all(app, project).await;
+    Ok(())
 }
 
 pub async fn restart_with_services(app: &AppHandle, project: &Project) -> Result<(), String> {
+    workers::validate(project)?;
     start_profile_services(app, project);
-    process::restart(app, project).await
+    workers::stop_all_for(app, &project.id).await;
+    process::restart(app, project).await?;
+    workers::forget_missing(app, project);
+    workers::start_all(app, project).await;
+    Ok(())
+}
+
+/// Stop dev server beserta proses tambahannya. Dipakai UI, tray, dan CLI.
+pub async fn stop_project(app: &AppHandle, id: &str) -> Result<(), String> {
+    let (main, _) = tokio::join!(process::stop(app, id), workers::stop_all_for(app, id));
+    main
 }
 
 /// Service yang ikut dinyalakan saat `project` dijalankan: isi profilnya,
@@ -176,13 +192,49 @@ fn start_profile_services(app: &AppHandle, project: &Project) {
 
 #[tauri::command]
 pub async fn site_stop(app: AppHandle, id: String) -> Result<(), String> {
-    process::stop(&app, &id).await
+    stop_project(&app, &id).await
 }
 
 /// Lupakan status project yang sudah dihapus (hanya bila tidak berjalan).
 #[tauri::command]
 pub async fn site_forget(app: AppHandle, id: String) {
     process::forget(&app, &id);
+    workers::forget_project(&app, &id);
+}
+
+#[tauri::command]
+pub async fn workers_runtime(app: AppHandle) -> Vec<workers::WorkerRuntime> {
+    workers::snapshot(&app)
+}
+
+/// Satu proses tambahan. Frontend mengirim project utuh, seperti `site_start`.
+#[tauri::command]
+pub async fn worker_start(app: AppHandle, project: Project, name: String) -> Result<(), String> {
+    workers::validate(&project)?;
+    let p = project
+        .processes
+        .iter()
+        .find(|p| p.name == name)
+        .ok_or_else(|| format!("{} has no process named {}", project.name, name))?
+        .clone();
+    workers::start_one(&app, &project, &p).await
+}
+
+#[tauri::command]
+pub async fn worker_stop(app: AppHandle, project_id: String, name: String) {
+    workers::stop(&app, &project_id, &name).await;
+}
+
+#[tauri::command]
+pub async fn worker_restart(app: AppHandle, project: Project, name: String) -> Result<(), String> {
+    workers::validate(&project)?;
+    workers::restart(&app, &project, &name).await
+}
+
+/// Usulan proses tambahan (queue, scheduler, Vite) untuk folder project.
+#[tauri::command]
+pub async fn project_process_suggestions(path: String, command: String) -> Vec<crate::commands::config::ProjectProcess> {
+    workers::suggestions(Path::new(&path), &command)
 }
 
 /// Saat Kova dibuka: bersihkan dev server sisa sesi sebelumnya, lalu bila
@@ -202,7 +254,11 @@ pub fn autostart(app: &AppHandle) {
         }
         for project in cfg.projects.iter().filter(|p| p.auto_start) {
             start_profile_services(&app, project);
-            if let Err(e) = process::start(&app, project).await {
+            let started = process::start(&app, project).await;
+            if started.is_ok() {
+                workers::start_all(&app, project).await;
+            }
+            if let Err(e) = started {
                 use tauri::Emitter;
                 let _ = app.emit(
                     "cmd-output",

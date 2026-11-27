@@ -84,6 +84,23 @@ pub struct Project {
     /// Setelan mode container (Dockerfile / compose).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub container: Option<ContainerSpec>,
+    /// Proses tambahan yang berjalan bersama dev server (queue worker,
+    /// scheduler, Vite). Hanya untuk mode `command`. Kova versi lama
+    /// mengabaikan field ini.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub processes: Vec<ProjectProcess>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectProcess {
+    /// Nama pendek, unik per project (`queue`, `vite`). Dipakai sebagai
+    /// prefiks baris log `[queue]`.
+    pub name: String,
+    pub command: String,
+    /// Jalankan lagi bila berhenti sendiri.
+    #[serde(default = "default_true")]
+    pub auto_restart: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -201,6 +218,10 @@ pub struct ConfigState {
     pub remember_session: bool,
     #[serde(default = "default_true")]
     pub minimize_to_tray: bool,
+    /// Notifikasi Windows/desktop saat project, proses, atau service berhenti
+    /// sendiri dan jendela Kova tidak sedang dilihat.
+    #[serde(default = "default_true")]
+    pub notifications: bool,
     /// Skala antarmuka: zoom webview, 0.9 / 1.0 / 1.1.
     #[serde(default = "default_ui_scale")]
     pub ui_scale: f64,
@@ -317,6 +338,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
                 wsl: false,
                 run_mode: Default::default(),
                 container: None,
+                processes: Vec::new(),
             });
         }
     }
@@ -346,6 +368,7 @@ fn migrate(mut cfg: ConfigState) -> ConfigState {
             wsl: false,
             run_mode: Default::default(),
             container: None,
+            processes: Vec::new(),
         });
     }
 
@@ -433,6 +456,7 @@ impl Default for ConfigState {
             auto_start_projects: true,
             remember_session: true,
             minimize_to_tray: true,
+            notifications: true,
             ui_scale: 1.0,
             container_runtime: default_runtime(),
             version_provider: default_runtime(),
@@ -713,6 +737,7 @@ mod tests {
             auto_start_projects: true,
             remember_session: false,
             minimize_to_tray: true,
+            notifications: true,
             ui_scale: 1.0,
             container_runtime: "auto".to_string(),
             version_provider: "auto".to_string(),
@@ -800,6 +825,7 @@ mod tests {
             auto_start_projects: true,
             remember_session: true,
             minimize_to_tray: false,
+            notifications: true,
             ui_scale: 1.0,
             container_runtime: "wslc".to_string(),
             version_provider: "mise".to_string(),
@@ -820,6 +846,7 @@ mod tests {
                 wsl: false,
                 run_mode: Default::default(),
                 container: None,
+                processes: Vec::new(),
             }],
             groups: Vec::new(),
             active_project_id: Some("p1".into()),

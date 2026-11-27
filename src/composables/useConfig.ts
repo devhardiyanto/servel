@@ -24,6 +24,8 @@ export interface ConfigState {
   autoStartProjects: boolean
   rememberSession: boolean
   minimizeToTray: boolean
+  /** Notifikasi OS saat project, proses, atau service berhenti sendiri. */
+  notifications?: boolean
   /** Zoom webview. */
   uiScale?: number
   /** Sejak config v5. */
@@ -58,6 +60,7 @@ const DEFAULT_CONFIG: ConfigState = {
   autoStartProjects: true,
   rememberSession: true,
   minimizeToTray: true,
+  notifications: true,
   uiScale: 1,
   containerRuntime: 'auto',
   versionProvider: 'auto',
@@ -227,6 +230,11 @@ export function useConfig() {
 
   function setMinimizeToTray(value: boolean): void {
     config.value.minimizeToTray = value
+    scheduleSave()
+  }
+
+  function setNotifications(value: boolean): void {
+    config.value.notifications = value
     scheduleSave()
   }
 
@@ -419,6 +427,7 @@ export function useConfig() {
     removeCustomService,
     setRememberSession,
     setMinimizeToTray,
+    setNotifications,
     setStopServicesOnQuit,
     markOnboarded,
     setContainerRuntime,

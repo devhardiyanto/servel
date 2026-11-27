@@ -15,6 +15,15 @@ export interface ProjectEnv {
   vars: Record<string, string>
 }
 
+/** Proses tambahan project (queue, scheduler, Vite). Mirror `ProjectProcess` di config.rs. */
+export interface ProjectProcess {
+  /** Nama pendek, juga prefiks log `[queue]`. */
+  name: string
+  command: string
+  /** Jalankan lagi bila berhenti sendiri. */
+  autoRestart: boolean
+}
+
 export interface Project {
   id: string
   name: string
@@ -44,6 +53,8 @@ export interface Project {
   /** Run with: command (default), Dockerfile, atau compose. */
   runMode?: RunMode
   container?: ContainerSpec | null
+  /** Proses yang berjalan bersama dev server (mode command). */
+  processes?: ProjectProcess[]
 }
 
 export type RunMode = 'command' | 'dockerfile' | 'compose'

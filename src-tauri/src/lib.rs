@@ -14,6 +14,7 @@ mod tray_popup;
 mod shutdown;
 mod wsl;
 mod port_owner;
+mod notify;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -113,10 +114,12 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Mutex::new(HashMap::<String, bool>::new()))
         .manage(Mutex::new(ConfigState::default()))
         .manage(sites::process::SiteProcs::default())
+        .manage(sites::workers::Workers::default())
         .invoke_handler(tauri::generate_handler![
             updater::update_check,
             commands::stats::stats_set_mode,
@@ -195,6 +198,11 @@ pub fn run() {
             sites::sites_runtime,
             sites::site_start,
             sites::site_stop,
+            sites::workers_runtime,
+            sites::worker_start,
+            sites::worker_stop,
+            sites::worker_restart,
+            sites::project_process_suggestions,
             sites::site_restart,
             sites::site_forget,
         ])
@@ -316,6 +324,10 @@ pub fn run() {
                                 .map(|s| s.id.clone())
                                 .collect();
                             readiness.retain_running(&running_ids);
+                            runtime::follow::retain_running(&running_ids);
+                            for s in statuses.iter().filter(|s| s.running) {
+                                runtime::follow::start(&app_handle, &s.id, &s.container_name);
+                            }
                             for s in statuses.iter().filter(|s| s.running) {
                                 use runtime::readiness::Decision;
                                 match readiness.decide(&s.id, std::time::Instant::now()) {
@@ -416,6 +428,9 @@ pub fn run() {
                                         "DOWN",
                                         &format_down_message(def, id),
                                     );
+                                    if prev_running == Some(true) && !runtime::take_stop_request(id) {
+                                        notify::service_stopped(&app_handle, def.map(|d| d.name.as_str()).unwrap_or(id));
+                                    }
                                 }
                             }
                         }
@@ -435,6 +450,9 @@ pub fn run() {
                                     "DOWN",
                                     &format_down_message(def, id),
                                 );
+                                if prev.get(id) == Some(&true) && !runtime::take_stop_request(id) {
+                                    notify::service_stopped(&app_handle, def.map(|d| d.name.as_str()).unwrap_or(id));
+                                }
                             }
                         }
                     }

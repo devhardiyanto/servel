@@ -279,7 +279,7 @@ async fn handle(app: &AppHandle, req: &Request) -> Response {
     let result = match req.action {
         Action::Start => crate::sites::start_with_services(app, &project).await.map(|_| "started"),
         Action::Restart => crate::sites::restart_with_services(app, &project).await.map(|_| "restarted"),
-        Action::Stop => process::stop(app, &project.id).await.map(|_| "stopped"),
+        Action::Stop => crate::sites::stop_project(app, &project.id).await.map(|_| "stopped"),
         _ => Ok(""),
     };
     match result {

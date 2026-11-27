@@ -111,8 +111,12 @@ watch(projectNames, (names) => {
 // `[queue]`, `[vite]` pada tiap baris. Bila satu project punya ≥ 2 prefiks,
 // tampil sebagai chip kedua supaya satu proses bisa dilihat sendiri.
 const PART_PREFIX = /^\[([A-Za-z0-9_.:-]{1,24})\](?:\s|$)/
-function partOf(text: string): string {
-  return PART_PREFIX.exec(text)?.[1] ?? ''
+/** Project dengan proses tambahan: baris tanpa prefiks berasal dari dev server. */
+const withProcesses = computed(
+  () => new Set(useConfig().config.value.projects.filter((p) => p.processes?.length).map((p) => p.name)),
+)
+function partOf(text: string, src = ''): string {
+  return PART_PREFIX.exec(text)?.[1] ?? (withProcesses.value.has(src) ? 'server' : '')
 }
 const scopedProject = computed(() => {
   if (activeTab.value !== 'projects') return ''
@@ -126,7 +130,7 @@ const partChips = computed(() => {
   const counts = new Map<string, { total: number; errors: number }>()
   for (const l of lines.value) {
     if (l.src !== name) continue
-    const part = partOf(l.text)
+    const part = partOf(l.text, l.src)
     if (!part) continue
     const c = counts.get(part) ?? { total: 0, errors: 0 }
     c.total++
@@ -145,7 +149,7 @@ const tabLines = computed(() => {
   // Output dev server memakai nama project sebagai sumber.
   if (activeTab.value === 'projects') {
     if (scopedProject.value && partFilter.value) {
-      return lines.value.filter((l) => l.src === scopedProject.value && partOf(l.text) === partFilter.value)
+      return lines.value.filter((l) => l.src === scopedProject.value && partOf(l.text, l.src) === partFilter.value)
     }
     if (projectFilter.value) return lines.value.filter((l) => l.src === projectFilter.value)
     const names = new Set(projectNames.value)
