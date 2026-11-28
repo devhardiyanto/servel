@@ -1,10 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window and the tray popup",
+  "description": "Capability for the main window, the tray popup and Kova Editor windows",
   "windows": [
     "main",
-    "tray"
+    "tray",
+    "editor-*"
   ],
   "permissions": [
     "core:default",

@@ -15,6 +15,7 @@ mod shutdown;
 mod wsl;
 mod port_owner;
 mod notify;
+mod editor;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -119,6 +120,8 @@ pub fn run() {
         .manage(Mutex::new(ConfigState::default()))
         .manage(sites::process::SiteProcs::default())
         .manage(sites::workers::Workers::default())
+        .manage(editor::EditorRoots::default())
+        .manage(editor::lsp::LspSessions::default())
         .invoke_handler(tauri::generate_handler![
             updater::update_check,
             commands::stats::stats_set_mode,
@@ -204,10 +207,26 @@ pub fn run() {
             sites::project_process_suggestions,
             sites::site_restart,
             sites::site_forget,
+            editor::editor_open,
+            editor::editor_root,
+            editor::editor_show_main,
+            editor::fs::editor_list_dir,
+            editor::fs::editor_index,
+            editor::fs::editor_read,
+            editor::fs::editor_write,
+            editor::fs::editor_stat,
+            editor::lsp::lsp_start,
+            editor::lsp::lsp_send,
+            editor::lsp::lsp_stop,
         ])
         .on_window_event(|window, event| {
             if window.label() == tray_popup::LABEL {
                 tray_popup::on_window_event(window, event);
+                return;
+            }
+            // Jendela editor ditutup biasa; cabang di bawah hanya untuk jendela utama.
+            if editor::is_editor(window.label()) {
+                editor::on_window_event(window, event);
                 return;
             }
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

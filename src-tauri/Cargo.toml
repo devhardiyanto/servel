@@ -38,6 +38,8 @@ rustls = { version = "0.23", default-features = false, features = ["ring"] }
 zip = { version = "4", default-features = false, features = ["deflate"] }
 # RAM proses Kova, WebView, dan dev server di status bar; hanya fitur proses.
 sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+# Kova Editor (spike): index file Quick Open mengikuti .gitignore.
+ignore = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
@@ -52,6 +54,11 @@ windows-sys = { version = "0.59", features = [
   # Private working set per proses (angka RAM Kova, sama dengan Task Manager).
   "Win32_System_ProcessStatus",
 ] }
+
+# Kova Editor (spike): matikan pintasan browser WebView2 di jendela editor.
+# Versi sama dengan yang dipakai wry, jadi tidak menambah salinan crate.
+webview2-com = "=0.38.2"
+windows-core = "0.61"
 
 [dev-dependencies]
 # `tauri::test::mock_app` untuk menguji start/stop dev server tanpa jendela.

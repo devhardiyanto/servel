@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { editorSpike, openEditor } from '@/editor/api'
 // Panel detail project: kepala dengan status dan aksi, lalu tab Overview,
 // Environment, Logs.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -189,6 +190,15 @@ function toolLabel(t: ToolCurrent): string {
 function sourceLabel(t: ToolCurrent): string {
   if (t.scope === 'global') return 'global'
   return t.source?.split(/[\\/]/).pop() ?? ''
+}
+
+/** Spike: jendela Kova Editor untuk folder project ini. */
+async function openKovaEditor(): Promise<void> {
+  try {
+    await openEditor(p.value.path)
+  } catch (err) {
+    actions.setError(p.value.id, String(err))
+  }
 }
 
 async function openIn(target: 'folder' | 'terminal' | 'vscode'): Promise<void> {
@@ -830,6 +840,7 @@ const tabs = computed(() => [
       <UiButton :disabled="!p.path" title="Open folder" @click="openIn('folder')"><UiIcon name="folder" /><span class="pd-open-label">Open folder</span></UiButton>
       <UiButton :disabled="!p.path" :title="terminalTitle" @click="openIn('terminal')"><UiIcon name="terminal" /><span class="pd-open-label">Terminal here</span></UiButton>
       <UiButton :disabled="!p.path" title="Open in VS Code" @click="openIn('vscode')"><UiIcon name="code" /><span class="pd-open-label">Open in VS Code</span></UiButton>
+      <UiButton v-if="editorSpike" :disabled="!p.path" title="Open in Kova Editor (spike)" @click="openKovaEditor"><UiIcon name="code" /><span class="pd-open-label">Kova Editor</span></UiButton>
     </div>
   </div>
 </template>
