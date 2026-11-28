@@ -1,4 +1,4 @@
-# Kova Editor · checklist spike (v4.0)
+# Kova Editor · checklist spike
 
 Spike = prototipe yang tidak dirilis. Tujuannya menjawab satu pertanyaan sebelum MVP dibangun: apakah Kova Editor (Tauri + CodeMirror 6) benar-benar lebih hemat RAM dari VS Code dan tetap enak dipakai di Windows. Hasilnya keputusan **lanjut** atau **evaluasi ulang** (target ada di canvas, papan W8).
 

@@ -192,7 +192,7 @@ function sourceLabel(t: ToolCurrent): string {
   return t.source?.split(/[\\/]/).pop() ?? ''
 }
 
-/** Spike v4.0: jendela Kova Editor untuk folder project ini. */
+/** Spike: jendela Kova Editor untuk folder project ini. */
 async function openKovaEditor(): Promise<void> {
   try {
     await openEditor(p.value.path)

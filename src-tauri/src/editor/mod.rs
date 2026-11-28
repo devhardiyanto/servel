@@ -1,4 +1,4 @@
-//! Kova Editor (spike v4.0): jendela editor terpisah per folder.
+//! Kova Editor (spike): jendela editor terpisah per folder.
 //!
 //! Satu folder = satu jendela (label `editor-<hash>`). Membuka folder yang
 //! sama memfokuskan jendela yang ada. Perintah file hanya boleh menyentuh

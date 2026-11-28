@@ -16,7 +16,7 @@ import { installWebviewGuards } from './utils/webviewGuards'
 const view = new URLSearchParams(location.search).get('view')
 
 if (view === 'editor') {
-  // Jendela Kova Editor (spike v4.0): CodeMirror dimuat di chunk sendiri,
+  // Jendela Kova Editor (spike): CodeMirror dimuat di chunk sendiri,
   // jadi jendela utama tidak ikut menanggungnya. Guard pintasan editor
   // berbeda (fase bubble), dipasang oleh modul editor.
   void import('./editor/main').then((m) => m.mountEditor('#app'))

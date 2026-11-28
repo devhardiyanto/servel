@@ -378,7 +378,7 @@ Rebrand dan tampilan baru selesai dengan v3.0.0. Milestone A–F tertutup kecual
 
 ## Setelah v3.0.0
 
-Penomoran: v3.x menambah fitur tanpa memutus apa pun dari Servel. **v4.0 adalah rilis Kova Editor, sekaligus rilis yang membuang lapisan kompatibilitas Servel** (lihat bagian v4.0 di bawah). Nama repo tetap `devhardiyanto/servel`.
+Penomoran: v3.x menambah fitur tanpa memutus apa pun dari Servel. **v4.0 adalah rilis yang membuang lapisan kompatibilitas Servel** (lihat bagian v4.0 di bawah). Kova Editor dirilis bertahap di v3.x. Nama repo tetap `devhardiyanto/servel`.
 
 ### G — v3.1: lanjutan
 
@@ -799,13 +799,13 @@ Hasil audit artboard canvas (flow A–H, S-*, C-*, sitemap) terhadap `src/` pada
 
 - ~~Dukungan Dockerfile/compose per project~~ — selesai di v3.20.0. Catatan lama: ditunda per 20 November 2026: belum ada kebutuhan dari pengguna; dibuka lagi bila permintaannya banyak. Bila dibuka, mulai dengan spike: verifikasi `wslc build`, bind mount folder project, dan jaringan ke service. Docker jelas bisa; dukungan wslc belum pasti dan `wslc compose` belum ada.
 
-### v4.0 · Kova Editor + pemutusan kompatibilitas Servel (belum dijadwalkan)
+### Kova Editor · rilis bertahap di v3.x
 
-Keputusan 27 November 2026: Kova Editor (VS Code Lite di dalam Kova, CodeMirror 6, Windows native dulu) menjadi isi utama v4.0, dan pemutusan kompatibilitas Servel ikut di rilis yang sama supaya pengguna cukup sekali melewati upgrade besar. **Nama repo tidak diganti**: tetap `devhardiyanto/servel`. Desain di canvas (halaman 6 · Kova Editor); riset dan audit di catatan lokal.
+Keputusan 27 November 2026: Kova Editor (VS Code Lite di dalam Kova, CodeMirror 6, Windows native dulu). Keputusan 28 November 2026: **Kova Editor tetap di v3.x**, tidak menunggu v4.0. Tiap milestone MVP menjadi rilis minor v3.x (nomor ditentukan saat rilis), tanpa memutus kompatibilitas apa pun. Desain di canvas (halaman 6 · Kova Editor); riset dan audit di catatan lokal.
 
-- Kova Editor: satu folder (Open Folder) dan workspace (grup Kova, import `.code-workspace` sebagai Preview), operasi file, LSP, Problems, rename dengan preview, terminal. Windows native dulu. Keputusan 28 November 2026: PHP memakai Phpactor (gratis, open source), formatter diambil dari project (Laravel Pint, lalu PHP-CS-Fixer, lalu phpcbf), keybinding hanya gaya VS Code (tanpa Vim), tanpa UI git di MVP.
+- Isi: satu folder (Open Folder) dan workspace (grup Kova, import `.code-workspace` sebagai Preview), operasi file, LSP, Problems, rename dengan preview, terminal. Windows native dulu. PHP memakai Phpactor (gratis, open source), formatter diambil dari project (Laravel Pint, lalu PHP-CS-Fixer, lalu phpcbf), keybinding hanya gaya VS Code (tanpa Vim), tanpa UI git di MVP.
 
-Milestone (8): tiga spike yang tidak dirilis, lalu lima milestone MVP. Spike disembunyikan di balik Settings › About › Kova Editor (spike) dan diuji dari build CI pull request. Checklist: [docs/testing/kova-editor-spike.md](docs/testing/kova-editor-spike.md).
+Milestone (8): tiga spike yang tidak dirilis, lalu lima milestone MVP. Selama spike dan MVP awal, Kova Editor disembunyikan di balik Settings › About › Kova Editor (spike) dan diuji dari build CI pull request. Checklist: [docs/testing/kova-editor-spike.md](docs/testing/kova-editor-spike.md).
 
 - [x] **AI · Spike 1: jendela dan file.** Jendela editor per folder (satu folder satu jendela), Explorer, tab dengan preview, CodeMirror 6 (chunk terpisah, jendela utama hanya +3 KB), simpan atomik dengan deteksi konflik, file berubah/terhapus di disk, Quick Open, palet, pintasan browser WebView2 dimatikan di jendela editor. Perintah file hanya boleh menyentuh folder milik jendela itu.
 - [ ] **AJ · Spike 2: LSP.** Jembatan stdio di Rust untuk language server, Phpactor, Vue (vue_ls + vtsls dalam satu file), diagnostics, completion, go to definition.
@@ -814,7 +814,12 @@ Milestone (8): tiga spike yang tidak dirilis, lalu lima milestone MVP. Spike dis
 - [ ] **AM · MVP 2: buka dan cari.** Quick Open lengkap (`@simbol`, `:baris`), search seluruh workspace (ripgrep), split, breadcrumbs simbol.
 - [ ] **AN · MVP 3: LSP lengkap.** Problems, rename dengan preview, code action, format on save, supervisor server, Language tools di Projects.
 - [ ] **AO · MVP 4: workspace dan Kova.** Grup sebagai workspace multi-root, import `.code-workspace` (Preview), tasks, path di Logs membuka baris kode, Settings › Editor.
-- [ ] **AP · MVP 5: rilis v4.0.** Keadaan kosong/galat, keyboard dan aksesibilitas, terminal lengkap, pemutusan kompatibilitas Servel di bawah.
+- [ ] **AP · MVP 5: Kova Editor lepas dari spike.** Keadaan kosong/galat, keyboard dan aksesibilitas, terminal lengkap; toggle spike dihapus.
+
+
+### v4.0 · pemutusan kompatibilitas Servel (belum dijadwalkan)
+
+Hanya berisi perubahan yang memutus kompatibilitas. **Nama repo tidak diganti**: tetap `devhardiyanto/servel`.
 
 - Perintah terminal `servel` dihapus; hanya `kova`. Pemberitahuan di terminal ("keeps working until v4.0") merujuk ke rilis ini.
 - Kandidat, masing-masing butuh migrasi dan keputusan terpisah: nama container/volume `servel_*` → `kova_*`, folder data dengan bundle id lama (`com.devhardiyanto.servel`), field config lama (`versionProvider`), migrasi config v7.

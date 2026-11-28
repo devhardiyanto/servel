@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Kova Editor (spike v4.0): satu jendela per folder. Explorer, tab dengan
+// Kova Editor (spike): satu jendela per folder. Explorer, tab dengan
 // preview, CodeMirror 6, simpan dengan deteksi konflik, Quick Open (Ctrl P),
 // palet (Ctrl Shift P). LSP dan terminal menyusul di spike 2 dan 3.
 import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, reactive, ref, shallowRef, type Ref } from 'vue'

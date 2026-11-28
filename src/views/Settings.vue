@@ -877,7 +877,7 @@ onMounted(async () => {
             <SettingRow label="Data folder" :desc="dataDir || '…'">
               <UiButton :disabled="!dataDir" @click="openDataDir">Open</UiButton>
             </SettingRow>
-            <SettingRow label="Kova Editor (spike)" desc="Prototype for v4.0. Adds Kova Editor to each project. Not finished: use it for testing only.">
+            <SettingRow label="Kova Editor (spike)" desc="Prototype. Adds Kova Editor to each project. Not finished: use it for testing only.">
               <UiToggle label="Kova Editor (spike)" :on="editorSpike" @click="setEditorSpike(!editorSpike)" />
             </SettingRow>
           </div>

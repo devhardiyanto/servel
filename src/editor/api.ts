@@ -33,7 +33,7 @@ export function errorText(e: unknown): string {
   return String(e).replace(/^[a-z-]+:\s*/, '')
 }
 
-/** Spike v4.0: tombol Open in Kova Editor hanya tampil bila dinyalakan di Settings. */
+/** Spike: tombol Open in Kova Editor hanya tampil bila dinyalakan di Settings. */
 const FLAG = 'kova.editorSpike'
 function readFlag(): boolean {
   try { return localStorage.getItem(FLAG) === '1' } catch { return false }
