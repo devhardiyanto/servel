@@ -803,7 +803,18 @@ Hasil audit artboard canvas (flow A–H, S-*, C-*, sitemap) terhadap `src/` pada
 
 Keputusan 27 November 2026: Kova Editor (VS Code Lite di dalam Kova, CodeMirror 6, Windows native dulu) menjadi isi utama v4.0, dan pemutusan kompatibilitas Servel ikut di rilis yang sama supaya pengguna cukup sekali melewati upgrade besar. **Nama repo tidak diganti**: tetap `devhardiyanto/servel`. Desain di canvas (halaman 6 · Kova Editor); riset dan audit di catatan lokal.
 
-- Kova Editor: satu folder (Open Folder) dan workspace (grup Kova, import `.code-workspace` sebagai Preview), operasi file, LSP, Problems, rename dengan preview. Didahului spike: RAM, beberapa language server per file Vue, shortcut di WebView2, pemulihan saat webview crash.
+- Kova Editor: satu folder (Open Folder) dan workspace (grup Kova, import `.code-workspace` sebagai Preview), operasi file, LSP, Problems, rename dengan preview, terminal. Windows native dulu. Keputusan 28 November 2026: PHP memakai Phpactor (gratis, open source), formatter diambil dari project (Laravel Pint, lalu PHP-CS-Fixer, lalu phpcbf), keybinding hanya gaya VS Code (tanpa Vim), tanpa UI git di MVP.
+
+Milestone (8): tiga spike yang tidak dirilis, lalu lima milestone MVP. Spike disembunyikan di balik Settings › About › Kova Editor (spike) dan diuji dari build CI pull request. Checklist: [docs/testing/kova-editor-spike.md](docs/testing/kova-editor-spike.md).
+
+- [x] **AI · Spike 1: jendela dan file.** Jendela editor per folder (satu folder satu jendela), Explorer, tab dengan preview, CodeMirror 6 (chunk terpisah, jendela utama hanya +3 KB), simpan atomik dengan deteksi konflik, file berubah/terhapus di disk, Quick Open, palet, pintasan browser WebView2 dimatikan di jendela editor. Perintah file hanya boleh menyentuh folder milik jendela itu.
+- [ ] **AJ · Spike 2: LSP.** Jembatan stdio di Rust untuk language server, Phpactor, Vue (vue_ls + vtsls dalam satu file), diagnostics, completion, go to definition.
+- [ ] **AK · Spike 3: terminal, crash, hasil.** Terminal PowerShell (ConPTY), pulih saat WebView2 crash, IME, seret file dari Explorer Windows. Diakhiri keputusan lanjut / evaluasi ulang dari angka RAM nyata (target di canvas W8).
+- [ ] **AL · MVP 1: file dan folder.** Buat, rename, pindah, hapus ke Recycle Bin dengan undo, hot exit, watcher, encoding selain UTF-8.
+- [ ] **AM · MVP 2: buka dan cari.** Quick Open lengkap (`@simbol`, `:baris`), search seluruh workspace (ripgrep), split, breadcrumbs simbol.
+- [ ] **AN · MVP 3: LSP lengkap.** Problems, rename dengan preview, code action, format on save, supervisor server, Language tools di Projects.
+- [ ] **AO · MVP 4: workspace dan Kova.** Grup sebagai workspace multi-root, import `.code-workspace` (Preview), tasks, path di Logs membuka baris kode, Settings › Editor.
+- [ ] **AP · MVP 5: rilis v4.0.** Keadaan kosong/galat, keyboard dan aksesibilitas, terminal lengkap, pemutusan kompatibilitas Servel di bawah.
 
 - Perintah terminal `servel` dihapus; hanya `kova`. Pemberitahuan di terminal ("keeps working until v4.0") merujuk ke rilis ini.
 - Kandidat, masing-masing butuh migrasi dan keputusan terpisah: nama container/volume `servel_*` → `kova_*`, folder data dengan bundle id lama (`com.devhardiyanto.servel`), field config lama (`versionProvider`), migrasi config v7.

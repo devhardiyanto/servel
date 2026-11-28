@@ -25,6 +25,7 @@ import { useServices } from '@/composables/useServices'
 import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
 import { ENGINE_LABEL, type EnginePreference, type PrereqStatus } from '@/types/prereq'
 import { useEngineStatus } from '@/composables/useEngineStatus'
+import { editorSpike, setEditorSpike } from '@/editor/api'
 
 type SettingsNav = 'general' | 'services' | 'sites' | 'php_node' | 'about'
 
@@ -875,6 +876,9 @@ onMounted(async () => {
             </SettingRow>
             <SettingRow label="Data folder" :desc="dataDir || '…'">
               <UiButton :disabled="!dataDir" @click="openDataDir">Open</UiButton>
+            </SettingRow>
+            <SettingRow label="Kova Editor (spike)" desc="Prototype for v4.0. Adds Kova Editor to each project. Not finished: use it for testing only.">
+              <UiToggle label="Kova Editor (spike)" :on="editorSpike" @click="setEditorSpike(!editorSpike)" />
             </SettingRow>
           </div>
         </template>

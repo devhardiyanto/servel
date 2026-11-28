@@ -13,20 +13,29 @@ import TrayPopup from './views/TrayPopup.vue'
 import { invoke } from '@tauri-apps/api/core'
 import { installWebviewGuards } from './utils/webviewGuards'
 
-// Pintasan browser bawaan webview dimatikan di build rilis saja, supaya
-// muat ulang dan devtools tetap ada saat pengembangan.
-if (import.meta.env.PROD) installWebviewGuards()
+const view = new URLSearchParams(location.search).get('view')
 
-// Jendela popup tray memuat halaman yang sama dengan `?view=tray`.
-const isTrayPopup = new URLSearchParams(location.search).get('view') === 'tray'
-if (isTrayPopup) document.documentElement.classList.add('tray-popup')
+if (view === 'editor') {
+  // Jendela Kova Editor (spike v4.0): CodeMirror dimuat di chunk sendiri,
+  // jadi jendela utama tidak ikut menanggungnya. Guard pintasan editor
+  // berbeda (fase bubble), dipasang oleh modul editor.
+  void import('./editor/main').then((m) => m.mountEditor('#app'))
+} else {
+  // Pintasan browser bawaan webview dimatikan di build rilis saja, supaya
+  // muat ulang dan devtools tetap ada saat pengembangan.
+  if (import.meta.env.PROD) installWebviewGuards()
 
-const app = createApp(isTrayPopup ? TrayPopup : App)
-app.use(createPinia())
-app.mount('#app')
+  // Jendela popup tray memuat halaman yang sama dengan `?view=tray`.
+  const isTrayPopup = view === 'tray'
+  if (isTrayPopup) document.documentElement.classList.add('tray-popup')
 
-// Jendela utama mulai tersembunyi (lihat `app_ready` di src-tauri/src/lib.rs)
-// dan ditampilkan setelah UI ter-mount. Tidak memakai requestAnimationFrame:
-// webview yang tersembunyi bisa menunda callback itu. Popup tray menampilkan
-// dirinya sendiri lewat `tray_popup_resize`.
-if (!isTrayPopup) void invoke('app_ready').catch(() => {})
+  const app = createApp(isTrayPopup ? TrayPopup : App)
+  app.use(createPinia())
+  app.mount('#app')
+
+  // Jendela utama mulai tersembunyi (lihat `app_ready` di src-tauri/src/lib.rs)
+  // dan ditampilkan setelah UI ter-mount. Tidak memakai requestAnimationFrame:
+  // webview yang tersembunyi bisa menunda callback itu. Popup tray menampilkan
+  // dirinya sendiri lewat `tray_popup_resize`.
+  if (!isTrayPopup) void invoke('app_ready').catch(() => {})
+}
