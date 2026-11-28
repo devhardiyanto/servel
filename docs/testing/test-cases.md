@@ -31,6 +31,7 @@ Kolom **W** = Windows, **L** = Linux. Bukti: `evidence/<versi>/<ID>-<W|L>.<ext>`
 | T · Tray & jendela | 9 | 0 | 0 | v3.10.x, v3.14.1, v3.15.0 |
 | U · Tampilan & aksesibilitas | 21 | 0 | 0 | v3.14.0, v3.15.0, v3.15.1, v3.16.0, v3.22.0, v3.23.0, v3.26.0, v3.26.2 |
 | R · Proses tambahan, log service, notifikasi | 10 | 0 | 0 | v3.27.0 |
+| X · Fitur Experimental | 6 | 0 | 0 | v3.28.0 |
 | W · Khusus Windows | 12 | 0 | ➖ | v3.10.x, v3.16.2, v3.17.0, v3.21.2, v3.24.0 |
 | L · Khusus Linux | 13 | ➖ | 0 | v3.12.0, v3.15.2, v3.15.3, v3.25.1, v3.26.2 |
 
@@ -301,6 +302,19 @@ Persiapan: 6+ project, misalnya `acme-api`, `acme-web`, `shop-api`, `shop-web`, 
 | TC-R8 | Start MySQL, buka Logs › tab MySQL. | 50 baris terakhir log container lalu baris baru mengalir; berhenti mengalir saat MySQL di-stop. | ⬜ | ⬜ | | WSLC: bila `logs -f` tidak ada, baris baru tetap muncul tiap ±3 detik |
 | TC-R9 | Sembunyikan Kova ke tray; matikan container service dari terminal (`docker stop servel_mysql` / `wslc stop …`). | Notifikasi OS "MySQL stopped". Stop dari Kova tidak memberi notifikasi. | ⬜ | ⬜ | | |
 | TC-R10 | Settings › Notify me when something stops on its own dimatikan; ulangi TC-R9. | Tidak ada notifikasi; Logs tetap mencatat DOWN. | ⬜ | ⬜ | | |
+
+## X · Fitur Experimental (v3.28.0)
+
+Ringkasan untuk putaran rilis. Uji rinci: [kova-editor-spike.md](kova-editor-spike.md) (S1–S12) dan [dumps-spike.md](dumps-spike.md) (D1–D11).
+
+| ID | Langkah | Hasil yang diharapkan | W | L | Bukti | Catatan |
+|---|---|---|---|---|---|---|
+| TC-X1 | Detail project tanpa menyalakan apa pun. | Tidak ada tombol Kova Editor dan tidak ada tab Dumps. Open in VS Code memakai logo VS Code. | ⬜ | ⬜ | | |
+| TC-X2 | Settings › About › Diagnostics › Kova Editor (Experimental) nyala; klik **Kova Editor** di detail project. | Tombol berwarna terbalik; jendela editor terbuka untuk folder project; status bar menulis Experimental. | ⬜ | ⬜ | | |
+| TC-X3 | Ubah file tanpa menyimpan, klik X di jendela editor, pilih Don't save. Ulangi tanpa perubahan. | Jendela tertutup di kedua kasus tanpa Quit Kova; jendela utama tetap hidup. | ⬜ | ⬜ | | Regresi v3.28.0 |
+| TC-X4 | Dumps (Experimental) nyala; start project Laravel; buka route yang memanggil `dump()`. | Tab Dumps muncul; dump tampil dengan URL request; halaman tidak menampilkan dump. | ⬜ | ⬜ | | D1, D2 |
+| TC-X5 | Klik `file:baris` di kartu dump. | VS Code terbuka di baris itu. | ⬜ | ⬜ | | D3 |
+| TC-X6 | Dumps dimatikan; buka route yang sama. | Dump tampil di halaman seperti biasa; proses penerima `receiver.php` berhenti. | ⬜ | ⬜ | | D8 |
 
 ## W · Khusus Windows
 

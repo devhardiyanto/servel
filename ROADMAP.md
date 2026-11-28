@@ -758,9 +758,16 @@ Sumber: audit 004 (catatan lokal, tidak di repo).
 - [ ] Uji di perangkat: TC-R1 sampai TC-R10.
 - [x] v3.27.1: komentar dari audit 006 (em dash, campuran bahasa, docstring `migrate` yang basi).
 
+### AH.1 · v3.28.0: dua fitur Experimental
+
+- [x] Kova Editor (spike 1–3) dirilis sebagai Experimental, tombol tutup jendela diperbaiki, tombol berwarna terbalik.
+- [x] Dumps (spike AQ) dirilis sebagai Experimental.
+- [x] Logo VS Code; audit 007 M1 (`npm audit` dependency aplikasi = 0).
+- [ ] Uji di perangkat: TC-X1 sampai TC-X6, lalu D1–D11 untuk keputusan AR.
+
 ## Status per 24 November 2026
 
-Versi terbaru: **v3.27.1**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
+Versi terbaru: **v3.28.0**. Semua milestone fitur A–S selesai di kode. Yang terbuka di bawah ini adalah uji di perangkat, keputusan pemilik, dan selisih kecil dengan canvas yang ditemukan di audit 22 November.
 
 ### Uji di perangkat (prioritas tinggi)
 
@@ -819,7 +826,7 @@ Milestone (8): tiga spike yang tidak dirilis, lalu lima milestone MVP. Selama sp
 **Dijeda 28 November 2026.** Kode spike 1–3 tetap di `main` dan ikut rilis sebagai **eksperimental** (toggle di Settings › About › Diagnostics). Arsip tetap di branch `kova-editor`. Sebelum rilis eksperimental pertama:
 
 - [x] Jendela editor tidak bisa ditutup (hanya lewat Quit). Penyebab: `onCloseRequested` di JS menutup jendela dengan `destroy()`, dan izin `core:window:allow-destroy` tidak ada di `core:default`. Perbaikan: capability `editor.json` khusus jendela `editor-*`.
-- [ ] Catatan rilis menyebut "experimental" dan daftar yang belum teruji di Windows (S1, S5, S10).
+- [x] Catatan rilis menyebut "experimental" dan daftar yang belum teruji di Windows (S1, S5, S10): `docs/releases/v3.28.0.md`.
 - [ ] PHP di Windows: Phpactor tidak mendukung Windows native. Pilihan: Intelephense (versi gratis) atau catatan rilis bahwa PHP belum punya language server. Diputuskan saat editor dilanjutkan.
 
 ## Fitur unggulan · setelah Kova Editor dijeda
