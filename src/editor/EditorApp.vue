@@ -463,7 +463,7 @@ function hideTerminal(): void {
 async function about(): Promise<void> {
   try {
     const i = await editorInfo()
-    toast(`Kova Editor (spike) · WebView2 ${i.webview} · ${i.os}`)
+    toast(`Kova Editor (Experimental) · WebView2 ${i.webview} · ${i.os}`)
   } catch (e) {
     toast(errorText(e))
   }
@@ -657,7 +657,7 @@ onBeforeUnmount(() => {
         <span>{{ current.bom ? 'UTF-8 with BOM' : 'UTF-8' }}</span>
         <span>{{ current.lang }}</span>
       </template>
-      <span class="spike">Spike</span>
+      <span class="spike">Experimental</span>
     </footer>
 
     <div v-if="qo.open" class="ke-scrim" @mousedown.self="closeQuick">

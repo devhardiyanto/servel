@@ -193,7 +193,7 @@ function sourceLabel(t: ToolCurrent): string {
   return t.source?.split(/[\\/]/).pop() ?? ''
 }
 
-/** Spike: jendela Kova Editor untuk folder project ini. */
+/** Experimental: jendela Kova Editor untuk folder project ini. */
 async function openKovaEditor(): Promise<void> {
   try {
     await openEditor(p.value.path)
@@ -841,7 +841,7 @@ const tabs = computed(() => [
       <UiButton :disabled="!p.path" title="Open folder" @click="openIn('folder')"><UiIcon name="folder" /><span class="pd-open-label">Open folder</span></UiButton>
       <UiButton :disabled="!p.path" :title="terminalTitle" @click="openIn('terminal')"><UiIcon name="terminal" /><span class="pd-open-label">Terminal here</span></UiButton>
       <UiButton :disabled="!p.path" title="Open in VS Code" @click="openIn('vscode')"><img class="pd-brand" :src="vscodeLogo" width="14" height="14" alt="" /><span class="pd-open-label">Open in VS Code</span></UiButton>
-      <UiButton v-if="editorSpike" :disabled="!p.path" title="Open in Kova Editor (spike)" @click="openKovaEditor"><UiIcon name="edit" /><span class="pd-open-label">Kova Editor</span></UiButton>
+      <UiButton v-if="editorSpike" class="pd-exp" :disabled="!p.path" title="Open in Kova Editor (Experimental)" @click="openKovaEditor"><UiIcon name="edit" /><span class="pd-open-label">Kova Editor</span></UiButton>
     </div>
   </div>
 </template>
@@ -867,6 +867,9 @@ const tabs = computed(() => [
 .pd-note { margin: 0; color: var(--muted); font-size: var(--text-xs); }
 .pd-lastline { font: 400 var(--text-xs) var(--font-mono); color: var(--red); overflow-wrap: anywhere; }
 .pd-brand { flex: none; display: block; }
+/* Warna terbalik menandai fitur Experimental (Kova Editor). */
+.pd-open .pd-exp { background: var(--text); border-color: var(--text); color: var(--bg); }
+.pd-open .pd-exp:hover:not(:disabled) { background: var(--muted); border-color: var(--muted); }
 .pd-open {
   position: sticky;
   bottom: -16px;
