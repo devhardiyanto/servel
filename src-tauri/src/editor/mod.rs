@@ -8,6 +8,7 @@
 //! dinyalakan di Settings › About.
 
 pub mod fs;
+pub mod lsp;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -103,11 +104,12 @@ pub fn editor_show_main(app: AppHandle) {
 }
 
 /// Jendela editor ditutup biasa (bukan disembunyikan seperti jendela utama).
-pub fn on_window_event<R: Runtime>(window: &tauri::Window<R>, event: &tauri::WindowEvent) {
+pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
     if let tauri::WindowEvent::Destroyed = event {
         if let Some(roots) = window.app_handle().try_state::<EditorRoots>() {
             roots.0.lock().unwrap().remove(window.label());
         }
+        lsp::stop_window(window.app_handle(), window.label());
     }
 }
 

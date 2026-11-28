@@ -20,6 +20,7 @@ import { langFor } from './languages'
 import { kovaTheme, kovaHighlight } from './theme'
 import { rank } from './fuzzy'
 import { chord } from './keys'
+import { lspFor, setupLsp, status as lspStatus, uriPath, type Server } from './lsp'
 
 type Eol = '\n' | '\r\n'
 interface Banner { kind: 'conflict' | 'changed' | 'deleted' | 'error' | 'large'; text: string }
@@ -38,6 +39,7 @@ interface Tab {
   preview: boolean
   dirty: boolean
   banner: Banner | null
+  server: Server | null
 }
 
 const win = getCurrentWindow()
@@ -134,7 +136,7 @@ function onUpdate(u: { docChanged: boolean; selectionSet: boolean; state: Editor
   }
 }
 
-function extensions(lang: Extension, readonly: boolean): Extension[] {
+function extensions(lang: Extension, readonly: boolean, lsp: Extension = []): Extension[] {
   return [
     lineNumbers(), highlightActiveLineGutter(), highlightSpecialChars(), history(), foldGutter(), drawSelection(),
     dropCursor(), EditorState.allowMultipleSelections.of(true), indentOnInput(), bracketMatching(), closeBrackets(),
@@ -147,7 +149,7 @@ function extensions(lang: Extension, readonly: boolean): Extension[] {
       indentWithTab,
     ]),
     kovaTheme, kovaHighlight, langComp.of(lang), wrapComp.of(wrap.value ? EditorView.lineWrapping : []),
-    EditorState.readOnly.of(readonly),
+    EditorState.readOnly.of(readonly), lsp,
     EditorView.contentAttributes.of({ 'aria-label': 'Editor' }),
     EditorView.updateListener.of(onUpdate),
   ]
@@ -201,11 +203,13 @@ async function openFileNow(path: string, opts: { preview?: boolean; line?: numbe
   const name = path.split(/[\\/]/).pop() ?? path
   const lang = ft.large ? null : langFor(name)
   const langExt = lang ? await lang.load() : []
-  const state = EditorState.create({ doc: ft.text, extensions: extensions(langExt, ft.readonly) })
+  // File besar tanpa language server (canvas E7).
+  const lsp = ft.large ? { ext: [], server: null } : lspFor(path, name)
+  const state = EditorState.create({ doc: ft.text, extensions: extensions(langExt, ft.readonly, lsp.ext) })
   const tab: Tab = {
     path, name, rel: relOf(path), state: markRaw(state), saved: markRaw(state.doc), mtime: ft.mtime,
     eol: ft.eol, bom: ft.bom, large: ft.large, readonly: ft.readonly, lang: lang?.name ?? 'Plain text',
-    preview, dirty: false,
+    preview, dirty: false, server: lsp.server,
     banner: ft.large ? { kind: 'large', text: `${name} is ${Math.round(ft.size / 1024 / 1024)} MB. Opened as plain text without highlighting, so the window stays fast.` } : null,
   }
   stash()
@@ -450,6 +454,14 @@ onMounted(async () => {
     return
   }
   document.title = `${rootName.value} · Kova Editor`
+  // F12 ke file lain: buka sebagai tab biasa, lalu kembalikan view-nya.
+  setupLsp(root.value, {
+    display: async (uri) => {
+      await openFile(uriPath(uri, sep.value))
+      return view.value
+    },
+    notify: toast,
+  })
   await loadDir(root.value)
   unFocus = await win.onFocusChanged(({ payload }) => { if (payload) void checkDisk() })
   // Spike: tanya sebelum menutup jendela dengan file belum disimpan. Hot exit
@@ -529,6 +541,9 @@ onBeforeUnmount(() => {
       <span v-if="indexing">Indexing files…</span>
       <span class="sp"></span>
       <template v-if="current">
+        <span v-if="current.server && lspStatus[current.server]" class="lsp" :class="lspStatus[current.server]!.state" :title="lspStatus[current.server]!.text">
+          <span class="ldot" aria-hidden="true"></span>{{ lspStatus[current.server]!.state === 'running' ? lspStatus[current.server]!.text : lspStatus[current.server]!.state === 'starting' ? 'Starting language server…' : lspStatus[current.server]!.state === 'missing' ? 'Language server not installed' : 'Language server stopped' }}
+        </span>
         <span v-if="current.readonly">Read-only</span>
         <span>Ln {{ cursor.line }}, Col {{ cursor.col }}<template v-if="cursor.sel"> ({{ cursor.sel }} selected)</template></span>
         <span>{{ current.eol === '\r\n' ? 'CRLF' : 'LF' }}</span>
@@ -614,6 +629,11 @@ html.kova-editor, html.kova-editor body, html.kova-editor #app { height: 100%; m
 .ke-status { grid-column: 1 / 3; display: flex; align-items: center; gap: 14px; padding: 0 10px; border-top: 1px solid var(--border); background: var(--surface); font-size: 12px; color: var(--muted); white-space: nowrap; }
 .ke-status .sp { flex: 1; }
 .ke-status .spike { color: var(--amber); }
+.ke-status .lsp { display: inline-flex; align-items: center; gap: 6px; }
+.ke-status .ldot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.ke-status .lsp.running .ldot { background: var(--green); }
+.ke-status .lsp.starting .ldot { background: var(--amber); }
+.ke-status .lsp.missing .ldot, .ke-status .lsp.error .ldot, .ke-status .lsp.stopped .ldot { background: var(--red); border-radius: 1px; }
 .ke-btn { height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface2); color: var(--text); font: 500 12px var(--font-sans); cursor: pointer; white-space: nowrap; }
 .ke-btn:hover { background: var(--surface3); }
 .ke-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

@@ -121,6 +121,7 @@ pub fn run() {
         .manage(sites::process::SiteProcs::default())
         .manage(sites::workers::Workers::default())
         .manage(editor::EditorRoots::default())
+        .manage(editor::lsp::LspSessions::default())
         .invoke_handler(tauri::generate_handler![
             updater::update_check,
             commands::stats::stats_set_mode,
@@ -214,6 +215,9 @@ pub fn run() {
             editor::fs::editor_read,
             editor::fs::editor_write,
             editor::fs::editor_stat,
+            editor::lsp::lsp_start,
+            editor::lsp::lsp_send,
+            editor::lsp::lsp_stop,
         ])
         .on_window_event(|window, event| {
             if window.label() == tray_popup::LABEL {

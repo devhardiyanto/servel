@@ -8,12 +8,27 @@ Spike = prototipe yang tidak dirilis. Tujuannya menjawab satu pertanyaan sebelum
 2. Settings › About › Diagnostics › **Kova Editor (spike)** → nyalakan.
 3. Buka detail project → tombol **Kova Editor** di bawah panel.
 
+## Language server (spike 2)
+
+Di spike, server dipasang sendiri (MVP akan memasangnya dari Kova dengan checksum). Kova mencarinya di PATH:
+
+| Bahasa | Program | Pasang |
+|---|---|---|
+| PHP | `phpactor` | Ikuti petunjuk Windows di phpactor.github.io (butuh PHP 8.1 ke atas di PATH) |
+| TypeScript, JavaScript | `vtsls` | `npm install -g @vtsls/language-server` |
+| Vue | `vue-language-server` dan `vtsls` | `npm install -g @vue/language-server @vtsls/language-server` |
+| Go | `gopls` | `go install golang.org/x/tools/gopls@latest` |
+
+Bila server tidak ada, editor tetap jalan; status bar menulis "Language server not installed". Output server masuk ke Logs dengan sumber `LSP php`, `LSP vue`, dan seterusnya.
+
+Sudah dibuktikan di Linux dengan server asli (test `cargo test vue_hybrid single_server -- --ignored`): file `.vue` mendapat error TypeScript dari vtsls dan completion di template lewat relay `tsserver/request`; jalur satu server (vtsls untuk `.ts`) meneruskan diagnostics dan completion. Phpactor belum diuji dengan server asli.
+
 ## Status per tahap
 
 | Tahap | Isi | Uji |
 |---|---|---|
 | Spike 1 | Jendela editor per folder, Explorer, tab dengan preview, CodeMirror 6, simpan atomik dengan deteksi konflik, file berubah/terhapus di disk, Quick Open (Ctrl P), palet (Ctrl Shift P), pintasan browser WebView2 dimatikan | S1, S4 (sebagian), S5, S6 (tanpa LSP), S8, S12 |
-| Spike 2 | Jembatan LSP di Rust, Phpactor, Vue (vue_ls + vtsls dalam satu file) | S6 (dengan LSP), S9, S11 |
+| Spike 2 | Jembatan LSP di Rust: satu server per bahasa (Phpactor, vtsls, gopls), Vue dengan dua server digabung, request server dijawab Kova; diagnostics, completion, hover, F12 | S6 (dengan LSP), S9, S11 |
 | Spike 3 | Terminal PowerShell (ConPTY), pulih saat WebView2 crash, IME, seret file dari Explorer Windows, laporan hasil | S2, S3, S4, S7, S10 |
 
 ## Uji (isi kolom Hasil)
@@ -28,9 +43,9 @@ Spike = prototipe yang tidak dirilis. Tujuannya menjawab satu pertanyaan sebelum
 | S6 | RAM | Lihat bagian RAM di bawah | Angka tercatat | ⬜ |
 | S7 | Versi WebView2 | `edge://version` tidak tersedia di app: catat dari Settings › About › Copy info | Versi tercatat (spike 3 menambah info ini) | ⬜ |
 | S8 | Clipboard dan akhir baris | Salin/tempel teks besar (sekitar 10 MB); buka file CRLF, edit, simpan, cek dengan `git diff` | Isi utuh; file tetap CRLF | ⬜ |
-| S9 | Vue | File `.vue`: completion dari Vue dan TypeScript sekaligus | Spike 2 | ⬜ |
+| S9 | Vue | File `.vue`: error TypeScript di `<script setup>`, completion di template dan script, F12 ke komponen lain | Ketiganya jalan; tidak ada error dobel | ⬜ |
 | S10 | Terminal | `php artisan`, `npm run dev`, Ctrl C, ubah ukuran | Spike 3 | ⬜ |
-| S11 | Phpactor | Project Laravel: indexing, completion, go to definition, rename | Completion pertama tidak lebih lambat dari VS Code (spike 2) | ⬜ |
+| S11 | Phpactor | Project Laravel: completion setelah `->`, hover, F12 ke class lain, error di status bar | Completion pertama tidak lebih lambat dari VS Code; F12 membuka file lain sebagai tab | ⬜ |
 | S12 | Folder besar | Ctrl P di project dengan `vendor` dan `node_modules` | Daftar file muncul kurang dari 2 detik; `vendor` dan `node_modules` ikut .gitignore | ⬜ |
 
 Tambahan untuk spike 1:
