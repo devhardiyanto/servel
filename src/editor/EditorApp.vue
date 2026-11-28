@@ -13,8 +13,11 @@ import { bracketMatching, foldGutter, foldKeymap, indentOnInput } from '@codemir
 import { searchKeymap, highlightSelectionMatches, gotoLine, openSearchPanel } from '@codemirror/search'
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap } from '@codemirror/autocomplete'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
+import TerminalPanel from './TerminalPanel.vue'
 import {
   editorRoot, listDir, indexFiles, readFile, writeFile, statFile, showMain, errorCode, errorText, type DirEntry,
+  backupPut, backupDrop, backupList, editorInfo,
 } from './api'
 import { langFor } from './languages'
 import { kovaTheme, kovaHighlight } from './theme'
@@ -23,7 +26,7 @@ import { chord } from './keys'
 import { lspFor, setupLsp, status as lspStatus, uriPath, type Server } from './lsp'
 
 type Eol = '\n' | '\r\n'
-interface Banner { kind: 'conflict' | 'changed' | 'deleted' | 'error' | 'large'; text: string }
+interface Banner { kind: 'conflict' | 'changed' | 'deleted' | 'error' | 'large' | 'restored'; text: string }
 interface Tab {
   path: string
   name: string
@@ -126,6 +129,7 @@ function onUpdate(u: { docChanged: boolean; selectionSet: boolean; state: Editor
   if (u.docChanged) {
     t.dirty = !u.state.doc.eq(t.saved)
     if (t.preview) t.preview = false
+    scheduleBackup()
   }
   if (u.docChanged || u.selectionSet) {
     const r = u.state.selection.main
@@ -249,6 +253,7 @@ async function save(t: Tab | null = current.value, force = false): Promise<boole
     t.dirty = false
     t.preview = false
     if (t.banner?.kind !== 'large') t.banner = null
+    void backupDrop(t.path).catch(() => {})
     return true
   } catch (e) {
     const code = errorCode(e)
@@ -321,6 +326,7 @@ async function closeTab(i = active.value): Promise<void> {
     const r = await askSave(`Save changes to ${t.name}?`, "Don't save discards the changes in this file.", [])
     if (r === 'cancel') return
     if (r === 'save' && !(await save(t))) return
+    if (r === 'discard') void backupDrop(t.path).catch(() => {})
   }
   if (i === active.value) stash()
   tabs.value.splice(i, 1)
@@ -348,6 +354,9 @@ const commands: Cmd[] = [
   { label: 'View: Toggle Word Wrap', keys: 'Alt Z', run: toggleWrap },
   { label: 'Kova: Show main window', run: () => void showMain() },
   { label: 'Explorer: Focus', keys: 'Ctrl Shift E', run: focusTree },
+  { label: 'View: Toggle Terminal', keys: 'Ctrl `', run: toggleTerminal },
+  { label: 'Terminal: New Terminal', keys: 'Ctrl Shift `', run: newTerminal },
+  { label: 'Kova: About Kova Editor', run: about },
 ]
 interface Item { label: string; detail?: string; keys?: string; run: () => void | Promise<void> }
 const items = computed<Item[]>(() => {
@@ -420,11 +429,98 @@ function onKey(e: KeyboardEvent): void {
     'Ctrl+Tab': () => tabs.value.length && activate((active.value + 1) % tabs.value.length),
     'Ctrl+Shift+Tab': () => tabs.value.length && activate((active.value - 1 + tabs.value.length) % tabs.value.length),
     'Ctrl+K': () => { chordK = Date.now() },
+    'Ctrl+`': toggleTerminal,
+    'Ctrl+Shift+`': newTerminal,
   }
   const fn = map[c]
   if (fn) {
     e.preventDefault()
     fn()
+  }
+}
+
+// ---------- terminal
+const panelOpen = ref(false)
+const termPanel = ref<InstanceType<typeof TerminalPanel> | null>(null)
+function toggleTerminal(): void {
+  if (panelOpen.value) {
+    panelOpen.value = false
+    view.value?.focus()
+    return
+  }
+  panelOpen.value = true
+  void nextTick(() => termPanel.value?.reveal())
+}
+function newTerminal(): void {
+  panelOpen.value = true
+  void nextTick(() => termPanel.value?.add())
+}
+function hideTerminal(): void {
+  panelOpen.value = false
+  view.value?.focus()
+}
+
+async function about(): Promise<void> {
+  try {
+    const i = await editorInfo()
+    toast(`Kova Editor (spike) · WebView2 ${i.webview} · ${i.os}`)
+  } catch (e) {
+    toast(errorText(e))
+  }
+}
+
+// ---------- cadangan file belum disimpan (spike 3, S2)
+let backupTimer = 0
+function scheduleBackup(): void {
+  window.clearTimeout(backupTimer)
+  backupTimer = window.setTimeout(() => void writeBackups(), 1000)
+}
+async function writeBackups(): Promise<void> {
+  for (const t of tabs.value) {
+    if (!t.dirty) continue
+    const st = docOf(t)
+    await backupPut({ path: t.path, text: st.doc.toString(), eol: t.eol, bom: t.bom, mtime: t.mtime }).catch(() => {})
+  }
+}
+/** Saat jendela dibuka atau dimuat ulang setelah crash: kembalikan isi tab. */
+async function restoreBackups(): Promise<void> {
+  let list
+  try { list = await backupList() } catch { return }
+  for (const b of list) {
+    await openFile(b.path)
+    const t = tabs.value.find((x) => x.path === b.path)
+    if (!t) continue
+    const st = docOf(t)
+    if (st.doc.toString() === b.text) {
+      void backupDrop(b.path).catch(() => {})
+      continue
+    }
+    const tr = st.update({ changes: { from: 0, to: st.doc.length, insert: b.text } })
+    if (t === current.value && view.value) view.value.dispatch(tr)
+    else t.state = markRaw(tr.state)
+    t.dirty = true
+    t.preview = false
+    if (b.mtime !== null && t.mtime !== b.mtime) {
+      t.banner = { kind: 'changed', text: `${t.name}: unsaved changes are back, and the file also changed on disk. Saving will ask which version to keep.` }
+      t.mtime = b.mtime
+    } else {
+      t.banner = { kind: 'restored', text: `Unsaved changes to ${t.name} are back from your last session. Nothing was written to the file yet.` }
+    }
+  }
+}
+
+// ---------- file dari Windows Explorer (S4)
+function insideRoot(p: string): boolean {
+  const r = root.value.toLowerCase()
+  return p.toLowerCase().startsWith(r.endsWith(sep.value) ? r : r + sep.value)
+}
+async function dropped(paths: string[]): Promise<void> {
+  for (const p of paths) {
+    if (!insideRoot(p)) {
+      toast(`${p.split(/[\\/]/).pop()} is outside ${rootName.value}. Kova Editor opens files from this folder only.`)
+      continue
+    }
+    await openFile(p)
   }
 }
 
@@ -444,6 +540,7 @@ const dirtyCount = computed(() => tabs.value.filter((t) => t.dirty).length)
 
 let unFocus: (() => void) | null = null
 let unClose: (() => void) | null = null
+let unDrop: (() => void) | null = null
 onMounted(async () => {
   view.value = markRaw(new EditorView({ parent: host.value!, state: EditorState.create({ doc: '', extensions: [kovaTheme, EditorState.readOnly.of(true)] }) }))
   window.addEventListener('keydown', onKey)
@@ -475,15 +572,22 @@ onMounted(async () => {
     if (r === 'save') {
       for (const t of dirty) if (!(await save(t))) return
     }
+    if (r === 'discard') for (const t of dirty) await backupDrop(t.path).catch(() => {})
     for (const t of tabs.value) t.dirty = false
     await win.destroy()
   })
+  unDrop = await getCurrentWebview().onDragDropEvent((ev) => {
+    if (ev.payload.type === 'drop') void dropped(ev.payload.paths)
+  })
+  await restoreBackups()
   focusTree()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
   unFocus?.()
   unClose?.()
+  unDrop?.()
+  window.clearTimeout(backupTimer)
   view.value?.destroy()
 })
 </script>
@@ -532,7 +636,10 @@ onBeforeUnmount(() => {
       <div ref="host" class="ke-host" :class="{ empty: !current }"></div>
       <div v-if="!current" class="ke-empty">
         <p><b>{{ rootName }}</b></p>
-        <p>Ctrl P opens a file · Ctrl Shift P runs a command</p>
+        <p>Ctrl P opens a file · Ctrl Shift P runs a command · Ctrl ` opens a terminal</p>
+      </div>
+      <div v-show="panelOpen" class="ke-panel">
+        <TerminalPanel ref="termPanel" :folder-name="rootName" @hide="hideTerminal" @error="toast" />
       </div>
     </main>
 
@@ -622,8 +729,10 @@ html.kova-editor, html.kova-editor body, html.kova-editor #app { height: 100%; m
 .ke-banner .bt { flex: 1; }
 .ke-banner.conflict, .ke-banner.changed { border-color: rgba(240, 198, 116, .45); }
 .ke-banner.deleted, .ke-banner.error { border-color: rgba(241, 154, 154, .45); }
+.ke-banner.restored { border-color: rgba(111, 195, 234, .45); }
 .ke-host { flex: 1; min-height: 0; }
 .ke-host.empty { flex: 0; height: 0; overflow: hidden; }
+.ke-panel { height: 280px; flex: none; }
 .ke-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--muted); }
 .ke-empty p { margin: 4px 0; }
 .ke-status { grid-column: 1 / 3; display: flex; align-items: center; gap: 14px; padding: 0 10px; border-top: 1px solid var(--border); background: var(--surface); font-size: 12px; color: var(--muted); white-space: nowrap; }

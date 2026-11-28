@@ -7,8 +7,10 @@
 //! Status spike: belum dirilis. Dibuka hanya bila "Kova Editor (spike)"
 //! dinyalakan di Settings › About.
 
+pub mod backup;
 pub mod fs;
 pub mod lsp;
+pub mod term;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -78,6 +80,7 @@ pub async fn editor_open(app: AppHandle, folder: String) -> Result<String, Strin
         }
     };
     disable_browser_keys(&win);
+    watch_crashes(&win, display.clone());
     Ok(label)
 }
 
@@ -110,6 +113,7 @@ pub fn on_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
             roots.0.lock().unwrap().remove(window.label());
         }
         lsp::stop_window(window.app_handle(), window.label());
+        term::stop_window(window.app_handle(), window.label());
     }
 }
 
@@ -131,6 +135,73 @@ fn disable_browser_keys<R: Runtime>(win: &tauri::WebviewWindow<R>) {
 
 #[cfg(not(windows))]
 fn disable_browser_keys<R: Runtime>(_win: &tauri::WebviewWindow<R>) {}
+
+/// Versi WebView2 yang dipakai (S7), dibaca dari environment jendela editor.
+static WEBVIEW_VERSION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditorInfo {
+    webview: String,
+    os: String,
+}
+
+#[tauri::command]
+pub fn editor_info() -> EditorInfo {
+    EditorInfo {
+        webview: WEBVIEW_VERSION.get().cloned().unwrap_or_else(|| "unknown".into()),
+        os: format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
+    }
+}
+
+/// Pemulihan saat proses WebView2 mati (S2). Renderer keluar atau macet →
+/// halaman dimuat ulang; file yang belum disimpan kembali dari cadangan
+/// (`backup`). Browser process keluar → jendela dibuka ulang untuk folder yang sama.
+#[cfg(windows)]
+fn watch_crashes(win: &tauri::WebviewWindow, folder: String) {
+    use webview2_com::Microsoft::Web::WebView2::Win32::*;
+    use webview2_com::ProcessFailedEventHandler;
+    let app = win.app_handle().clone();
+    let label = win.label().to_string();
+    let _ = win.with_webview(move |wv| unsafe {
+        let env: ICoreWebView2Environment = wv.environment();
+        let mut v = windows_core::PWSTR::null();
+        if env.BrowserVersionString(&mut v).is_ok() {
+            let _ = WEBVIEW_VERSION.set(webview2_com::take_pwstr(v));
+        }
+        let Ok(core) = wv.controller().CoreWebView2() else { return };
+        let handler = ProcessFailedEventHandler::create(Box::new(move |sender, args| {
+            let mut kind = COREWEBVIEW2_PROCESS_FAILED_KIND::default();
+            if let Some(a) = args {
+                let _ = a.ProcessFailedKind(&mut kind);
+            }
+            crate::commands::util::emit_log_line(&app, "EDITOR", &format!("WebView2 process failed ({:?}) in {}", kind.0, label));
+            if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_EXITED
+                || kind == COREWEBVIEW2_PROCESS_FAILED_KIND_RENDER_PROCESS_UNRESPONSIVE
+                || kind == COREWEBVIEW2_PROCESS_FAILED_KIND_FRAME_RENDER_PROCESS_EXITED
+            {
+                if let Some(s) = sender {
+                    let _ = s.Reload();
+                }
+            } else if kind == COREWEBVIEW2_PROCESS_FAILED_KIND_BROWSER_PROCESS_EXITED {
+                let (app, label, folder) = (app.clone(), label.clone(), folder.clone());
+                tauri::async_runtime::spawn(async move {
+                    if let Some(w) = app.get_webview_window(&label) {
+                        let _ = w.destroy();
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    let _ = editor_open(app, folder).await;
+                });
+            }
+            Ok(())
+        }));
+        let mut token = 0i64;
+        let _ = core.add_ProcessFailed(&handler, &mut token);
+    });
+}
+
+#[cfg(not(windows))]
+fn watch_crashes(_win: &tauri::WebviewWindow, _folder: String) {}
 
 #[cfg(test)]
 mod tests {

@@ -40,6 +40,8 @@ zip = { version = "4", default-features = false, features = ["deflate"] }
 sysinfo = { version = "0.37", default-features = false, features = ["system"] }
 # Kova Editor (spike): index file Quick Open mengikuti .gitignore.
 ignore = "0.4"
+# Kova Editor (spike): terminal lewat ConPTY di Windows, pty di Linux/macOS.
+portable-pty = "0.9"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [

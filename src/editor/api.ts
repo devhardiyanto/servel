@@ -22,6 +22,11 @@ export const writeFile = (path: string, text: string, eol: string, bom: boolean,
   invoke<number>('editor_write', { path, text, eol, bom, expectedMtime })
 export const statFile = (path: string) => invoke<number | null>('editor_stat', { path })
 export const showMain = () => invoke<void>('editor_show_main')
+export interface Backup { path: string; text: string; eol: '\n' | '\r\n'; bom: boolean; mtime: number | null }
+export const backupPut = (backup: Backup) => invoke<void>('editor_backup_put', { backup })
+export const backupDrop = (path: string) => invoke<void>('editor_backup_drop', { path })
+export const backupList = () => invoke<Backup[]>('editor_backup_list')
+export const editorInfo = () => invoke<{ webview: string; os: string }>('editor_info')
 export const openEditor = (folder: string) => invoke<string>('editor_open', { folder })
 
 /** Kode error dari Rust ("conflict: …" → "conflict"). */

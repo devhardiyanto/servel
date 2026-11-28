@@ -122,6 +122,7 @@ pub fn run() {
         .manage(sites::workers::Workers::default())
         .manage(editor::EditorRoots::default())
         .manage(editor::lsp::LspSessions::default())
+        .manage(editor::term::Terminals::default())
         .invoke_handler(tauri::generate_handler![
             updater::update_check,
             commands::stats::stats_set_mode,
@@ -218,6 +219,14 @@ pub fn run() {
             editor::lsp::lsp_start,
             editor::lsp::lsp_send,
             editor::lsp::lsp_stop,
+            editor::term::term_open,
+            editor::term::term_write,
+            editor::term::term_resize,
+            editor::term::term_close,
+            editor::backup::editor_backup_put,
+            editor::backup::editor_backup_drop,
+            editor::backup::editor_backup_list,
+            editor::editor_info,
         ])
         .on_window_event(|window, event| {
             if window.label() == tray_popup::LABEL {
