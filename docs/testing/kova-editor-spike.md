@@ -31,6 +31,10 @@ Sudah dibuktikan di Linux dengan server asli (test `cargo test vue_hybrid single
 | Spike 2 | Jembatan LSP di Rust: satu server per bahasa (Phpactor, vtsls, gopls), Vue dengan dua server digabung, request server dijawab Kova; diagnostics, completion, hover, F12 | S6 (dengan LSP), S9, S11 |
 | Spike 3 | Terminal PowerShell (ConPTY, Ctrl `), pulih saat WebView2 crash dengan cadangan file belum disimpan, seret file dari Explorer Windows, versi WebView2 (palet › Kova: About Kova Editor) | S2, S3, S4, S7, S10 |
 
+## Temuan dari uji Windows
+
+- **Gaya CodeMirror tidak termuat di build rilis** (nomor baris berbaris ke bawah, kode jatuh ke dasar jendela). Sebab: Tauri menambahkan nonce ke `style-src`, dan browser mengabaikan `'unsafe-inline'` bila ada nonce, sehingga tag `<style>` dari CodeMirror dan xterm.js diblokir. Perbaikan: `dangerousDisableAssetCspModification: ["style-src"]` di `tauri.conf.json`; `script-src` tetap memakai nonce/hash. Direproduksi dan diverifikasi di Chromium dengan header CSP yang sama.
+
 ## Uji (isi kolom Hasil)
 
 | No | Uji | Cara | Lulus bila | Hasil |
