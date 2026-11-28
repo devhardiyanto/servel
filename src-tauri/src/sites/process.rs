@@ -693,6 +693,13 @@ pub async fn start<R: Runtime>(app: &AppHandle<R>, site: &Project) -> Result<(),
         emit_log(app, &source, &format!("env ({}): none", env_label), None);
     }
 
+    // Dumps (Experimental): prepend milik Kova untuk PHP di Windows/Linux/macOS.
+    if wsl_target.is_none() && cplan.is_none() && !unc {
+        if let Some(extra) = crate::dumps::prepare(app, &site.id, &source, &site.path).await {
+            cmd.envs(extra);
+        }
+    }
+
     // WSL hanya meneruskan variabel yang namanya ada di WSLENV.
     if wsl_target.is_some() {
         let mut names: Vec<&str> = vec!["PORT", "SERVER_PORT", "SERVER_HOST", "BROWSER", "NO_COLOR", "FORCE_COLOR"];

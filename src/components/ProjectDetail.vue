@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { editorSpike, openEditor } from '@/editor/api'
+import vscodeLogo from '@/assets/brand/vscode.svg'
 // Panel detail project: kepala dengan status dan aksi, lalu tab Overview,
 // Environment, Logs.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -20,6 +21,8 @@ import FrameworkChip from '@/components/FrameworkChip.vue'
 import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
 import { parseDotenv, serializeDotenv, mergeRows, summarize, type SkippedLine } from '@/utils/dotenv'
 import LogTail from '@/components/LogTail.vue'
+import DumpsPanel from '@/components/DumpsPanel.vue'
+import { dumpsEnabled, loadDumpsEnabled, type DumpsStatus } from '@/composables/useDumps'
 import ProcessesPanel from '@/components/ProcessesPanel.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
@@ -192,7 +195,7 @@ function sourceLabel(t: ToolCurrent): string {
   return t.source?.split(/[\\/]/).pop() ?? ''
 }
 
-/** Spike: jendela Kova Editor untuk folder project ini. */
+/** Experimental: jendela Kova Editor untuk folder project ini. */
 async function openKovaEditor(): Promise<void> {
   try {
     await openEditor(p.value.path)
@@ -504,10 +507,35 @@ const terminalTitle = computed(
   () => `Terminal here, with ${activeName.value || 'Default'} from the Environment tab and this project's mise versions`,
 )
 
+// Dumps (Experimental): tab tampil bila saklarnya menyala dan project punya
+// symfony/var-dumper (backend yang memeriksa vendor/).
+const dumpsSupported = ref(false)
+const dumpsCount = ref(0)
+async function checkDumps(): Promise<void> {
+  await loadDumpsEnabled()
+  if (!dumpsEnabled.value || !p.value.path || p.value.wsl) {
+    dumpsSupported.value = false
+    return
+  }
+  try {
+    const s = await invoke<DumpsStatus>('dumps_status', { projectId: p.value.id, projectPath: p.value.path })
+    dumpsSupported.value = s.supported
+    dumpsCount.value = s.count
+  } catch {
+    dumpsSupported.value = false
+  }
+}
+watch([() => p.value.id, () => p.value.path, dumpsEnabled], () => void checkDumps(), { immediate: true })
+watch(dumpsSupported, (ok) => { if (!ok && tab.value === 'dumps') tab.value = 'overview' })
+function onDumpsStatus(s: DumpsStatus): void {
+  dumpsCount.value = s.count
+}
+
 const tabs = computed(() => [
   { value: 'overview', label: 'Overview' },
   { value: 'env', label: 'Environment', badge: Object.keys(p.value.env ?? {}).length || undefined },
   { value: 'logs', label: 'Logs' },
+  ...(dumpsSupported.value ? [{ value: 'dumps', label: 'Dumps', badge: dumpsCount.value || undefined }] : []),
 ])
 </script>
 
@@ -793,6 +821,10 @@ const tabs = computed(() => [
       </div>
     </div>
 
+    <div v-else-if="tab === 'dumps' && dumpsSupported" class="pd-body" v-bind="tabPanelAttrs('pd', tab)">
+      <DumpsPanel :project-id="p.id" :project-path="p.path" :running="up" @status="onDumpsStatus" />
+    </div>
+
     <div v-else class="pd-body" v-bind="tabPanelAttrs('pd', tab)">
       <LogTail v-if="last500.length" :lines="last500" max-height="calc(100vh - 300px)" />
       <p v-else class="pd-dim">No output yet in this session.</p>
@@ -839,8 +871,8 @@ const tabs = computed(() => [
     <div class="pd-open">
       <UiButton :disabled="!p.path" title="Open folder" @click="openIn('folder')"><UiIcon name="folder" /><span class="pd-open-label">Open folder</span></UiButton>
       <UiButton :disabled="!p.path" :title="terminalTitle" @click="openIn('terminal')"><UiIcon name="terminal" /><span class="pd-open-label">Terminal here</span></UiButton>
-      <UiButton :disabled="!p.path" title="Open in VS Code" @click="openIn('vscode')"><UiIcon name="code" /><span class="pd-open-label">Open in VS Code</span></UiButton>
-      <UiButton v-if="editorSpike" :disabled="!p.path" title="Open in Kova Editor (spike)" @click="openKovaEditor"><UiIcon name="code" /><span class="pd-open-label">Kova Editor</span></UiButton>
+      <UiButton :disabled="!p.path" title="Open in VS Code" @click="openIn('vscode')"><img class="pd-brand" :src="vscodeLogo" width="14" height="14" alt="" /><span class="pd-open-label">Open in VS Code</span></UiButton>
+      <UiButton v-if="editorSpike" class="pd-exp" :disabled="!p.path" title="Open in Kova Editor (Experimental)" @click="openKovaEditor"><UiIcon name="edit" /><span class="pd-open-label">Kova Editor</span></UiButton>
     </div>
   </div>
 </template>
@@ -865,6 +897,10 @@ const tabs = computed(() => [
 .pd-warn { color: var(--amber); }
 .pd-note { margin: 0; color: var(--muted); font-size: var(--text-xs); }
 .pd-lastline { font: 400 var(--text-xs) var(--font-mono); color: var(--red); overflow-wrap: anywhere; }
+.pd-brand { flex: none; display: block; }
+/* Warna terbalik menandai fitur Experimental (Kova Editor). */
+.pd-open .pd-exp { background: var(--text); border-color: var(--text); color: var(--bg); }
+.pd-open .pd-exp:hover:not(:disabled) { background: var(--muted); border-color: var(--muted); }
 .pd-open {
   position: sticky;
   bottom: -16px;

@@ -816,6 +816,53 @@ Milestone (8): tiga spike yang tidak dirilis, lalu lima milestone MVP. Selama sp
 - [ ] **AO · MVP 4: workspace dan Kova.** Grup sebagai workspace multi-root, import `.code-workspace` (Preview), tasks, path di Logs membuka baris kode, Settings › Editor.
 - [ ] **AP · MVP 5: Kova Editor lepas dari spike.** Keadaan kosong/galat, keyboard dan aksesibilitas, terminal lengkap; toggle spike dihapus.
 
+**Dijeda 28 November 2026.** Kode spike 1–3 tetap di `main` dan ikut rilis sebagai **eksperimental** (toggle di Settings › About › Diagnostics). Arsip tetap di branch `kova-editor`. Sebelum rilis eksperimental pertama:
+
+- [x] Jendela editor tidak bisa ditutup (hanya lewat Quit). Penyebab: `onCloseRequested` di JS menutup jendela dengan `destroy()`, dan izin `core:window:allow-destroy` tidak ada di `core:default`. Perbaikan: capability `editor.json` khusus jendela `editor-*`.
+- [ ] Catatan rilis menyebut "experimental" dan daftar yang belum teruji di Windows (S1, S5, S10).
+- [ ] PHP di Windows: Phpactor tidak mendukung Windows native. Pilihan: Intelephense (versi gratis) atau catatan rilis bahwa PHP belum punya language server. Diputuskan saat editor dilanjutkan.
+
+## Fitur unggulan · setelah Kova Editor dijeda
+
+Keputusan 28 November 2026: empat fitur dari riset paritas (Laravel Herd, ServBay, Laragon, Local, DDEV) masuk ke Kova. Semua memakai keunggulan yang sama: Kova yang menjalankan dev server, jadi Kova memegang env proses dan bisa menyambungkan fitur **tanpa mengubah file project**. Bukan MCP, bukan snapshot database, bukan share tunnel (tetap ditunda). Nomor versi ditentukan saat rilis; urutan di bawah adalah urutan kerja.
+
+| Fitur | Di pesaing | Milestone |
+|---|---|---|
+| A. Dumps dan Inspector | Herd Pro (berbayar) | AQ, AR, AS |
+| B. New project dari template | Laragon Quick app, Local Blueprints (WordPress saja) | AT, AU |
+| C. Mail per project | Herd Pro | AV |
+| D. Debug satu klik (Xdebug) | DDEV, Herd | AW |
+
+### A · Dumps dan Inspector
+
+Tangkap `dump()` dan `dd()` dari dev server dan proses pendamping (queue, scheduler), tampil di Kova per project dengan lompat ke file dan baris. Rancangan: Kova menyisipkan file PHP kecil lewat `auto_prepend_file` (ini milik Kova, bukan `php.ini` project) yang mengarahkan VarDumper ke pendengar lokal Kova. Data dump dibaca oleh PHP milik project itu sendiri (penerima kecil yang memakai `vendor/autoload.php` project) dan dikirim ke Kova sebagai JSON per baris, jadi Rust tidak perlu membaca format serialisasi PHP.
+
+- [ ] **AQ · Spike Dumps.** Kode selesai (`src-tauri/src/dumps/`, tab Dumps, saklar Settings › About › Diagnostics › Dumps (Experimental)); menunggu uji Windows dengan [docs/testing/dumps-spike.md](docs/testing/dumps-spike.md). Isi spike: Buktikan di Linux, Windows, dan project di WSL: (1) file prepend sampai ke worker `php artisan serve`, `composer run dev`, dan queue worker (ServeCommand Laravel menyaring env, jadi jalur `PHP_INI_SCAN_DIR` atau ini milik Kova harus diuji); (2) `$_SERVER['VAR_DUMPER_FORMAT']` dari prepend membuat Laravel tidak memasang dumper HTML/CLI-nya sendiri; (3) penerima JSON menangani `dd()` (request berhenti) dan dump besar; (4) halaman web project tidak berubah saat Kova tidak mendengar (dump kembali tampil seperti biasa). Hasil: keputusan lanjut atau rancangan ulang.
+- [ ] **AR · Dumps 1.** Tab **Dumps** di detail project: daftar dump terbaru (pohon nilai yang bisa dibuka, file:baris, URL request atau nama perintah, waktu), Open in VS Code / Kova Editor pada baris itu, Clear, Pause. Toggle per project, default menyala untuk project PHP. Batas jumlah dan ukuran dump di memori. Project non-PHP: tab tidak tampil.
+- [ ] **AS · Dumps 2: Inspector Laravel.** Per request: query (SQL, binding, durasi, tanda N+1), job, mail, log, dan exception dalam satu linimasa. Butuh spike kecil kedua: cara mendaftarkan listener event Laravel dari file prepend tanpa service provider di project.
+
+### B · New project dari template
+
+- [ ] **AT · New project 1.** Tombol **New project** di Projects: Laravel, Vue (Vite), Nuxt, Go, Python. Kova memilih runtime lewat mise, menjalankan perintah resmi (`composer create-project`, `npm create vite@latest`, `npx nuxi init`, `go mod init`, `uv init` / venv) dengan output langsung di dialog, lalu project masuk ke Kova dengan port dan perintah start terdeteksi. Gagal di tengah: folder tidak dihapus diam-diam, pesan menyebut perintah yang gagal.
+- [ ] **AU · New project 2: tersambung ke service.** Pilih database (MySQL/Postgres) dan cache dari service Kova: database dibuat, `.env` diisi (`DB_*`, `REDIS_*`, `MAIL_*`), migrasi pertama ditawarkan, lalu Start. Project di WSL ikut didukung.
+
+### C · Mail per project
+
+- [ ] **AV · Mail per project.** Mailpit tetap satu service; tiap project mengirim dengan penanda project (env `MAIL_*` diisi Kova ke proses dev server, tanpa mengubah `.env`). Tab **Mail** di detail project menampilkan inbox project itu (daftar, isi HTML aman, lampiran), dengan tautan ke Mailpit penuh.
+
+### D · Debug satu klik
+
+- [ ] **AW · Debug satu klik.** Toggle **Debug** di project PHP: Xdebug (sudah diunduh Kova per versi PHP) aktif hanya untuk dev server project itu (`XDEBUG_MODE=debug`, `XDEBUG_CONFIG`), `.vscode/launch.json` dibuat bila belum ada (dengan konfirmasi), path mapping untuk project di WSL. Node: `--inspect` untuk dev server Vite/Nuxt menyusul bila diminta.
+
+### Pemeliharaan (audit 007)
+
+Dikerjakan di sela fitur, per nomor yang disetujui pemilik.
+
+- [x] M2 · Logo resmi VS Code di tombol Open in VS Code (berkas Devicon, MIT; sumber di `src/assets/brand/README.md`); Kova Editor memakai ikon sendiri.
+- [x] M1 · Celah `npm audit` di dependency aplikasi (5 high: `@vue/server-renderer`, `nanoid`, `postcss`, `source-map-js`) ditutup lewat `vue` 3.5.46 dan `npm audit fix` tanpa `--force`; `npm audit --omit=dev` kini 0.
+- [ ] M1b · Sisa di dev dependency (1 high, 4 moderate): `vite` 5.4 (dev server, termasuk `launch-editor`) dan `vue-tsc` 2.2. Hanya dipakai saat `npm run tauri dev` dan build, tidak ikut ke aplikasi. Perbaikannya naik versi mayor (`vite` 8, `vue-tsc` 3): satu PR terpisah bersama M10 (naik Tauri).
+- [ ] M5–M12 · clippy di CI, Vitest untuk fungsi murni frontend, helper lock yang tahan poison, putaran uji perangkat, pecah file besar saat disentuh, naik Tauri terencana, `dead_code`, hook `KOVA_LSPDEBUG`.
+
 
 ### v4.0 · pemutusan kompatibilitas Servel (belum dijadwalkan)
 

@@ -306,6 +306,11 @@ pub async fn start_one<R: Runtime>(app: &AppHandle<R>, site: &Project, p: &Proje
     }
     let env = site.effective_env();
     cmd.envs(&env);
+    if wsl_target.is_none() {
+        if let Some(extra) = crate::dumps::prepare(app, &site.id, &site.name, &site.path).await {
+            cmd.envs(extra);
+        }
+    }
     if wsl_target.is_some() {
         let mut names: Vec<&str> = vec!["PORT", "BROWSER", "NO_COLOR", "FORCE_COLOR"];
         names.extend(env.keys().map(String::as_str));

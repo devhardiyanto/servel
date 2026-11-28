@@ -76,6 +76,7 @@ pub fn begin(app: &AppHandle) {
         set_tooltip(&app, if stop_services { "Kova · stopping services…" } else { "Kova · quitting…" });
 
         crate::sites::process::stop_all(&app).await;
+        crate::dumps::stop_all(&app).await;
         if stop_services {
             stop_services_now(&app, "quit").await;
         }
