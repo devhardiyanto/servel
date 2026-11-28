@@ -25,7 +25,7 @@ const adding = ref(false)
 /** Project yang harus dipilih saat layar Projects dibuka (dari Logs). */
 const selectRequest = ref<string | null>(null)
 /** Tab panel detail; diubah dari luar ("Environment" di banner). */
-const detailTab = ref<'overview' | 'env' | 'logs'>('overview')
+const detailTab = ref<'overview' | 'env' | 'logs' | 'dumps'>('overview')
 /**
  * Kelompok baru yang namanya sedang diketik (belum tersimpan). `projectId`
  * = project yang ikut dipindah setelah nama disimpan ("Move to group › New group…").

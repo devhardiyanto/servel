@@ -15,6 +15,7 @@ mod shutdown;
 mod wsl;
 mod port_owner;
 mod notify;
+mod dumps;
 mod editor;
 
 use std::collections::HashMap;
@@ -120,10 +121,17 @@ pub fn run() {
         .manage(Mutex::new(ConfigState::default()))
         .manage(sites::process::SiteProcs::default())
         .manage(sites::workers::Workers::default())
+        .manage(dumps::Dumps::default())
         .manage(editor::EditorRoots::default())
         .manage(editor::lsp::LspSessions::default())
         .manage(editor::term::Terminals::default())
         .invoke_handler(tauri::generate_handler![
+            dumps::dumps_enabled,
+            dumps::dumps_set_enabled,
+            dumps::dumps_status,
+            dumps::dumps_list,
+            dumps::dumps_clear,
+            dumps::dumps_open_source,
             updater::update_check,
             commands::stats::stats_set_mode,
             updater::update_install,

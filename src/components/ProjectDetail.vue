@@ -21,6 +21,8 @@ import FrameworkChip from '@/components/FrameworkChip.vue'
 import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
 import { parseDotenv, serializeDotenv, mergeRows, summarize, type SkippedLine } from '@/utils/dotenv'
 import LogTail from '@/components/LogTail.vue'
+import DumpsPanel from '@/components/DumpsPanel.vue'
+import { dumpsEnabled, loadDumpsEnabled, type DumpsStatus } from '@/composables/useDumps'
 import ProcessesPanel from '@/components/ProcessesPanel.vue'
 import { useConfig } from '@/composables/useConfig'
 import { useLogs } from '@/composables/useLogs'
@@ -505,10 +507,35 @@ const terminalTitle = computed(
   () => `Terminal here, with ${activeName.value || 'Default'} from the Environment tab and this project's mise versions`,
 )
 
+// Dumps (Experimental): tab tampil bila saklarnya menyala dan project punya
+// symfony/var-dumper (backend yang memeriksa vendor/).
+const dumpsSupported = ref(false)
+const dumpsCount = ref(0)
+async function checkDumps(): Promise<void> {
+  await loadDumpsEnabled()
+  if (!dumpsEnabled.value || !p.value.path || p.value.wsl) {
+    dumpsSupported.value = false
+    return
+  }
+  try {
+    const s = await invoke<DumpsStatus>('dumps_status', { projectId: p.value.id, projectPath: p.value.path })
+    dumpsSupported.value = s.supported
+    dumpsCount.value = s.count
+  } catch {
+    dumpsSupported.value = false
+  }
+}
+watch([() => p.value.id, () => p.value.path, dumpsEnabled], () => void checkDumps(), { immediate: true })
+watch(dumpsSupported, (ok) => { if (!ok && tab.value === 'dumps') tab.value = 'overview' })
+function onDumpsStatus(s: DumpsStatus): void {
+  dumpsCount.value = s.count
+}
+
 const tabs = computed(() => [
   { value: 'overview', label: 'Overview' },
   { value: 'env', label: 'Environment', badge: Object.keys(p.value.env ?? {}).length || undefined },
   { value: 'logs', label: 'Logs' },
+  ...(dumpsSupported.value ? [{ value: 'dumps', label: 'Dumps', badge: dumpsCount.value || undefined }] : []),
 ])
 </script>
 
@@ -792,6 +819,10 @@ const tabs = computed(() => [
       <div v-if="activeName" class="pd-env-actions">
         <UiButton variant="quiet" class="pd-env-del" @click="deleteEnvOpen = true"><UiIcon name="trash" />Delete {{ activeName }}</UiButton>
       </div>
+    </div>
+
+    <div v-else-if="tab === 'dumps' && dumpsSupported" class="pd-body" v-bind="tabPanelAttrs('pd', tab)">
+      <DumpsPanel :project-id="p.id" :project-path="p.path" :running="up" @status="onDumpsStatus" />
     </div>
 
     <div v-else class="pd-body" v-bind="tabPanelAttrs('pd', tab)">

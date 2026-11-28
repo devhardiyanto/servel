@@ -26,6 +26,7 @@ import UiStatusNotice from '@/components/ui/UiStatusNotice.vue'
 import { ENGINE_LABEL, type EnginePreference, type PrereqStatus } from '@/types/prereq'
 import { useEngineStatus } from '@/composables/useEngineStatus'
 import { editorSpike, setEditorSpike } from '@/editor/api'
+import { dumpsEnabled, loadDumpsEnabled, setDumpsEnabled } from '@/composables/useDumps'
 
 type SettingsNav = 'general' | 'services' | 'sites' | 'php_node' | 'about'
 
@@ -131,6 +132,15 @@ const version = ref<string>('')
 // Diagnostics di About.
 const dataDir = ref('')
 const toast = useToast()
+void loadDumpsEnabled()
+async function toggleDumps(): Promise<void> {
+  try {
+    await setDumpsEnabled(!dumpsEnabled.value)
+    if (dumpsEnabled.value) toast.show('Dumps is on. Restart running PHP projects to catch their dumps.')
+  } catch (e) {
+    toast.show(`Could not change Dumps: ${String(e)}`)
+  }
+}
 const { engineLabel: diagEngine, engineStatus: diagEngineStatus } = useEngineStatus()
 async function loadDataDir(): Promise<void> {
   try {
@@ -879,6 +889,9 @@ onMounted(async () => {
             </SettingRow>
             <SettingRow label="Kova Editor (Experimental)" desc="Adds Kova Editor to each project. Not finished, and parts are untested on Windows.">
               <UiToggle label="Kova Editor (Experimental)" :on="editorSpike" @click="setEditorSpike(!editorSpike)" />
+            </SettingRow>
+            <SettingRow label="Dumps (Experimental)" desc="Catches dump() and dd() from PHP projects Kova runs and shows them in a Dumps tab. Restart running projects after turning it on.">
+              <UiToggle label="Dumps (Experimental)" :on="dumpsEnabled" @click="toggleDumps" />
             </SettingRow>
           </div>
         </template>
