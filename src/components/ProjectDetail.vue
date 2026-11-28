@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { editorSpike, openEditor } from '@/editor/api'
+import vscodeLogo from '@/assets/brand/vscode.svg'
 // Panel detail project: kepala dengan status dan aksi, lalu tab Overview,
 // Environment, Logs.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
@@ -839,8 +840,8 @@ const tabs = computed(() => [
     <div class="pd-open">
       <UiButton :disabled="!p.path" title="Open folder" @click="openIn('folder')"><UiIcon name="folder" /><span class="pd-open-label">Open folder</span></UiButton>
       <UiButton :disabled="!p.path" :title="terminalTitle" @click="openIn('terminal')"><UiIcon name="terminal" /><span class="pd-open-label">Terminal here</span></UiButton>
-      <UiButton :disabled="!p.path" title="Open in VS Code" @click="openIn('vscode')"><UiIcon name="code" /><span class="pd-open-label">Open in VS Code</span></UiButton>
-      <UiButton v-if="editorSpike" :disabled="!p.path" title="Open in Kova Editor (spike)" @click="openKovaEditor"><UiIcon name="code" /><span class="pd-open-label">Kova Editor</span></UiButton>
+      <UiButton :disabled="!p.path" title="Open in VS Code" @click="openIn('vscode')"><img class="pd-brand" :src="vscodeLogo" width="14" height="14" alt="" /><span class="pd-open-label">Open in VS Code</span></UiButton>
+      <UiButton v-if="editorSpike" :disabled="!p.path" title="Open in Kova Editor (spike)" @click="openKovaEditor"><UiIcon name="edit" /><span class="pd-open-label">Kova Editor</span></UiButton>
     </div>
   </div>
 </template>
@@ -865,6 +866,7 @@ const tabs = computed(() => [
 .pd-warn { color: var(--amber); }
 .pd-note { margin: 0; color: var(--muted); font-size: var(--text-xs); }
 .pd-lastline { font: 400 var(--text-xs) var(--font-mono); color: var(--red); overflow-wrap: anywhere; }
+.pd-brand { flex: none; display: block; }
 .pd-open {
   position: sticky;
   bottom: -16px;
