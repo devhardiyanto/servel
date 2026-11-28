@@ -859,7 +859,8 @@ Tangkap `dump()` dan `dd()` dari dev server dan proses pendamping (queue, schedu
 Dikerjakan di sela fitur, per nomor yang disetujui pemilik.
 
 - [x] M2 · Logo resmi VS Code di tombol Open in VS Code (berkas Devicon, MIT; sumber di `src/assets/brand/README.md`); Kova Editor memakai ikon sendiri.
-- [ ] M1 · Celah `npm audit` (5 high) lewat naik `vue` 3.5.x dan `npm audit fix` tanpa `--force`.
+- [x] M1 · Celah `npm audit` di dependency aplikasi (5 high: `@vue/server-renderer`, `nanoid`, `postcss`, `source-map-js`) ditutup lewat `vue` 3.5.46 dan `npm audit fix` tanpa `--force`; `npm audit --omit=dev` kini 0.
+- [ ] M1b · Sisa di dev dependency (1 high, 4 moderate): `vite` 5.4 (dev server, termasuk `launch-editor`) dan `vue-tsc` 2.2. Hanya dipakai saat `npm run tauri dev` dan build, tidak ikut ke aplikasi. Perbaikannya naik versi mayor (`vite` 8, `vue-tsc` 3): satu PR terpisah bersama M10 (naik Tauri).
 - [ ] M5–M12 · clippy di CI, Vitest untuk fungsi murni frontend, helper lock yang tahan poison, putaran uji perangkat, pecah file besar saat disentuh, naik Tauri terencana, `dead_code`, hook `KOVA_LSPDEBUG`.
 
 
